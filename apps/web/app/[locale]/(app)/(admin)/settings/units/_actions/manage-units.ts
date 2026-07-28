@@ -20,16 +20,21 @@ import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-lo
 import {
   CreateUnitInput,
   UpdateUnitInput,
-  type CreateUnitInputType,
   type CreateUnitResult,
-  type UnitCategory,
-  type UnitsActionError,
   type UnitsActionFailure,
   type UnitsActionSubcode,
   type UpdateUnitInputType,
 } from './units-validation';
 
-export type { CreateUnitInputType, CreateUnitResult, UnitsActionError, UnitsActionSubcode };
+// PF-R03-04 root cause — DO NOT reintroduce this line.
+// A LOCAL type re-export (`export type { X }` with no `from` clause) inside a
+// `'use server'` module still emits a runtime binding in the SSR chunk, even though
+// the names are erased types. Evaluating the module therefore threw
+// `ReferenceError: CreateUnitInputType is not defined` BEFORE any action body ran —
+// which is why every Units mutation returned HTTP 500 while reads worked, and why
+// the fully try/catch-wrapped actions could not surface it.
+// Nothing imported these names from here; both client components take them straight
+// from './units-validation'. Re-export with an explicit `from` if they are ever needed.
 
 const MANAGE_PERMISSION = 'settings.units.manage';
 const APP_VERSION = 'settings-units-v1';

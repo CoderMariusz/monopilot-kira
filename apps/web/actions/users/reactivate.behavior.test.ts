@@ -35,7 +35,7 @@ type FakeClient = {
   calls: QueryCall[];
   auditRows: Record<string, unknown>[];
   outboxPayloads: Record<string, unknown>[];
-  targetUser: { id: string; is_active: boolean; invite_token: string | null } | null;
+  targetUser: { id: string; is_active: boolean; invite_token: string | null; invite_token_expires_at: string | Date | null } | null;
   seatLimit: number | null;
   activeUserCount: number;
   query: (sql: string, params?: unknown[]) => Promise<{ rows: unknown[]; rowCount: number }>;
@@ -47,7 +47,7 @@ function makeClient(): FakeClient {
     calls,
     auditRows: [],
     outboxPayloads: [],
-    targetUser: { id: TARGET_USER_ID, is_active: false, invite_token: null },
+    targetUser: { id: TARGET_USER_ID, is_active: false, invite_token: null, invite_token_expires_at: null },
     seatLimit: 50,
     activeUserCount: 10,
     async query(sql: string, params: unknown[] = []) {
@@ -74,7 +74,10 @@ function makeClient(): FakeClient {
       }
 
       if (norm.startsWith('update public.users') && norm.includes('is_active = true')) {
-        return client.targetUser && !client.targetUser.is_active && !client.targetUser.invite_token
+        return client.targetUser &&
+          !client.targetUser.is_active &&
+          !client.targetUser.invite_token &&
+          !client.targetUser.invite_token_expires_at
           ? { rows: [{ id: TARGET_USER_ID }], rowCount: 1 }
           : { rows: [], rowCount: 0 };
       }
@@ -192,7 +195,7 @@ describe('reactivateUser behavior', () => {
   it('blocks reactivation of a never-activated invite (invite_token IS NOT NULL)', async () => {
     // An invited user who never clicked the link has invite_token set.
     // Reactivating them would bypass the invite-accept lifecycle — guard must fire.
-    currentClient.targetUser = { id: TARGET_USER_ID, is_active: false, invite_token: 'pending-invite-token' };
+    currentClient.targetUser = { id: TARGET_USER_ID, is_active: false, invite_token: 'pending-invite-token', invite_token_expires_at: null };
     const { reactivateUser } = await loadReactivate();
 
     const result = await reactivateUser({ targetUserId: TARGET_USER_ID });
@@ -200,6 +203,23 @@ describe('reactivateUser behavior', () => {
     expect(result).toEqual({ ok: false, error: 'not_disabled' });
     expect(_getUserById).not.toHaveBeenCalled();
     expect(currentClient.auditRows).toHaveLength(0);
+  });
+
+  it('rejects revoked invitations that cleared the token but kept expiry metadata', async () => {
+    currentClient.targetUser = {
+      id: TARGET_USER_ID,
+      is_active: false,
+      invite_token: null,
+      invite_token_expires_at: '2026-05-20T10:00:00.000Z',
+    };
+    const { reactivateUser } = await loadReactivate();
+
+    const result = await reactivateUser({ targetUserId: TARGET_USER_ID });
+
+    expect(result).toEqual({ ok: false, error: 'not_disabled' });
+    expect(_getUserById).not.toHaveBeenCalled();
+    expect(currentClient.auditRows).toHaveLength(0);
+    expect(currentClient.outboxPayloads).toHaveLength(0);
   });
 
   it('surfaces auth_unban_failed when the Supabase ban lift fails after reactivation', async () => {
@@ -214,7 +234,7 @@ describe('reactivateUser behavior', () => {
   });
 
   it('repairs an already-active user who is still auth-banned (pre-B3a state)', async () => {
-    currentClient.targetUser = { id: TARGET_USER_ID, is_active: true, invite_token: null };
+    currentClient.targetUser = { id: TARGET_USER_ID, is_active: true, invite_token: null, invite_token_expires_at: null };
     const { reactivateUser } = await loadReactivate();
 
     const result = await reactivateUser({ targetUserId: TARGET_USER_ID });

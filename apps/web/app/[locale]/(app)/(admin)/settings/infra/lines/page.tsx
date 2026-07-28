@@ -62,6 +62,9 @@ const DEFAULT_LABELS: LinesLabels = {
   updateLineSuccess: 'Production line updated.',
   createLineFailed: 'Production line could not be created.',
   duplicateCodeError: 'That line code is already in use at this site. Choose a different one.',
+  inactiveLocationError: 'That location is deactivated and cannot be set as a default output location. Pick an active location, or reactivate it first.',
+  invalidLocationError: 'The selected location does not belong to the selected warehouse.',
+  locationRequiresWarehouseError: 'Pick a warehouse for this line first — a default output location can only be validated against one.',
   insufficientPermission: 'Insufficient permissions: settings.infra.update is required to activate production lines.',
   selectLine: 'Select {name}',
   loading: 'Loading production lines…',
@@ -115,6 +118,7 @@ type LocationOptionRow = {
   name: string;
   warehouse_id: string | null;
   path: string | null;
+  is_active: boolean;
 };
 
 type PermissionDeniedActivationResult = {
@@ -173,10 +177,17 @@ function toProductionLines(rows: LineRow[]): ProductionLine[] {
   }));
 }
 
+/**
+ * Inactive locations are returned WITH the flag rather than filtered out of the
+ * query: a line whose default location was deactivated must still render (and
+ * keep) that value, and the client reconciles its stored value against this
+ * list — dropping the row would null the selection and wipe the setting on the
+ * next save. The picker offers only active options; `upsertLine` re-validates.
+ */
 async function loadLocationOptions(context: OrgContextLike): Promise<LocationOption[]> {
   try {
     const { rows } = await context.client.query<LocationOptionRow>(
-      `select id::text, code, name, warehouse_id::text, path
+      `select id::text, code, name, warehouse_id::text, path, is_active
          from public.locations
         where org_id = app.current_org_id()
         order by lower(code), lower(name), id`,
@@ -187,6 +198,7 @@ async function loadLocationOptions(context: OrgContextLike): Promise<LocationOpt
       name: row.name,
       warehouseId: row.warehouse_id,
       path: row.path,
+      isActive: row.is_active !== false,
     }));
   } catch (error) {
     console.error('[settings/infra/lines] locations_load_failed', error instanceof Error ? { message: error.message } : { message: String(error) });

@@ -61,7 +61,12 @@ export type LineRow = {
 
 export type SiteSettingsMutationResult =
   | { ok: true; data: SiteRow }
-  | { ok: false; error: 'invalid_input' | 'forbidden' | 'not_found' | 'persistence_failed' };
+  | {
+      ok: false;
+      error: 'invalid_input' | 'forbidden' | 'not_found' | 'persistence_failed';
+      message?: string;
+      field?: string;
+    };
 
 /** Friendly error union shared by the create/update mutations. */
 export type SiteMutationError =
@@ -70,18 +75,26 @@ export type SiteMutationError =
   | 'not_found'
   | 'duplicate_code'
   | 'warehouse_site_mismatch'
+  | 'invalid_location_reference'
+  | 'inactive_location_reference'
+  | 'location_requires_warehouse'
   | 'persistence_failed';
 
 export type SiteLifecycleError = SiteMutationError | 'has_dependents';
 
+/**
+ * `message` (already human-readable) and `field` (the offending input) are set
+ * whenever the server can name *why* a payload was rejected, so the modal can
+ * show an actionable reason next to the right input instead of guessing.
+ */
 export type CreateSiteResult =
   | { ok: true; data: { id: string; code: string; name: string } }
-  | { ok: false; error: SiteMutationError };
+  | { ok: false; error: SiteMutationError; message?: string; field?: string };
 
 export type RenameSiteInput = { id: string; name: string };
 export type RenameSiteResult =
   | { ok: true; data: { id: string; name: string } }
-  | { ok: false; error: SiteMutationError };
+  | { ok: false; error: SiteMutationError; message?: string; field?: string };
 
 export type DeleteSiteInput = { id: string };
 export type DeleteSiteResult =
@@ -90,7 +103,7 @@ export type DeleteSiteResult =
 
 export type LineMutationResult =
   | { ok: true; data: { id: string; code: string; name: string; status: string } }
-  | { ok: false; error: SiteMutationError };
+  | { ok: false; error: SiteMutationError; message?: string; field?: string };
 
 /** Input for {@link createSite}. */
 export type CreateSiteInput = {
@@ -138,7 +151,7 @@ export type SitesSettingsData = {
 
 export type LineFormSiteOption = { id: string; code: string; name: string; isDefault?: boolean };
 export type LineFormWarehouseOption = { id: string; name: string; siteId: string | null };
-export type LineFormLocationOption = { id: string; code: string; name: string; warehouseId: string | null; path: string | null };
+export type LineFormLocationOption = { id: string; code: string; name: string; warehouseId: string | null; path: string | null; isActive: boolean };
 
 export type LineFormOptions = {
   sites: LineFormSiteOption[];
@@ -187,10 +200,18 @@ type LineDbRow = {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const UuidInput = z.string().trim().regex(UUID_RE);
 
+/**
+ * `Intl.supportedValuesOf('timeZone')` does NOT contain 'UTC' — it lists primary
+ * IANA zone identifiers only. 'UTC' is this app's own default time zone (the
+ * `coalesce($3, 'UTC')` in the createSite INSERT, and the fallback in
+ * `toSiteRow`), so the previous version rejected the value the form ships with,
+ * using a message that offers UTC as a valid example. It also rejected every
+ * IANA alias (Etc/GMT+5, US/Pacific). The DateTimeFormat constructor is the
+ * authority that actually matters — it accepts UTC, aliases and offset zones,
+ * and throws RangeError on anything Postgres would not accept either.
+ */
 function isValidIanaTimezone(tz: string): boolean {
   try {
-    const supported = Intl.supportedValuesOf?.('timeZone');
-    if (supported) return supported.includes(tz);
     new Intl.DateTimeFormat('en-US', { timeZone: tz });
     return true;
   } catch {
@@ -203,7 +224,11 @@ const IanaTimezoneInput = z
   .trim()
   .min(1)
   .max(64)
-  .refine(isValidIanaTimezone, { message: 'invalid IANA timezone' });
+  .refine(isValidIanaTimezone, {
+    // Surfaced verbatim to the user by describeRejection() — keep it actionable:
+    // the field is free text, so "invalid" alone gives no way to fix it.
+    message: 'not a valid IANA time zone name (for example Europe/Warsaw or UTC)',
+  });
 
 const SiteSettingsInput = z
   .object({
@@ -220,7 +245,18 @@ const SiteSettingsInput = z
 const LINE_STATUSES = ['draft', 'active', 'inactive'] as const;
 const CREATE_LINE_STATUSES = LINE_STATUSES;
 
-const CodeInput = z.string().trim().min(1).max(64);
+/**
+ * Codes are uppercased on write. Without this a site could be created as `waw`
+ * while `WAW` already existed: `sites_org_code_uq` is a plain unique index on
+ * (org_id, site_code), so it compares case-SENSITIVELY and both rows were
+ * accepted. Line codes were already uppercased downstream by `upsertLine`, so
+ * this only tightens the site path (and makes the echoed code match the stored
+ * one).
+ * ponytail: normalises new writes only — rows already stored in mixed case stay
+ * as they are. Backfilling would need collision handling, and the durable fix is
+ * a unique index on (org_id, upper(site_code)); do that if legacy dupes appear.
+ */
+const CodeInput = z.string().trim().min(1).max(64).transform((value) => value.toUpperCase());
 const NameInput = z.string().trim().min(1).max(200);
 
 const CreateSiteSchema = z
@@ -266,11 +302,52 @@ const UpdateLineSchema = z
  * the site-scoped production line unique indexes from migration 268).
  */
 const PG_UNIQUE_VIOLATION = '23505';
+/** Thrown inside the transaction so `withOrgContext` ROLLBACKs, then mapped back to `not_found`. */
+const SITE_NOT_FOUND_SENTINEL = 'site_not_found';
+const DUPLICATE_SITE_CODE_MESSAGE = 'That site code is already in use in this organisation. Choose a different one.';
 const PG_FOREIGN_KEY_VIOLATION = '23503';
 const ACTIVE_WORK_ORDER_STATUSES = ['DRAFT', 'RELEASED', 'IN_PROGRESS', 'ON_HOLD'] as const;
 
 function isUniqueViolation(error: unknown): boolean {
   return typeof error === 'object' && error !== null && (error as { code?: string }).code === PG_UNIQUE_VIOLATION;
+}
+
+/** Human labels for the schema paths a user can actually see in a modal. */
+const FIELD_LABELS: Record<string, string> = {
+  site_code: 'Site code',
+  name: 'Name',
+  timezone: 'Timezone',
+  country: 'Country',
+  legal_entity: 'Legal entity',
+  operating_hours: 'Operating hours',
+  haccp_valid_until: 'HACCP valid until',
+  code: 'Code',
+  status: 'Status',
+};
+
+/**
+ * Turn a schema rejection into an actionable message plus the field that caused
+ * it. A bare `'invalid_input'` used to be rendered as "This field is required."
+ * — so a fully-filled form rejected on, say, a free-text timezone read as a
+ * missing field and left the user with nothing to act on. A genuinely absent
+ * value still says "is required"; anything else reports the real reason.
+ */
+function describeRejection(error: z.ZodError): { message: string; field?: string } {
+  const issue = error.issues[0];
+  if (!issue) return { message: 'Some of the submitted values were rejected. Check the form and try again.' };
+
+  // `updateSiteSettings` validates its payload nested under `settings`; the user
+  // sees plain field names, so drop that wrapper before labelling.
+  const segments = issue.path.map(String);
+  const path = (segments[0] === 'settings' ? segments.slice(1) : segments).join('.');
+  const missing = issue.code === 'invalid_type' && (issue as { received?: string }).received === 'undefined';
+  const reason = missing ? 'this field is required' : issue.message;
+  const label = FIELD_LABELS[path];
+
+  return {
+    field: path || undefined,
+    message: label ? `${label}: ${reason}.` : `${reason}.`,
+  };
 }
 
 function isForeignKeyViolation(error: unknown): boolean {
@@ -470,8 +547,14 @@ export async function getLineFormOptions(): Promise<LineFormOptions> {
           where org_id = app.current_org_id()
           order by lower(name), id`,
       ),
-      context.client.query<{ id: string; code: string; name: string; warehouse_id: string | null; path: string | null }>(
-        `select id::text, code, name, warehouse_id::text, path
+      // Inactive locations are returned WITH the flag rather than filtered out:
+      // the picker needs them to keep rendering a line's existing (since
+      // deactivated) location, and the client-side "does the stored value still
+      // exist in the option list?" reconciliation would otherwise null it out
+      // and silently wipe the setting on the next save. The picker offers only
+      // active ones; `upsertLine` re-validates server-side.
+      context.client.query<{ id: string; code: string; name: string; warehouse_id: string | null; path: string | null; is_active: boolean }>(
+        `select id::text, code, name, warehouse_id::text, path, is_active
            from public.locations
           where org_id = app.current_org_id()
           order by lower(code), lower(name), id`,
@@ -487,6 +570,7 @@ export async function getLineFormOptions(): Promise<LineFormOptions> {
         name: row.name,
         warehouseId: row.warehouse_id,
         path: row.path,
+        isActive: row.is_active !== false,
       })),
     };
   });
@@ -498,7 +582,7 @@ export async function updateSiteSettings(
   settings: unknown,
 ): Promise<SiteSettingsMutationResult> {
   const parsed = z.object({ orgId: UuidInput, siteId: UuidInput, settings: SiteSettingsInput }).safeParse({ orgId, siteId, settings });
-  if (!parsed.success) return { ok: false, error: 'invalid_input' };
+  if (!parsed.success) return { ok: false, error: 'invalid_input', ...describeRejection(parsed.error) };
 
   try {
     return await withOrgContext<SiteSettingsMutationResult>(async (ctx): Promise<SiteSettingsMutationResult> => {
@@ -579,11 +663,21 @@ export async function updateSiteSettings(
       );
 
       const row = rows[0];
-      if (!row) return { ok: false, error: 'not_found' };
+      // MUST throw, not return — same partial-commit trap that was closed in
+      // `createSite`. `withOrgContext` COMMITs on a normal return and ROLLBACKs
+      // only on a throw, and the `primary` clear-down above has already run: a
+      // plain `return` here commits an org whose default site was switched off
+      // with nothing promoted in its place. The catch maps the sentinel back to
+      // the `not_found` this action has always returned, so the contract is
+      // unchanged — only the transaction outcome is.
+      if (!row) throw new Error(SITE_NOT_FOUND_SENTINEL);
       revalidateSitesRoute();
       return { ok: true, data: toSiteRow(row) };
     });
   } catch (error) {
+    if (error instanceof Error && error.message === SITE_NOT_FOUND_SENTINEL) {
+      return { ok: false, error: 'not_found' };
+    }
     console.error('[settings/sites] update_failed', error instanceof Error ? { message: error.message } : { message: String(error) });
     return { ok: false, error: 'persistence_failed' };
   }
@@ -602,9 +696,51 @@ export async function updateSiteSettings(
  * No outbox event is emitted: `outbox_events_event_type_check` has no allowed
  * `settings.site.*` event_type, and inventing one would violate the CHECK.
  */
+/**
+ * Case-insensitive "is this site code already taken" probe, used ONLY on the
+ * schema-rejection path of {@link createSite} so a duplicate is not masked by an
+ * unrelated field error. `upper()` on both sides deliberately: `sites_org_code_uq`
+ * is case-SENSITIVE, so a legacy lowercase `waw` would otherwise not be reported
+ * as clashing with the uppercased `WAW` the user is about to submit.
+ * Reads only sites in the caller's own org (RLS + `app.current_org_id()`), which
+ * every member can already list through `readSitesSettingsData`. Never throws —
+ * a failure here must not swallow the real rejection.
+ */
+async function siteCodeTaken(code: string): Promise<boolean> {
+  try {
+    return await withOrgContext<boolean>(async (ctx): Promise<boolean> => {
+      const { rows } = await (ctx as OrgContextLike).client.query<{ taken: boolean }>(
+        `select true as taken
+           from public.sites
+          where org_id = app.current_org_id()
+            and upper(site_code) = upper($1)
+          limit 1`,
+        [code],
+      );
+      return rows.length > 0;
+    });
+  } catch {
+    return false;
+  }
+}
+
 export async function createSite(input: unknown): Promise<CreateSiteResult> {
   const parsed = CreateSiteSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: 'invalid_input' };
+  if (!parsed.success) {
+    // A rejection ANYWHERE in the payload must not hide an already-taken site
+    // code. The duplicate is only detected by the 23505 on INSERT, which never
+    // runs when validation fails — so a form carrying both a duplicate code and,
+    // say, the default 'UTC' time zone (rejected outright until the
+    // `isValidIanaTimezone` fix above) reported only the time zone, and the user
+    // fixed that just to be told on the next attempt that the code was taken.
+    // The duplicate is the blocking reason, so it is reported first and the
+    // schema rejection is reported only when the code itself is free.
+    const code = CodeInput.safeParse((input as { site_code?: unknown } | null | undefined)?.site_code);
+    if (code.success && (await siteCodeTaken(code.data))) {
+      return { ok: false, error: 'duplicate_code', field: 'site_code', message: DUPLICATE_SITE_CODE_MESSAGE };
+    }
+    return { ok: false, error: 'invalid_input', ...describeRejection(parsed.error) };
+  }
   const data = parsed.data;
 
   try {
@@ -640,12 +776,20 @@ export async function createSite(input: unknown): Promise<CreateSiteResult> {
       );
 
       const row = rows[0];
-      if (!row) return { ok: false, error: 'persistence_failed' };
+      // MUST throw, not return: `withOrgContext` COMMITs on a normal return and
+      // only ROLLBACKs on a throw. Returning here would commit the is_default
+      // clear-down above while no new site was inserted, leaving the org with no
+      // default site at all. (The 23505 duplicate path already threw, so it was
+      // always rolled back — this closes the one remaining non-throwing exit
+      // after the first write.)
+      if (!row) throw new Error('site_insert_returned_no_row');
       revalidateSitesRoute();
       return { ok: true, data: { id: row.id, code: row.site_code, name: row.name } };
     });
   } catch (error) {
-    if (isUniqueViolation(error)) return { ok: false, error: 'duplicate_code' };
+    if (isUniqueViolation(error)) {
+      return { ok: false, error: 'duplicate_code', field: 'site_code', message: DUPLICATE_SITE_CODE_MESSAGE };
+    }
     console.error('[settings/sites] create_site_failed', error instanceof Error ? { message: error.message } : { message: String(error) });
     return { ok: false, error: 'persistence_failed' };
   }
@@ -653,7 +797,7 @@ export async function createSite(input: unknown): Promise<CreateSiteResult> {
 
 export async function renameSite(input: unknown): Promise<RenameSiteResult> {
   const parsed = RenameSiteSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: 'invalid_input' };
+  if (!parsed.success) return { ok: false, error: 'invalid_input', ...describeRejection(parsed.error) };
 
   try {
     return await withOrgContext<RenameSiteResult>(async (ctx): Promise<RenameSiteResult> => {
@@ -804,13 +948,51 @@ export async function deleteSite(input: unknown): Promise<DeleteSiteResult> {
   }
 }
 
+/**
+ * Translate an {@link upsertLine} failure into this screen's error shape. The
+ * location failures carry their own message because no modal label describes
+ * them — without one the modal would fall back to a generic "something went
+ * wrong" for a precisely-known cause.
+ */
+function toLineMutationFailure(error: string): LineMutationResult {
+  if (error === 'forbidden') return { ok: false, error: 'forbidden' };
+  if (error === 'warehouse_site_mismatch') return { ok: false, error: 'warehouse_site_mismatch' };
+  if (error === 'duplicate_code') return { ok: false, error: 'duplicate_code' };
+  if (error === 'invalid_input') return { ok: false, error: 'invalid_input' };
+  if (error === 'inactive_location_reference') {
+    return {
+      ok: false,
+      error: 'inactive_location_reference',
+      field: 'defaultOutputLocationId',
+      message: 'That location is deactivated and cannot be set as a default output location. Pick an active location, or reactivate it first.',
+    };
+  }
+  if (error === 'invalid_location_reference') {
+    return {
+      ok: false,
+      error: 'invalid_location_reference',
+      field: 'defaultOutputLocationId',
+      message: 'The selected location does not belong to the selected warehouse.',
+    };
+  }
+  if (error === 'location_requires_warehouse') {
+    return {
+      ok: false,
+      error: 'location_requires_warehouse',
+      field: 'warehouseId',
+      message: 'Pick a warehouse for this line first — a default output location can only be validated against one.',
+    };
+  }
+  return { ok: false, error: 'persistence_failed' };
+}
+
 /** Create a production line through the canonical settings/infra upsertLine action. */
 export async function createLine(input: unknown): Promise<LineMutationResult> {
   const parsed = CreateLineSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: 'invalid_input' };
+  if (!parsed.success) return { ok: false, error: 'invalid_input', ...describeRejection(parsed.error) };
   const data = parsed.data;
   const siteId = data.siteId ?? data.site_id ?? null;
-  if (!siteId) return { ok: false, error: 'invalid_input' };
+  if (!siteId) return { ok: false, error: 'invalid_input', field: 'site_id', message: 'Site: this field is required.' };
 
   const result = await upsertLine({
     siteId,
@@ -826,23 +1008,27 @@ export async function createLine(input: unknown): Promise<LineMutationResult> {
     return { ok: true, data: { id: result.data.id, code: data.code, name: data.name, status: result.data.status } };
   }
 
-  if (result.error === 'forbidden') return { ok: false, error: 'forbidden' };
-  if (result.error === 'warehouse_site_mismatch') return { ok: false, error: 'warehouse_site_mismatch' };
-  if (result.error === 'invalid_input') return { ok: false, error: 'invalid_input' };
-  return { ok: false, error: 'persistence_failed' };
+  return toLineMutationFailure(result.error);
 }
 
 type ExistingLineForUpsert = {
   warehouse_id: string | null;
-  default_output_location_id: string | null;
+  default_location_id: string | null;
 };
 
+/**
+ * Reads the line's current default location so {@link updateLine} (which has no
+ * location field of its own) can carry it through the upsert unchanged. MUST
+ * read the same column `upsertLine` writes — `default_location_id`. While this
+ * read pointed at the dead `default_output_location_id`, every rename/status
+ * edit from the sites screen silently wiped the line's default location.
+ */
 async function getExistingLineForUpsert(lineId: string): Promise<ExistingLineForUpsert | null> {
   return withOrgContext<ExistingLineForUpsert | null>(async (ctx): Promise<ExistingLineForUpsert | null> => {
     const context = ctx as OrgContextLike;
     const { rows } = await context.client.query<ExistingLineForUpsert>(
       `select pl.warehouse_id::text,
-              pl.default_output_location_id::text
+              pl.default_location_id::text
          from public.production_lines pl
         where pl.org_id = app.current_org_id()
           and pl.id = $1::uuid
@@ -856,7 +1042,7 @@ async function getExistingLineForUpsert(lineId: string): Promise<ExistingLineFor
 /** Update a production line through the canonical settings/infra upsertLine action. */
 export async function updateLine(input: unknown): Promise<LineMutationResult> {
   const parsed = UpdateLineSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: 'invalid_input' };
+  if (!parsed.success) return { ok: false, error: 'invalid_input', ...describeRejection(parsed.error) };
   const data = parsed.data;
 
   const existing = await getExistingLineForUpsert(data.id);
@@ -866,7 +1052,7 @@ export async function updateLine(input: unknown): Promise<LineMutationResult> {
     id: data.id,
     siteId: data.site_id,
     warehouseId: existing.warehouse_id,
-    defaultOutputLocationId: existing.default_output_location_id,
+    defaultOutputLocationId: existing.default_location_id,
     code: data.code,
     name: data.name,
     status: data.status ?? 'draft',
@@ -877,7 +1063,5 @@ export async function updateLine(input: unknown): Promise<LineMutationResult> {
     return { ok: true, data: { id: result.data.id, code: data.code, name: data.name, status: result.data.status } };
   }
 
-  if (result.error === 'forbidden') return { ok: false, error: 'forbidden' };
-  if (result.error === 'invalid_input') return { ok: false, error: 'invalid_input' };
-  return { ok: false, error: 'persistence_failed' };
+  return toLineMutationFailure(result.error);
 }

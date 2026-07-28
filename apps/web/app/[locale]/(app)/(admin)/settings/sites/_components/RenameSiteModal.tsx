@@ -27,7 +27,7 @@ export function RenameSiteModal({ site, labels, action, onClose, onSuccess }: {
     try {
       const result = await action({ id: site.id, name: nextName });
       if (result.ok) onSuccess(result.data.name);
-      else setError(mapError(result.error, labels));
+      else setError(mapError(result.error, labels, result.message));
     } catch {
       setError(labels.errorGeneric);
     } finally {

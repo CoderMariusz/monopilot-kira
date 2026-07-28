@@ -216,19 +216,23 @@ export function DocksView({ initialDocks, warehouses, canManage, upsertDockDoorA
 
       {deleteTarget ? (
         <Modal open onOpenChange={(open) => (!open && !deletePending ? setDeleteTarget(null) : undefined)} size="md" modalId="settings_dock_door_delete">
-          <div className="flex flex-col gap-4 p-1">
-            <h2 className="text-lg font-semibold text-slate-950">{labels.deleteDockTitle}</h2>
-            <p className="text-sm text-slate-700">{labels.deleteDockBody.replace('{name}', deleteTarget.name ?? deleteTarget.code)}</p>
-            {deleteError ? <p role="alert" className="text-sm text-red-700">{deleteError}</p> : null}
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="dry-run" disabled={deletePending} onClick={() => setDeleteTarget(null)}>
-                {labels.modal.cancel}
-              </Button>
-              <Button type="button" disabled={deletePending} onClick={() => void submitDelete()}>
-                {deletePending ? labels.deleteDockPending : labels.confirmDelete}
-              </Button>
+          {/* Modal.Header owns the Radix Dialog.Title — a bare <h2> here left the
+              dialog without one and tripped the accessibility contract warning. */}
+          <Modal.Header title={labels.deleteDockTitle} />
+          <Modal.Body>
+            <div className="flex flex-col gap-4 p-1">
+              <p className="text-sm text-slate-700">{labels.deleteDockBody.replace('{name}', deleteTarget.name ?? deleteTarget.code)}</p>
+              {deleteError ? <p role="alert" className="text-sm text-red-700">{deleteError}</p> : null}
             </div>
-          </div>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button type="button" variant="dry-run" disabled={deletePending} onClick={() => setDeleteTarget(null)}>
+              {labels.modal.cancel}
+            </Button>
+            <Button type="button" disabled={deletePending} onClick={() => void submitDelete()}>
+              {deletePending ? labels.deleteDockPending : labels.confirmDelete}
+            </Button>
+          </Modal.Footer>
         </Modal>
       ) : null}
     </div>

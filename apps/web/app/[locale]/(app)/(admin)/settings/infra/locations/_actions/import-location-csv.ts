@@ -132,16 +132,23 @@ async function importOneRow(input: CsvLocationInput): Promise<CsvLocationResult>
       }
 
       const parentPath = input.parentPath?.trim() || null;
-      let parent: { id: string; level: number } | null = null;
+      let parent: { id: string; level: number; is_active?: boolean } | null = null;
 
       if (parentPath) {
-        const { rows } = await queryClient.query<{ id: string; level: number }>(
-          `select id, level
+        // LOCK PROTOCOL (see rep-FIX-LOC.md) — identical to actions/infra/location.ts: the parent
+        // row is locked ANCESTOR-FIRST, before its is_active is used to decide the child's flag
+        // and before the child row is written. Without the lock a concurrent deactivation of the
+        // parent and this import both act on the same stale snapshot and land an active child
+        // under an inactive parent. Each imported row runs in its own withOrgContext transaction,
+        // so the lock is held exactly for that row's insert.
+        const { rows } = await queryClient.query<{ id: string; level: number; is_active: boolean }>(
+          `select id, level, is_active
              from public.locations
             where org_id = app.current_org_id()
               and warehouse_id = $1::uuid
               and path = $2
-            limit 1`,
+            limit 1
+              for update`,
           [input.warehouseId, parentPath],
         );
         parent = rows[0] ?? null;
@@ -165,15 +172,31 @@ async function importOneRow(input: CsvLocationInput): Promise<CsvLocationResult>
       }
 
       const code = locationCodeFromPath(input.path);
+      // R02-03 — CSV import is the second write path into public.locations and the column
+      // default (is_active = true, mig 303) used to make every imported child active even under
+      // an inactive parent. New rows inherit the parent's flag ($7 = the locked parent's
+      // is_active, true at the root).
+      //
+      // [L-3] The ON CONFLICT branch does not just refresh metadata — it can MOVE a row to a
+      // different parent, and leaving is_active alone there let an active row be re-parented
+      // under an inactive one. So on a parent CHANGE the stored flag is clamped with the new
+      // parent's, exactly as on insert. It is a conjunction, never an assignment: a row switched
+      // off by hand stays off, which is the "re-import must not resurrect" intent the branch was
+      // written for. With the parent unchanged the flag is not touched at all.
       await queryClient.query(
-        `insert into public.locations (org_id, warehouse_id, parent_id, code, name, location_type, level, path)
-         values (app.current_org_id(), $1::uuid, $2::uuid, $3, $4, 'storage', $5::integer, $6)
+        `insert into public.locations (org_id, warehouse_id, parent_id, code, name, location_type, level, path, is_active)
+         values (app.current_org_id(), $1::uuid, $2::uuid, $3, $4, 'storage', $5::integer, $6, $7::boolean)
          on conflict (org_id, warehouse_id, code) do update set
            parent_id = excluded.parent_id,
            name = excluded.name,
            level = excluded.level,
-           path = excluded.path`,
-        [input.warehouseId, parent?.id ?? null, code, input.name, input.level, input.path],
+           path = excluded.path,
+           is_active = case
+             when locations.parent_id is distinct from excluded.parent_id
+               then locations.is_active and excluded.is_active
+             else locations.is_active
+           end`,
+        [input.warehouseId, parent?.id ?? null, code, input.name, input.level, input.path, parent ? parent.is_active !== false : true],
       );
 
       await queryClient.query(

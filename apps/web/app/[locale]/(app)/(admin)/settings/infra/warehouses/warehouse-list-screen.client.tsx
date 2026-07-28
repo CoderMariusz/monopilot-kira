@@ -25,7 +25,14 @@ export type Warehouse = {
   id: string;
   code: string;
   name: string;
+  /** Display label — `line1, city, country` joined by the list query. */
   address?: string | null;
+  /**
+   * The raw `address->>'line1'` value. The edit dialog binds to THIS, not to
+   * `address`: writing the joined label back into `line1` would duplicate
+   * `city`/`country` on every save.
+   */
+  addressLine1?: string | null;
   site?: string | null;
   zones?: number | string | null;
   bins?: number | string | null;
@@ -76,8 +83,10 @@ export type ReactivateWarehouseResult =
   | { ok: true; data?: { warehouseId?: string; isActive?: boolean } }
   | { ok: false; error?: string };
 
-export type RenameWarehouseInput = { warehouseId: string; name: string };
-export type RenameWarehouseResult = { ok: true; data: { id: string; name: string } } | { ok: false; error?: string };
+export type UpdateWarehouseInput = { warehouseId: string; name: string; address?: string | null };
+export type UpdateWarehouseResult =
+  | { ok: true; data: { id: string; name: string; address: string | null } }
+  | { ok: false; error?: string };
 export type DeleteWarehouseInput = { warehouseId: string };
 export type DeleteWarehouseResult = { ok: true; data: { warehouseId: string } } | { ok: false; error?: string; message?: string };
 
@@ -166,10 +175,11 @@ export type WarehouseLabels = {
   storageRulesSaved: string;
   storageRulesSaveFailed: string;
   editStorageRules: string;
-  renameWarehouse: string;
-  renameWarehouseTitle: string;
-  renameWarehousePending: string;
-  renameWarehouseFailed: string;
+  editWarehouse: string;
+  editWarehouseTitle: string;
+  editWarehousePending: string;
+  editWarehouseFailed: string;
+  warehouseSiteLocked: string;
   reactivateWarehouse: string;
   reactivateWarehousePending: string;
   reactivateSuccess: string;
@@ -192,7 +202,7 @@ export default function WarehouseListScreen({
   createWarehouse,
   deactivateWarehouse,
   reactivateWarehouse,
-  renameWarehouse,
+  updateWarehouse,
   deleteWarehouse,
   updateStorageRules,
   state,
@@ -205,7 +215,7 @@ export default function WarehouseListScreen({
   createWarehouse: (input: CreateWarehouseInput) => Promise<CreateWarehouseResult>;
   deactivateWarehouse: (input: DeactivateWarehouseInput) => Promise<DeactivateWarehouseResult>;
   reactivateWarehouse: (input: ReactivateWarehouseInput) => Promise<ReactivateWarehouseResult>;
-  renameWarehouse: (input: RenameWarehouseInput) => Promise<RenameWarehouseResult>;
+  updateWarehouse: (input: UpdateWarehouseInput) => Promise<UpdateWarehouseResult>;
   deleteWarehouse: (input: DeleteWarehouseInput) => Promise<DeleteWarehouseResult>;
   updateStorageRules?: (input: UpdateStorageRulesInput) => Promise<UpdateStorageRulesResult>;
   state: WarehousePageState;
@@ -224,9 +234,10 @@ export default function WarehouseListScreen({
   const [newWarehouse, setNewWarehouse] = React.useState({ code: '', name: '', site_id: '', address: '' });
   const [error, setError] = React.useState<string | null>(state === 'error' ? labels.error : null);
   const [warning, setWarning] = React.useState<WarningState | null>(null);
-  const [renameTarget, setRenameTarget] = React.useState<Warehouse | null>(null);
-  const [renameName, setRenameName] = React.useState('');
-  const [renamePending, setRenamePending] = React.useState(false);
+  const [editTarget, setEditTarget] = React.useState<Warehouse | null>(null);
+  const [editName, setEditName] = React.useState('');
+  const [editAddress, setEditAddress] = React.useState('');
+  const [editPending, setEditPending] = React.useState(false);
   const [deleteTarget, setDeleteTarget] = React.useState<Warehouse | null>(null);
   const [deletePending, setDeletePending] = React.useState(false);
   const [deleteError, setDeleteError] = React.useState<string | null>(null);
@@ -403,7 +414,14 @@ export default function WarehouseListScreen({
         return;
       }
       const selectedSite = sites.find((site) => site.id === siteId) ?? null;
-      const createdRow = { ...result.data, site: result.data.site ?? selectedSite?.name ?? null };
+      const createdRow = {
+        ...result.data,
+        site: result.data.site ?? selectedSite?.name ?? null,
+        // createWarehouse returns `address` (display label) but not `addressLine1`.
+        // Seed line1 from the create payload so the edit dialog does not open empty
+        // and the first name-only save does not clear the stored address.
+        addressLine1: input.address,
+      };
       setRows((current) => [createdRow, ...current.filter((row) => row.id !== result.data.id)]);
       setNewWarehouse({ code: '', name: '', site_id: '', address: '' });
       setCreateStatus(labels.createWarehouseSuccess);
@@ -481,20 +499,39 @@ export default function WarehouseListScreen({
     }
   }
 
-  async function submitRename(event: React.FormEvent<HTMLFormElement>) {
+  async function submitEdit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!renameTarget || !renameName.trim() || renamePending) return;
-    setRenamePending(true);
+    if (!editTarget || !editName.trim() || editPending) return;
+    setEditPending(true);
     try {
-      const result = await renameWarehouse({ warehouseId: renameTarget.id, name: renameName.trim() });
+      const result = await updateWarehouse({
+        warehouseId: editTarget.id,
+        name: editName.trim(),
+        address: editAddress.trim() || null,
+      });
       if (!result.ok) {
-        setError(labels.renameWarehouseFailed);
+        setError(labels.editWarehouseFailed);
         return;
       }
-      setRows((current) => current.map((row) => row.id === result.data.id ? { ...row, name: result.data.name } : row));
-      setRenameTarget(null);
+      const nextLine1 = editAddress.trim() || null;
+      setRows((current) =>
+        current.map((row) =>
+          row.id === result.data.id
+            ? {
+                ...row,
+                name: result.data.name,
+                address: result.data.address,
+                addressLine1: nextLine1,
+                // The Site column falls back to the address when the warehouse
+                // has no site row; keep that fallback in sync after an edit.
+                site: row.site && row.site !== row.address ? row.site : result.data.address,
+              }
+            : row,
+        ),
+      );
+      setEditTarget(null);
     } finally {
-      setRenamePending(false);
+      setEditPending(false);
     }
   }
 
@@ -641,6 +678,7 @@ export default function WarehouseListScreen({
                   <TableHead scope="col">{labels.columnCode}</TableHead>
                   <TableHead scope="col">{labels.columnName}</TableHead>
                   <TableHead scope="col">{labels.columnSite}</TableHead>
+                  <TableHead scope="col">{labels.columnAddress}</TableHead>
                   <TableHead scope="col" className="text-right">{labels.columnZones}</TableHead>
                   <TableHead scope="col" className="text-right">{labels.columnBins}</TableHead>
                   <TableHead scope="col" className="text-right">{labels.columnCapacity}</TableHead>
@@ -681,6 +719,9 @@ export default function WarehouseListScreen({
                         </a>
                       </TableCell>
                       <TableCell className="text-slate-600">{site}</TableCell>
+                      <TableCell data-testid={`warehouse-address-${warehouse.code}`} className="text-slate-600">
+                        {warehouse.address || labels.unavailable}
+                      </TableCell>
                       <TableCell className="text-right font-mono text-xs tabular-nums text-slate-700">{displayCount(warehouse.zones)}</TableCell>
                       <TableCell className="text-right font-mono text-xs tabular-nums text-slate-700">{displayCount(warehouse.bins)}</TableCell>
                       <TableCell className="text-right font-mono text-xs tabular-nums text-slate-700">{capacity}</TableCell>
@@ -722,8 +763,18 @@ export default function WarehouseListScreen({
                         >
                           {labels.storageRules}
                         </Button>
-                        <Button type="button" variant="dry-run" disabled={!canUpdateInfra} aria-label={`${labels.renameWarehouse} — ${warehouse.name}`} onClick={() => { setRenameTarget(warehouse); setRenameName(warehouse.name); }}>
-                          {labels.renameWarehouse}
+                        <Button
+                          type="button"
+                          variant="dry-run"
+                          disabled={!canUpdateInfra}
+                          aria-label={`${labels.editWarehouse} — ${warehouse.name}`}
+                          onClick={() => {
+                            setEditTarget(warehouse);
+                            setEditName(warehouse.name);
+                            setEditAddress(warehouse.addressLine1 ?? '');
+                          }}
+                        >
+                          {labels.editWarehouse}
                         </Button>
                         {warehouse.deactivated_at ? (
                           <Button
@@ -912,18 +963,33 @@ export default function WarehouseListScreen({
         </div>
       ) : null}
 
-      {renameTarget ? (
-        <div role="dialog" aria-modal="true" aria-labelledby="rename-warehouse-title" className="fixed inset-0 z-50 grid place-items-center bg-slate-950/30 p-4">
+      {editTarget ? (
+        <div role="dialog" aria-modal="true" aria-labelledby="edit-warehouse-title" className="fixed inset-0 z-50 grid place-items-center bg-slate-950/30 p-4">
           <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-lg">
-            <h2 id="rename-warehouse-title" className="text-lg font-semibold text-slate-950">{labels.renameWarehouseTitle}</h2>
-            <form onSubmit={(event) => void submitRename(event)} className="mt-4 space-y-4">
-              <label className="grid gap-1 text-sm font-medium" htmlFor="rename-warehouse-name">
+            <h2 id="edit-warehouse-title" className="text-lg font-semibold text-slate-950">{labels.editWarehouseTitle}</h2>
+            <form onSubmit={(event) => void submitEdit(event)} className="mt-4 space-y-4">
+              <label className="grid gap-1 text-sm font-medium" htmlFor="edit-warehouse-name">
                 {labels.warehouseName}
-                <Input id="rename-warehouse-name" value={renameName} onChange={(event) => setRenameName(event.currentTarget.value)} disabled={renamePending} required />
+                <Input id="edit-warehouse-name" value={editName} onChange={(event) => setEditName(event.currentTarget.value)} disabled={editPending} required />
               </label>
+              <label className="grid gap-1 text-sm font-medium" htmlFor="edit-warehouse-address">
+                {labels.warehouseAddress}
+                <Input id="edit-warehouse-address" value={editAddress} onChange={(event) => setEditAddress(event.currentTarget.value)} disabled={editPending} />
+              </label>
+              {/* Site is intentionally read-only: locations, production lines and
+                  stock hang off this warehouse, so re-pointing it at another site
+                  would orphan them. Say that out loud rather than just omitting
+                  the field. */}
+              <div className="grid gap-1 text-sm font-medium">
+                <span>{labels.warehouseSite}</span>
+                <p data-testid="edit-warehouse-site-readonly" className="text-sm font-normal text-slate-950">
+                  {editTarget.site || labels.unavailable}
+                </p>
+                <p className="text-xs font-normal text-slate-500">{labels.warehouseSiteLocked}</p>
+              </div>
               <div className="flex justify-end gap-2">
-                <Button type="button" variant="dry-run" onClick={() => setRenameTarget(null)} disabled={renamePending}>{labels.cancel}</Button>
-                <Button type="submit" disabled={renamePending || !renameName.trim()}>{renamePending ? labels.renameWarehousePending : labels.renameWarehouse}</Button>
+                <Button type="button" variant="dry-run" onClick={() => setEditTarget(null)} disabled={editPending}>{labels.cancel}</Button>
+                <Button type="submit" disabled={editPending || !editName.trim()}>{editPending ? labels.editWarehousePending : labels.editWarehouse}</Button>
               </div>
             </form>
           </div>

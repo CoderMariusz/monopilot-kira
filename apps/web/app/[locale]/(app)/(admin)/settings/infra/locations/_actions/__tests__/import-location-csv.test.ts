@@ -19,7 +19,7 @@ type QueryCall = { sql: string; params: readonly unknown[] };
 type FakeClient = {
   calls: QueryCall[];
   outboxEntries: Array<{ event_type: string; payload: unknown }>;
-  locations: Map<string, { id: string; level: number; path: string; warehouse_id: string; parent_id: string | null }>;
+  locations: Map<string, { id: string; level: number; path: string; warehouse_id: string; parent_id: string | null; is_active?: boolean }>;
   query: (sql: string, params?: readonly unknown[]) => Promise<{ rows: unknown[]; rowCount: number }>;
 };
 
@@ -225,6 +225,45 @@ describe('SET-014 locations CSV import action', () => {
     const redirectUrl = caught?.message.replace('REDIRECT:', '') ?? '';
     expect(redirectUrl).toContain('importStatus=success');
     expect(fakeClient.locations.has('zone_a.bin_01')).toBe(true);
+  });
+
+  // ── R02-03 · the import is the second writer of public.locations ─────────────────────────────
+
+  it('imports a child of an INACTIVE parent as inactive, and takes the parent row lock first', async () => {
+    const { importLocationCsvAction } = await loadAction();
+
+    fakeClient.locations.set('zone_a', { id: 'zone-id-1', warehouse_id: WAREHOUSE_ID, parent_id: null, level: 1, path: 'zone_a', is_active: false });
+
+    const csv = ['name,warehouseId,parentPath,level,path', `Bin 01,${WAREHOUSE_ID},zone_a,2,zone_a.bin_01`].join('\n');
+    await importLocationCsvAction(importFormData(csv)).catch(() => {});
+
+    // The is_active bind ($7) that reached Postgres inherits the parent's flag.
+    const insert = fakeClient.calls.find((c) => c.sql.toLowerCase().startsWith('insert into public.locations'));
+    expect(insert?.params[6]).toBe(false);
+
+    // [L-2] The parent's flag was read under a row lock, so a concurrent deactivation of that
+    // parent cannot land between this read and the insert.
+    const parentLookup = fakeClient.calls.find((c) => c.sql.includes('path = $2'));
+    expect(parentLookup?.sql.toLowerCase()).toContain('for update');
+  });
+
+  it('clamps is_active on re-import only when the row is MOVED, and never resurrects a disabled row [L-3]', async () => {
+    const { importLocationCsvAction } = await loadAction();
+
+    fakeClient.locations.set('zone_a', { id: 'zone-id-1', warehouse_id: WAREHOUSE_ID, parent_id: null, level: 1, path: 'zone_a', is_active: false });
+
+    const csv = ['name,warehouseId,parentPath,level,path', `Bin 01,${WAREHOUSE_ID},zone_a,2,zone_a.bin_01`].join('\n');
+    await importLocationCsvAction(importFormData(csv)).catch(() => {});
+
+    const insert = fakeClient.calls.find((c) => c.sql.toLowerCase().startsWith('insert into public.locations'));
+    const sql = (insert?.sql ?? '').replace(/\s+/g, ' ').toLowerCase();
+
+    // The ON CONFLICT branch can re-parent a row, so it must clamp the stored flag with the new
+    // parent's — but only on an actual parent CHANGE…
+    expect(sql).toContain('is_active = case when locations.parent_id is distinct from excluded.parent_id then locations.is_active and excluded.is_active else locations.is_active end');
+    // …and always as a conjunction: a plain assignment would switch a hand-disabled location back
+    // on the next time someone re-imports the same file.
+    expect(sql).not.toMatch(/is_active\s*=\s*excluded\.is_active/);
   });
 
   it('reports per-row errors when parent path not found and redirects with error status', async () => {

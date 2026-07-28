@@ -8,6 +8,8 @@ import Input from '@monopilot/ui/Input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, type SelectOption } from '@monopilot/ui/Select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
+import { buildOutputLocationOptions, type LocationOption } from './output-location-options';
+
 export type LineStatus = 'draft' | 'active' | 'inactive';
 
 export type SiteOption = {
@@ -23,13 +25,7 @@ export type WarehouseOption = {
   siteId?: string | null;
 };
 
-export type LocationOption = {
-  id: string;
-  code: string;
-  name: string;
-  warehouseId: string | null;
-  path: string | null;
-};
+export type { LocationOption } from './output-location-options';
 
 export type ProductionLine = {
   id: string;
@@ -108,6 +104,9 @@ export type LinesLabels = {
   updateLineSuccess: string;
   createLineFailed: string;
   duplicateCodeError: string;
+  inactiveLocationError: string;
+  invalidLocationError: string;
+  locationRequiresWarehouseError: string;
   insufficientPermission: string;
   selectLine: string;
   loading: string;
@@ -156,6 +155,9 @@ export const DEFAULT_LINES_LABELS: LinesLabels = {
   updateLineSuccess: 'Production line updated.',
   createLineFailed: 'Production line could not be created.',
   duplicateCodeError: 'That line code is already in use at this site. Choose a different one.',
+  inactiveLocationError: 'That location is deactivated and cannot be set as a default output location. Pick an active location, or reactivate it first.',
+  invalidLocationError: 'The selected location does not belong to the selected warehouse.',
+  locationRequiresWarehouseError: 'Pick a warehouse for this line first — a default output location can only be validated against one.',
   insufficientPermission: 'Insufficient permissions: settings.infra.update is required to activate production lines.',
   selectLine: 'Select {name}',
   loading: 'Loading production lines…',
@@ -167,6 +169,17 @@ export const DEFAULT_LINES_LABELS: LinesLabels = {
 };
 
 export const LINE_LABEL_KEYS = Object.keys(DEFAULT_LINES_LABELS) as Array<keyof LinesLabels>;
+
+/** Save-failure reason → user-facing text. Location failures get their own
+ *  message so "pick an active location" is not flattened into "could not be
+ *  created", which tells the user nothing about what to change. */
+export function lineErrorMessage(error: string | undefined, labels: LinesLabels): string {
+  if (error === 'duplicate_code') return labels.duplicateCodeError;
+  if (error === 'inactive_location_reference') return labels.inactiveLocationError;
+  if (error === 'invalid_location_reference') return labels.invalidLocationError;
+  if (error === 'location_requires_warehouse') return labels.locationRequiresWarehouseError;
+  return labels.createLineFailed;
+}
 
 export type LinesScreenProps = {
   labels?: LinesLabels;
@@ -268,18 +281,10 @@ export function LineCreateFields({
     ];
   }, [labels.unavailable, value.siteId, warehouses]);
 
-  const outputLocationOptions = React.useMemo<SelectOption[]>(() => {
-    const matchingLocations = value.warehouseId
-      ? locations.filter((location) => location.warehouseId === value.warehouseId)
-      : [];
-    return [
-      { value: 'none', label: '— none —' },
-      ...matchingLocations.map((location) => ({
-        value: location.id,
-        label: `${location.code} - ${location.name}${location.path ? ` (${location.path})` : ''}`,
-      })),
-    ];
-  }, [locations, value.warehouseId]);
+  const outputLocationOptions = React.useMemo<SelectOption[]>(
+    () => buildOutputLocationOptions(locations, value.warehouseId ?? null, value.defaultOutputLocationId ?? null),
+    [locations, value.defaultOutputLocationId, value.warehouseId],
+  );
 
   return (
     <>
@@ -544,7 +549,7 @@ export default function LinesScreen({ labels: labelsProp, lines, sites = [], war
       }
       const result = await createLine(createInput);
       if (!result.ok) {
-        setCreateError(result.error === 'duplicate_code' ? labels.duplicateCodeError : labels.createLineFailed);
+        setCreateError(lineErrorMessage(result.error, labels));
         return;
       }
       const selectedWarehouse = newLine.warehouseId ? warehouses.find((warehouse) => warehouse.id === newLine.warehouseId) ?? null : null;
@@ -585,6 +590,10 @@ export default function LinesScreen({ labels: labelsProp, lines, sites = [], war
   const openCreateDialog = () => {
     if (!canUpdateInfra) return;
     setDialogMode('create');
+    // The error now renders INSIDE the dialog, so a stale one from a previous
+    // failed save would greet the user on a fresh open (openEditDialog already
+    // cleared it for the same reason).
+    setCreateError(null);
     setNewLine((current) => ({
       ...current,
       id: undefined,
@@ -688,7 +697,13 @@ export default function LinesScreen({ labels: labelsProp, lines, sites = [], war
       </section>
 
       {createStatus ? <section role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 shadow-sm">{createStatus}</section> : null}
-      {createError ? <section role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 shadow-sm">{createError}</section> : null}
+      {/* Only while the dialog is CLOSED. A failed save leaves the dialog open, and
+          the dialog is a `fixed inset-0 z-50` overlay — the banner rendered here
+          was painted underneath it, so the user saw the form simply not submit
+          with no reason given anywhere on screen. The same text is rendered
+          inside the dialog below; the two are mutually exclusive so exactly one
+          alert with this message exists at any time. */}
+      {createError && !createDialogOpen ? <section role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 shadow-sm">{createError}</section> : null}
 
       {state === 'ready' ? (
         <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm" aria-label={labels.title}>
@@ -774,6 +789,11 @@ export default function LinesScreen({ labels: labelsProp, lines, sites = [], war
                 editing={dialogMode === 'edit'}
                 onChange={setNewLine}
               />
+              {createError ? (
+                <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-800">
+                  {createError}
+                </p>
+              ) : null}
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="dry-run" onClick={() => { setCreateDialogOpen(false); setDialogMode('create'); }} disabled={createPending}>{labels.cancel}</Button>
                 <Button

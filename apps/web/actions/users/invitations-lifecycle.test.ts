@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -8,6 +8,8 @@ const ACTOR_USER_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 const PENDING_ID = '11111111-1111-4111-8111-111111111111';
 const EXPIRED_ID = '22222222-2222-4222-8222-222222222222';
 const ACCEPTED_ID = '33333333-3333-4333-8333-333333333333';
+const REVOKED_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaab';
+const ACTIVE_NATIVE_ID = '99999999-9999-4999-8999-999999999999';
 const OTHER_ORG_ID_INVITE = '44444444-4444-4444-8444-444444444444';
 const NOW = '2026-05-19T12:00:00.000Z';
 
@@ -66,13 +68,16 @@ type InvitationRow = {
   email: string;
   role_name: string;
   role_id: string;
-  invited_by: string;
-  invited_by_name: string;
+  invited_by: string | null;
+  invited_by_actor_type: string | null;
+  invited_by_name: string | null;
   invited_at: string;
   invite_token: string | null;
   invite_token_expires_at: string | null;
   is_active: boolean;
   accepted_at: string | null;
+  /** Test-only: simulates audit_log presence when both token columns are cleared. */
+  has_invite_audit?: boolean;
 };
 
 type QueryCall = { sql: string; params: unknown[] };
@@ -100,6 +105,7 @@ const baseInvitations: InvitationRow[] = [
     role_name: 'QA Manager',
     role_id: '55555555-5555-4555-8555-555555555555',
     invited_by: ACTOR_USER_ID,
+    invited_by_actor_type: 'user',
     invited_by_name: 'Owner User',
     invited_at: '2026-05-18T10:00:00.000Z',
     invite_token: 'pending-token',
@@ -114,6 +120,7 @@ const baseInvitations: InvitationRow[] = [
     role_name: 'Planner',
     role_id: '66666666-6666-4666-8666-666666666666',
     invited_by: ACTOR_USER_ID,
+    invited_by_actor_type: 'user',
     invited_by_name: 'Owner User',
     invited_at: '2026-05-01T10:00:00.000Z',
     invite_token: 'expired-token',
@@ -128,12 +135,44 @@ const baseInvitations: InvitationRow[] = [
     role_name: 'Warehouse Lead',
     role_id: '77777777-7777-4777-8777-777777777777',
     invited_by: ACTOR_USER_ID,
+    invited_by_actor_type: 'user',
     invited_by_name: 'Owner User',
     invited_at: '2026-05-10T10:00:00.000Z',
     invite_token: null,
-    invite_token_expires_at: '2026-05-17T10:00:00.000Z',
+    invite_token_expires_at: null,
     is_active: true,
     accepted_at: '2026-05-10T12:00:00.000Z',
+    has_invite_audit: true,
+  },
+  {
+    id: REVOKED_ID,
+    org_id: ORG_ID,
+    email: 'revoked@example.com',
+    role_name: 'Viewer',
+    role_id: '99999999-9999-4999-8999-999999999998',
+    invited_by: ACTOR_USER_ID,
+    invited_by_actor_type: 'user',
+    invited_by_name: 'Owner User',
+    invited_at: '2026-05-12T10:00:00.000Z',
+    invite_token: null,
+    invite_token_expires_at: '2026-05-20T10:00:00.000Z',
+    is_active: false,
+    accepted_at: null,
+  },
+  {
+    id: ACTIVE_NATIVE_ID,
+    org_id: ORG_ID,
+    email: 'native@example.com',
+    role_name: 'Operator',
+    role_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaac',
+    invited_by: null,
+    invited_by_actor_type: null,
+    invited_by_name: null,
+    invited_at: '2026-04-01T10:00:00.000Z',
+    invite_token: null,
+    invite_token_expires_at: null,
+    is_active: true,
+    accepted_at: null,
   },
   {
     id: OTHER_ORG_ID_INVITE,
@@ -142,6 +181,7 @@ const baseInvitations: InvitationRow[] = [
     role_name: 'Leaked Role',
     role_id: '88888888-8888-4888-8888-888888888888',
     invited_by: ACTOR_USER_ID,
+    invited_by_actor_type: 'user',
     invited_by_name: 'Other Owner',
     invited_at: '2026-05-18T10:00:00.000Z',
     invite_token: 'other-org-token',
@@ -163,7 +203,17 @@ function hasOrgScope(sql: string, params: unknown[]): boolean {
 }
 
 function getInvitationId(params: unknown[]): string | undefined {
-  return [PENDING_ID, EXPIRED_ID, ACCEPTED_ID, OTHER_ORG_ID_INVITE].find((id) => params.includes(id));
+  return [PENDING_ID, EXPIRED_ID, ACCEPTED_ID, REVOKED_ID, ACTIVE_NATIVE_ID, OTHER_ORG_ID_INVITE].find((id) =>
+    params.includes(id),
+  );
+}
+
+function isInvitationLifecycleRow(row: InvitationRow): boolean {
+  return (
+    row.invite_token !== null ||
+    row.invite_token_expires_at !== null ||
+    row.has_invite_audit === true
+  );
 }
 
 function eventType(params: unknown[]): string | undefined {
@@ -195,18 +245,23 @@ function makeClient(opts: FakeClientOptions): FakeClient {
         return { rows: [{ active_user_count: opts.activeUsers }], rowCount: 1 };
       }
 
-      if (norm.startsWith('select') && norm.includes('from public.users') && getInvitationId(params)) {
+      if ((norm.startsWith('select') || norm.startsWith('with')) && norm.includes('from public.users') && getInvitationId(params)) {
         _operations.push('query:invitation_lookup');
         const id = getInvitationId(params);
         const rows = opts.invitations.filter((row) => row.id === id && (!hasOrgScope(sql, params) || row.org_id === ORG_ID));
         return { rows, rowCount: rows.length };
       }
 
-      if (norm.startsWith('select') && norm.includes('from public.users')) {
+      if ((norm.startsWith('select') || norm.startsWith('with')) && norm.includes('from public.users')) {
         _operations.push('query:list_invitations');
         const rows = hasOrgScope(sql, params)
-          ? opts.invitations.filter((row) => row.org_id === ORG_ID)
-          : opts.invitations;
+          ? opts.invitations.filter((row) => row.org_id === ORG_ID && isInvitationLifecycleRow(row))
+          : opts.invitations.filter(isInvitationLifecycleRow);
+        rows.sort((a, b) => {
+          const byCreated = Date.parse(b.invited_at) - Date.parse(a.invited_at);
+          if (byCreated !== 0) return byCreated;
+          return a.email.localeCompare(b.email);
+        });
         return { rows, rowCount: rows.length };
       }
 
@@ -298,35 +353,64 @@ afterEach(() => {
 });
 
 describe('Pending Invitations lifecycle Server Actions (TASK-000208/T-124 RED)', () => {
-  it('lists only current-org invitations with SET-010 fields and derived actions for Pending, Expired, and Accepted states', async () => {
+  it('lists only invitation-lifecycle rows for the current org with attribution, revoked visibility, and no native active users', async () => {
     const { listInvitations } = await loadLifecycle();
 
     const data = okData<{ invitations: Array<Record<string, unknown>> }>(await listInvitations());
 
     expect(data.invitations.map((row) => row.email)).toEqual([
       'pending@example.com',
-      'expired@example.com',
+      'revoked@example.com',
       'accepted@example.com',
+      'expired@example.com',
     ]);
     expect(data.invitations).not.toContainEqual(expect.objectContaining({ email: 'leak@example.com' }));
+    expect(data.invitations).not.toContainEqual(expect.objectContaining({ email: 'native@example.com' }));
     expect(data.invitations[0]).toMatchObject({
       email: 'pending@example.com',
       role: 'QA Manager',
       invitedBy: 'Owner User',
+      invitedByAttribution: 'user',
       invitedAt: '2026-05-18T10:00:00.000Z',
       expiresAt: '2026-05-26T10:00:00.000Z',
       status: 'pending',
       actions: { canResend: true, canRevoke: true },
     });
     expect(data.invitations[1]).toMatchObject({
-      email: 'expired@example.com',
-      status: 'expired',
-      actions: { canResend: true, canRevoke: false },
+      email: 'revoked@example.com',
+      status: 'revoked',
+      actions: { canResend: false, canRevoke: false },
     });
     expect(data.invitations[2]).toMatchObject({
       email: 'accepted@example.com',
       status: 'accepted',
       actions: { canResend: false, canRevoke: false },
+    });
+    expect(data.invitations[3]).toMatchObject({
+      email: 'expired@example.com',
+      status: 'expired',
+      actions: { canResend: true, canRevoke: false },
+    });
+  });
+
+  it('marks invitations without a known audit actor as unknown rather than System', async () => {
+    resetClient({
+      invitations: [
+        {
+          ...baseInvitations[0]!,
+          invited_by: null,
+          invited_by_actor_type: null,
+          invited_by_name: null,
+        },
+      ],
+    });
+    const { listInvitations } = await loadLifecycle();
+
+    const data = okData<{ invitations: Array<Record<string, unknown>> }>(await listInvitations());
+
+    expect(data.invitations[0]).toMatchObject({
+      invitedBy: null,
+      invitedByAttribution: 'unknown',
     });
   });
 
@@ -405,7 +489,7 @@ describe('Pending Invitations lifecycle Server Actions (TASK-000208/T-124 RED)',
     expect(currentClient.auditLog).toHaveLength(0);
   });
 
-  it('revokes a pending invitation only, clears the active invite token, and writes audit/outbox records', async () => {
+  it('revokes a pending invitation only, clears the active invite token but keeps expiry for audit listing, and writes audit/outbox records', async () => {
     const { revokeInvitation } = await loadLifecycle();
 
     const data = okData<Record<string, unknown>>(
@@ -416,6 +500,7 @@ describe('Pending Invitations lifecycle Server Actions (TASK-000208/T-124 RED)',
     expect(_mockGenerateLink).not.toHaveBeenCalled();
     expect(currentClient.updates).toHaveLength(1);
     expect(currentClient.updates[0].params).toContain(PENDING_ID);
+    expect(normalizeSql(currentClient.updates[0].sql)).not.toContain('invite_token_expires_at = null');
     expect(currentClient.outboxEvents.map((call) => eventType(call.params))).toContain('settings.user.invitation_revoked');
     expect(currentClient.auditLog).toHaveLength(1);
   });
@@ -472,5 +557,18 @@ describe('Pending Invitations lifecycle Server Actions (TASK-000208/T-124 RED)',
     expect(result).toMatchObject({ ok: true });
     expect(_revalidateLocalized).toHaveBeenCalledWith('/settings/users');
     expect(_revalidateLocalized).toHaveBeenCalledWith('/settings/invitations');
+  });
+});
+
+describe('invitation audit SQL contract', () => {
+  it('joins audit_log.resource_id (text) to users.id via ::text and sorts by occurred_at with resource_type filter', () => {
+    const source = readFileSync(lifecycleActionPath, 'utf8');
+    const normalized = source.replace(/\s+/g, ' ');
+
+    expect(normalized).toMatch(/al\.resource_id\s*=\s*u\.id::text/i);
+    expect(normalized).toMatch(/order by al\.resource_id,\s*al\.occurred_at asc/i);
+    expect(normalized).toMatch(/al\.resource_type\s*=\s*'user_invitation'/i);
+    expect(normalized).not.toMatch(/al\.created_at/i);
+    expect(normalized).not.toMatch(/al\.resource_id\s*=\s*u\.id(?!\s*::text)/i);
   });
 });

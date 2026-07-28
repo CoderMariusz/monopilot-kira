@@ -15,6 +15,7 @@ import { setActiveSite } from '../../../lib/site/site-actions';
 import { getActiveSiteId } from '../../../lib/site/site-context';
 import { getPlatformSwitcherData } from '../../../lib/platform/org-switcher-data';
 import { actAsOrgAction, exitActAsAction } from '../../../lib/platform/actions';
+import { loadShellIdentity, resolveShellUser } from '../../../lib/shell/shell-identity';
 import { getUnreadNotificationCount } from '../../../lib/notifications/get-unread-notification-count';
 import { buildNotificationBellLabels } from '../../../lib/notifications/build-notification-bell-labels';
 import {
@@ -50,17 +51,6 @@ type AuthenticatedUser = {
 
 function textOrFallback(value: unknown, fallback: string) {
   return typeof value === 'string' && value.trim().length > 0 ? value : fallback;
-}
-
-function initialsFor(name: string, email: string) {
-  const fromName = name
-    .split(/\s+/)
-    .map((part) => part[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
-
-  return fromName || email[0]?.toUpperCase() || 'U';
 }
 
 function phaseOneLocale(locale: Locale): PhaseOneLanguage {
@@ -119,19 +109,6 @@ async function switchNextIntlLocaleAction(_locale: PhaseOneLanguage) {
   'use server';
 }
 
-function shellUserFromSupabase(user: AuthenticatedUser) {
-  const metadata = user.user_metadata ?? {};
-  const email = user.email ?? 'user@monopilot.local';
-  const name = textOrFallback(metadata.name, textOrFallback(metadata.full_name, email));
-
-  return {
-    id: textOrFallback(user.id, 'current-user'),
-    email,
-    name,
-    initials: initialsFor(name, email),
-  };
-}
-
 export default async function AppRouteGroupLayout({ children, params }: AppRouteGroupLayoutProps) {
   const { locale } = await params;
   let supabaseUser: AuthenticatedUser | null | undefined = null;
@@ -152,7 +129,7 @@ export default async function AppRouteGroupLayout({ children, params }: AppRoute
   }
 
   const metadata = user.user_metadata ?? {};
-  const shellUser = shellUserFromSupabase(user);
+  const userId = textOrFallback(user.id, 'current-user');
 
   // Shell gap #2 — resolve the signed-in user's permission set ONCE here and
   // hand the RBAC-filtered nav to the sidebar. Admin/owner sees everything;
@@ -175,14 +152,22 @@ export default async function AppRouteGroupLayout({ children, params }: AppRoute
   // for a normal user; only an app.platform_admins row unlocks it. RBAC is
   // resolved server-side here and never client-trusted. A resolution failure
   // degrades to null so the normal shell still renders.
-  const [sites, activeSiteId, platformSwitcher, initialUnreadCount, notificationBellLabels] =
+  // R01-07: the user menu reads the PERSISTED identity (public.users), with
+  // Supabase user_metadata only as a fallback — a Display name saved on
+  // /account/profile used to never reach the shell. This layout renders on
+  // every page, so the lookup is a single primary-key read joined into the
+  // existing Promise.all (no extra serial round-trip, no per-row queries) and
+  // it degrades to `null` rather than throwing when the row is missing.
+  const [identityRow, sites, activeSiteId, platformSwitcher, initialUnreadCount, notificationBellLabels] =
     await Promise.all([
-    getUserSites(shellUser.id),
+    loadShellIdentity(),
+    getUserSites(userId),
     getActiveSiteId(),
     getPlatformSwitcherData().catch(() => null),
     getUnreadNotificationCount(),
     buildNotificationBellLabels(locale),
   ]);
+  const shellUser = resolveShellUser(user, identityRow);
   const topbar = await AppTopbar({
     locale,
     user: shellUser,
@@ -217,6 +202,7 @@ export default async function AppRouteGroupLayout({ children, params }: AppRoute
           <ActAsBanner
             orgName={platformSwitcher!.currentOrg.name}
             orgCode={platformSwitcher!.currentOrg.code}
+            actorLabel={shellUser.name}
             actorEmail={shellUser.email}
             labels={{
               role: tp('bannerRole'),

@@ -33,7 +33,10 @@ export type UpsertLocationInput = {
 };
 
 export type UpsertLocationResult =
-  | { ok: true; data: { id: string; path: string; level: number } }
+  // `active` mirrors actions/infra/location.ts: the flag the server actually PERSISTED, which the
+  // parent clamp / legacy carve-out can make differ from the requested one. The screen renders
+  // this value so it never advertises an activity the row does not have.
+  | { ok: true; data: { id: string; path: string; level: number; active: boolean } }
   | { ok: false; error: UpsertLocationErrorCode };
 
 export type DeleteLocationInput = { locationId: string; warehouseId: string };

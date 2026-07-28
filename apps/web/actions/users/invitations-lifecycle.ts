@@ -29,6 +29,7 @@ type InvitationRow = {
   role_name: string | null;
   role_id: string | null;
   invited_by: string | null;
+  invited_by_actor_type: string | null;
   invited_by_name: string | null;
   invited_at: string | Date | null;
   invite_token: string | null;
@@ -37,7 +38,67 @@ type InvitationRow = {
   accepted_at: string | Date | null;
 };
 
+type InvitedByAttribution = 'user' | 'system' | 'unknown';
+
 type InvitationStatus = 'pending' | 'expired' | 'accepted' | 'revoked';
+
+function inviteCreatorCte(orgParam: string): string {
+  return `
+  with invite_creator as (
+    select distinct on (al.resource_id)
+           al.resource_id,
+           al.actor_user_id,
+           al.actor_type
+      from public.audit_log al
+     where al.org_id = ${orgParam}::uuid
+       and al.resource_type = 'user_invitation'
+       and al.action = 'settings.user.invited'
+     order by al.resource_id, al.occurred_at asc
+  )`;
+}
+
+const INVITATION_AUDIT_JOIN = `
+  left join invite_creator
+    on invite_creator.resource_id = u.id::text
+  left join public.users inviter
+    on inviter.id = invite_creator.actor_user_id
+   and inviter.org_id = u.org_id`;
+
+const INVITATION_SELECT_FIELDS = `
+            u.id,
+            u.org_id,
+            u.email,
+            coalesce(r.name, r.code) as role_name,
+            u.role_id,
+            invite_creator.actor_user_id as invited_by,
+            invite_creator.actor_type as invited_by_actor_type,
+            coalesce(nullif(trim(inviter.name), ''), inviter.email) as invited_by_name,
+            u.created_at as invited_at,
+            u.invite_token,
+            u.invite_token_expires_at,
+            u.is_active,
+            case when u.is_active then u.updated_at else null end as accepted_at`;
+
+const INVITATION_LIST_WHERE = `
+          where u.org_id = $1::uuid
+            and (
+              u.invite_token is not null
+              or u.invite_token_expires_at is not null
+              or exists (
+                select 1
+                  from public.audit_log al
+                 where al.org_id = u.org_id
+                   and al.resource_type = 'user_invitation'
+                   and al.resource_id = u.id::text
+                   and al.occurred_at >= u.created_at
+                   and al.action in (
+                     'settings.user.invited',
+                     'settings.user.invitation_resent',
+                     'settings.user.invitation_revoked'
+                   )
+                 limit 1
+              )
+            )`;
 
 type InvitationListItem = {
   id: string;
@@ -45,6 +106,7 @@ type InvitationListItem = {
   role: string | null;
   roleId: string | null;
   invitedBy: string | null;
+  invitedByAttribution: InvitedByAttribution;
   invitedByUserId: string | null;
   invitedAt: string | null;
   expiresAt: string | null;
@@ -129,21 +191,30 @@ function iso(value: string | Date | null): string | null {
 }
 
 function invitationStatus(row: InvitationRow, now = new Date()): InvitationStatus {
-  if (row.accepted_at || row.is_active) return 'accepted';
+  // Rows are pre-filtered to invitation lifecycle only — is_active here means accepted invite.
+  if (row.is_active) return 'accepted';
   if (!row.invite_token) return 'revoked';
   const expiresAt = row.invite_token_expires_at ? Date.parse(iso(row.invite_token_expires_at) ?? '') : Number.NaN;
   if (Number.isFinite(expiresAt) && expiresAt <= now.getTime()) return 'expired';
   return 'pending';
 }
 
+function resolveInvitedByAttribution(row: InvitationRow): InvitedByAttribution {
+  if (row.invited_by_actor_type === 'system') return 'system';
+  if (row.invited_by_name || row.invited_by) return 'user';
+  return 'unknown';
+}
+
 function toListItem(row: InvitationRow): InvitationListItem {
   const status = invitationStatus(row);
+  const invitedByAttribution = resolveInvitedByAttribution(row);
   return {
     id: row.id,
     email: row.email,
     role: row.role_name,
     roleId: row.role_id,
-    invitedBy: row.invited_by_name,
+    invitedBy: invitedByAttribution === 'user' ? row.invited_by_name : null,
+    invitedByAttribution,
     invitedByUserId: row.invited_by,
     invitedAt: iso(row.invited_at),
     expiresAt: iso(row.invite_token_expires_at),
@@ -176,20 +247,11 @@ async function hasInvitePermission({ client, userId, orgId }: OrgContextLike): P
 
 async function readInvitation(client: QueryClient, invitationId: string, orgId: string): Promise<InvitationRow | null> {
   const { rows } = await client.query<InvitationRow>(
-    `select u.id,
-            u.org_id,
-            u.email,
-            coalesce(r.name, r.code) as role_name,
-            u.role_id,
-            null::uuid as invited_by,
-            null::text as invited_by_name,
-            u.created_at as invited_at,
-            u.invite_token,
-            u.invite_token_expires_at,
-            u.is_active,
-            null::timestamptz as accepted_at
+    `${inviteCreatorCte('$2')}
+     select ${INVITATION_SELECT_FIELDS}
        from public.users u
        left join public.roles r on r.id = u.role_id and r.org_id = u.org_id
+       ${INVITATION_AUDIT_JOIN}
       where u.id = $1::uuid
         and u.org_id = $2::uuid
       limit 1`,
@@ -264,22 +326,12 @@ export async function listInvitations(): Promise<ListInvitationsResult> {
       }
 
       const { rows } = await context.client.query<InvitationRow>(
-        `select u.id,
-                u.org_id,
-                u.email,
-                coalesce(r.name, r.code) as role_name,
-                u.role_id,
-                null::uuid as invited_by,
-                null::text as invited_by_name,
-                u.created_at as invited_at,
-                u.invite_token,
-                u.invite_token_expires_at,
-                u.is_active,
-                null::timestamptz as accepted_at
+        `${inviteCreatorCte('$1')}
+         select ${INVITATION_SELECT_FIELDS}
            from public.users u
            left join public.roles r on r.id = u.role_id and r.org_id = u.org_id
-          where u.org_id = $1::uuid
-            and (u.invite_token is not null or u.invite_token_expires_at is not null or u.is_active = true)
+           ${INVITATION_AUDIT_JOIN}
+          ${INVITATION_LIST_WHERE}
           order by u.created_at desc, u.email asc`,
         [context.orgId],
       );
@@ -430,7 +482,6 @@ export async function revokeInvitation(input: InvitationLifecycleInput): Promise
       const updated = await context.client.query(
         `update public.users
             set invite_token = null,
-                invite_token_expires_at = null,
                 updated_at = now()
           where id = $1::uuid
             and org_id = $2::uuid
@@ -451,7 +502,7 @@ export async function revokeInvitation(input: InvitationLifecycleInput): Promise
         invitation_id: invitation.id,
         email: invitation.email,
         status: 'revoked',
-        expires_at: null,
+        expires_at: iso(invitation.invite_token_expires_at),
       };
       await writeAuditLog(context, 'settings.user.invitation_revoked', beforeState, afterState);
       await writeOutbox(context, 'settings.user.invitation_revoked', afterState);

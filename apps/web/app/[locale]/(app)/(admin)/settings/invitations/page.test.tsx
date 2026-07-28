@@ -14,7 +14,7 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-type InvitationStatus = 'pending' | 'expired' | 'accepted';
+type InvitationStatus = 'pending' | 'expired' | 'accepted' | 'revoked';
 
 type PendingInvitation = {
   id: string;
@@ -22,6 +22,7 @@ type PendingInvitation = {
   role: string;
   roleId?: string;
   invitedBy: string;
+  invitedByAttribution?: 'user' | 'system' | 'unknown';
   invitedAt: string;
   expiresAt: string;
   status: InvitationStatus;
@@ -294,5 +295,72 @@ describe('SET-010 localized permissions, route visibility, and mandatory states'
     await renderInvitationsPage({ state: 'error', errorMessage: 'T-124 lifecycle unavailable' });
     expect(screen.getByRole('alert')).toHaveTextContent(/T-124 lifecycle unavailable|invitations could not be loaded/i);
     expect(screen.queryByRole('button', { name: /^resend$/i })).not.toBeInTheDocument();
+  });
+
+  it('renders revoked invitations with a revoked badge and no lifecycle actions', async () => {
+    await renderInvitationsPage({
+      invitations: [
+        {
+          id: 'invite-revoked',
+          email: 'revoked@example.test',
+          role: 'Viewer',
+          invitedBy: '',
+          invitedByAttribution: 'user',
+          invitedAt: '2026-05-12 10:00',
+          expiresAt: '2026-05-20 10:00',
+          status: 'revoked',
+        },
+      ],
+    });
+
+    const row = rowForEmail('revoked@example.test');
+    expect(within(row).getByText(/^Revoked$/i)).toHaveAttribute('data-slot', 'badge');
+    expect(within(row).queryByRole('button', { name: /^resend$/i })).not.toBeInTheDocument();
+    expect(within(row).queryByRole('button', { name: /^revoke$/i })).not.toBeInTheDocument();
+    expect(within(row).getByText(/revoked invitation is immutable/i)).toBeInTheDocument();
+  });
+
+  it('shows the inviting user, unknown, or System attribution without defaulting missing actors to System', async () => {
+    await renderInvitationsPage({
+      invitations: [
+        {
+          id: 'invite-user',
+          email: 'known.inviter@example.test',
+          role: 'Planner',
+          invitedBy: 'Ada Admin',
+          invitedByAttribution: 'user',
+          invitedAt: '2026-05-01 09:30',
+          expiresAt: '2026-05-08 09:30',
+          status: 'pending',
+          inviteToken: 'token-user',
+        },
+        {
+          id: 'invite-unknown',
+          email: 'unknown.inviter@example.test',
+          role: 'Viewer',
+          invitedBy: '',
+          invitedByAttribution: 'unknown',
+          invitedAt: '2026-05-02 09:30',
+          expiresAt: '2026-05-09 09:30',
+          status: 'pending',
+          inviteToken: 'token-unknown',
+        },
+        {
+          id: 'invite-system',
+          email: 'system.inviter@example.test',
+          role: 'Viewer',
+          invitedBy: '',
+          invitedByAttribution: 'system',
+          invitedAt: '2026-05-03 09:30',
+          expiresAt: '2026-05-10 09:30',
+          status: 'pending',
+          inviteToken: 'token-system',
+        },
+      ],
+    });
+
+    expect(within(rowForEmail('known.inviter@example.test')).getByText('Ada Admin')).toBeInTheDocument();
+    expect(within(rowForEmail('unknown.inviter@example.test')).getByText(/^Unknown$/i)).toBeInTheDocument();
+    expect(within(rowForEmail('system.inviter@example.test')).getByText(/^System$/i)).toBeInTheDocument();
   });
 });

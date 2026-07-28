@@ -105,6 +105,9 @@ export type LocationTreeLabels = {
   barcodeLabel: string;
   noBarcode: string;
   warehouseUnassigned: string;
+  parentInactiveHint: string;
+  parentInactiveLegacyHint: string;
+  hasActiveChildrenError: string;
 };
 
 type TreeNode = LocationRow & { children: TreeNode[] };
@@ -163,6 +166,20 @@ export function LocationTreeScreen({
   React.useEffect(() => setRows([...locations]), [locations]);
 
   const parentLocation = rows.find((location) => location.id === form.parentId && location.warehouseId === form.warehouseId) ?? null;
+  // R02-03 — mirror of the server clamp in actions/infra/location.ts: a child of an inactive
+  // parent cannot be active. The checkbox renders the value the save will actually persist, so
+  // the rule is visible instead of being silently applied. Deliberately NOT part of `valid` —
+  // a pre-existing active-under-inactive row must stay saveable.
+  const parentInactive = parentLocation?.isActive === false;
+  // [L-1] Mirror of the server carve-out: an existing row that is ALREADY active under an
+  // inactive parent keeps its flag while its parent link is untouched, so the dialog must show it
+  // as active (checked) instead of pretending the save will switch it off. Editing such a row is
+  // exactly the case the old rendering broke — it sent active:false, which the server then
+  // rejected with has_active_children whenever the row had active children of its own.
+  const keepsLegacyActive = Boolean(
+    parentInactive && editingLocation && editingLocation.isActive !== false && editingLocation.parentId === parentLocation?.id,
+  );
+  const activeValue = parentInactive ? keepsLegacyActive : form.active;
   const depthExceeded = parentLocation ? parentLocation.level >= 3 : false;
   const nextLevel = parentLocation ? parentLocation.level + 1 : 1;
   const valid = form.warehouseId.trim().length > 0 && form.code.trim().length > 0 && form.name.trim().length > 0 && !depthExceeded;
@@ -172,10 +189,21 @@ export function LocationTreeScreen({
     () => [
       { value: 'root', label: '—' },
       ...rows
-        .filter((location) => location.warehouseId === form.warehouseId && location.id !== editingLocation?.id)
-        .map((location) => ({ value: location.id, label: location.path.replace(/\./g, ' › ') })),
+        .filter(
+          (location) =>
+            location.warehouseId === form.warehouseId &&
+            location.id !== editingLocation?.id &&
+            // Inactive locations are not offered as a NEW nesting target. The row's own current
+            // parent is kept in the list even when inactive — dropping it would blank the parent
+            // field of every legacy child and invite an accidental re-parent to root.
+            (location.isActive !== false || location.id === form.parentId),
+        )
+        .map((location) => {
+          const label = location.path.replace(/\./g, ' › ');
+          return { value: location.id, label: location.isActive === false ? `${label} (${labels.inactive})` : label };
+        }),
     ],
-    [editingLocation?.id, form.warehouseId, rows],
+    [editingLocation?.id, form.parentId, form.warehouseId, labels.inactive, rows],
   );
   const typeOptions = React.useMemo<SelectOption[]>(
     () => ['storage', 'transit', 'receiving', 'production_line'].map((value) => ({ value, label: value })),
@@ -233,7 +261,7 @@ export function LocationTreeScreen({
       name: form.name.trim(),
       level: editingLocation && !parentLocation ? editingLocation.level : nextLevel,
       locationType: form.locationType,
-      active: form.active,
+      active: activeValue,
       barcode: form.barcode.trim() || null,
     };
     const result = await upsertLocation(input);
@@ -241,7 +269,10 @@ export function LocationTreeScreen({
       setFormError(mapUpsertLocationError(result.error, labels));
       return;
     }
-    const saved: LocationRow = { id: result.data.id, warehouseId, parentId: input.parentId, code: input.code, name: input.name, level: result.data.level, path: result.data.path, locationType: input.locationType, barcode: input.barcode ?? null, isActive: input.active ?? true };
+    // [L-4] isActive comes from the server, never from `input`: the clamp can persist something
+    // other than what was asked for, and echoing the request back left the tree (and the status
+    // badge) showing an activity the database does not hold until the next full reload.
+    const saved: LocationRow = { id: result.data.id, warehouseId, parentId: input.parentId, code: input.code, name: input.name, level: result.data.level, path: result.data.path, locationType: input.locationType, barcode: input.barcode ?? null, isActive: result.data.active };
     setRows((current) => sortByPath([saved, ...current.filter((row) => row.id !== saved.id)]));
     setSelected(saved.id);
     setDialogMode(null);
@@ -389,7 +420,16 @@ export function LocationTreeScreen({
                   </Select>
                 </div>
               </div>
-              <label className="flex items-center gap-2 text-sm font-medium" htmlFor="location-active"><input id="location-active" type="checkbox" checked={form.active} onChange={(event) => { const checked = event.currentTarget.checked; setForm((current) => ({ ...current, active: checked })); }} />{labels.fieldActive}</label>
+              <div className="grid gap-1">
+                <label className="flex items-center gap-2 text-sm font-medium" htmlFor="location-active"><input id="location-active" type="checkbox" checked={activeValue} disabled={parentInactive} onChange={(event) => { const checked = event.currentTarget.checked; setForm((current) => ({ ...current, active: checked })); }} />{labels.fieldActive}</label>
+                {parentInactive ? (
+                  <p data-testid={keepsLegacyActive ? 'location-parent-inactive-legacy-hint' : 'location-parent-inactive-hint'} className="text-xs font-medium text-amber-700">
+                    {keepsLegacyActive
+                      ? formatLabel(labels.parentInactiveLegacyHint, { parent: parentLocation?.path.replace(/\./g, ' › ') ?? '' })
+                      : labels.parentInactiveHint}
+                  </p>
+                ) : null}
+              </div>
               {form.code || form.name ? (
                 <label className="grid gap-1 text-sm font-medium" htmlFor="location-barcode">{labels.fieldBarcode}<Input id="location-barcode" value={form.barcode} onChange={(event) => { const value = event.currentTarget.value; setForm((current) => ({ ...current, barcode: value })); }} className="font-mono" /><span className="text-xs text-slate-500">{labels.fieldBarcodeHelp}</span></label>
               ) : null}

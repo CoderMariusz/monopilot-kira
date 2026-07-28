@@ -33,7 +33,7 @@ const VIEW_PERMISSION = 'settings.users.view';
 const INVITE_PERMISSION = 'settings.users.invite';
 const ROLE_ASSIGN_PERMISSION = 'settings.roles.assign';
 
-type InvitationStatus = 'pending' | 'expired' | 'accepted';
+type InvitationStatus = 'pending' | 'expired' | 'accepted' | 'revoked';
 
 type PendingInvitation = {
   id: string;
@@ -41,6 +41,7 @@ type PendingInvitation = {
   role: string;
   roleId?: string;
   invitedBy: string;
+  invitedByAttribution?: 'user' | 'system' | 'unknown';
   invitedAt: string;
   expiresAt: string;
   status: InvitationStatus;
@@ -72,13 +73,14 @@ type ListedInvitation = {
   role: string | null;
   roleId?: string | null;
   invitedBy: string | null;
+  invitedByAttribution?: 'user' | 'system' | 'unknown';
   invitedAt: string | null;
   expiresAt: string | null;
   status: string;
 };
 
 function normalizeStatus(status: string): InvitationStatus | null {
-  if (status === 'pending' || status === 'expired' || status === 'accepted') return status;
+  if (status === 'pending' || status === 'expired' || status === 'accepted' || status === 'revoked') return status;
   return null;
 }
 
@@ -90,7 +92,8 @@ function toPendingInvitation(item: ListedInvitation): PendingInvitation | null {
     email: item.email,
     role: item.role ?? 'Unassigned',
     roleId: item.roleId ?? undefined,
-    invitedBy: item.invitedBy ?? 'System',
+    invitedBy: item.invitedBy ?? '',
+    invitedByAttribution: item.invitedByAttribution ?? (item.invitedBy ? 'user' : 'unknown'),
     invitedAt: item.invitedAt ?? '—',
     expiresAt: item.expiresAt ?? '—',
     status,

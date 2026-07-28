@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   SETTINGS_ADMIN_NAV_PERMISSIONS,
+  SETTINGS_INVITATIONS_NAV_KEY,
   SETTINGS_NAV_GROUPS,
   filterSettingsNavGroups,
 } from '../settings-nav';
@@ -42,6 +43,37 @@ describe('F2-C1 filterSettingsNavGroups (server-side settings-nav RBAC gate)', (
         expect(item.permission_key).toBeNull();
       }
     }
+  });
+
+  it('hides the Invitations nav item when the caller cannot manage invitations', () => {
+    const visible = filterSettingsNavGroups(SETTINGS_NAV_GROUPS, {
+      canViewAdminSettings: true,
+      canManageInvitations: false,
+    });
+    const accessItems = visible.find((group) => group.id === 'access')?.items ?? [];
+    expect(accessItems.map((item) => item.key)).not.toContain(SETTINGS_INVITATIONS_NAV_KEY);
+    expect(accessItems.map((item) => item.key)).toContain('users');
+  });
+
+  it('shows the Invitations nav item when the caller can manage invitations', () => {
+    const visible = filterSettingsNavGroups(SETTINGS_NAV_GROUPS, {
+      canViewAdminSettings: true,
+      canManageInvitations: true,
+    });
+    const accessItems = visible.find((group) => group.id === 'access')?.items ?? [];
+    expect(accessItems.map((item) => item.key)).toContain(SETTINGS_INVITATIONS_NAV_KEY);
+  });
+
+  it('shows the Invitations nav item when the caller can manage invitations without org-settings read', () => {
+    const visible = filterSettingsNavGroups(SETTINGS_NAV_GROUPS, {
+      canViewAdminSettings: false,
+      canManageInvitations: true,
+    });
+
+    expect(visible.map((group) => group.id)).toContain('access');
+    expect(visible.map((group) => group.id)).toContain('myAccount');
+    const accessItems = visible.find((group) => group.id === 'access')?.items ?? [];
+    expect(accessItems.map((item) => item.key)).toEqual([SETTINGS_INVITATIONS_NAV_KEY]);
   });
 
   it('gates on org-settings read/update/admin permissions (mirrors the pages)', () => {

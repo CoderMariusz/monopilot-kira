@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 import { Button } from '@monopilot/ui/Button';
@@ -57,7 +58,7 @@ export type SettingsUser = {
    * Optional: when the page omits it, an invited row is treated as `pending`
    * (the pre-split behaviour). `null` = not an invitation.
    */
-  invitationState?: 'pending' | 'expired' | null;
+  invitationState?: 'pending' | 'expired' | 'revoked' | null;
 };
 
 export type RoleSummary = {
@@ -104,6 +105,7 @@ export type UsersScreenLabels = {
   summary: string;
   export: string;
   inviteUser: string;
+  manageInvitations?: string;
   active: string;
   invited: string;
   disabled: string;
@@ -296,6 +298,8 @@ export type SettingsUsersScreenProps = {
   labels: UsersScreenLabels;
   searchParams?: UsersSearchParams;
   locale: string;
+  /** Localized href to /settings/invitations — shown when the caller can invite. */
+  invitationsHref?: string;
   inviteUserAction?: InviteUserAction;
   assignRoleAction?: AssignRoleAction;
   assignUserSitesAction?: AssignUserSitesAction;
@@ -392,6 +396,7 @@ export default function SettingsUsersScreen({
   labels,
   searchParams,
   locale,
+  invitationsHref,
   inviteUserAction,
   assignRoleAction,
   assignUserSitesAction,
@@ -694,6 +699,13 @@ export default function SettingsUsersScreen({
     }
 
     if (isDisabled) {
+      if (user.invitationState === 'revoked') {
+        return (
+          <span className="text-xs text-shell-muted" data-testid="revoked-invitation-readonly">
+            {labels.invitationNoActions ?? 'No actions'}
+          </span>
+        );
+      }
       return (
         <Button
           type="button"
@@ -751,6 +763,11 @@ export default function SettingsUsersScreen({
           </p>
         </div>
         <div className="flex gap-2">
+          {data.canInviteUsers && invitationsHref && labels.manageInvitations ? (
+            <Link href={invitationsHref} className="btn-secondary inline-flex items-center rounded-md px-3 py-2 text-sm">
+              {labels.manageInvitations}
+            </Link>
+          ) : null}
           <Button type="button" className="btn-secondary" onClick={exportVisibleUsers}>
             {labels.export}
           </Button>

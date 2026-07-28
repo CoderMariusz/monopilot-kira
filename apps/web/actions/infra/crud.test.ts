@@ -16,7 +16,7 @@ const LINE_ID = '99999999-9999-4999-8999-999999999999';
 
 type QueryCall = { sql: string; params: readonly unknown[] };
 type InfraLocation = { id: string; warehouse_id: string; parent_id: string | null; code: string; level: number; path: string };
-type InfraLine = { id: string; status: string; machine_ids: string[]; default_output_location_id: string | null };
+type InfraLine = { id: string; status: string; machine_ids: string[]; default_location_id: string | null };
 type InfraWarehouse = { id: string; is_active: boolean; code?: string; name?: string; site_id?: string; address_label?: string | null };
 
 type FakeClient = {
@@ -60,7 +60,7 @@ function makeClient(options: FakeClientOptions = {}): FakeClient {
       ],
       [WRONG_WAREHOUSE_PARENT_ID, { id: WRONG_WAREHOUSE_PARENT_ID, warehouse_id: OTHER_WAREHOUSE_ID, parent_id: null, code: 'ZONE-B', level: 1, path: 'ZONE-B' }],
     ]),
-    lines: new Map<string, InfraLine>([[LINE_ID, { id: LINE_ID, status: 'draft', machine_ids: [], default_output_location_id: null }]]),
+    lines: new Map<string, InfraLine>([[LINE_ID, { id: LINE_ID, status: 'draft', machine_ids: [], default_location_id: null }]]),
     warehouses: new Map<string, InfraWarehouse>([[WAREHOUSE_ID, { id: WAREHOUSE_ID, is_active: true, site_id: SITE_ID }]]),
     activeWorkOrders: new Set<string>(),
     onHandStock: new Set<string>(),
@@ -150,8 +150,8 @@ function makeClient(options: FakeClientOptions = {}): FakeClient {
       if (normalized.startsWith('insert into public.production_lines') || normalized.startsWith('update public.production_lines')) {
         const id = params.map(String).find((value) => client.lines.has(value)) ?? LINE_ID;
         const status = paramsText.includes('active') ? 'active' : 'draft';
-        const defaultOutputLocationId = normalized.includes('default_output_location_id') && typeof params[3] === 'string' ? String(params[3]) : null;
-        const row = { id, status, machine_ids: [], default_output_location_id: defaultOutputLocationId };
+        const defaultLocationId = normalized.includes('default_location_id') && typeof params[3] === 'string' ? String(params[3]) : null;
+        const row = { id, status, machine_ids: [], default_location_id: defaultLocationId };
         client.lines.set(id, row);
         return { rows: [row] as never[], rowCount: 1 };
       }
@@ -447,14 +447,14 @@ describe('infrastructure CRUD Server Actions (T-029 RED)', () => {
   });
 
   it('renames an org-scoped warehouse and blocks deletion while it has dependents', async () => {
-    const renameWarehouse = await loadAction<
-      (input: { warehouseId: string; name: string }) => Promise<{ ok: boolean; error?: string; data?: { name: string } }>
-    >('warehouse.ts', 'renameWarehouse', () => import(`${__dirname}/warehouse.ts`) as Promise<Record<string, unknown>>);
+    const updateWarehouseDetails = await loadAction<
+      (input: { warehouseId: string; name: string; address?: string | null }) => Promise<{ ok: boolean; error?: string; data?: { name: string } }>
+    >('warehouse.ts', 'updateWarehouseDetails', () => import(`${__dirname}/warehouse.ts`) as Promise<Record<string, unknown>>);
     const deleteWarehouse = await loadAction<
       (input: { warehouseId: string }) => Promise<{ ok: boolean; error?: string; data?: { warehouseId: string } }>
     >('warehouse.ts', 'deleteWarehouse', () => import(`${__dirname}/warehouse.ts`) as Promise<Record<string, unknown>>);
 
-    await expect(renameWarehouse({ warehouseId: WAREHOUSE_ID, name: 'Renamed warehouse' })).resolves.toMatchObject({
+    await expect(updateWarehouseDetails({ warehouseId: WAREHOUSE_ID, name: 'Renamed warehouse' })).resolves.toMatchObject({
       ok: true,
       data: { name: 'Renamed warehouse' },
     });
@@ -482,9 +482,12 @@ describe('infrastructure CRUD Server Actions (T-029 RED)', () => {
 
     const draft = await upsertLine({ id: LINE_ID, code: 'LINE-DRAFT', name: 'Draft line', status: 'draft', warehouseId: WAREHOUSE_ID, defaultOutputLocationId: BIN_ID });
     expect(draft).toMatchObject({ ok: true, data: { status: 'draft' } });
-    expect(currentClient.lines.get(LINE_ID)?.default_output_location_id).toBe(BIN_ID);
+    // Canonical column (mig 042/526) — the write used to land in the duplicate
+    // `default_output_location_id`, which no reader ever read back.
+    expect(currentClient.lines.get(LINE_ID)?.default_location_id).toBe(BIN_ID);
     const lineUpsertCall = currentClient.calls.find((call) => call.sql.toLowerCase().startsWith('insert into public.production_lines'));
-    expect(lineUpsertCall?.sql.toLowerCase()).toContain('default_output_location_id');
+    expect(lineUpsertCall?.sql.toLowerCase()).toContain('default_location_id');
+    expect(lineUpsertCall?.sql.toLowerCase()).not.toContain('default_output_location_id');
     expect(lineUpsertCall?.params).toContain(BIN_ID);
     // Wave 1 consolidation: junction table is never written from the line upsert path.
     const lineMachineJunction = ['line', 'machines'].join('_');

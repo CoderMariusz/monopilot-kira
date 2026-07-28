@@ -5,7 +5,7 @@ import {
   deactivateWarehouse as t029DeactivateWarehouse,
   reactivateWarehouse as t029ReactivateWarehouse,
   deleteWarehouse as t029DeleteWarehouse,
-  renameWarehouse as t029RenameWarehouse,
+  updateWarehouseDetails as t029UpdateWarehouseDetails,
   updateWarehouseStorageRules as t029UpdateWarehouseStorageRules,
 } from '../../../../../../../actions/infra/warehouse';
 import { hasPermission } from '../../../../../../../lib/auth/has-permission';
@@ -20,8 +20,8 @@ import WarehouseListScreen, {
   type ReactivateWarehouseResult,
   type DeleteWarehouseInput,
   type DeleteWarehouseResult,
-  type RenameWarehouseInput,
-  type RenameWarehouseResult,
+  type UpdateWarehouseInput,
+  type UpdateWarehouseResult,
   type UpdateStorageRulesInput,
   type UpdateStorageRulesResult,
   type Warehouse,
@@ -47,6 +47,7 @@ type WarehouseRow = {
   code: string;
   name: string;
   address_label: string | null;
+  address_line1: string | null;
   site_label: string | null;
   zone_count: number | string | null;
   bin_count: number | string | null;
@@ -104,7 +105,7 @@ type PageProps = {
   createWarehouse?: (input: CreateWarehouseInput) => Promise<CreateWarehouseResult>;
   deactivateWarehouse?: (input: DeactivateWarehouseInput) => Promise<DeactivateWarehouseResult>;
   reactivateWarehouse?: (input: ReactivateWarehouseInput) => Promise<ReactivateWarehouseResult>;
-  renameWarehouse?: (input: RenameWarehouseInput) => Promise<RenameWarehouseResult>;
+  updateWarehouse?: (input: UpdateWarehouseInput) => Promise<UpdateWarehouseResult>;
   deleteWarehouse?: (input: DeleteWarehouseInput) => Promise<DeleteWarehouseResult>;
   updateStorageRules?: (input: UpdateStorageRulesInput) => Promise<UpdateStorageRulesResult>;
   state?: WarehousePageState;
@@ -190,10 +191,12 @@ const DEFAULT_LABELS: WarehouseLabels = {
   storageRulesSaved: 'Storage rules saved.',
   storageRulesSaveFailed: 'Storage rules could not be saved. Try again or contact an administrator.',
   editStorageRules: 'Edit storage rules for {name}',
-  renameWarehouse: 'Rename warehouse',
-  renameWarehouseTitle: 'Rename warehouse',
-  renameWarehousePending: 'Renaming…',
-  renameWarehouseFailed: 'Warehouse could not be renamed.',
+  editWarehouse: 'Edit warehouse',
+  editWarehouseTitle: 'Edit warehouse',
+  editWarehousePending: 'Saving…',
+  editWarehouseFailed: 'Warehouse could not be updated.',
+  warehouseSiteLocked:
+    'Site cannot be changed after creation — locations, production lines and stock are tied to this warehouse. A warehouse with no dependents can be deleted and recreated.',
   reactivateWarehouse: 'Reactivate warehouse',
   reactivateWarehousePending: 'Reactivating…',
   reactivateSuccess: 'Warehouse reactivated.',
@@ -264,6 +267,7 @@ function toWarehouse(row: WarehouseRow): Warehouse {
     code: row.code,
     name: row.name,
     address: row.address_label,
+    addressLine1: row.address_line1,
     site: row.site_label ?? row.address_label,
     zones: Number(row.zone_count ?? 0) || 0,
     bins: Number(row.bin_count ?? 0) || 0,
@@ -314,6 +318,7 @@ async function queryWarehouses(client: QueryClient): Promise<WarehouseRow[]> {
               w.code,
               w.name,
               nullif(concat_ws(', ', w.address->>'line1', w.address->>'city', w.address->>'country'), '') as address_label,
+              w.address->>'line1' as address_line1,
               coalesce(nullif(s.name, ''), nullif(w.address->>'site', ''), nullif(w.address->>'city', ''), nullif(w.address->>'line1', '')) as site_label,
               count(distinct l.id) filter (where l.location_type = 'zone' or l.level = 1)::integer as zone_count,
               count(distinct l.id) filter (where l.location_type in ('bin', 'location') or l.level > 1)::integer as bin_count,
@@ -343,6 +348,7 @@ async function queryWarehouses(client: QueryClient): Promise<WarehouseRow[]> {
               w.code,
               w.name,
               nullif(concat_ws(', ', w.address->>'line1', w.address->>'city', w.address->>'country'), '') as address_label,
+              w.address->>'line1' as address_line1,
               coalesce(nullif(s.name, ''), nullif(w.address->>'site', ''), nullif(w.address->>'city', ''), nullif(w.address->>'line1', '')) as site_label,
               count(distinct l.id) filter (where l.location_type = 'zone' or l.level = 1)::integer as zone_count,
               count(distinct l.id) filter (where l.location_type in ('bin', 'location') or l.level > 1)::integer as bin_count,
@@ -411,9 +417,9 @@ async function runReactivateWarehouse(input: ReactivateWarehouseInput): Promise<
   return t029ReactivateWarehouse(input) as Promise<ReactivateWarehouseResult>;
 }
 
-async function runRenameWarehouse(input: RenameWarehouseInput): Promise<RenameWarehouseResult> {
+async function runUpdateWarehouse(input: UpdateWarehouseInput): Promise<UpdateWarehouseResult> {
   'use server';
-  return t029RenameWarehouse(input) as Promise<RenameWarehouseResult>;
+  return t029UpdateWarehouseDetails(input) as Promise<UpdateWarehouseResult>;
 }
 
 async function runDeleteWarehouse(input: DeleteWarehouseInput): Promise<DeleteWarehouseResult> {
@@ -450,7 +456,7 @@ export default async function WarehousesPage(propsInput: unknown = {}) {
       createWarehouse={props.createWarehouse ?? runCreateWarehouse}
       deactivateWarehouse={props.deactivateWarehouse ?? runDeactivateWarehouse}
       reactivateWarehouse={props.reactivateWarehouse ?? runReactivateWarehouse}
-      renameWarehouse={props.renameWarehouse ?? runRenameWarehouse}
+      updateWarehouse={props.updateWarehouse ?? runUpdateWarehouse}
       deleteWarehouse={props.deleteWarehouse ?? runDeleteWarehouse}
       updateStorageRules={props.updateStorageRules ?? runUpdateStorageRules}
       state={props.state ?? runtime.state}

@@ -10,7 +10,7 @@ import '@testing-library/jest-dom/vitest';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 // The view now builds its labels client-side via useTranslations('Yard'); mock
@@ -126,6 +126,21 @@ describe('/settings/infra/docks — DocksView', () => {
 
     await waitFor(() => expect(screen.getByTestId('dock-form-error')).toBeInTheDocument());
     expect(screen.getByTestId('dock-form-error')).toHaveTextContent('You do not have permission to edit dock doors.');
+  });
+
+  // FALA 6 / R02-07 — the delete dialog used a bare <h2> instead of
+  // Modal.Header, so Radix rendered a DialogContent with no DialogTitle and
+  // logged "DialogContent requires a DialogTitle …" on every open.
+  it('gives the delete dialog an accessible title via Modal.Header', async () => {
+    renderView({ deleteDockDoorAction: vi.fn(async () => undefined) });
+
+    fireEvent.click(screen.getByTestId('dock-delete-DOCK-1'));
+
+    const dialog = await screen.findByRole('dialog');
+    // Radix wires aria-labelledby to its Dialog.Title, which only Modal.Header
+    // renders — an accessible name here is the contract that was broken.
+    expect(dialog).toHaveAccessibleName(/delete/i);
+    expect(within(dialog).getByTestId('modal-header')).toBeInTheDocument();
   });
 
   it('disables the add affordance when the caller cannot manage docks', () => {

@@ -61,6 +61,7 @@ const EXPECTED_SETTINGS_NAV = [
     admin: true,
     items: [
       { key: "users", label: "Users & roles", icon: "◉" },
+      { key: "invitations", label: "Invitations", icon: "✉" },
       { key: "security", label: "Security", icon: "🔒" },
       { key: "audit-logs", label: "Audit logs", icon: "◷", highlight: true },
     ],
@@ -253,7 +254,7 @@ describe("UI-128 SETTINGS_NAV_GROUPS", () => {
     const keys = actualItems.map(i18nKeyOf);
     expect(new Set(keys).size, "Each settings subnav i18n key must be unique").toBe(keys.length);
 
-    for (const locale of ["en", "pl"]) {
+    for (const locale of ["en", "pl", "ro", "uk"]) {
       const messages = loadLocale(locale);
       for (const key of keys) {
         expect(getByPath(messages, key), `${key} must resolve in ${locale}.json`).toEqual(expect.any(String));

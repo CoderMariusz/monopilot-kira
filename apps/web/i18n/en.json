@@ -89,6 +89,7 @@
       "summary": "{users} users · {roles} role categories",
       "export": "Export",
       "invite_user": "Invite user",
+      "manage_invitations": "Manage invitations",
       "active": "Active",
       "invited": "Invited",
       "disabled": "Disabled",
@@ -792,6 +793,7 @@
     "users": {
       "heading": "Users & roles",
       "invite_user": "+ Invite user",
+      "manage_invitations": "Manage invitations",
       "export": "Export",
       "error_load": "Users could not be loaded. Try refreshing the settings users page.",
       "permission_denied": "Permission denied: settings.users.manage is required to manage users and roles."
@@ -814,6 +816,7 @@
       "sendInvitation": "Send invitation",
       "unassigned": "Unassigned",
       "system": "System",
+      "unknown": "Unknown",
       "notAvailable": "—",
       "permissionDenied": "Permission denied: {viewPermission} or {invitePermission} is required to view pending invitations.",
       "loadError": "Invitations could not be loaded.",
@@ -828,6 +831,7 @@
       "resend": "Resend",
       "revoke": "Revoke",
       "acceptedImmutable": "Accepted user is immutable.",
+      "revokedImmutable": "Revoked invitation is immutable.",
       "noActions": "No actions",
       "lifecycleUnavailable": "Lifecycle action unavailable",
       "recorded": "recorded",
@@ -836,7 +840,8 @@
       "status": {
         "pending": "Pending",
         "expired": "Expired",
-        "accepted": "Accepted"
+        "accepted": "Accepted",
+        "revoked": "Revoked"
       },
       "revokeDialog": {
         "title": "Revoke invitation",
@@ -1911,6 +1916,7 @@
         "units": "Units & conversions",
         "import_export": "Import / Export",
         "users": "Users & roles",
+        "invitations": "Invitations",
         "security": "Security",
         "audit_logs": "Audit logs",
         "devices": "Scanner devices",
@@ -2002,6 +2008,7 @@
         "units": "Units & conversions",
         "import_export": "Import / Export",
         "users": "Users & roles",
+        "invitations": "Invitations",
         "security": "Security",
         "audit_logs": "Audit logs",
         "devices": "Scanner devices",

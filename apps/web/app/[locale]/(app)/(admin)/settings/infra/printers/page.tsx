@@ -205,6 +205,15 @@ export default async function PrintersPage(propsInput: unknown = {}) {
       }
     : await loadPrintersPageData();
 
+  // Inline server action adapting deletePrinter({ id }) → deletePrinter(printerId).
+  // Must pass the `'use server'` action reference directly — wrapping it in a plain
+  // arrow closure loses server-action identity and Next.js refuses to serialize it
+  // across the RSC boundary ("Functions cannot be passed directly to Client Components").
+  async function deletePrinterAction(printerId: string): Promise<void> {
+    'use server';
+    return removePrinter({ id: printerId });
+  }
+
   return (
     <PrintersScreen
       initialPrinters={loaded.printers}
@@ -213,7 +222,7 @@ export default async function PrintersPage(propsInput: unknown = {}) {
       canManage={props.canManage ?? loaded.canManage}
       state={props.state ?? loaded.state}
       upsertPrinter={props.upsertPrinter ?? persistPrinter}
-      deletePrinter={props.deletePrinter ?? ((printerId: string) => removePrinter({ id: printerId }))}
+      deletePrinter={props.deletePrinter ?? deletePrinterAction}
     />
   );
 }

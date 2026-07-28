@@ -112,6 +112,9 @@ type LocationTreeLabels = {
   barcodeLabel: string;
   noBarcode: string;
   warehouseUnassigned: string;
+  parentInactiveHint: string;
+  parentInactiveLegacyHint: string;
+  hasActiveChildrenError: string;
 };
 
 type TreeNode = LocationRow & { children: TreeNode[] };
@@ -194,6 +197,10 @@ const DEFAULT_LABELS: LocationTreeLabels = {
   barcodeLabel: 'Barcode',
   noBarcode: 'No barcode',
   warehouseUnassigned: '—',
+  parentInactiveHint: 'The parent location is inactive, so this location is saved as inactive. Reactivate the parent first to keep it active.',
+  // ponytail: one {parent} placeholder only — formatLabel replaces the FIRST occurrence.
+  parentInactiveLegacyHint: 'This location is active even though its parent is inactive. Editing it here keeps its current status — reactivate {parent} to repair the hierarchy.',
+  hasActiveChildrenError: 'This location still has active child locations. Deactivate them first, or leave this location active.',
 };
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof LocationTreeLabels>;

@@ -155,8 +155,11 @@ function toIsoString(value: string | Date | null | undefined) {
 function invitationState(user: Pick<UserRow, 'is_active' | 'invite_token' | 'invite_token_expires_at'>):
   | 'pending'
   | 'expired'
+  | 'revoked'
   | null {
-  if (user.is_active || !user.invite_token) return null;
+  if (user.is_active) return null;
+  if (!user.invite_token && user.invite_token_expires_at) return 'revoked';
+  if (!user.invite_token) return null;
   const raw = user.invite_token_expires_at;
   if (!raw) return 'expired';
   const expiresAt = raw instanceof Date ? raw.getTime() : Date.parse(raw);
@@ -400,6 +403,7 @@ async function buildLabels(locale: string): Promise<UsersScreenLabels> {
     summary: t('summary', { users: '{users}', roles: '{roles}' }),
     export: t('export'),
     inviteUser: t('invite_user'),
+    manageInvitations: t('manage_invitations'),
     active: t('active'),
     invited: t('invited'),
     disabled: t('disabled'),
@@ -668,6 +672,7 @@ export default async function SettingsUsersPage({ params, searchParams }: PagePr
       labels={labels}
       searchParams={normalizedSearchParams}
       locale={locale}
+      invitationsHref={result.data.canInviteUsers ? `/${locale}/settings/invitations` : undefined}
       inviteUserAction={inviteUser}
       assignRoleAction={assignRole}
       assignUserSitesAction={result.data.canAssignRoles ? assignUserSites : undefined}

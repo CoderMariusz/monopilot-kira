@@ -745,6 +745,41 @@ describe('SettingsUsersScreen deactivate flow (F2-C1 item 2)', () => {
   });
 });
 
+describe('SettingsUsersScreen invitations discoverability (FALA-06 / R01-05)', () => {
+  it('links to the invitations lifecycle screen when the caller can invite users', () => {
+    renderScreen({
+      invitationsHref: '/en/settings/invitations',
+      labels: {
+        ...labels,
+        manageInvitations: 'Manage invitations',
+      },
+      data: {
+        ...data,
+        canInviteUsers: true,
+      } as UsersScreenData,
+    } as Partial<SettingsUsersScreenProps>);
+
+    const link = screen.getByRole('link', { name: /manage invitations/i });
+    expect(link).toHaveAttribute('href', '/en/settings/invitations');
+  });
+
+  it('hides the invitations lifecycle link when the caller cannot invite users', () => {
+    renderScreen({
+      invitationsHref: '/en/settings/invitations',
+      labels: {
+        ...labels,
+        manageInvitations: 'Manage invitations',
+      },
+      data: {
+        ...data,
+        canInviteUsers: false,
+      } as UsersScreenData,
+    } as Partial<SettingsUsersScreenProps>);
+
+    expect(screen.queryByRole('link', { name: /manage invitations/i })).not.toBeInTheDocument();
+  });
+});
+
 describe('SettingsUsersScreen invited-user lifecycle (R01-04)', () => {
   const invitedUser = {
     id: 'user-invited',

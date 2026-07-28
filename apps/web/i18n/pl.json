@@ -70,6 +70,7 @@
       "summary": "{users} użytkowników · {roles} kategorie ról",
       "export": "Eksportuj",
       "invite_user": "Zaproś użytkownika",
+      "manage_invitations": "Zarządzaj zaproszeniami",
       "active": "Aktywni",
       "invited": "Zaproszeni",
       "disabled": "Wyłączeni",
@@ -795,6 +796,7 @@
       "sendInvitation": "Wyślij zaproszenie",
       "unassigned": "Nieprzypisane",
       "system": "System",
+      "unknown": "Nieznany",
       "notAvailable": "—",
       "permissionDenied": "Brak uprawnień: {viewPermission} lub {invitePermission} jest wymagane do wyświetlenia oczekujących zaproszeń.",
       "loadError": "Nie udało się załadować zaproszeń.",
@@ -809,6 +811,7 @@
       "resend": "Wyślij ponownie",
       "revoke": "Cofnij",
       "acceptedImmutable": "Zaakceptowany użytkownik jest niezmienny.",
+      "revokedImmutable": "Cofnięte zaproszenie jest niezmienne.",
       "noActions": "Brak akcji",
       "lifecycleUnavailable": "Akcja cyklu życia niedostępna",
       "recorded": "zarejestrowano",
@@ -817,7 +820,8 @@
       "status": {
         "pending": "Oczekujące",
         "expired": "Wygasłe",
-        "accepted": "Zaakceptowane"
+        "accepted": "Zaakceptowane",
+        "revoked": "Cofnięte"
       },
       "revokeDialog": {
         "title": "Cofnij zaproszenie",
@@ -1892,6 +1896,7 @@
         "units": "Jednostki i konwersje",
         "import_export": "Import / Eksport",
         "users": "Użytkownicy i role",
+        "invitations": "Zaproszenia",
         "security": "Bezpieczeństwo",
         "audit_logs": "Dzienniki audytu",
         "devices": "Urządzenia skanerów",
@@ -1983,6 +1988,7 @@
         "units": "Jednostki i konwersje",
         "import_export": "Import / Eksport",
         "users": "Użytkownicy i role",
+        "invitations": "Zaproszenia",
         "security": "Bezpieczeństwo",
         "audit_logs": "Dzienniki audytu",
         "devices": "Urządzenia skanerów",

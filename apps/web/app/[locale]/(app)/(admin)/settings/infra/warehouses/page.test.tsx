@@ -15,14 +15,17 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 
-const { withOrgContextMock, createWarehouseActionMock, deactivateWarehouseActionMock, renameWarehouseActionMock, deleteWarehouseActionMock, updateStorageRulesActionMock } = vi.hoisted(() => ({
+const { withOrgContextMock, createWarehouseActionMock, deactivateWarehouseActionMock, updateWarehouseActionMock, deleteWarehouseActionMock, updateStorageRulesActionMock } = vi.hoisted(() => ({
   withOrgContextMock: vi.fn(),
   createWarehouseActionMock: vi.fn(async () => ({ ok: false as const, error: 'invalid_input' })),
   deactivateWarehouseActionMock: vi.fn(async (input: DeactivateWarehouseInput) => ({
     ok: true as const,
     data: { warehouseId: input.warehouseId, deactivated_at: '2026-05-24T10:00:00.000Z' },
   })),
-  renameWarehouseActionMock: vi.fn(async (input: RenameWarehouseInput) => ({ ok: true as const, data: { id: input.warehouseId, name: input.name } })),
+  updateWarehouseActionMock: vi.fn(async (input: UpdateWarehouseInput) => ({
+    ok: true as const,
+    data: { id: input.warehouseId, name: input.name, address: input.address ?? null },
+  })),
   deleteWarehouseActionMock: vi.fn(async (input: DeleteWarehouseInput) => ({ ok: true as const, data: { warehouseId: input.warehouseId } })),
   updateStorageRulesActionMock: vi.fn(async (input: UpdateStorageRulesInput) => ({
     ok: true as const,
@@ -43,7 +46,7 @@ vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
 vi.mock('../../../../../../../actions/infra/warehouse', () => ({
   createWarehouse: createWarehouseActionMock,
   deactivateWarehouse: deactivateWarehouseActionMock,
-  renameWarehouse: renameWarehouseActionMock,
+  updateWarehouseDetails: updateWarehouseActionMock,
   deleteWarehouse: deleteWarehouseActionMock,
   updateWarehouseStorageRules: updateStorageRulesActionMock,
 }));
@@ -87,10 +90,11 @@ const labels: Record<string, string> = {
   storageRulesSaved: 'Storage rules saved.',
   storageRulesSaveFailed: 'Storage rules could not be saved. Try again or contact an administrator.',
   editStorageRules: 'Edit storage rules for {name}',
-  renameWarehouse: 'Rename warehouse',
-  renameWarehouseTitle: 'Rename warehouse',
-  renameWarehousePending: 'Renaming…',
-  renameWarehouseFailed: 'Warehouse could not be renamed.',
+  editWarehouse: 'Edit warehouse',
+  editWarehouseTitle: 'Edit warehouse',
+  editWarehousePending: 'Saving…',
+  editWarehouseFailed: 'Warehouse could not be updated.',
+  warehouseSiteLocked: 'Site cannot be changed after creation.',
   deleteWarehouse: 'Delete warehouse',
   deleteWarehouseTitle: 'Delete warehouse',
   deleteWarehouseBody: 'Delete {name}? This cannot be undone.',
@@ -153,8 +157,10 @@ type DeactivateWarehouseResult =
       warning?: { code: 'SOFT_WARNING_ACTIVE_WO'; activeWoCount: number };
     };
 
-type RenameWarehouseInput = { warehouseId: string; name: string };
-type RenameWarehouseResult = { ok: true; data: { id: string; name: string } } | { ok: false; error?: string };
+type UpdateWarehouseInput = { warehouseId: string; name: string; address?: string | null };
+type UpdateWarehouseResult =
+  | { ok: true; data: { id: string; name: string; address: string | null } }
+  | { ok: false; error?: string };
 type DeleteWarehouseInput = { warehouseId: string };
 type DeleteWarehouseResult = { ok: true; data: { warehouseId: string } } | { ok: false; error?: string; message?: string };
 
@@ -165,7 +171,7 @@ type WarehousePageProps = {
   canUpdateInfra?: boolean;
   createWarehouse?: (input: CreateWarehouseInput) => Promise<CreateWarehouseResult>;
   deactivateWarehouse?: (input: DeactivateWarehouseInput) => Promise<DeactivateWarehouseResult>;
-  renameWarehouse?: (input: RenameWarehouseInput) => Promise<RenameWarehouseResult>;
+  updateWarehouse?: (input: UpdateWarehouseInput) => Promise<UpdateWarehouseResult>;
   deleteWarehouse?: (input: DeleteWarehouseInput) => Promise<DeleteWarehouseResult>;
   updateStorageRules?: (input: UpdateStorageRulesInput) => Promise<UpdateStorageRulesResult>;
 };
@@ -270,7 +276,10 @@ async function renderWarehousesPage(overrides: Partial<WarehousePageProps> = {})
       ok: true as const,
       data: { warehouseId: input.warehouseId, deactivated_at: '2026-05-24T10:00:00.000Z' },
     })),
-    renameWarehouse: vi.fn(async (input: RenameWarehouseInput) => ({ ok: true as const, data: { id: input.warehouseId, name: input.name } })),
+    updateWarehouse: vi.fn(async (input: UpdateWarehouseInput) => ({
+      ok: true as const,
+      data: { id: input.warehouseId, name: input.name, address: input.address ?? null },
+    })),
     deleteWarehouse: vi.fn(async (input: DeleteWarehouseInput) => ({ ok: true as const, data: { warehouseId: input.warehouseId } })),
     updateStorageRules: vi.fn(async (input: UpdateStorageRulesInput) => ({
       ok: true as const,
@@ -579,20 +588,25 @@ describe('SET-012 warehouse list behavior', () => {
   it('renames and deletes a warehouse from row actions, surfacing dependent-delete failures', async () => {
     const user = userEvent.setup();
     const warehouse = warehouses[0];
-    const renameWarehouse = vi.fn(async (input: RenameWarehouseInput) => ({ ok: true as const, data: { id: input.warehouseId, name: input.name } }));
+    const updateWarehouse = vi.fn(async (input: UpdateWarehouseInput) => ({
+      ok: true as const,
+      data: { id: input.warehouseId, name: input.name, address: input.address ?? null },
+    }));
     const deleteWarehouse = vi.fn()
       .mockResolvedValueOnce({ ok: false as const, error: 'has_dependents', message: labels.deleteWarehouseBlocked })
       .mockResolvedValueOnce({ ok: true as const, data: { warehouseId: warehouse.id } });
-    await renderWarehousesPage({ renameWarehouse, deleteWarehouse });
+    await renderWarehousesPage({ updateWarehouse, deleteWarehouse });
 
     let row = rowFor(/apex chilled wh-01 active/i);
-    await user.click(within(row).getByRole('button', { name: /rename warehouse.*apex chilled/i }));
-    let dialog = screen.getByRole('dialog', { name: /^rename warehouse$/i });
+    await user.click(within(row).getByRole('button', { name: /edit warehouse.*apex chilled/i }));
+    let dialog = screen.getByRole('dialog', { name: /^edit warehouse$/i });
     const name = within(dialog).getByLabelText(/^name$/i);
     await user.clear(name);
     await user.type(name, 'Apex Chilled Renamed');
-    await user.click(within(dialog).getByRole('button', { name: /^rename warehouse$/i }));
-    await waitFor(() => expect(renameWarehouse).toHaveBeenCalledWith({ warehouseId: warehouse.id, name: 'Apex Chilled Renamed' }));
+    await user.click(within(dialog).getByRole('button', { name: /^edit warehouse$/i }));
+    await waitFor(() =>
+      expect(updateWarehouse).toHaveBeenCalledWith(expect.objectContaining({ warehouseId: warehouse.id, name: 'Apex Chilled Renamed' })),
+    );
     row = rowFor(/apex chilled renamed wh-01 active/i);
 
     await user.click(within(row).getByRole('button', { name: /delete warehouse.*apex chilled renamed/i }));
@@ -603,6 +617,122 @@ describe('SET-012 warehouse list behavior', () => {
     await user.click(within(dialog).getByRole('button', { name: /^delete$/i }));
     await waitFor(() => expect(deleteWarehouse).toHaveBeenCalledTimes(2));
     expect(within(warehouseTable()).queryByRole('row', { name: /apex chilled renamed/i })).not.toBeInTheDocument();
+  });
+
+  // FALA 6 / FIX-WH — createWarehouse returns `address` but not `addressLine1`; without
+  // seeding line1 on the optimistic row the edit dialog opens empty and a name-only
+  // save sends `address: null`, wiping the stored line1.
+  it('keeps the address after create when only the name is edited before refresh', async () => {
+    const user = userEvent.setup();
+    const createWarehouse = vi.fn(async (input: CreateWarehouseInput) => ({
+      ok: true as const,
+      data: {
+        id: '00000000-0000-4000-8000-000000000902',
+        code: input.code,
+        name: input.name,
+        address: input.address ?? null,
+        deactivated_at: null,
+        active_wo_count: 0,
+        site: 'Kraków HQ',
+        zones: 0,
+        bins: 0,
+        capacity: '0 plt',
+        usedPercent: 0,
+      } as Warehouse,
+    }));
+    const updateWarehouse = vi.fn(async (input: UpdateWarehouseInput) => ({
+      ok: true as const,
+      data: { id: input.warehouseId, name: input.name, address: input.address ?? null },
+    }));
+    await renderWarehousesPage({
+      warehouses: prototypeParityWarehouses as Warehouse[],
+      createWarehouse,
+      updateWarehouse,
+    });
+
+    await user.click(screen.getByRole('button', { name: /^\+ add warehouse$/i }));
+    const createDialog = screen.getByRole('dialog', { name: /^add warehouse$/i });
+    await user.type(within(createDialog).getByLabelText(/^code$/i), 'WH-ADDR2');
+    await user.type(within(createDialog).getByLabelText(/^name$/i), 'Dock warehouse');
+    await user.type(within(createDialog).getByLabelText(/^address$/i), 'Dock 5');
+    await user.click(within(createDialog).getByRole('combobox', { name: /^site$/i }));
+    await user.click(screen.getByRole('option', { name: /^kraków hq$/i }));
+    await user.click(within(createDialog).getByRole('button', { name: /^create warehouse$/i }));
+
+    await waitFor(() => expect(createWarehouse).toHaveBeenCalledTimes(1));
+    const row = within(warehouseTable()).getByRole('row', { name: /WH-ADDR2.*Dock warehouse.*Active/i });
+    await user.click(within(row).getByRole('button', { name: /edit warehouse.*dock warehouse/i }));
+
+    const editDialog = screen.getByRole('dialog', { name: /^edit warehouse$/i });
+    expect(within(editDialog).getByLabelText(/^address$/i)).toHaveValue('Dock 5');
+
+    const name = within(editDialog).getByLabelText(/^name$/i);
+    await user.clear(name);
+    await user.type(name, 'Dock warehouse renamed');
+    await user.click(within(editDialog).getByRole('button', { name: /^edit warehouse$/i }));
+
+    await waitFor(() =>
+      expect(updateWarehouse).toHaveBeenCalledWith({
+        warehouseId: '00000000-0000-4000-8000-000000000902',
+        name: 'Dock warehouse renamed',
+        address: 'Dock 5',
+      }),
+    );
+  });
+
+  // FALA 6 / R02-05 — before this, "Rename warehouse" was the only post-create
+  // edit and it carried the name alone, so an address typo was uncorrectable
+  // (delete is blocked once locations exist).
+  it('corrects a warehouse address after creation without disturbing its deactivated status', async () => {
+    const user = userEvent.setup();
+    const deactivated: Warehouse = {
+      id: '00000000-0000-4000-8000-000000000901',
+      code: 'WH-ADDR',
+      name: 'Typo Warehouse',
+      address: 'Krakowska 1',
+      addressLine1: 'Krakowska 1',
+      site: 'Kraków HQ',
+      deactivated_at: '2026-05-02T08:00:00.000Z',
+      active_wo_count: 0,
+      storageRules: null,
+    };
+    const updateWarehouse = vi.fn(async (input: UpdateWarehouseInput) => ({
+      ok: true as const,
+      data: { id: input.warehouseId, name: input.name, address: input.address ?? null },
+    }));
+    await renderWarehousesPage({ warehouses: [deactivated], updateWarehouse });
+
+    // The stored address is visible in its own column, not only as a Site fallback.
+    expect(screen.getByTestId('warehouse-address-WH-ADDR')).toHaveTextContent('Krakowska 1');
+
+    await user.click(screen.getByRole('button', { name: /edit warehouse.*typo warehouse/i }));
+    const dialog = screen.getByRole('dialog', { name: /^edit warehouse$/i });
+
+    // Prefilled from the raw `line1`, never from the joined display label.
+    const address = within(dialog).getByLabelText(/^address$/i);
+    expect(address).toHaveValue('Krakowska 1');
+
+    // Site is shown read-only with the reason spelled out, not silently dropped.
+    expect(within(dialog).getByTestId('edit-warehouse-site-readonly')).toHaveTextContent('Kraków HQ');
+    expect(within(dialog).getByText(/site cannot be changed after creation/i)).toBeInTheDocument();
+    expect(within(dialog).queryByRole('combobox', { name: /^site$/i })).not.toBeInTheDocument();
+
+    await user.clear(address);
+    await user.type(address, 'Krakowska 12');
+    await user.click(within(dialog).getByRole('button', { name: /^edit warehouse$/i }));
+
+    await waitFor(() =>
+      expect(updateWarehouse).toHaveBeenCalledWith({
+        warehouseId: deactivated.id,
+        name: 'Typo Warehouse',
+        address: 'Krakowska 12',
+      }),
+    );
+    await waitFor(() => expect(screen.getByTestId('warehouse-address-WH-ADDR')).toHaveTextContent('Krakowska 12'));
+
+    // `deactivated_at` lives in the same jsonb blob as the address — editing the
+    // address must not resurrect the warehouse.
+    expect(rowFor(/typo warehouse/i)).toHaveTextContent(/deactivated/i);
   });
 
   it('disables Bulk Deactivate with an aria-label explaining settings.infra.update is required when permission is missing', async () => {

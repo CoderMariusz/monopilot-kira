@@ -354,8 +354,10 @@ function makeClient(): FakeClient {
       }
 
       // createLine now delegates to the canonical infra upsertLine, whose INSERT is
-      // (id, org_id, site_id, warehouse_id, default_output_location_id, code, name, status)
+      // (id, org_id, site_id, warehouse_id, default_location_id, code, name, status)
       // with binds [id, siteId, warehouseId, defaultOutputLocationId, code, name, status].
+      // `default_location_id` is the canonical column (mig 042/526): the write used to target
+      // the duplicate `default_output_location_id`, which no reader reads.
       // A duplicate (site_id, code) is rejected by the DB unique index (SQLSTATE 23505),
       // not by an application-level pre-check — simulate that with a thrown pg error.
       if (normalized.startsWith('insert into public.production_lines')) {
@@ -371,7 +373,7 @@ function makeClient(): FakeClient {
               code: String(params[4] ?? 'LINE-1'),
               name: String(params[5] ?? 'Yoghurt line'),
               status: String(params[6] ?? 'active'),
-              default_output_location_id: (params[3] as string | null) ?? null,
+              default_location_id: (params[3] as string | null) ?? null,
             },
           ] as never[],
           rowCount: 1,
@@ -863,15 +865,16 @@ describe('settings shifts/devices wiring contract', () => {
     expect(saved).toMatchObject({ ok: true, data: { id: SITE_ID, org_id: ORG_ID } });
     expect(createdLine).toMatchObject({ ok: true, data: { id: LINE_ID, code: 'LINE-1' } });
     expect(sameCodeDifferentSite).toMatchObject({ ok: true, data: { id: LINE_ID, code: 'LINE-1' } });
-    // A duplicate (site_id, code) is rejected by the DB unique index; the canonical
-    // infra upsertLine maps the failure to persistence_failed.
-    expect(duplicateLine).toEqual({ ok: false, error: 'persistence_failed' });
+    // A duplicate (site_id, code) is rejected by the DB unique index. upsertLine maps 23505 to
+    // 'duplicate_code' and createLine now forwards it instead of flattening it to
+    // persistence_failed — a duplicate code must read as a duplicate, not as a generic failure.
+    expect(duplicateLine).toEqual({ ok: false, error: 'duplicate_code' });
     const sql = client.calls.map((call) => call.sql.replace(/\s+/g, ' ').trim()).join('\n');
     expect(sql).toContain('from public.sites s');
     expect(sql).toContain('from public.production_lines pl');
     expect(sql).toContain('left join public.shift_patterns sp');
     expect(sql).toContain('and pl.site_id = $2::uuid');
-    expect(sql).toContain('insert into public.production_lines (id, org_id, site_id, warehouse_id, default_output_location_id, code, name, status)');
+    expect(sql).toContain('insert into public.production_lines (id, org_id, site_id, warehouse_id, default_location_id, code, name, status)');
     expect(sql).toContain('update public.sites');
     expect(sql).toContain('app.current_org_id()');
     expect(client.calls.some((call) => call.params.includes(ORG_ID))).toBe(true);

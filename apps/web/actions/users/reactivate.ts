@@ -62,8 +62,9 @@ export async function reactivateUser(input: ReactivateUserInput): Promise<Reacti
         id: string;
         is_active: boolean;
         invite_token: string | null;
+        invite_token_expires_at: string | Date | null;
       }>(
-        `select id, is_active, invite_token
+        `select id, is_active, invite_token, invite_token_expires_at
            from public.users
           where id = $1::uuid
             and org_id = $2::uuid`,
@@ -74,6 +75,11 @@ export async function reactivateUser(input: ReactivateUserInput): Promise<Reacti
         return { ok: false, error: 'not_found' };
       }
       if (target.invite_token) {
+        return { ok: false, error: 'not_disabled' };
+      }
+      // Revoked invitations clear the token but keep expiry for audit listing —
+      // they are not deactivated accounts and must not be reactivated here.
+      if (target.invite_token_expires_at) {
         return { ok: false, error: 'not_disabled' };
       }
 
@@ -126,6 +132,7 @@ export async function reactivateUser(input: ReactivateUserInput): Promise<Reacti
             and org_id = $2::uuid
             and is_active = false
             and invite_token is null
+            and invite_token_expires_at is null
         returning id`,
         [targetUserId, orgId],
       );

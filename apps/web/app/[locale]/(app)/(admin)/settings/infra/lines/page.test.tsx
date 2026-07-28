@@ -421,6 +421,26 @@ describe('SET-018 line list behavior', () => {
     expect(lineRow(/new packing line.*line-new.*active/i)).toBeInTheDocument();
   });
 
+  it('shows a failed save INSIDE the still-open dialog', async () => {
+    // A rejected save leaves the dialog open, and the dialog is a
+    // `fixed inset-0 z-50` overlay: the error banner used to render in the page
+    // body underneath it, so the user saw the form silently not submit with no
+    // reason anywhere on screen.
+    const user = userEvent.setup();
+    const createLine = vi.fn(async () => ({ ok: false as const, error: 'duplicate_code' }));
+    await renderLinesPage({ createLine });
+
+    await user.click(screen.getByRole('button', { name: /^add line$/i }));
+    const dialog = await screen.findByRole('dialog', { name: /add production line/i });
+    await user.type(within(dialog).getByLabelText(/^code$/i), 'line-dup');
+    await user.type(within(dialog).getByLabelText(/^name$/i), 'Duplicate line');
+    await user.click(within(dialog).getByRole('button', { name: /^create line$/i }));
+
+    await waitFor(() => expect(createLine).toHaveBeenCalled());
+    // The dialog stays open, so the message has to live in it.
+    expect(within(dialog).getByRole('alert')).toHaveTextContent(/already in use/i);
+  });
+
   it('opens Edit on a row, prefills the create dialog and passes id to upsertLine', async () => {
     const user = userEvent.setup();
     const createLine = vi.fn(async (input) => ({

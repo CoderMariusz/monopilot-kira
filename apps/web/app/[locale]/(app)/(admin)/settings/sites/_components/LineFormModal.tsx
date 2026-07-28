@@ -47,7 +47,7 @@ export function LineFormModal({
       if (result.ok) {
         onSuccess();
       } else {
-        setError(mapError(result.error, labels));
+        setError(mapError(result.error, labels, result.message));
       }
     } catch {
       setError(labels.errorGeneric);

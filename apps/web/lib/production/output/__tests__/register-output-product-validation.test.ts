@@ -28,6 +28,13 @@ function makeClient(): QueryClient {
       if (n.includes('allowed_products')) {
         return { rows: [{ allowed: productAllowed }], rowCount: 1 };
       }
+      // Line output target (resolveLineOutputTarget): joins production_lines off
+      // work_orders, so it must be matched before the generic work_orders branch.
+      // No line configured here — the LP destination is register-output-line-target's
+      // subject, not this file's; empty rows send it down the warehouse fallback.
+      if (n.includes('join public.production_lines')) {
+        return { rows: [], rowCount: 0 };
+      }
       if (n.includes('from public.work_orders') && n.includes('wo_number')) {
         return {
           rows: [{ id: WO_ID, wo_number: 'WO-001', site_id: SITE_ID, uom: 'kg', uom_snapshot: null }],

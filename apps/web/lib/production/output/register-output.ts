@@ -57,6 +57,7 @@ import {
   readWoExecutionStatus,
   type OrgContextLike,
 } from '../shared';
+import { resolveLineOutputTarget } from './line-output-target';
 
 // ─── Input schema ──────────────────────────────────────────────────────────────
 // REGULATED QUANTITY BOUNDARY (food-MES, NUMERIC-exact): qty_kg / catch weights
@@ -676,6 +677,11 @@ async function evaluateMassBalanceGate(
   };
 }
 
+/**
+ * FALLBACK ONLY — used when the WO's production line has no configured output
+ * location (see resolveLineOutputTarget). The `default_location_id` alias below
+ * is the warehouse's alphabetically first location, NOT a line setting.
+ */
 async function resolveWarehouseForSessionSite(ctx: OrgContextLike): Promise<SiteWarehouseTarget | null> {
   // Resilient resolution for the output LP's warehouse: prefer a warehouse
   // linked to the active site, then the org default, then the org's first
@@ -707,8 +713,9 @@ async function resolveWarehouseForSessionSite(ctx: OrgContextLike): Promise<Site
 /**
  * 8b (F-A04/F-B08): materialize the output as INVENTORY. Creates the output LP
  * in the SAME transaction as the wo_outputs row:
- *   - warehouse/location = the scanner session site's default warehouse and
- *     its first location;
+ *   - warehouse/location = the output location configured on the WO's
+ *     production line, falling back to the scanner session site's default
+ *     warehouse and its first location when no line output is configured;
  *   - status 'received' + qa_status 'pending' — the LP is NOT born 'available';
  *     it flows through the QA release → available promotion path;
  *   - genealogy: parent_lp_id = FIRST consumed LP (license_plates models a
@@ -734,7 +741,12 @@ async function createOutputLp(
     catchWeightKg?: string | null;
   },
 ): Promise<{ id: string; lp_number: string }> {
-  const warehouse = await resolveWarehouseForSessionSite(ctx);
+  // The line's CONFIGURED output location wins; the warehouse-first-location
+  // scan below is only the fallback for a WO with no line, a line with no
+  // configured output, or a location outside any warehouse. See
+  // resolveLineOutputTarget — registration must never be blocked by an
+  // unconfigured line.
+  const warehouse = (await resolveLineOutputTarget(ctx, input.woId)) ?? (await resolveWarehouseForSessionSite(ctx));
   if (!warehouse) {
     throw new ProductionActionError('no_warehouse_for_site', 409, {
       reason: 'no_warehouse_for_site',

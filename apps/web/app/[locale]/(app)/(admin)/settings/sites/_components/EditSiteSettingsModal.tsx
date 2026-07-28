@@ -12,11 +12,18 @@ export type UpdateSiteSettingsAction = (
   settings: Partial<SiteSettings>,
 ) => Promise<SiteSettingsMutationResult>;
 
+/**
+ * Same rule as the shared {@link mapError}: `invalid_input` is NOT "this field
+ * is required". This form has the same free-text timezone as the create modal,
+ * so it hit the same lie — a valid-looking form rejected with a message about a
+ * missing field. Prefer the server's specific reason when it sends one.
+ */
 function mapSettingsError(
   error: 'invalid_input' | 'forbidden' | 'not_found' | 'persistence_failed',
   labels: SitesModalLabels,
+  message?: string | null,
 ): string {
-  if (error === 'invalid_input') return labels.errorRequired;
+  if (message) return message;
   if (error === 'forbidden') return labels.errorForbidden;
   return labels.errorGeneric;
 }
@@ -64,7 +71,7 @@ export function EditSiteSettingsModal({
       if (result.ok) {
         onSuccess(result.data);
       } else {
-        setError(mapSettingsError(result.error, labels));
+        setError(mapSettingsError(result.error, labels, result.message));
       }
     } catch {
       setError(labels.errorGeneric);

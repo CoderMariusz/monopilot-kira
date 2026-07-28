@@ -90,6 +90,9 @@ export const SETTINGS_NAV_GROUPS = [
   ]),
   group("access", "Access", true, [
     item("users", "Users & roles", "◉"),
+    // FALA-06 / R01-05 — invitation lifecycle (Resend/Revoke) was a URL-only dead-end.
+    // Gated server-side on settings.users.invite (see filterSettingsNavGroups).
+    item("invitations", "Invitations", "✉", false, "/settings/invitations"),
     item("security", "Security", "🔒"),
     item("audit-logs", "Audit logs", "◷", true, "/settings/audit"),
   ]),
@@ -169,9 +172,21 @@ export const SETTINGS_ADMIN_NAV_PERMISSIONS = [
   "org.access.admin",
 ] as const;
 
+/** Nav item key for the invitation lifecycle screen (FALA-06 / R01-05). */
+export const SETTINGS_INVITATIONS_NAV_KEY = "invitations" as const;
+
+/** Permission that reveals the Invitations nav item and lifecycle screen. */
+export const SETTINGS_INVITATIONS_PERMISSION = "settings.users.invite" as const;
+
 export type SettingsNavAccess = {
   /** True when the caller may see the admin (org-configuration) groups. */
   canViewAdminSettings: boolean;
+  /**
+   * True when the caller may manage invitations (settings.users.invite).
+   * When false OR omitted, the Invitations nav item is stripped before the
+   * client renders — an unprobed permission is not a granted one.
+   */
+  canManageInvitations?: boolean;
 };
 
 /**
@@ -183,5 +198,34 @@ export function filterSettingsNavGroups(
   groups: readonly SettingsNavGroup[],
   access: SettingsNavAccess,
 ): SettingsNavGroup[] {
-  return groups.filter((navGroup) => !navGroup.admin || access.canViewAdminSettings);
+  // Fail CLOSED: an omitted flag means the caller never probed
+  // settings.users.invite, which is not the same as holding it. `!== false`
+  // handed the invite link to every caller that forgot to pass it — including
+  // one with no org-settings read at all, who then got the whole `access` group
+  // materialised for them by the branch below.
+  const canManageInvitations = access.canManageInvitations === true;
+
+  let visibleGroups = groups.filter((navGroup) => !navGroup.admin || access.canViewAdminSettings);
+
+  if (!access.canViewAdminSettings && canManageInvitations) {
+    const accessGroup = groups.find((navGroup) => navGroup.id === 'access');
+    if (accessGroup) {
+      const invitationsOnly: SettingsNavGroup = {
+        ...accessGroup,
+        items: accessGroup.items.filter((item) => item.key === SETTINGS_INVITATIONS_NAV_KEY),
+      };
+      if (invitationsOnly.items.length > 0 && !visibleGroups.some((navGroup) => navGroup.id === 'access')) {
+        visibleGroups = [...visibleGroups, invitationsOnly];
+      }
+    }
+  }
+
+  if (canManageInvitations) {
+    return visibleGroups;
+  }
+
+  return visibleGroups.map((navGroup) => ({
+    ...navGroup,
+    items: navGroup.items.filter((item) => item.key !== SETTINGS_INVITATIONS_NAV_KEY),
+  }));
 }

@@ -16,6 +16,7 @@ import {
   readWoExecutionStatus,
   type OrgContextLike,
 } from '../shared';
+import { resolveLineOutputTarget } from './line-output-target';
 
 const DecimalInput = z
   .union([z.string(), z.number()])
@@ -357,6 +358,11 @@ async function nextOutputSequence(ctx: OrgContextLike, woId: string): Promise<nu
   return Number(rows[0]?.seq ?? '0') + 1;
 }
 
+/**
+ * FALLBACK ONLY — used when the WO's production line has no configured output
+ * location (see resolveLineOutputTarget). The `default_location_id` alias below
+ * is the warehouse's alphabetically first location, NOT a line setting.
+ */
 async function resolveWarehouseForSite(
   ctx: OrgContextLike,
   siteId: string | null,
@@ -594,7 +600,9 @@ export async function registerDisassemblyOutput(
     };
   }
 
-  const warehouse = await resolveWarehouseForSite(ctx, wo.site_id);
+  // The line's CONFIGURED output location wins; the warehouse scan is only the
+  // fallback for a WO with no line / a line with no configured output.
+  const warehouse = (await resolveLineOutputTarget(ctx, wo.id)) ?? (await resolveWarehouseForSite(ctx, wo.site_id));
   if (!warehouse) {
     return {
       ok: false,

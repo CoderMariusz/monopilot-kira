@@ -19,10 +19,19 @@ type OrgActionContext = {
 };
 
 type LineStatus = 'draft' | 'active' | 'inactive';
-type LineRow = { id: string; code: string; name: string; status: LineStatus; default_output_location_id: string | null };
+type LineRow = { id: string; code: string; name: string; status: LineStatus; default_location_id: string | null };
 type WarehouseRow = { id: string; site_id: string | null };
-type LocationWarehouseRow = { warehouse_id: string | null };
+type LocationRow = { warehouse_id: string | null; is_active: boolean };
 
+/**
+ * `defaultOutputLocationId` is the *input* name the UI has always used; it maps
+ * onto the canonical column `production_lines.default_location_id` (mig 042 —
+ * indexed, FK'd, and the column every reader uses: the lines screen, the sites
+ * screen, `app/api/warehouse/scanner/pick`, `lib/warehouse/scanner/movement.ts`).
+ * The short-lived `default_output_location_id` (mig 337) was written here and
+ * read nowhere, so a saved default output location silently vanished on reload.
+ * Renaming the input would ripple through every caller for no behaviour gain.
+ */
 type ParsedLineInput = {
   id: string | null;
   siteId: string | null;
@@ -44,6 +53,8 @@ export type UpsertLineResult =
         | 'warehouse_site_mismatch'
         | 'duplicate_code'
         | 'invalid_location_reference'
+        | 'inactive_location_reference'
+        | 'location_requires_warehouse'
         | 'persistence_failed';
     };
 
@@ -75,9 +86,42 @@ export async function upsertLine(rawInput: unknown): Promise<UpsertLineResult> {
           return { ok: false, error: 'warehouse_site_mismatch' };
         }
       }
-      if (input.defaultOutputLocationId && input.warehouseId) {
-        const location = await getLocationWarehouse(client, input.defaultOutputLocationId);
-        if (!location || location.warehouse_id !== input.warehouseId) return { ok: false, error: 'invalid_location_reference' };
+      if (input.defaultOutputLocationId) {
+        // Read ONCE, and with the row locked (see getStoredDefaultLocationId):
+        // both carve-outs below compare against the stored value, and an
+        // unlocked read let a concurrent save change it between the check and
+        // the upsert.
+        const stored = await getStoredDefaultLocationId(client, input.id);
+        const unchanged = input.defaultOutputLocationId === stored;
+
+        // Runs whenever a location is supplied — the old `&& input.warehouseId`
+        // guard skipped validation entirely for a line with no warehouse, so any
+        // location id (including another org's) was accepted unchecked.
+        const location = await getLocation(client, input.defaultOutputLocationId);
+        if (!location) return { ok: false, error: 'invalid_location_reference' };
+
+        if (!input.warehouseId) {
+          // A location can only be validated against the line's warehouse, so a
+          // line without one cannot have a *new* output location proven to be
+          // reachable — reject with a reason the user can act on ("pick a
+          // warehouse first") instead of storing an unverifiable reference.
+          // Anti-regression: a value already persisted on an existing line stays
+          // accepted, so rename/status edits of a legacy warehouse-less line
+          // (the sites screen carries its location through unchanged) do not
+          // become impossible. Same carve-out shape as the inactive check below.
+          if (!unchanged) return { ok: false, error: 'location_requires_warehouse' };
+        } else if (location.warehouse_id !== input.warehouseId) {
+          return { ok: false, error: 'invalid_location_reference' };
+        }
+
+        // Anti-regression: a line already pointing at a since-deactivated
+        // location must stay editable, so an UNCHANGED inactive value passes.
+        // Only *newly* selecting an inactive location is refused.
+        // `=== false` (not `!is_active`): the column is NOT NULL DEFAULT true, so only an
+        // explicit false means deactivated — a projection without the field is not "inactive".
+        if (location.is_active === false && !unchanged) {
+          return { ok: false, error: 'inactive_location_reference' };
+        }
       }
 
       const duplicate = await findProductionLineByCodeAndSite(client, {
@@ -89,16 +133,16 @@ export async function upsertLine(rawInput: unknown): Promise<UpsertLineResult> {
 
       const { rows } = await client.query<LineRow>(
         `insert into public.production_lines
-           (id, org_id, site_id, warehouse_id, default_output_location_id, code, name, status)
+           (id, org_id, site_id, warehouse_id, default_location_id, code, name, status)
          values (coalesce($1::uuid, gen_random_uuid()), app.current_org_id(), $2::uuid, $3::uuid, $4::uuid, $5, $6, $7)
          on conflict (id) do update set
            site_id = excluded.site_id,
            warehouse_id = excluded.warehouse_id,
-           default_output_location_id = excluded.default_output_location_id,
+           default_location_id = excluded.default_location_id,
            code = excluded.code,
            name = excluded.name,
            status = excluded.status
-         returning id, code, name, status, default_output_location_id`,
+         returning id, code, name, status, default_location_id`,
         [input.id, input.siteId, input.warehouseId, input.defaultOutputLocationId, input.code, input.name, input.status],
       );
       const row = rows[0];
@@ -113,7 +157,7 @@ export async function upsertLine(rawInput: unknown): Promise<UpsertLineResult> {
           line_id: row.id,
           status: row.status,
           warehouse_id: input.warehouseId,
-          default_output_location_id: input.defaultOutputLocationId,
+          default_location_id: input.defaultOutputLocationId,
           actor_user_id: userId,
         },
       });
@@ -163,9 +207,9 @@ async function getWarehouse(client: QueryClient, warehouseId: string): Promise<W
   return rows[0] ?? null;
 }
 
-async function getLocationWarehouse(client: QueryClient, locationId: string): Promise<LocationWarehouseRow | null> {
-  const { rows } = await client.query<LocationWarehouseRow>(
-    `select warehouse_id
+async function getLocation(client: QueryClient, locationId: string): Promise<LocationRow | null> {
+  const { rows } = await client.query<LocationRow>(
+    `select warehouse_id, is_active
        from public.locations
       where id = $1::uuid
         and org_id = (select app.current_org_id())
@@ -173,6 +217,33 @@ async function getLocationWarehouse(client: QueryClient, locationId: string): Pr
     [locationId],
   );
   return rows[0] ?? null;
+}
+
+/**
+ * Currently persisted default location of a line, or null for a new line.
+ *
+ * Takes the row lock (`for update`, held to COMMIT because `withOrgContext`
+ * wraps the whole action in begin/commit) — the same protocol every writer of
+ * public.locations follows. The "an UNCHANGED value is still accepted" carve-outs
+ * decide on what this returns and then write, so an unlocked read let two saves
+ * work off the same stale snapshot: T1 sets the line to an inactive/unverifiable
+ * location while T2 reads the pre-T1 value, concludes "unchanged", and commits
+ * over it. The lock makes the check-then-write atomic for a given line.
+ * A new line (no id) has no row to lock, and no stored value either, so both
+ * carve-outs stay closed for it.
+ */
+async function getStoredDefaultLocationId(client: QueryClient, lineId: string | null): Promise<string | null> {
+  if (!lineId) return null;
+  const { rows } = await client.query<{ default_location_id: string | null }>(
+    `select default_location_id::text
+       from public.production_lines
+      where id = $1::uuid
+        and org_id = app.current_org_id()
+      limit 1
+      for update`,
+    [lineId],
+  );
+  return rows[0]?.default_location_id ?? null;
 }
 
 function revalidateLinesPath(): void {

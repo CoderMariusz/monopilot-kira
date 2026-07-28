@@ -5,6 +5,7 @@ import { hasAnyPermission } from '../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../lib/auth/with-org-context';
 import {
   SETTINGS_ADMIN_NAV_PERMISSIONS,
+  SETTINGS_INVITATIONS_PERMISSION,
   SETTINGS_NAV_GROUPS,
   filterSettingsNavGroups,
 } from '../../../../../lib/navigation/settings-nav';
@@ -28,20 +29,24 @@ type QueryClient = {
  * reach the client — a permission-less user cannot even see the link. Any
  * auth/session failure fails CLOSED to the caller-only (My account) groups.
  */
-async function resolveAdminSettingsAccess(): Promise<boolean> {
+async function resolveSettingsNavAccess(): Promise<{ canViewAdminSettings: boolean; canManageInvitations: boolean }> {
   try {
     return await withOrgContext(async ({ userId, orgId, client }) => {
       const queryClient = client as QueryClient;
-      return hasAnyPermission({ client: queryClient, userId, orgId }, [...SETTINGS_ADMIN_NAV_PERMISSIONS]);
+      const [canViewAdminSettings, canManageInvitations] = await Promise.all([
+        hasAnyPermission({ client: queryClient, userId, orgId }, [...SETTINGS_ADMIN_NAV_PERMISSIONS]),
+        hasAnyPermission({ client: queryClient, userId, orgId }, [SETTINGS_INVITATIONS_PERMISSION]),
+      ]);
+      return { canViewAdminSettings, canManageInvitations };
     });
   } catch {
-    return false;
+    return { canViewAdminSettings: false, canManageInvitations: false };
   }
 }
 
 export default async function SettingsLayout({ children, params }: SettingsLayoutProps) {
-  const [{ locale }, canViewAdminSettings] = await Promise.all([params, resolveAdminSettingsAccess()]);
-  const groups = filterSettingsNavGroups(SETTINGS_NAV_GROUPS, { canViewAdminSettings });
+  const [{ locale }, navAccess] = await Promise.all([params, resolveSettingsNavAccess()]);
+  const groups = filterSettingsNavGroups(SETTINGS_NAV_GROUPS, navAccess);
 
   return (
     <div

@@ -119,7 +119,7 @@ describe('C010 line warehouse site invariant', () => {
       }
       if (/insert into public\.production_lines/i.test(sql)) {
         return {
-          rows: [{ id: '11111111-1111-4111-8111-111111111111', code: 'LINE-NULL', name: 'Org-wide line', status: 'draft', default_output_location_id: null }],
+          rows: [{ id: '11111111-1111-4111-8111-111111111111', code: 'LINE-NULL', name: 'Org-wide line', status: 'draft', default_location_id: null }],
           rowCount: 1,
         };
       }

@@ -347,7 +347,8 @@ type UpsertLocationInput = {
 };
 
 type UpsertLocationResult =
-  | { ok: true; data: { id: string; path: string; level: number } }
+  // `active` = the flag the server persisted (clamp / legacy carve-out can change it).
+  | { ok: true; data: { id: string; path: string; level: number; active: boolean } }
   | { ok: false; error: string };
 
 type LocationModalCrudProps = Partial<LocationTreePageProps> & {
@@ -431,7 +432,7 @@ describe('UI-SET-002 locations modal CRUD parity RED', () => {
     const user = userEvent.setup();
     const upsertLocation = vi.fn(async () => ({
       ok: true as const,
-      data: { id: 'created-bin-c5', path: 'apex.z02.c5', level: 3 },
+      data: { id: 'created-bin-c5', path: 'apex.z02.c5', level: 3, active: true },
     }));
     await renderLocationModalCrud({ canUpdateInfra: true, upsertLocation });
 

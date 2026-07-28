@@ -22,6 +22,7 @@ vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
 vi.mock('./_actions/printers', () => ({
   listPrinters: vi.fn(),
   upsertPrinter: vi.fn(),
+  deletePrinter: vi.fn(),
 }));
 
 const refreshMock = vi.fn();
@@ -65,6 +66,7 @@ type PrintersPageProps = {
   canManage?: boolean;
   state?: PageState;
   upsertPrinter?: (input: UpsertInput) => Promise<PrinterRow>;
+  deletePrinter?: (printerId: string) => Promise<void>;
 };
 
 type PrintersPage = (props: PrintersPageProps) => React.ReactNode | Promise<React.ReactNode>;
@@ -209,5 +211,31 @@ describe('SET-PRN printers screen', () => {
     await user.click(within(row).getByRole('button', { name: /deactivate/i }));
     await waitFor(() => expect(upsertPrinter).toHaveBeenCalledTimes(1));
     expect(upsertPrinter).toHaveBeenCalledWith(expect.objectContaining({ id: PRINTER_PDF, is_active: false }));
+  });
+
+  it('deletes a printer through the injected deletePrinter action', async () => {
+    const user = userEvent.setup();
+    const deletePrinter = vi.fn(async () => undefined);
+    await renderPage({ deletePrinter });
+    const row = within(screen.getByRole('table', { name: /printers/i })).getByRole('row', { name: /Zebra ZD420/i });
+    await user.click(within(row).getByRole('button', { name: /delete printer/i }));
+    await user.click(screen.getByRole('button', { name: /confirm delete/i }));
+    await waitFor(() => expect(deletePrinter).toHaveBeenCalledTimes(1));
+    expect(deletePrinter).toHaveBeenCalledWith(PRINTER_ZPL);
+    await waitFor(() => expect(refreshMock).toHaveBeenCalled());
+  });
+
+  it('renders list, empty, and error states without crashing', async () => {
+    await renderPage();
+    expect(screen.getByTestId('settings-printers-screen')).toBeInTheDocument();
+    expect(screen.getByRole('table', { name: /printers/i })).toBeInTheDocument();
+
+    cleanup();
+    await renderPage({ state: 'empty', printers: [] });
+    expect(screen.getByText(/no printers registered yet/i)).toBeInTheDocument();
+
+    cleanup();
+    await renderPage({ state: 'error', printers: [] });
+    expect(screen.getByRole('alert')).toHaveTextContent(/unable to load printers/i);
   });
 });

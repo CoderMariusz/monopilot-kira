@@ -53,8 +53,8 @@ export type ReactivateWarehouseResult =
   | { ok: true; data: { warehouseId: string; isActive: boolean } }
   | { ok: false; error: 'invalid_input' | 'forbidden' | 'not_found' | 'not_deactivated' | 'persistence_failed' };
 
-export type RenameWarehouseResult =
-  | { ok: true; data: { id: string; name: string } }
+export type UpdateWarehouseDetailsResult =
+  | { ok: true; data: { id: string; name: string; address: string | null } }
   | { ok: false; error: 'invalid_input' | 'forbidden' | 'not_found' | 'persistence_failed' };
 
 export type DeleteWarehouseResult =
@@ -99,7 +99,11 @@ const createWarehouseInputSchema = z.object({
 });
 
 const warehouseIdSchema = z.object({ warehouseId: z.string().uuid() });
-const renameWarehouseSchema = warehouseIdSchema.extend({ name: z.string().trim().min(1).max(128) });
+const updateWarehouseDetailsSchema = warehouseIdSchema.extend({
+  name: z.string().trim().min(1).max(128),
+  // `undefined` = leave the stored address alone; `null` / '' = clear it.
+  address: z.union([z.string().max(256), z.null()]).optional(),
+});
 
 export async function createWarehouse(rawInput: unknown): Promise<CreateWarehouseResult> {
   const input = parseCreateInput(rawInput);
@@ -222,26 +226,53 @@ export async function deactivateWarehouse(rawInput: unknown): Promise<Deactivate
   }
 }
 
-export async function renameWarehouse(rawInput: unknown): Promise<RenameWarehouseResult> {
-  const parsed = renameWarehouseSchema.safeParse(rawInput);
+/**
+ * Edit warehouse master data (name + street address) after creation.
+ *
+ * The `site_id` is deliberately NOT editable: locations, production lines and
+ * on-hand stock all hang off the warehouse, and re-pointing it at another site
+ * would orphan them. The screen says so instead of silently omitting the field
+ * — a mis-sited warehouse with no dependents can still be deleted and recreated.
+ */
+export async function updateWarehouseDetails(rawInput: unknown): Promise<UpdateWarehouseDetailsResult> {
+  const parsed = updateWarehouseDetailsSchema.safeParse(rawInput);
   if (!parsed.success) return { ok: false, error: 'invalid_input' };
 
+  const addressProvided = parsed.data.address !== undefined;
+  const addressLine1 =
+    typeof parsed.data.address === 'string' && parsed.data.address.trim().length > 0 ? parsed.data.address.trim() : null;
+
   try {
-    return await withOrgContext(async ({ userId, orgId, client }: OrgActionContext): Promise<RenameWarehouseResult> => {
+    return await withOrgContext(async ({ userId, orgId, client }: OrgActionContext): Promise<UpdateWarehouseDetailsResult> => {
       if (!(await hasPermission({ client, userId, orgId }, EDIT_PERMISSION))) return { ok: false, error: 'forbidden' };
-      const { rows } = await client.query<{ id: string; name: string }>(
+      // SURGICAL jsonb WRITE — do not "simplify" this into `address = $3::jsonb`.
+      // `public.warehouses.address` is a shared blob: deactivateWarehouse stores
+      // `deactivated_at`/`deactivated_by` in it (and the list query reads
+      // `city`/`country`/`capacity`/`usedPercent` out of it). Replacing the whole
+      // object here would drop `deactivated_at` and silently reactivate a
+      // deactivated warehouse. Only the `line1` key may be touched.
+      const { rows } = await client.query<{ id: string; name: string; address_label: string | null }>(
         `update public.warehouses
-            set name = $2
+            set name = $2,
+                address = case
+                  when not $4::boolean then address
+                  when $3::text is null then coalesce(address, '{}'::jsonb) - 'line1'
+                  else jsonb_set(coalesce(address, '{}'::jsonb), '{line1}', to_jsonb($3::text), true)
+                end
           where org_id = app.current_org_id()
             and id = $1::uuid
-        returning id::text, name`,
-        [parsed.data.warehouseId, parsed.data.name],
+        returning id::text,
+                  name,
+                  nullif(concat_ws(', ', address->>'line1', address->>'city', address->>'country'), '') as address_label`,
+        [parsed.data.warehouseId, parsed.data.name, addressLine1, addressProvided],
       );
       const row = rows[0];
-      return row ? { ok: true, data: row } : { ok: false, error: 'not_found' };
+      return row
+        ? { ok: true, data: { id: row.id, name: row.name, address: row.address_label ?? null } }
+        : { ok: false, error: 'not_found' };
     });
   } catch (error) {
-    console.error('[settings/infra/warehouse:rename] persistence_failed', error instanceof Error ? { message: error.message } : { message: String(error) });
+    console.error('[settings/infra/warehouse:update-details] persistence_failed', error instanceof Error ? { message: error.message } : { message: String(error) });
     return { ok: false, error: 'persistence_failed' };
   }
 }

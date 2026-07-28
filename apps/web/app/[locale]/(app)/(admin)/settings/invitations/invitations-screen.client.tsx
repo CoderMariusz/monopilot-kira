@@ -22,7 +22,7 @@ import Modal from '@monopilot/ui/Modal';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@monopilot/ui/Select';
 import Textarea from '@monopilot/ui/Textarea';
 
-export type InvitationStatus = 'pending' | 'expired' | 'accepted';
+export type InvitationStatus = 'pending' | 'expired' | 'accepted' | 'revoked';
 
 export type PendingInvitation = {
   id: string;
@@ -30,6 +30,7 @@ export type PendingInvitation = {
   role: string;
   roleId?: string;
   invitedBy: string;
+  invitedByAttribution?: 'user' | 'system' | 'unknown';
   invitedAt: string;
   expiresAt: string;
   status: InvitationStatus;
@@ -92,6 +93,7 @@ function hasWritePermissions(permissions: string[]) {
 function statusTone(status: InvitationStatus) {
   if (status === 'pending') return 'amber';
   if (status === 'expired') return 'red';
+  if (status === 'revoked') return 'gray';
   return 'green';
 }
 
@@ -100,7 +102,8 @@ function statusLabel(status: InvitationStatus, t: (key: string) => string) {
 }
 
 function Badge({ children, tone }: { children: React.ReactNode; tone: string }) {
-  const toneClass = tone === 'amber' ? 'badge-amber' : tone === 'red' ? 'badge-red' : 'badge-green';
+  const toneClass =
+    tone === 'amber' ? 'badge-amber' : tone === 'red' ? 'badge-red' : tone === 'gray' ? 'badge-gray' : 'badge-green';
   return (
     <span data-slot="badge" data-tone={tone} className={`badge ${toneClass}`}>
       {children}
@@ -134,6 +137,7 @@ type RuntimeInvitationListItem = {
   email: string;
   role?: string | null;
   invitedBy?: string | null;
+  invitedByAttribution?: 'user' | 'system' | 'unknown';
   invitedAt?: string | null;
   expiresAt?: string | null;
   status: string;
@@ -146,16 +150,33 @@ type RuntimeActions = {
   getInvitationLifecycleToken?: InvitationsScreenProps['getInvitationLifecycleToken'];
 };
 
+function invitedByLabel(
+  invitation: Pick<PendingInvitation, 'invitedBy' | 'invitedByAttribution'>,
+  t: (key: string) => string,
+) {
+  if (invitation.invitedByAttribution === 'system') return t('system');
+  if (invitation.invitedByAttribution === 'unknown') return t('unknown');
+  return invitation.invitedBy || t('unknown');
+}
+
 function normalizeRuntimeInvitation(
   item: RuntimeInvitationListItem,
-  fallbacks: { unassigned: string; system: string; notAvailable: string },
+  fallbacks: { unassigned: string; notAvailable: string },
 ): PendingInvitation | null {
-  if (item.status !== 'pending' && item.status !== 'expired' && item.status !== 'accepted') return null;
+  if (
+    item.status !== 'pending' &&
+    item.status !== 'expired' &&
+    item.status !== 'accepted' &&
+    item.status !== 'revoked'
+  ) {
+    return null;
+  }
   return {
     id: item.id,
     email: item.email,
     role: item.role ?? fallbacks.unassigned,
-    invitedBy: item.invitedBy ?? fallbacks.system,
+    invitedBy: item.invitedBy ?? '',
+    invitedByAttribution: item.invitedByAttribution ?? (item.invitedBy ? 'user' : 'unknown'),
     invitedAt: item.invitedAt ?? fallbacks.notAvailable,
     expiresAt: item.expiresAt ?? fallbacks.notAvailable,
     status: item.status,
@@ -407,7 +428,6 @@ export default function InvitationsScreen(props: Partial<InvitationsScreenProps>
         const loadedInvitations = (result.data.invitations as RuntimeInvitationListItem[])
           .map((item: RuntimeInvitationListItem) => normalizeRuntimeInvitation(item, {
             unassigned: t('unassigned'),
-            system: t('system'),
             notAvailable: t('notAvailable'),
           }))
           .filter((item: PendingInvitation | null): item is PendingInvitation => item !== null);
@@ -596,7 +616,7 @@ export default function InvitationsScreen(props: Partial<InvitationsScreenProps>
                   <tr key={invitation.id} className="border-t" style={{ borderColor: 'var(--border)' }}>
                     <td className="p-2 font-medium">{invitation.email}</td>
                     <td className="p-2">{invitation.role}</td>
-                    <td className="p-2">{invitation.invitedBy}</td>
+                    <td className="p-2">{invitedByLabel(invitation, t)}</td>
                     <td className="muted mono p-2">{invitation.invitedAt}</td>
                     <td className="muted mono p-2">{invitation.expiresAt}</td>
                     <td className="p-2">
@@ -621,10 +641,13 @@ export default function InvitationsScreen(props: Partial<InvitationsScreenProps>
                       {invitation.status === 'accepted' ? (
                         <span className="muted text-xs">{t('acceptedImmutable')}</span>
                       ) : null}
+                      {invitation.status === 'revoked' ? (
+                        <span className="muted text-xs">{t('revokedImmutable')}</span>
+                      ) : null}
                       {!canWrite && invitation.status !== 'accepted' ? (
                         <span className="muted text-xs">{t('noActions')}</span>
                       ) : null}
-                      {canWrite && invitation.status !== 'accepted' && !invitation.inviteToken && !(invitation.status === 'pending' && getInvitationLifecycleToken) ? (
+                      {canWrite && invitation.status !== 'accepted' && invitation.status !== 'revoked' && !invitation.inviteToken && !(invitation.status === 'pending' && getInvitationLifecycleToken) ? (
                         <span className="muted text-xs">{t('lifecycleUnavailable')}</span>
                       ) : null}
                     </td>

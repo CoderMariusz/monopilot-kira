@@ -145,19 +145,75 @@ describe('settings/sites updateSiteSettings', () => {
     expect(update?.params?.[11]).toBe('Apex UK');
   });
 
-  it('rejects an invalid IANA timezone', async () => {
+  it('rejects an invalid IANA timezone, naming the field and the reason', async () => {
     mockOrgContext(() => ({ rows: [], rowCount: 0 }));
     const result = await updateSiteSettings(ORG_ID, SITE_ID, {
       operating_hours: 'Mon-Fri 08:00-18:00',
       timezone: 'Not/A/Timezone',
     });
-    expect(result).toEqual({ ok: false, error: 'invalid_input' });
+    // TIGHTENED, not weakened. This used to assert `toEqual({ ok: false, error:
+    // 'invalid_input' })`, which pinned the OLD behaviour: a bare code the modal
+    // rendered as "This field is required." on a form where the field was filled
+    // in. `describeRejection` now names the offending field and the real reason,
+    // so the assertion asserts that instead of tolerating it — a regression back
+    // to the bare code fails here.
+    expect(result).toEqual({
+      ok: false,
+      error: 'invalid_input',
+      field: 'timezone',
+      message: 'Timezone: not a valid IANA time zone name (for example Europe/Warsaw or UTC).',
+    });
+  });
+
+  it('accepts UTC — the app default must pass its own time zone validation', async () => {
+    // Regression guard: `Intl.supportedValuesOf('timeZone')` does not list 'UTC',
+    // so validating against that list rejected the value the site form ships with
+    // (and that `createSite` inserts via `coalesce($3, 'UTC')`).
+    mockOrgContext(() => ({ rows: [], rowCount: 0 }));
+    const result = await updateSiteSettings(ORG_ID, SITE_ID, { timezone: 'UTC' });
+    expect(result).not.toMatchObject({ error: 'invalid_input' });
   });
 
   it('returns forbidden without settings.org.update', async () => {
     mockOrgContext(() => ({ rows: [], rowCount: 0 }), false);
     const result = await updateSiteSettings(ORG_ID, SITE_ID, { operating_hours: 'Mon-Fri 08:00-18:00' });
     expect(result).toEqual({ ok: false, error: 'forbidden' });
+  });
+
+  it('rolls back — never commits — when the update matches no row after clearing the default', async () => {
+    // `primary: true` first switches is_default off on every OTHER site. If the
+    // main UPDATE then matches nothing and the action RETURNS, withOrgContext
+    // commits that clear-down and the org is left with no default site at all.
+    // The only safe exit after a write is a throw.
+    const events: string[] = [];
+    vi.mocked(withOrgContext).mockImplementation(async (fn) => {
+      events.push('BEGIN');
+      try {
+        const value = await fn({
+          userId: USER_ID,
+          orgId: ORG_ID,
+          client: {
+            query: vi.fn(async (sql: string) =>
+              /from public\.user_roles ur/i.test(sql)
+                ? { rows: [{ ok: true }], rowCount: 1 }
+                : { rows: [], rowCount: 0 },
+            ),
+          },
+        });
+        events.push('COMMIT');
+        return value;
+      } catch (error) {
+        events.push('ROLLBACK');
+        throw error;
+      }
+    });
+
+    const result = await updateSiteSettings(ORG_ID, SITE_ID, { primary: true });
+
+    // The caller-facing contract is unchanged…
+    expect(result).toEqual({ ok: false, error: 'not_found' });
+    // …only the transaction outcome is.
+    expect(events).toEqual(['BEGIN', 'ROLLBACK']);
   });
 });
 
@@ -169,7 +225,7 @@ describe('settings/sites lifecycle', () => {
   it('passes inactive through to the line writer unchanged', async () => {
     mockOrgContext((sql) => {
       if (/from public\.production_lines pl/i.test(sql)) {
-        return { rows: [{ warehouse_id: null, default_output_location_id: null }], rowCount: 1 };
+        return { rows: [{ warehouse_id: null, default_location_id: null }], rowCount: 1 };
       }
       return { rows: [], rowCount: 0 };
     });

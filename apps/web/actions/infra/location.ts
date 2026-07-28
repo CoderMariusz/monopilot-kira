@@ -48,7 +48,9 @@ type ParsedDeleteLocationInput = {
 };
 
 export type UpsertLocationResult =
-  | { ok: true; data: { id: string; path: string; level: number } }
+  // `active` is the flag that was actually PERSISTED — it can differ from the requested one
+  // (parent clamp / legacy carve-out below), and the screen must render this, not its own guess.
+  | { ok: true; data: { id: string; path: string; level: number; active: boolean } }
   | {
       ok: false;
       error:
@@ -58,6 +60,7 @@ export type UpsertLocationResult =
         | 'invalid_parent_level'
         | 'depth_exceeded'
         | 'duplicate_code'
+        | 'has_active_children'
         | 'persistence_failed';
     };
 
@@ -106,16 +109,25 @@ export async function upsertLocation(rawInput: unknown): Promise<UpsertLocationR
     return await withOrgContext(async ({ userId, orgId, client }: OrgActionContext): Promise<UpsertLocationResult> => {
       if (!(await hasPermission({ client, userId, orgId }, EDIT_PERMISSION))) return { ok: false, error: 'forbidden' };
 
-      const existing = input.id ? await getLocation(client, input.id) : null;
-
+      // LOCK PROTOCOL (see rep-FIX-LOC.md) — every writer of public.locations takes row locks
+      // ANCESTOR-FIRST: the parent row before the row being written. Reading the parent's
+      // is_active without a lock let two transactions decide on the same stale snapshot (T1
+      // counts 0 active children and switches the parent off while T2 reads that parent as
+      // active and saves an active child under it), which re-created the exact R02-03 state the
+      // clamp exists to prevent. `for update` holds until commit because withOrgContext wraps
+      // the whole action in begin/commit. The CSV importer takes the same locks in the same
+      // order, so the two paths serialise instead of deadlocking.
       let parent: LocationRow | null = null;
       if (input.parentId) {
-        parent = await getLocation(client, input.parentId);
+        parent = await getLocation(client, input.parentId, true);
         if (!parent || parent.warehouse_id !== input.warehouseId) return { ok: false, error: 'invalid_parent_location' };
-        // Cycle guard: a node cannot be parented to itself or to one of its own descendants.
-        if (existing && (parent.id === existing.id || parent.path === existing.path || parent.path.startsWith(`${existing.path}.`))) {
-          return { ok: false, error: 'invalid_parent_location' };
-        }
+      }
+
+      const existing = input.id ? await getLocation(client, input.id, true) : null;
+
+      // Cycle guard: a node cannot be parented to itself or to one of its own descendants.
+      if (parent && existing && (parent.id === existing.id || parent.path === existing.path || parent.path.startsWith(`${existing.path}.`))) {
+        return { ok: false, error: 'invalid_parent_location' };
       }
 
       // Level + path are DERIVED from the parent — the client no longer has to send a
@@ -125,6 +137,45 @@ export async function upsertLocation(rawInput: unknown): Promise<UpsertLocationR
       const level = parent ? parent.level + 1 : 1;
       if (level > 3) return { ok: false, error: 'depth_exceeded' };
       const path = parent ? `${parent.path}.${input.code}` : input.code;
+
+      // R02-03 — a location must never be active while its parent is inactive. The rule is
+      // enforced by CLAMPING, not by rejecting: `active` is the meet of the requested flag and
+      // the parent's, so a save is never refused for asking too much. is_active landed late
+      // (mig 303), so a row without the flag counts as active. Only the immediate parent is
+      // checked: the invariant is inductive, so if every parent link holds, every ancestor link
+      // holds — see [L-5] in the report for what that assumption costs on legacy data.
+      //
+      // [L-1] CARVE-OUT — an EXISTING row that is already active under an inactive parent keeps
+      // its own flag for as long as its parent link is untouched. Without this a plain rename of
+      // such a row arrived as active:false (the dialog cannot render a tickable box under an
+      // inactive parent), and when the row itself had active children the has_active_children
+      // guard below then REJECTED the save: the record was not editable at all. Preserving the
+      // flag makes metadata edits pass through unchanged and leaves the repair (reactivate the
+      // parent) with the user, who is told about it in the dialog. Clamping still governs every
+      // write that CREATES or MOVES a row — the only writes that can introduce a new violation.
+      const parentInactive = parent?.is_active === false;
+      const parentLinkUnchanged = existing ? (existing.parent_id ?? null) === input.parentId : false;
+      const keepsLegacyActive = Boolean(existing && parentInactive && parentLinkUnchanged && existing.is_active !== false);
+      const active = keepsLegacyActive ? true : input.active && !parentInactive;
+
+      // The mirror image: switching an active node off would strand its active children under an
+      // inactive parent — the same violation through the other door. Block that transition with a
+      // named reason instead of cascading the deactivation downwards. A cascade is irreversible:
+      // once the subtree is flattened to inactive, reactivating the parent cannot know which
+      // descendants the user had deliberately switched off beforehand. Guarded on the TRANSITION
+      // (was active → becomes inactive), so an already-inactive parent carrying legacy active
+      // children never trips it and stays editable.
+      if (existing && existing.is_active !== false && !active) {
+        const { rows: activeChildRows } = await client.query<{ active_children: number | string }>(
+          `select count(*)::integer as active_children
+             from public.locations
+            where org_id = app.current_org_id()
+              and parent_id = $1::uuid
+              and is_active`,
+          [existing.id],
+        );
+        if (Number(activeChildRows[0]?.active_children ?? 0) > 0) return { ok: false, error: 'has_active_children' };
+      }
 
       const { rows } = await client.query<LocationRow>(
         `insert into public.locations
@@ -141,10 +192,14 @@ export async function upsertLocation(rawInput: unknown): Promise<UpsertLocationR
            barcode = excluded.barcode,
            is_active = excluded.is_active
          returning id, warehouse_id, parent_id, code, name, location_type, level, path, barcode, is_active`,
-        [input.id, input.warehouseId, input.parentId, input.code, input.name, input.locationType, level, path, input.barcode, input.active],
+        [input.id, input.warehouseId, input.parentId, input.code, input.name, input.locationType, level, path, input.barcode, active],
       );
       const row = rows[0];
       if (!row) return { ok: false, error: 'persistence_failed' };
+      // [L-4] Report the flag the DB actually holds. The clamp and the legacy carve-out both make
+      // the stored value diverge from the requested one, and the caller used to echo its own
+      // optimistic input back onto the screen — showing an activity the row does not have.
+      const persistedActive = row.is_active !== false;
 
       // Keep descendant path/level consistent when an existing node was moved or its code
       // renamed — otherwise children keep the stale path prefix and the tree de-syncs.
@@ -165,12 +220,12 @@ export async function upsertLocation(rawInput: unknown): Promise<UpsertLocationR
         eventType: 'settings.location.upserted',
         aggregateType: 'location',
         aggregateId: row.id,
-        payload: { location_id: row.id, warehouse_id: input.warehouseId, path: row.path, level: row.level, active: input.active, barcode: input.barcode, actor_user_id: userId },
+        payload: { location_id: row.id, warehouse_id: input.warehouseId, path: row.path, level: row.level, active: persistedActive, barcode: input.barcode, actor_user_id: userId },
       });
 
       revalidateLocationsPath();
 
-      return { ok: true, data: { id: row.id, path: row.path, level: row.level } };
+      return { ok: true, data: { id: row.id, path: row.path, level: row.level, active: persistedActive } };
     });
   } catch (error) {
     if (isUniqueViolation(error)) return { ok: false, error: 'duplicate_code' };
@@ -187,7 +242,10 @@ export async function deleteLocation(rawInput: unknown): Promise<DeleteLocationR
     return await withOrgContext(async ({ userId, orgId, client }: OrgActionContext): Promise<DeleteLocationResult> => {
       if (!(await hasPermission({ client, userId, orgId }, EDIT_PERMISSION))) return { ok: false, error: 'forbidden' };
 
-      const location = await getLocation(client, input.locationId);
+      // Same lock protocol: the row is locked before its children are counted, so a concurrent
+      // upsert that is adding a child under it (and holds/waits on this very row as its parent)
+      // cannot slip between the count and the delete.
+      const location = await getLocation(client, input.locationId, true);
       if (!location || location.warehouse_id !== input.warehouseId) return { ok: false, error: 'not_found' };
 
       const { rows: childRows } = await client.query<{ child_count: number | string }>(
@@ -255,13 +313,19 @@ function isUniqueViolation(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && (error as { code?: unknown }).code === '23505';
 }
 
-async function getLocation(client: QueryClient, id: string): Promise<LocationRow | null> {
+/**
+ * `forUpdate` takes a row lock that survives until the surrounding withOrgContext transaction
+ * commits. Callers that go on to DECIDE something from `is_active` (their own or the parent's)
+ * must lock, otherwise a concurrent writer flips the flag between the read and the write.
+ * Locks are always acquired ancestor-first — see the protocol note in upsertLocation.
+ */
+async function getLocation(client: QueryClient, id: string, forUpdate = false): Promise<LocationRow | null> {
   const { rows } = await client.query<LocationRow>(
-    `select id, warehouse_id, parent_id, code, name, location_type, level, path
+    `select id, warehouse_id, parent_id, code, name, location_type, level, path, is_active
        from public.locations
       where org_id = app.current_org_id()
         and id::text = $1
-      limit 1`,
+      limit 1${forUpdate ? '\n      for update' : ''}`,
     [id],
   );
   return rows[0] ?? null;
