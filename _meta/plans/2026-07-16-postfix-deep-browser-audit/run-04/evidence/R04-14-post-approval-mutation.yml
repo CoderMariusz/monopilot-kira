@@ -1,0 +1,18 @@
+run: 04
+project: NPD-021
+state_before_probe: "Handoff · G4 Testing · APPROVED"
+mutations_accepted_after_approval:
+  project_name: "temporarily changed, then restored"
+  target_launch: "temporarily changed, then restored"
+  pack_weight_g: "480 -> 500 -> 480"
+approval_after_mutation:
+  decision: APPROVED
+  criteria: "still reported as passed"
+  invalidated: false
+cross_model_observation_at_500g:
+  brief_pack_weight_g: "500"
+  fg_core_weight_g: "480"
+  locked_recipe_batch_g: "480"
+cleanup: "Project name, target launch and pack weight restored to their original values and reloaded."
+observation: "A signed G4/Handoff definition remains editable without new version or approval invalidation, temporarily producing three inconsistent approved weights."
+

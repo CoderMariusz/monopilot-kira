@@ -1,0 +1,59 @@
+- dialog "Create item" [ref=f38e1012]:
+  - generic [ref=f38e1013]:
+    - generic [ref=f38e1014]:
+      - generic [ref=f38e1015]: Create item
+      - generic [ref=f38e1016]: Universal item master — links to BOM, spec and allergen matrix.
+    - button "Close" [ref=f38e1017] [cursor=pointer]: ✕
+  - generic [ref=f38e1018]:
+    - tablist "Wizard steps" [ref=f38e1019]:
+      - tab "✓ Basic info" [ref=f38e1054] [cursor=pointer]:
+        - generic [ref=f38e1021]: ✓
+        - generic [ref=f38e1022]: Basic info
+      - tab "✓ Classification" [ref=f38e1125] [cursor=pointer]:
+        - generic [ref=f38e1025]: ✓
+        - generic [ref=f38e1026]: Classification
+      - tab "✓ Weight & shelf life" [ref=f38e1180] [cursor=pointer]:
+        - generic [ref=f38e1029]: ✓
+        - generic [ref=f38e1030]: Weight & shelf life
+      - tab "4 Review & create" [selected] [ref=f38e1032]:
+        - generic [ref=f38e1033]: "4"
+        - generic [ref=f38e1034]: Review & create
+    - generic [ref=f38e1181]:
+      - generic [ref=f38e1182]:
+        - generic [ref=f38e1183]:
+          - term [ref=f38e1184]: Item code
+          - definition [ref=f38e1185]: NIGHT-R03-0806-FG
+        - generic [ref=f38e1186]:
+          - term [ref=f38e1187]: Name
+          - definition [ref=f38e1188]: NIGHT-R03 Finished Good 0806
+        - generic [ref=f38e1189]:
+          - term [ref=f38e1190]: Item type
+          - definition [ref=f38e1191]: Finished good
+        - generic [ref=f38e1192]:
+          - term [ref=f38e1193]: Status
+          - definition [ref=f38e1194]: Active
+        - generic [ref=f38e1195]:
+          - term [ref=f38e1196]: Base UoM
+          - definition [ref=f38e1197]: pcs (each)
+        - generic [ref=f38e1198]:
+          - term [ref=f38e1199]: Pack hierarchy
+          - definition [ref=f38e1200]: Base unit
+        - generic [ref=f38e1201]:
+          - term [ref=f38e1202]: Weight mode
+          - definition [ref=f38e1203]: Catch weight
+        - generic [ref=f38e1204]:
+          - term [ref=f38e1205]: GS1 GTIN
+          - definition [ref=f38e1206]: —
+        - generic [ref=f38e1207]:
+          - term [ref=f38e1208]: Nominal weight
+          - definition [ref=f38e1209]: —
+        - generic [ref=f38e1210]:
+          - term [ref=f38e1211]: List price (GBP / base UoM)
+          - definition [ref=f38e1212]: —
+      - generic [ref=f38e1213]:
+        - generic [ref=f38e1214]: ✓
+        - generic [ref=f38e1215]: Ready to create. An audit record will be logged.
+  - generic [ref=f38e1050]:
+    - button "Back" [ref=f38e1099] [cursor=pointer]
+    - button "Cancel" [ref=f38e1052] [cursor=pointer]
+    - button "Create item" [active] [ref=f38e1216] [cursor=pointer]

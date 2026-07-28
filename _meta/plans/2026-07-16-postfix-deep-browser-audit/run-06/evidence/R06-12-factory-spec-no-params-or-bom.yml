@@ -1,0 +1,30 @@
+- dialog [active] [ref=f122e492]:
+  - generic [ref=f122e493]:
+    - generic [ref=f122e494]:
+      - heading "Review specification · FS-NIGHT-R06-1138" [level=2] [ref=f122e495]
+      - paragraph [ref=f122e496]: NIGHT-R06-FG-1138 NIGHT R06 Revision Test 1138 · v1
+    - button "Close" [ref=f122e497] [cursor=pointer]: ✕
+  - generic [ref=f122e498]:
+    - generic [ref=f122e499]:
+      - generic [ref=f122e500]:
+        - term [ref=f122e501]: Release status
+        - definition [ref=f122e502]: Pending Technical approval
+      - generic [ref=f122e503]:
+        - term [ref=f122e504]: Paired BOM
+        - definition [ref=f122e505]: No BOM paired yet
+      - generic [ref=f122e506]:
+        - term [ref=f122e507]: Shelf life
+        - definition [ref=f122e508]: —
+      - generic [ref=f122e509]:
+        - term [ref=f122e510]: Source
+        - definition [ref=f122e511]: technical
+      - generic [ref=f122e512]:
+        - term [ref=f122e513]: Notes
+        - definition [ref=f122e514]: RUN06 owned factory spec decimal parameters and revision e-sign test edited 1209
+    - generic [ref=f122e515]:
+      - generic [ref=f122e516]: Pending Technical approval
+      - generic [ref=f122e517]: Pending Technical approval
+    - button "Open bundle approval" [ref=f122e519]
+  - generic [ref=f122e520]:
+    - button "Close" [ref=f122e521] [cursor=pointer]
+    - button "Mark reviewed" [ref=f122e522] [cursor=pointer]

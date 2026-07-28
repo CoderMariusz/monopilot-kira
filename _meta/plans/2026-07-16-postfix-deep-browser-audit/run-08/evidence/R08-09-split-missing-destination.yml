@@ -1,0 +1,257 @@
+- generic:
+  - generic:
+    - generic:
+      - banner:
+        - generic: MonoPilot MES
+        - generic:
+          - searchbox
+        - generic:
+          - generic:
+            - button:
+              - generic: A2
+              - generic: "000000000000"
+              - generic: Apex 22
+              - generic: ▼
+          - generic:
+            - generic: Site
+            - combobox
+          - generic:
+            - button
+          - generic:
+            - button: AA
+    - navigation:
+      - generic:
+        - generic:
+          - heading [level=2]: Core
+          - generic:
+            - link:
+              - /url: /en/dashboard
+              - generic: ◆
+              - generic: Dashboard
+            - link:
+              - /url: /en/settings
+              - generic: ⚙
+              - generic: Settings
+        - generic:
+          - heading [level=2]: Operations
+          - generic:
+            - link:
+              - /url: /en/planning
+              - generic: ▤
+              - generic: Planning
+            - link:
+              - /url: /en/planning/carriers
+              - generic: F
+              - generic: Freight
+            - link:
+              - /url: /en/scheduler
+              - generic: ⧗
+              - generic: Scheduler
+            - link:
+              - /url: /en/production
+              - generic: ⚒
+              - generic: Production
+            - link:
+              - /url: /en/yard
+              - generic: "Y"
+              - generic: Yard
+            - link:
+              - /url: /en/warehouse
+              - generic: ▥
+              - generic: Warehouse
+            - link:
+              - /url: /en/scanner/home
+              - generic: 📱
+              - generic: Scanner
+        - generic:
+          - heading [level=2]: QA & Shipping
+          - generic:
+            - link:
+              - /url: /en/quality
+              - generic: ✓
+              - generic: Quality
+            - link:
+              - /url: /en/shipping
+              - generic: →
+              - generic: Shipping
+        - generic:
+          - heading [level=2]: Premium
+          - generic:
+            - link:
+              - /url: /en/technical
+              - generic: ▦
+              - generic: Technical
+            - link:
+              - /url: /en/pipeline
+              - generic: ★
+              - generic: NPD
+            - link:
+              - /url: /en/finance
+              - generic: $
+              - generic: Finance
+            - link:
+              - /url: /en/oee
+              - generic: ◉
+              - generic: OEE
+            - link:
+              - /url: /en/maintenance
+              - generic: 🔧
+              - generic: Maintenance
+        - generic:
+          - heading [level=2]: Analytics & Network
+          - generic:
+            - link:
+              - /url: /en/reporting
+              - generic: ▧
+              - generic: Reporting
+            - link:
+              - /url: /en/multi-site
+              - generic: ❖
+              - generic: Multi-Site
+    - main:
+      - main:
+        - generic:
+          - generic:
+            - generic:
+              - generic:
+                - link:
+                  - /url: /en/warehouse/license-plates
+                  - text: ← Back to license plates
+                - heading [level=1]:
+                  - generic: LP-1784297297223-HFWI
+                  - generic: Butter
+                - paragraph: 12.345000 kg · Batch NIGHT-R08-SB-1400 · Expiry 2026-07-24
+              - generic:
+                - generic: Available
+                - generic: Released
+            - generic:
+              - generic:
+                - heading [level=2]: Identity
+                - generic:
+                  - generic: Product
+                  - generic:
+                    - text: RM-BUTTER
+                    - generic: — Butter
+                - generic:
+                  - generic: Quantity
+                  - generic: 12.345000 kg
+                - generic:
+                  - generic: Available
+                  - generic: 12.345000 kg
+                - generic:
+                  - generic: Batch
+                  - generic: NIGHT-R08-SB-1400
+                - generic:
+                  - generic: Supplier batch
+                  - generic: —
+                - generic:
+                  - generic: Expiry date
+                  - generic: 2026-07-24
+                - generic:
+                  - generic: Best before
+                  - generic: 2026-07-24
+                - generic:
+                  - generic: Location
+                  - generic:
+                    - text: RECV
+                    - generic: — Receiving Bay
+                - generic:
+                  - generic: Warehouse
+                  - generic:
+                    - text: WH1
+                    - generic: — Main Warehouse
+                - generic:
+                  - generic: Source
+                  - generic: grn
+                - generic:
+                  - generic: Parent LP
+                  - generic: —
+                - generic:
+                  - button: Split
+                  - button: Merge
+                  - button [disabled]: Change QA status
+                  - button: Reserve
+                  - button: Move
+                  - button: Block
+                  - button: Destroy / scrap
+                  - button: Edit metadata…
+                - paragraph: Available actions are determined by the LP state machine. Split, Merge, and Destroy are live.
+              - generic:
+                - tablist:
+                  - tab [selected]: Overview
+                  - tab: State history
+                  - tab: Reservations
+                  - tab: Movements
+                  - tab: Genealogy
+                  - tab: Labels
+                  - tab: Raw
+                - generic:
+                  - heading [level=3]: Identity snapshot
+                  - generic:
+                    - term: Product
+                    - definition: RM-BUTTER — Butter
+                    - term: Quantity
+                    - definition: 12.345000 kg
+                    - term: Reserved
+                    - definition: 0.000000 kg
+                    - term: Available
+                    - definition: 12.345000 kg
+                    - term: Batch
+                    - definition: NIGHT-R08-SB-1400
+                    - term: Expiry date
+                    - definition: 2026-07-24
+                    - term: Location
+                    - definition: RECV
+                    - term: Warehouse
+                    - definition: WH1
+                    - term: Source
+                    - definition: grn
+                    - term: Parent LP
+                    - definition: —
+          - group:
+            - generic:
+              - generic:
+                - generic:
+                  - heading [level=2]: History
+                  - paragraph: Read-only audit trail for this document.
+                - generic: ▾
+            - generic:
+              - generic:
+                - list:
+                  - listitem:
+                    - generic:
+                      - generic:
+                        - generic: Status change
+                        - generic: lp_state.transition
+                      - generic:
+                        - time: 17 Jul 2026, 15:09
+                        - text: · Admin
+                      - group:
+                        - generic: Details
+                  - listitem:
+                    - generic:
+                      - generic:
+                        - generic: Status change
+                        - generic: lp_state.transition
+                      - generic:
+                        - time: 17 Jul 2026, 15:08
+                        - text: · Admin
+                      - group:
+                        - generic: Details
+  - alert
+  - dialog [ref=f6e241]:
+    - generic [ref=f6e242]:
+      - heading "Split LP-1784297297223-HFWI" [level=2] [ref=f6e243]
+      - button "Close" [ref=f6e244] [cursor=pointer]: ✕
+    - generic [ref=f6e246]:
+      - paragraph [ref=f6e247]: Split a quantity off this LP into a new child license plate. The remainder stays on this LP.
+      - generic [ref=f6e248]: Split quantity
+      - textbox "Split quantity" [active] [ref=f6e250]: "2.345"
+      - paragraph [ref=f6e251]: "Available to split: 12.345000 kg (must be less than the full available quantity)."
+      - generic [ref=f6e252]: Reason
+      - textbox "Reason" [ref=f6e254]:
+        - /placeholder: Why is this LP being split?
+        - text: NIGHT-R08-1400 full-quantity guard check
+    - generic [ref=f6e255]:
+      - button "Cancel" [ref=f6e256]
+      - button "Split LP" [ref=f6e257]

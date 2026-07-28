@@ -1,0 +1,38 @@
+- dialog [ref=f18e577]:
+  - generic [ref=f18e578]:
+    - heading "Add location" [level=2] [ref=f18e579]
+    - generic [ref=f18e580]:
+      - generic [ref=f18e581]:
+        - text: Code
+        - textbox "Code Alphanumeric + hyphen, max 20 chars, unique within warehouse" [ref=f18e583]: R02-L4
+        - generic [ref=f18e584]: Alphanumeric + hyphen, max 20 chars, unique within warehouse
+      - generic [ref=f18e585]:
+        - text: Name
+        - textbox "Name" [active] [ref=f18e587]: NIGHT R02 Level 4
+      - generic [ref=f18e588]:
+        - generic [ref=f18e589]: Warehouse
+        - combobox "Warehouse" [disabled] [ref=f18e591]:
+          - generic [ref=f18e592]: NIGHT R02 Warehouse Edited
+          - generic [ref=f18e593]: ⌄
+      - generic [ref=f18e594]:
+        - generic [ref=f18e595]:
+          - generic [ref=f18e596]: Parent location
+          - combobox "Parent location" [ref=f18e598] [cursor=pointer]:
+            - generic [ref=f18e599]: R02-ZONE › R02-BIN1 › R02-SUB1
+            - generic [ref=f18e600]: ⌄
+          - generic [ref=f18e601]: Maximum location depth for this tenant is 3 levels (warehouse → zone → bin).
+        - generic [ref=f18e602]:
+          - generic [ref=f18e603]: Type
+          - combobox "Type" [ref=f18e605] [cursor=pointer]:
+            - generic [ref=f18e606]: storage
+            - generic [ref=f18e607]: ⌄
+      - generic [ref=f18e608]:
+        - checkbox "Is active" [checked] [ref=f18e609]
+        - text: Is active
+      - generic [ref=f18e613]:
+        - text: Barcode (optional)
+        - textbox "Barcode (optional) Auto-generated if blank — for location QR / Code128 printing" [ref=f18e615]
+        - generic [ref=f18e616]: Auto-generated if blank — for location QR / Code128 printing
+    - generic [ref=f18e610]:
+      - button "Cancel" [ref=f18e611] [cursor=pointer]
+      - button "Create location" [disabled] [ref=f18e612]

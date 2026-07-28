@@ -1,0 +1,167 @@
+- generic [active] [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - banner [ref=f1e4]:
+      - generic "MonoPilot MES" [ref=f1e5]
+      - searchbox "Search settings…" [ref=f1e7]
+      - generic [ref=f1e8]:
+        - button "Switch organization (platform admin)" [ref=f1e10] [cursor=pointer]:
+          - generic [ref=f1e11]: A2
+          - generic [ref=f1e12]: "000000000000"
+          - generic [ref=f1e13]: Apex 22
+          - generic [ref=f1e14]: ▼
+        - generic "Filters work orders, license plates and OEE only — other screens stay org-wide" [ref=f1e15]:
+          - generic [ref=f1e16]: Site
+          - combobox "Site" [ref=f1e17] [cursor=pointer]:
+            - option "All sites" [selected]
+            - option "tester1"
+            - option "CODEX-R14 SITE"
+            - option "Main Factory"
+            - option "makery"
+            - option "SOL-R02 Site 0539 Edited"
+            - option "warehouse 1"
+        - button "Notifications" [ref=f1e19]
+        - button "Open user menu for Apex Admin" [ref=f1e24]: AA
+    - navigation "Primary" [ref=f1e25]:
+      - generic [ref=f1e26]:
+        - generic [ref=f1e27]:
+          - heading "Core" [level=2] [ref=f1e28]
+          - generic [ref=f1e29]:
+            - link "Dashboard" [ref=f1e30] [cursor=pointer]:
+              - /url: /en/dashboard
+              - generic [ref=f1e31]: ◆
+            - link "Settings" [ref=f1e34] [cursor=pointer]:
+              - /url: /en/settings
+              - generic [ref=f1e35]: ⚙
+        - generic [ref=f1e38]:
+          - heading "Operations" [level=2] [ref=f1e39]
+          - generic [ref=f1e40]:
+            - link "Planning" [ref=f1e41] [cursor=pointer]:
+              - /url: /en/planning
+              - generic [ref=f1e42]: ▤
+            - link "Freight" [ref=f1e45] [cursor=pointer]:
+              - /url: /en/planning/carriers
+              - generic [ref=f1e46]: F
+            - link "Scheduler" [ref=f1e49] [cursor=pointer]:
+              - /url: /en/scheduler
+              - generic [ref=f1e50]: ⧗
+            - link "Production" [ref=f1e53] [cursor=pointer]:
+              - /url: /en/production
+              - generic [ref=f1e54]: ⚒
+            - link "Yard" [ref=f1e57] [cursor=pointer]:
+              - /url: /en/yard
+              - generic [ref=f1e58]: "Y"
+            - link "Warehouse" [ref=f1e61] [cursor=pointer]:
+              - /url: /en/warehouse
+              - generic [ref=f1e62]: ▥
+            - link "Scanner" [ref=f1e65] [cursor=pointer]:
+              - /url: /en/scanner/home
+              - generic [ref=f1e66]: 📱
+        - generic [ref=f1e69]:
+          - heading "QA & Shipping" [level=2] [ref=f1e70]
+          - generic [ref=f1e71]:
+            - link "Quality" [ref=f1e72] [cursor=pointer]:
+              - /url: /en/quality
+              - generic [ref=f1e73]: ✓
+            - link "Shipping" [ref=f1e76] [cursor=pointer]:
+              - /url: /en/shipping
+              - generic [ref=f1e77]: →
+        - generic [ref=f1e80]:
+          - heading "Premium" [level=2] [ref=f1e81]
+          - generic [ref=f1e82]:
+            - link "Technical" [ref=f1e83] [cursor=pointer]:
+              - /url: /en/technical
+              - generic [ref=f1e84]: ▦
+            - link "NPD" [ref=f1e87] [cursor=pointer]:
+              - /url: /en/pipeline
+              - generic [ref=f1e88]: ★
+            - link "Finance" [ref=f1e91] [cursor=pointer]:
+              - /url: /en/finance
+              - generic [ref=f1e92]: $
+            - link "OEE" [ref=f1e95] [cursor=pointer]:
+              - /url: /en/oee
+              - generic [ref=f1e96]: ◉
+            - link "Maintenance" [ref=f1e99] [cursor=pointer]:
+              - /url: /en/maintenance
+              - generic [ref=f1e100]: 🔧
+        - generic [ref=f1e103]:
+          - heading "Analytics & Network" [level=2] [ref=f1e104]
+          - generic [ref=f1e105]:
+            - link "Reporting" [ref=f1e106] [cursor=pointer]:
+              - /url: /en/reporting
+              - generic [ref=f1e107]: ▧
+            - link "Multi-Site" [ref=f1e110] [cursor=pointer]:
+              - /url: /en/multi-site
+              - generic [ref=f1e111]: ❖
+    - main [ref=f1e114]:
+      - main [ref=f1e314]:
+        - generic [ref=f1e316]:
+          - navigation "Breadcrumb" [ref=f1e317]:
+            - list [ref=f1e318]:
+              - listitem [ref=f1e319]:
+                - link "Planning" [ref=f1e320] [cursor=pointer]:
+                  - /url: /en/planning
+              - listitem [ref=f1e321]:
+                - generic [ref=f1e322]: /
+                - link "Suppliers" [ref=f1e323] [cursor=pointer]:
+                  - /url: /en/planning/suppliers
+              - listitem [ref=f1e324]:
+                - generic [ref=f1e325]: /
+                - generic [ref=f1e326]: Detail
+          - heading "Supplier" [level=1] [ref=f1e328]
+        - generic [ref=f1e329]:
+          - generic [ref=f1e330]:
+            - generic [ref=f1e331]:
+              - generic [ref=f1e332]:
+                - generic [ref=f1e333]: NIGHT-R07-SUP-1300
+                - generic [ref=f1e334]: NIGHT R07 Decimal Supplier 1300
+                - generic [ref=f1e335]: Active
+              - generic [ref=f1e336]:
+                - text: GBP · Default lead time
+                - generic [ref=f1e337]: 3 days
+            - button "Edit" [ref=f1e339] [cursor=pointer]
+          - generic [ref=f1e340]:
+            - generic [ref=f1e341]:
+              - heading "Supplier info" [level=3] [ref=f1e342]
+              - generic [ref=f1e343]:
+                - generic [ref=f1e344]:
+                  - term [ref=f1e345]: Supplier code
+                  - definition [ref=f1e346]: NIGHT-R07-SUP-1300
+                - generic [ref=f1e347]:
+                  - term [ref=f1e348]: Name
+                  - definition [ref=f1e349]: NIGHT R07 Decimal Supplier 1300
+                - generic [ref=f1e350]:
+                  - term [ref=f1e351]: Currency (ISO-4217)
+                  - definition [ref=f1e352]: GBP
+                - generic [ref=f1e353]:
+                  - term [ref=f1e354]: Default lead time
+                  - definition [ref=f1e355]: 3 days
+                - generic [ref=f1e356]:
+                  - term [ref=f1e357]: Status
+                  - definition [ref=f1e358]: Active
+                - generic [ref=f1e359]:
+                  - term [ref=f1e360]: Country
+                  - definition [ref=f1e361]: GB
+                - generic [ref=f1e362]:
+                  - term [ref=f1e363]: Email
+                  - definition [ref=f1e364]: night-r07@example.test
+                - generic [ref=f1e365]:
+                  - term [ref=f1e366]: Phone
+                  - definition [ref=f1e367]: "+442079460707"
+                - generic [ref=f1e368]:
+                  - term [ref=f1e369]: Payment terms
+                  - definition [ref=f1e370]: —
+              - generic [ref=f1e371]:
+                - heading "Notes" [level=4] [ref=f1e372]
+                - paragraph [ref=f1e373]: NIGHT-R07 owned supplier for PO arithmetic and receiving handoff
+            - generic [ref=f1e374]:
+              - heading "Status" [level=3] [ref=f1e375]
+              - generic [ref=f1e376]:
+                - generic [ref=f1e377]: Current status
+                - generic [ref=f1e378]: Active
+              - generic [ref=f1e379]:
+                - button "Deactivate (soft)" [ref=f1e380] [cursor=pointer]
+                - button "Block" [ref=f1e381] [cursor=pointer]
+              - paragraph [ref=f1e382]: Soft delete — no data is removed. Inactive and blocked suppliers keep their history but cannot be selected on new purchase orders.
+              - link "View supplier scorecard" [ref=f1e383] [cursor=pointer]:
+                - /url: /en/planning/suppliers/7654ba3e-e141-41a0-89e1-07f78ca127a4/scorecard
+  - alert [ref=f1e144]

@@ -1,0 +1,299 @@
+- generic [ref=f11e1]:
+  - generic [ref=f11e2]:
+    - banner [ref=f11e4]:
+      - generic "MonoPilot MES" [ref=f11e5]
+      - searchbox "Search settings…" [ref=f11e7]
+      - generic [ref=f11e8]:
+        - button "Switch organization (platform admin)" [ref=f11e10] [cursor=pointer]:
+          - generic [ref=f11e11]: A2
+          - generic [ref=f11e12]: "000000000000"
+          - generic [ref=f11e13]: Apex 22
+          - generic [ref=f11e14]: ▼
+        - generic "Filters work orders, license plates and OEE only — other screens stay org-wide" [ref=f11e15]:
+          - generic [ref=f11e16]: Site
+          - combobox "Site" [ref=f11e17] [cursor=pointer]:
+            - option "All sites" [selected]
+            - option "tester1"
+            - option "CODEX-R14 SITE"
+            - option "Main Factory"
+            - option "makery"
+            - option "SOL-R02 Site 0539 Edited"
+            - option "warehouse 1"
+        - button "Notifications" [ref=f11e19]
+        - button "Open user menu for Apex Admin" [ref=f11e24]: AA
+    - navigation "Primary" [ref=f11e25]:
+      - generic [ref=f11e26]:
+        - generic [ref=f11e27]:
+          - heading "Core" [level=2] [ref=f11e28]
+          - generic [ref=f11e29]:
+            - link "Dashboard" [ref=f11e30] [cursor=pointer]:
+              - /url: /en/dashboard
+              - generic [ref=f11e31]: ◆
+            - link "Settings" [ref=f11e34] [cursor=pointer]:
+              - /url: /en/settings
+              - generic [ref=f11e35]: ⚙
+        - generic [ref=f11e38]:
+          - heading "Operations" [level=2] [ref=f11e39]
+          - generic [ref=f11e40]:
+            - link "Planning" [ref=f11e41] [cursor=pointer]:
+              - /url: /en/planning
+              - generic [ref=f11e42]: ▤
+            - link "Freight" [ref=f11e45] [cursor=pointer]:
+              - /url: /en/planning/carriers
+              - generic [ref=f11e46]: F
+            - link "Scheduler" [ref=f11e49] [cursor=pointer]:
+              - /url: /en/scheduler
+              - generic [ref=f11e50]: ⧗
+            - link "Production" [ref=f11e53] [cursor=pointer]:
+              - /url: /en/production
+              - generic [ref=f11e54]: ⚒
+            - link "Yard" [ref=f11e57] [cursor=pointer]:
+              - /url: /en/yard
+              - generic [ref=f11e58]: "Y"
+            - link "Warehouse" [ref=f11e61] [cursor=pointer]:
+              - /url: /en/warehouse
+              - generic [ref=f11e62]: ▥
+            - link "Scanner" [ref=f11e65] [cursor=pointer]:
+              - /url: /en/scanner/home
+              - generic [ref=f11e66]: 📱
+        - generic [ref=f11e69]:
+          - heading "QA & Shipping" [level=2] [ref=f11e70]
+          - generic [ref=f11e71]:
+            - link "Quality" [ref=f11e72] [cursor=pointer]:
+              - /url: /en/quality
+              - generic [ref=f11e73]: ✓
+            - link "Shipping" [ref=f11e76] [cursor=pointer]:
+              - /url: /en/shipping
+              - generic [ref=f11e77]: →
+        - generic [ref=f11e80]:
+          - heading "Premium" [level=2] [ref=f11e81]
+          - generic [ref=f11e82]:
+            - link "Technical" [ref=f11e83] [cursor=pointer]:
+              - /url: /en/technical
+              - generic [ref=f11e84]: ▦
+            - link "NPD" [ref=f11e87] [cursor=pointer]:
+              - /url: /en/pipeline
+              - generic [ref=f11e88]: ★
+            - link "Finance" [ref=f11e91] [cursor=pointer]:
+              - /url: /en/finance
+              - generic [ref=f11e92]: $
+            - link "OEE" [ref=f11e95] [cursor=pointer]:
+              - /url: /en/oee
+              - generic [ref=f11e96]: ◉
+            - link "Maintenance" [ref=f11e99] [cursor=pointer]:
+              - /url: /en/maintenance
+              - generic [ref=f11e100]: 🔧
+        - generic [ref=f11e103]:
+          - heading "Analytics & Network" [level=2] [ref=f11e104]
+          - generic [ref=f11e105]:
+            - link "Reporting" [ref=f11e106] [cursor=pointer]:
+              - /url: /en/reporting
+              - generic [ref=f11e107]: ▧
+            - link "Multi-Site" [ref=f11e110] [cursor=pointer]:
+              - /url: /en/multi-site
+              - generic [ref=f11e111]: ❖
+    - main [ref=f11e114]:
+      - main [ref=f11e115]:
+        - generic [ref=f11e117]:
+          - navigation "Breadcrumb" [ref=f11e118]:
+            - list [ref=f11e119]:
+              - listitem [ref=f11e120]:
+                - link "Planning" [ref=f11e121] [cursor=pointer]:
+                  - /url: /en/planning
+              - listitem [ref=f11e122]:
+                - generic [ref=f11e123]: /
+                - link "Purchase orders" [ref=f11e124] [cursor=pointer]:
+                  - /url: /en/planning/purchase-orders
+              - listitem [ref=f11e125]:
+                - generic [ref=f11e126]: /
+                - generic [ref=f11e127]: Detail
+          - heading "Purchase order" [level=1] [ref=f11e129]
+        - generic [ref=f11e135]:
+          - generic [ref=f11e136]:
+            - generic [ref=f11e137]:
+              - generic [ref=f11e138]: NIGHT-R07-PO-1300
+              - generic [ref=f11e139]: Web Foods Ltd.
+              - generic [ref=f11e140]: Partially received
+            - generic [ref=f11e141]:
+              - generic [ref=f11e142]:
+                - generic [ref=f11e143]:
+                  - generic [ref=f11e144]: PO lines · 3
+                  - table [ref=f11e146]:
+                    - rowgroup [ref=f11e147]:
+                      - row [ref=f11e148]:
+                        - columnheader "#" [ref=f11e149]
+                        - columnheader "Item" [ref=f11e150]
+                        - columnheader "Qty" [ref=f11e151]
+                        - columnheader "UoM" [ref=f11e152]
+                        - columnheader "Unit price" [ref=f11e153]
+                        - columnheader "Tax %" [ref=f11e154]
+                        - columnheader "Line total" [ref=f11e155]
+                        - columnheader "Received" [ref=f11e156]
+                        - columnheader [ref=f11e157]
+                    - rowgroup [ref=f11e158]:
+                      - row [ref=f11e159]:
+                        - cell "1" [ref=f11e160]
+                        - cell "Butter RM-BUTTER" [ref=f11e161]:
+                          - generic [ref=f11e162]: Butter
+                          - generic [ref=f11e163]: RM-BUTTER
+                        - cell "12.345600" [ref=f11e164]
+                        - cell "kg" [ref=f11e165]
+                        - cell "3.46 GBP" [ref=f11e166]
+                        - cell "20.0000%" [ref=f11e167]
+                        - cell "51.21 GBP" [ref=f11e168]
+                        - cell "12.345000 kg Partial" [ref=f11e169]:
+                          - generic [ref=f11e170]
+                        - cell [ref=f11e173]:
+                          - button "Receive" [ref=f11e174]
+                      - row [ref=f11e175]:
+                        - cell "2" [ref=f11e176]
+                        - cell "Butter RM-BUTTER" [ref=f11e177]:
+                          - generic [ref=f11e178]: Butter
+                          - generic [ref=f11e179]: RM-BUTTER
+                        - cell "789.125000" [ref=f11e180]
+                        - cell "g" [ref=f11e181]
+                        - cell "0.02 GBP" [ref=f11e182]
+                        - cell "5.5000%" [ref=f11e183]
+                        - cell "16.5673 GBP" [ref=f11e184]
+                        - cell "—" [ref=f11e185]
+                        - cell [ref=f11e188]:
+                          - button "Receive" [ref=f11e189]
+                      - row [ref=f11e190]:
+                        - cell "3" [ref=f11e191]
+                        - cell "Cardboard Box PM-BOX" [ref=f11e192]:
+                          - generic [ref=f11e193]: Cardboard Box
+                          - generic [ref=f11e194]: PM-BOX
+                        - cell "77.500000" [ref=f11e195]
+                        - cell "pcs" [ref=f11e196]
+                        - cell "0.12 GBP" [ref=f11e197]
+                        - cell "0.0000%" [ref=f11e198]
+                        - cell "9.5635 GBP" [ref=f11e199]
+                        - cell "—" [ref=f11e200]
+                        - cell [ref=f11e203]:
+                          - button "Receive" [active] [ref=f11e204]
+                - generic [ref=f11e205]:
+                  - generic [ref=f11e206]: Notes
+                  - generic [ref=f11e207]: NIGHT-R07 mixed UoM repeated item decimal commercial arithmetic EDITED
+              - generic [ref=f11e208]:
+                - generic [ref=f11e209]:
+                  - generic [ref=f11e210]: PO summary
+                  - generic [ref=f11e211]:
+                    - generic [ref=f11e212]:
+                      - term [ref=f11e213]: Supplier
+                      - definition [ref=f11e214]: Web Foods Ltd.
+                    - generic [ref=f11e215]:
+                      - term [ref=f11e216]: Status
+                      - definition [ref=f11e217]:
+                        - generic [ref=f11e218]: Partially received
+                    - generic [ref=f11e219]:
+                      - term [ref=f11e220]: Expected delivery
+                      - definition [ref=f11e221]: Jul 26, 2026
+                    - generic [ref=f11e222]:
+                      - term [ref=f11e223]: Currency
+                      - definition [ref=f11e224]: GBP
+                    - generic [ref=f11e225]:
+                      - term [ref=f11e226]: Destination warehouse
+                      - definition [ref=f11e227]: Main Warehouse
+                    - generic [ref=f11e228]:
+                      - term [ref=f11e229]: Created
+                      - definition [ref=f11e230]: Jul 17, 2026
+                    - generic [ref=f11e232]:
+                      - term [ref=f11e233]: Receipt progress
+                      - definition [ref=f11e234]: 0 / 3 lines
+                    - generic [ref=f11e236]:
+                      - term [ref=f11e237]: Net
+                      - definition [ref=f11e238]: 67.9421 GBP
+                    - generic [ref=f11e239]:
+                      - term [ref=f11e240]: Tax
+                      - definition [ref=f11e241]: 9.3987 GBP
+                    - generic [ref=f11e242]:
+                      - term [ref=f11e243]: Total (gross)
+                      - definition [ref=f11e244]: 77.3408 GBP
+                - generic [ref=f11e245]:
+                  - generic [ref=f11e246]: Related goods receipts
+                  - list [ref=f11e247]:
+                    - listitem [ref=f11e248]:
+                      - link "GRN-20260717-0001" [ref=f11e249] [cursor=pointer]:
+                        - /url: /en/warehouse/grns/3c546225-bb71-4c55-a1cc-44e57b37ac2f
+                      - text: draft
+                - generic [ref=f11e250]:
+                  - generic [ref=f11e251]: Status
+                  - button "Cancel PO" [ref=f11e253]
+          - group [ref=f11e254]:
+            - generic [ref=f11e256] [cursor=pointer]:
+              - generic [ref=f11e257]:
+                - heading "History" [level=2] [ref=f11e258]
+                - paragraph [ref=f11e259]: Read-only audit trail for this document.
+              - generic [ref=f11e260]: ▾
+            - list "History" [ref=f11e263]:
+              - listitem [ref=f11e264]:
+                - generic [ref=f11e265]:
+                  - generic [ref=f11e266]:
+                    - generic [ref=f11e267]: Audit event
+                    - generic [ref=f11e268]: planning.purchase_order.status_changed
+                  - generic [ref=f11e269]:
+                    - time [ref=f11e270]: 17 Jul 2026, 14:20
+                    - text: · Admin
+                  - group [ref=f11e271]:
+                    - generic "Details" [ref=f11e272] [cursor=pointer]
+              - listitem [ref=f11e273]:
+                - generic [ref=f11e274]:
+                  - generic [ref=f11e275]:
+                    - generic [ref=f11e276]: Audit event
+                    - generic [ref=f11e277]: planning.purchase_order.status_changed
+                  - generic [ref=f11e278]:
+                    - time [ref=f11e279]: 17 Jul 2026, 14:20
+                    - text: · Admin
+                  - group [ref=f11e280]:
+                    - generic "Details" [ref=f11e281] [cursor=pointer]
+              - listitem [ref=f11e282]:
+                - generic [ref=f11e283]:
+                  - generic [ref=f11e284]:
+                    - generic [ref=f11e285]: Audit event
+                    - generic [ref=f11e286]: planning.purchase_order.line_added
+                  - generic [ref=f11e287]:
+                    - time [ref=f11e288]: 17 Jul 2026, 14:19
+                    - text: · Admin
+                  - group [ref=f11e289]:
+                    - generic "Details" [ref=f11e290] [cursor=pointer]
+              - listitem [ref=f11e291]:
+                - generic [ref=f11e292]:
+                  - generic [ref=f11e293]:
+                    - generic [ref=f11e294]: Audit event
+                    - generic [ref=f11e295]: planning.purchase_order.line_deleted
+                  - generic [ref=f11e296]:
+                    - time [ref=f11e297]: 17 Jul 2026, 14:17
+                    - text: · Admin
+                  - group [ref=f11e298]:
+                    - generic "Details" [ref=f11e299] [cursor=pointer]
+              - listitem [ref=f11e300]:
+                - generic [ref=f11e301]:
+                  - generic [ref=f11e302]:
+                    - generic [ref=f11e303]: Audit event
+                    - generic [ref=f11e304]: planning.purchase_order.line_updated
+                  - generic [ref=f11e305]:
+                    - time [ref=f11e306]: 17 Jul 2026, 14:15
+                    - text: · Admin
+                  - group [ref=f11e307]:
+                    - generic "Details" [ref=f11e308] [cursor=pointer]
+              - listitem [ref=f11e309]:
+                - generic [ref=f11e310]:
+                  - generic [ref=f11e311]:
+                    - generic [ref=f11e312]: Audit event
+                    - generic [ref=f11e313]: planning.purchase_order.updated
+                  - generic [ref=f11e314]:
+                    - time [ref=f11e315]: 17 Jul 2026, 14:13
+                    - text: · Admin
+                  - group [ref=f11e316]:
+                    - generic "Details" [ref=f11e317] [cursor=pointer]
+              - listitem [ref=f11e318]:
+                - generic [ref=f11e319]:
+                  - generic [ref=f11e320]:
+                    - generic [ref=f11e321]: Audit event
+                    - generic [ref=f11e322]: planning.purchase_order.created
+                  - generic [ref=f11e323]:
+                    - time [ref=f11e324]: 17 Jul 2026, 14:10
+                    - text: · Admin
+                  - group [ref=f11e325]:
+                    - generic "Details" [ref=f11e326] [cursor=pointer]
+  - alert [ref=f11e134]

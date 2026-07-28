@@ -1,0 +1,86 @@
+- generic [active] [ref=f9e1]:
+  - generic [ref=f9e2]:
+    - banner [ref=f9e4]:
+      - generic "MonoPilot MES" [ref=f9e5]
+      - searchbox "Search settings…" [ref=f9e7]
+      - generic [ref=f9e8]:
+        - button "Switch organization (platform admin)" [ref=f9e10] [cursor=pointer]:
+          - generic [ref=f9e11]: A2
+          - generic [ref=f9e12]: "000000000000"
+          - generic [ref=f9e13]: Apex 22
+          - generic [ref=f9e14]: ▼
+        - generic "Filters work orders, license plates and OEE only — other screens stay org-wide" [ref=f9e15]:
+          - generic [ref=f9e16]: Site
+          - combobox "Site" [ref=f9e17] [cursor=pointer]:
+            - option "All sites" [selected]
+            - option "tester1"
+            - option "CODEX-R14 SITE"
+            - option "Main Factory"
+            - option "makery"
+            - option "SOL-R02 Site 0539 Edited"
+            - option "warehouse 1"
+        - button "Notifications" [ref=f9e19]
+        - button "Open user menu for Apex Admin" [ref=f9e24]: AA
+    - navigation "Primary" [ref=f9e25]:
+      - generic [ref=f9e26]:
+        - generic [ref=f9e27]:
+          - heading "Core" [level=2] [ref=f9e28]
+          - generic [ref=f9e29]:
+            - link "Dashboard" [ref=f9e30] [cursor=pointer]:
+              - /url: /en/dashboard
+            - link "Settings" [ref=f9e34] [cursor=pointer]:
+              - /url: /en/settings
+        - generic [ref=f9e38]:
+          - heading "Operations" [level=2] [ref=f9e39]
+          - generic [ref=f9e40]:
+            - link "Planning" [ref=f9e41] [cursor=pointer]:
+              - /url: /en/planning
+            - link "Freight" [ref=f9e45] [cursor=pointer]:
+              - /url: /en/planning/carriers
+            - link "Scheduler" [ref=f9e49] [cursor=pointer]:
+              - /url: /en/scheduler
+            - link "Production" [ref=f9e53] [cursor=pointer]:
+              - /url: /en/production
+            - link "Yard" [ref=f9e57] [cursor=pointer]:
+              - /url: /en/yard
+            - link "Warehouse" [ref=f9e61] [cursor=pointer]:
+              - /url: /en/warehouse
+            - link "Scanner" [ref=f9e65] [cursor=pointer]:
+              - /url: /en/scanner/home
+        - generic [ref=f9e69]:
+          - heading "QA & Shipping" [level=2] [ref=f9e70]
+          - generic [ref=f9e71]:
+            - link "Quality" [ref=f9e72] [cursor=pointer]:
+              - /url: /en/quality
+            - link "Shipping" [ref=f9e76] [cursor=pointer]:
+              - /url: /en/shipping
+        - generic [ref=f9e80]:
+          - heading "Premium" [level=2] [ref=f9e81]
+          - generic [ref=f9e82]:
+            - link "Technical" [ref=f9e83] [cursor=pointer]:
+              - /url: /en/technical
+            - link "NPD" [ref=f9e87] [cursor=pointer]:
+              - /url: /en/pipeline
+            - link "Finance" [ref=f9e91] [cursor=pointer]:
+              - /url: /en/finance
+            - link "OEE" [ref=f9e95] [cursor=pointer]:
+              - /url: /en/oee
+            - link "Maintenance" [ref=f9e99] [cursor=pointer]:
+              - /url: /en/maintenance
+        - generic [ref=f9e103]:
+          - heading "Analytics & Network" [level=2] [ref=f9e104]
+          - generic [ref=f9e105]:
+            - link "Reporting" [ref=f9e106] [cursor=pointer]:
+              - /url: /en/reporting
+            - link "Multi-Site" [ref=f9e110] [cursor=pointer]:
+              - /url: /en/multi-site
+    - main [ref=f9e114]:
+      - main [ref=f9e555]:
+        - generic [ref=f9e556]:
+          - generic [ref=f9e557]:
+            - generic [ref=f9e558]
+            - generic [ref=f9e568]
+          - group [ref=f9e650]:
+            - generic "History Read-only audit trail for this document." [ref=f9e651] [cursor=pointer]
+            - list "History" [ref=f9e659]
+  - alert [ref=f9e506]

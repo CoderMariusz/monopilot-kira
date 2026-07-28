@@ -1,0 +1,55 @@
+- dialog "Create item" [ref=f130e1007]:
+  - generic [ref=f130e1008]:
+    - generic [ref=f130e1009]:
+      - generic [ref=f130e1010]: Create item
+      - generic [ref=f130e1011]: Universal item master — links to BOM, spec and allergen matrix.
+    - button "Close" [ref=f130e1012] [cursor=pointer]: ✕
+  - generic [ref=f130e1013]:
+    - tablist "Wizard steps" [ref=f130e1014]:
+      - tab "✓ Basic info" [ref=f130e1049] [cursor=pointer]:
+        - generic [ref=f130e1016]: ✓
+        - generic [ref=f130e1017]: Basic info
+      - tab "✓ Classification" [ref=f130e1103] [cursor=pointer]:
+        - generic [ref=f130e1020]: ✓
+        - generic [ref=f130e1021]: Classification
+      - tab "3 Weight & shelf life" [selected] [ref=f130e1023]:
+        - generic [ref=f130e1024]: "3"
+        - generic [ref=f130e1025]: Weight & shelf life
+      - tab "4 Review & create" [disabled] [ref=f130e1027]:
+        - generic [ref=f130e1028]: "4"
+        - generic [ref=f130e1029]: Review & create
+    - generic [ref=f130e1104]:
+      - generic [ref=f130e1105]:
+        - generic [ref=f130e1106]: Weight mode*
+        - combobox "Weight mode" [ref=f130e1108] [cursor=pointer]:
+          - generic [ref=f130e1109]: Fixed weight
+          - generic [ref=f130e1110]: ⌄
+      - generic [ref=f130e1111]:
+        - generic [ref=f130e1112]: GS1 GTIN
+        - textbox "GS1 GTIN" [ref=f130e1114]
+      - generic [ref=f130e1115]:
+        - checkbox "Has shelf life" [checked] [ref=f130e1116]
+        - generic [ref=f130e1117]: Has shelf life
+      - generic [ref=f130e1118]:
+        - generic [ref=f130e1119]:
+          - generic [ref=f130e1120]: Shelf life (days)
+          - spinbutton "Shelf life (days)" [ref=f130e1122]: "19"
+        - generic [ref=f130e1123]:
+          - generic [ref=f130e1124]: List price (GBP / base UoM)
+          - spinbutton "List price (GBP / base UoM)" [ref=f130e1126]: "4.3210"
+      - generic [ref=f130e1128]:
+        - generic [ref=f130e1129]: Shelf-life mode
+        - combobox "Shelf-life mode" [active] [ref=f130e1131] [cursor=pointer]:
+          - generic [ref=f130e1145]: Best before
+          - generic [ref=f130e1132]: ⌄
+      - group "Packaging / output unit" [ref=f130e1133]:
+        - generic [ref=f130e1135]:
+          - generic [ref=f130e1136]: Output unit*
+          - combobox "Output unit" [ref=f130e1138] [cursor=pointer]:
+            - generic [ref=f130e1139]: Base unit
+            - generic [ref=f130e1140]: ⌄
+          - generic [ref=f130e1141]: How Planning orders WOs and production registers output for this item.
+  - generic [ref=f130e1045]:
+    - button "Back" [ref=f130e1094] [cursor=pointer]
+    - button "Cancel" [ref=f130e1047] [cursor=pointer]
+    - button "Next" [ref=f130e1048] [cursor=pointer]

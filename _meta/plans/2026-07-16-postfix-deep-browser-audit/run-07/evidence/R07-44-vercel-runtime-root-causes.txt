@@ -1,0 +1,28 @@
+Deployment: dpl_F8hRCBXB7tdWmNKqMHD7LxnMy3Vm
+Environment: production
+Captured: 2026-07-17
+
+13:29:41 POST /en/warehouse/grns/3c546225-bb71-4c55-a1cc-44e57b37ac2f
+[warehouse] cancelGrnLine failed
+Postgres 0A000: FOR UPDATE cannot be applied to the nullable side of an outer join.
+Trace: 356839f24c71f0bced5aad288338c044
+
+13:41:52 POST /en/planning/purchase-orders/7969df57-e7c0-4aad-b551-5b84cf7ac9d7
+[wac] unresolved_uom
+UoM: g
+Qty: 100.125
+Trace: fce912232b1c428046ab012243ae125c
+
+13:43:27 POST /en/planning/purchase-orders/7969df57-e7c0-4aad-b551-5b84cf7ac9d7
+[wac] unresolved_uom
+UoM: g
+Qty: 100.125
+Trace: 8028536313ebfaa486eb482a247a5f62
+
+13:45:26 POST /en/planning/purchase-orders/7969df57-e7c0-4aad-b551-5b84cf7ac9d7
+[wac] unresolved_uom
+UoM: pcs
+Qty: 7.5
+Trace: 7b39bf0d6c43e3824bdc9eb9ce302fd3
+
+The Vercel runtime-log query was scoped to the expected production deployment.

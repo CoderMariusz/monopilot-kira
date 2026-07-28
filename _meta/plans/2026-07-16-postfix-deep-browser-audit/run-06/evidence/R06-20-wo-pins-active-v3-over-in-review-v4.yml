@@ -1,0 +1,208 @@
+- generic [active] [ref=f126e1]:
+  - generic [ref=f126e2]:
+    - banner [ref=f126e4]:
+      - generic "MonoPilot MES" [ref=f126e5]
+      - searchbox "Search settings…" [ref=f126e7]
+      - generic [ref=f126e8]:
+        - button "Switch organization (platform admin)" [ref=f126e10] [cursor=pointer]:
+          - generic [ref=f126e11]: A2
+          - generic [ref=f126e12]: "000000000000"
+          - generic [ref=f126e13]: Apex 22
+          - generic [ref=f126e14]: ▼
+        - generic "Filters work orders, license plates and OEE only — other screens stay org-wide" [ref=f126e15]:
+          - generic [ref=f126e16]: Site
+          - combobox "Site" [ref=f126e17] [cursor=pointer]:
+            - option "All sites"
+            - option "tester1"
+            - option "CODEX-R14 SITE"
+            - option "Main Factory" [selected]
+            - option "makery"
+            - option "SOL-R02 Site 0539 Edited"
+            - option "warehouse 1"
+        - button "Notifications" [ref=f126e19]
+        - button "Open user menu for Apex Admin" [ref=f126e24]: AA
+    - navigation "Primary" [ref=f126e25]:
+      - generic [ref=f126e26]:
+        - generic [ref=f126e27]:
+          - heading "Core" [level=2] [ref=f126e28]
+          - generic [ref=f126e29]:
+            - link "Dashboard" [ref=f126e30] [cursor=pointer]:
+              - /url: /en/dashboard
+              - generic [ref=f126e31]: ◆
+            - link "Settings" [ref=f126e34] [cursor=pointer]:
+              - /url: /en/settings
+              - generic [ref=f126e35]: ⚙
+        - generic [ref=f126e38]:
+          - heading "Operations" [level=2] [ref=f126e39]
+          - generic [ref=f126e40]:
+            - link "Planning" [ref=f126e41] [cursor=pointer]:
+              - /url: /en/planning
+              - generic [ref=f126e42]: ▤
+            - link "Freight" [ref=f126e45] [cursor=pointer]:
+              - /url: /en/planning/carriers
+              - generic [ref=f126e46]: F
+            - link "Scheduler" [ref=f126e49] [cursor=pointer]:
+              - /url: /en/scheduler
+              - generic [ref=f126e50]: ⧗
+            - link "Production" [ref=f126e53] [cursor=pointer]:
+              - /url: /en/production
+              - generic [ref=f126e54]: ⚒
+            - link "Yard" [ref=f126e57] [cursor=pointer]:
+              - /url: /en/yard
+              - generic [ref=f126e58]: "Y"
+            - link "Warehouse" [ref=f126e61] [cursor=pointer]:
+              - /url: /en/warehouse
+              - generic [ref=f126e62]: ▥
+            - link "Scanner" [ref=f126e65] [cursor=pointer]:
+              - /url: /en/scanner/home
+              - generic [ref=f126e66]: 📱
+        - generic [ref=f126e69]:
+          - heading "QA & Shipping" [level=2] [ref=f126e70]
+          - generic [ref=f126e71]:
+            - link "Quality" [ref=f126e72] [cursor=pointer]:
+              - /url: /en/quality
+              - generic [ref=f126e73]: ✓
+            - link "Shipping" [ref=f126e76] [cursor=pointer]:
+              - /url: /en/shipping
+              - generic [ref=f126e77]: →
+        - generic [ref=f126e80]:
+          - heading "Premium" [level=2] [ref=f126e81]
+          - generic [ref=f126e82]:
+            - link "Technical" [ref=f126e83] [cursor=pointer]:
+              - /url: /en/technical
+              - generic [ref=f126e84]: ▦
+            - link "NPD" [ref=f126e87] [cursor=pointer]:
+              - /url: /en/pipeline
+              - generic [ref=f126e88]: ★
+            - link "Finance" [ref=f126e91] [cursor=pointer]:
+              - /url: /en/finance
+              - generic [ref=f126e92]: $
+            - link "OEE" [ref=f126e95] [cursor=pointer]:
+              - /url: /en/oee
+              - generic [ref=f126e96]: ◉
+            - link "Maintenance" [ref=f126e99] [cursor=pointer]:
+              - /url: /en/maintenance
+              - generic [ref=f126e100]: 🔧
+        - generic [ref=f126e103]:
+          - heading "Analytics & Network" [level=2] [ref=f126e104]
+          - generic [ref=f126e105]:
+            - link "Reporting" [ref=f126e106] [cursor=pointer]:
+              - /url: /en/reporting
+              - generic [ref=f126e107]: ▧
+            - link "Multi-Site" [ref=f126e110] [cursor=pointer]:
+              - /url: /en/multi-site
+              - generic [ref=f126e111]: ❖
+    - main [ref=f126e114]:
+      - main [ref=f126e570]:
+        - generic [ref=f126e572]:
+          - navigation "Breadcrumb" [ref=f126e573]:
+            - list [ref=f126e574]:
+              - listitem [ref=f126e575]:
+                - link "Planning" [ref=f126e576] [cursor=pointer]:
+                  - /url: /en/planning
+              - listitem [ref=f126e577]:
+                - generic [ref=f126e578]: /
+                - link "Work orders" [ref=f126e579] [cursor=pointer]:
+                  - /url: /en/planning/work-orders
+              - listitem [ref=f126e580]:
+                - generic [ref=f126e581]: /
+                - generic [ref=f126e582]: Detail
+          - heading "Work order" [level=1] [ref=f126e584]
+        - generic [ref=f126e585]:
+          - generic [ref=f126e586]:
+            - generic [ref=f126e587]: WO-202607-0028
+            - generic [ref=f126e588]: Draft
+            - generic [ref=f126e589]: normal
+            - generic [ref=f126e590]:
+              - button "Release" [ref=f126e591] [cursor=pointer]
+              - button "Edit" [ref=f126e592] [cursor=pointer]
+              - button "Delete draft" [ref=f126e593] [cursor=pointer]
+          - generic [ref=f126e594]:
+            - generic [ref=f126e595]:
+              - term [ref=f126e596]: Product
+              - definition [ref=f126e597]: NIGHT-R06-FG-1138
+            - generic [ref=f126e598]:
+              - term [ref=f126e599]: Qty
+              - definition [ref=f126e600]: 2.468 kg
+            - generic [ref=f126e601]:
+              - term [ref=f126e602]: Scheduled start
+              - definition [ref=f126e603]: Jul 24, 2026, 12:00 AM
+            - generic [ref=f126e604]:
+              - term [ref=f126e605]: Scheduled end
+              - definition [ref=f126e606]: —
+            - generic [ref=f126e607]:
+              - term [ref=f126e608]: Line
+              - definition [ref=f126e609]: LINE02 — Oven Line
+            - generic [ref=f126e610]:
+              - term [ref=f126e611]: Priority
+              - definition [ref=f126e612]: normal
+            - generic [ref=f126e613]:
+              - term [ref=f126e614]: Source
+              - definition [ref=f126e615]: manual
+          - generic [ref=f126e616]:
+            - tablist [ref=f126e617]:
+              - tab "Overview" [selected] [ref=f126e618]
+              - tab "Outputs 1" [ref=f126e619]
+              - tab "Dependencies 0" [ref=f126e620]
+              - tab "Reservations" [ref=f126e621]
+              - tab "Sequencing" [ref=f126e622]
+              - tab "State history 1" [ref=f126e623]
+              - tab "D365 sync" [ref=f126e624]
+            - tabpanel "Overview" [ref=f126e625]:
+              - generic [ref=f126e626]:
+                - heading "Pinned BOM / factory spec" [level=3] [ref=f126e627]
+                - generic [ref=f126e628]:
+                  - generic [ref=f126e629]:
+                    - term [ref=f126e630]: BOM header ID
+                    - definition [ref=f126e631]: cb7f445b-898c-4b15-a394-e655f133af76
+                    - term [ref=f126e632]: BOM version
+                    - definition [ref=f126e633]: "3"
+                  - generic [ref=f126e634]:
+                    - term [ref=f126e635]: Factory spec ID
+                    - definition [ref=f126e636]: —
+                    - term [ref=f126e637]: Factory spec version
+                    - definition [ref=f126e638]: —
+              - generic [ref=f126e639]:
+                - heading "Materials (BOM snapshot)" [level=3] [ref=f126e640]
+                - table [ref=f126e641]:
+                  - rowgroup [ref=f126e642]:
+                    - row [ref=f126e643]:
+                      - columnheader "#" [ref=f126e644]
+                      - columnheader "Material" [ref=f126e645]
+                      - columnheader "Required" [ref=f126e646]
+                      - columnheader "Source" [ref=f126e647]
+                  - rowgroup [ref=f126e648]:
+                    - row [ref=f126e649]:
+                      - cell "1" [ref=f126e650]
+                      - cell "RM-BUTTER" [ref=f126e651]
+                      - cell "0.248 kg" [ref=f126e652]
+                      - cell "stock" [ref=f126e653]
+                    - row [ref=f126e655]:
+                      - cell "2" [ref=f126e656]
+                      - cell "PM-BOX" [ref=f126e657]
+                      - cell "3.070 pcs" [ref=f126e658]
+                      - cell "stock" [ref=f126e659]
+              - generic [ref=f126e661]:
+                - heading "Operations (routing snapshot)" [level=3] [ref=f126e662]
+                - table [ref=f126e663]:
+                  - rowgroup [ref=f126e664]:
+                    - row [ref=f126e665]:
+                      - columnheader "#" [ref=f126e666]
+                      - columnheader "Operation" [ref=f126e667]
+                      - columnheader "Expected dur." [ref=f126e668]
+                      - columnheader "Expected yield" [ref=f126e669]
+                      - columnheader "Status" [ref=f126e670]
+                  - rowgroup [ref=f126e671]:
+                    - row [ref=f126e672]:
+                      - cell "1" [ref=f126e673]
+                      - cell "R06 Cook Phase Decimal" [ref=f126e674]
+                      - cell "13 min" [ref=f126e675]
+                      - cell "—%" [ref=f126e676]
+                      - cell "pending" [ref=f126e677]
+                    - row [ref=f126e679]:
+                      - cell "2" [ref=f126e680]
+                      - cell "R06 Pack Phase Readded" [ref=f126e681]
+                      - cell "10 min" [ref=f126e682]
+                      - cell "—%" [ref=f126e683]
+                      - cell "pending" [ref=f126e684]
+  - alert [ref=f126e132]

@@ -1,0 +1,16 @@
+url: https://monopilot-kira.vercel.app/en/pipeline/new
+captured_at: 2026-07-17T08:39:26+01:00
+run: 04
+state: wizard-review-before-create
+observations:
+  - "All supplied brief fields are summarized before creation."
+  - "Starting point is Blank recipe."
+  - "Create CTA is enabled and reads: ✓ Create project & open recipe."
+review_values:
+  project_name: "NIGHT R04 NPD 0837"
+  category: "Bread · Loaf"
+  target_launch: "2026-08-31"
+  target_price: "£2.50"
+  channel_volume: "Retail · 1000 packs/wk"
+  claims: "NIGHT-R04 high protein audit claim"
+  starting_point: "Blank recipe"

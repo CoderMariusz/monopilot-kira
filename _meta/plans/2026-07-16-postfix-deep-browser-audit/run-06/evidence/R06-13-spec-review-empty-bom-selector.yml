@@ -1,0 +1,528 @@
+- generic [ref=f122e1]:
+  - generic [ref=f122e2]:
+    - banner [ref=f122e4]:
+      - generic "MonoPilot MES" [ref=f122e5]
+      - searchbox "Search settings…" [ref=f122e7]
+      - generic [ref=f122e8]:
+        - button "Switch organization (platform admin)" [ref=f122e10] [cursor=pointer]:
+          - generic [ref=f122e11]: A2
+          - generic [ref=f122e12]: "000000000000"
+          - generic [ref=f122e13]: Apex 22
+          - generic [ref=f122e14]: ▼
+        - generic "Filters work orders, license plates and OEE only — other screens stay org-wide" [ref=f122e15]:
+          - generic [ref=f122e16]: Site
+          - combobox "Site" [ref=f122e17] [cursor=pointer]:
+            - option "All sites" [selected]
+            - option "tester1"
+            - option "CODEX-R14 SITE"
+            - option "Main Factory"
+            - option "makery"
+            - option "SOL-R02 Site 0539 Edited"
+            - option "warehouse 1"
+        - button "Notifications" [ref=f122e19]
+        - button "Open user menu for Apex Admin" [ref=f122e24]: AA
+    - navigation "Primary" [ref=f122e25]:
+      - generic [ref=f122e26]:
+        - generic [ref=f122e27]:
+          - heading "Core" [level=2] [ref=f122e28]
+          - generic [ref=f122e29]:
+            - link "Dashboard" [ref=f122e30] [cursor=pointer]:
+              - /url: /en/dashboard
+              - generic [ref=f122e31]: ◆
+            - link "Settings" [ref=f122e34] [cursor=pointer]:
+              - /url: /en/settings
+              - generic [ref=f122e35]: ⚙
+        - generic [ref=f122e38]:
+          - heading "Operations" [level=2] [ref=f122e39]
+          - generic [ref=f122e40]:
+            - link "Planning" [ref=f122e41] [cursor=pointer]:
+              - /url: /en/planning
+              - generic [ref=f122e42]: ▤
+            - link "Freight" [ref=f122e45] [cursor=pointer]:
+              - /url: /en/planning/carriers
+              - generic [ref=f122e46]: F
+            - link "Scheduler" [ref=f122e49] [cursor=pointer]:
+              - /url: /en/scheduler
+              - generic [ref=f122e50]: ⧗
+            - link "Production" [ref=f122e53] [cursor=pointer]:
+              - /url: /en/production
+              - generic [ref=f122e54]: ⚒
+            - link "Yard" [ref=f122e57] [cursor=pointer]:
+              - /url: /en/yard
+              - generic [ref=f122e58]: "Y"
+            - link "Warehouse" [ref=f122e61] [cursor=pointer]:
+              - /url: /en/warehouse
+              - generic [ref=f122e62]: ▥
+            - link "Scanner" [ref=f122e65] [cursor=pointer]:
+              - /url: /en/scanner/home
+              - generic [ref=f122e66]: 📱
+        - generic [ref=f122e69]:
+          - heading "QA & Shipping" [level=2] [ref=f122e70]
+          - generic [ref=f122e71]:
+            - link "Quality" [ref=f122e72] [cursor=pointer]:
+              - /url: /en/quality
+              - generic [ref=f122e73]: ✓
+            - link "Shipping" [ref=f122e76] [cursor=pointer]:
+              - /url: /en/shipping
+              - generic [ref=f122e77]: →
+        - generic [ref=f122e80]:
+          - heading "Premium" [level=2] [ref=f122e81]
+          - generic [ref=f122e82]:
+            - link "Technical" [ref=f122e83] [cursor=pointer]:
+              - /url: /en/technical
+              - generic [ref=f122e84]: ▦
+            - link "NPD" [ref=f122e87] [cursor=pointer]:
+              - /url: /en/pipeline
+              - generic [ref=f122e88]: ★
+            - link "Finance" [ref=f122e91] [cursor=pointer]:
+              - /url: /en/finance
+              - generic [ref=f122e92]: $
+            - link "OEE" [ref=f122e95] [cursor=pointer]:
+              - /url: /en/oee
+              - generic [ref=f122e96]: ◉
+            - link "Maintenance" [ref=f122e99] [cursor=pointer]:
+              - /url: /en/maintenance
+              - generic [ref=f122e100]: 🔧
+        - generic [ref=f122e103]:
+          - heading "Analytics & Network" [level=2] [ref=f122e104]
+          - generic [ref=f122e105]:
+            - link "Reporting" [ref=f122e106] [cursor=pointer]:
+              - /url: /en/reporting
+              - generic [ref=f122e107]: ▧
+            - link "Multi-Site" [ref=f122e110] [cursor=pointer]:
+              - /url: /en/multi-site
+              - generic [ref=f122e111]: ❖
+    - main [ref=f122e114]:
+      - generic [ref=f122e115]:
+        - navigation "Technical" [ref=f122e116]:
+          - generic [ref=f122e117]:
+            - generic [ref=f122e118]:
+              - heading "Overview" [level=2] [ref=f122e119]
+              - link "Dashboard" [ref=f122e121] [cursor=pointer]:
+                - /url: /en/technical
+                - generic [ref=f122e122]: ◇
+            - generic [ref=f122e124]:
+              - heading "Products" [level=2] [ref=f122e125]
+              - generic [ref=f122e126]:
+                - link "Products" [ref=f122e127] [cursor=pointer]:
+                  - /url: /en/technical/items
+                  - generic [ref=f122e128]: ◈
+                - link "Materials" [ref=f122e130] [cursor=pointer]:
+                  - /url: /en/technical/materials
+                  - generic [ref=f122e131]: ⬢
+                - link "BOMs & recipes" [ref=f122e133] [cursor=pointer]:
+                  - /url: /en/technical/bom
+                  - generic [ref=f122e134]: ▦
+                - link "Product specifications" [ref=f122e136] [cursor=pointer]:
+                  - /url: /en/technical/factory-specs
+                  - generic [ref=f122e137]: ☰
+                - link "Nutrition panel" [ref=f122e139] [cursor=pointer]:
+                  - /url: /en/technical/nutrition
+                  - generic [ref=f122e140]: ♥
+                - link "Allergen matrix" [ref=f122e142] [cursor=pointer]:
+                  - /url: /en/technical/allergens-config
+                  - generic [ref=f122e143]: "!"
+                - link "Shelf life" [ref=f122e145] [cursor=pointer]:
+                  - /url: /en/technical/shelf-life
+                  - generic [ref=f122e146]: ⧗
+            - generic [ref=f122e148]:
+              - heading "Cost & trace" [level=2] [ref=f122e149]
+              - generic [ref=f122e150]:
+                - link "Recipe costing" [ref=f122e151] [cursor=pointer]:
+                  - /url: /en/technical/cost
+                  - generic [ref=f122e152]: $
+                - link "Cost history" [ref=f122e154] [cursor=pointer]:
+                  - /url: /en/technical/cost/history
+                  - generic [ref=f122e155]: ∿
+                - link "Traceability search" [ref=f122e157] [cursor=pointer]:
+                  - /url: /en/technical/traceability
+                  - generic [ref=f122e158]: ⌕
+                - link "Where-used" [ref=f122e160] [cursor=pointer]:
+                  - /url: /en/technical/where-used
+                  - generic [ref=f122e161]: ↤
+                - link "Portfolio cost" [ref=f122e163] [cursor=pointer]:
+                  - /url: /en/technical/cost/portfolio
+                  - generic [ref=f122e164]: ▣
+            - generic [ref=f122e166]:
+              - heading "Process" [level=2] [ref=f122e167]
+              - generic [ref=f122e168]:
+                - link "Routings" [ref=f122e169] [cursor=pointer]:
+                  - /url: /en/technical/routings
+                  - generic [ref=f122e170]: →
+                - link "WIP library" [ref=f122e172] [cursor=pointer]:
+                  - /url: /en/technical/wip-library
+                  - generic [ref=f122e173]: ⚗
+                - link "Tooling" [ref=f122e175] [cursor=pointer]:
+                  - /url: /en/technical/tooling
+                  - generic [ref=f122e176]: ⚙
+            - generic [ref=f122e178]:
+              - heading "Compliance" [level=2] [ref=f122e179]
+              - generic [ref=f122e180]:
+                - link "Allergen cascade" [ref=f122e181] [cursor=pointer]:
+                  - /url: /en/technical/allergens/cascade
+                  - generic [ref=f122e182]: ⇣
+                - link "Process additions" [ref=f122e184] [cursor=pointer]:
+                  - /url: /en/technical/allergens/process-additions
+                  - generic [ref=f122e185]: ⊕
+                - link "Contamination risk" [ref=f122e187] [cursor=pointer]:
+                  - /url: /en/technical/allergens/contamination-risk
+                  - generic [ref=f122e188]: ▦
+                - link "Sensory" [ref=f122e190] [cursor=pointer]:
+                  - /url: /en/technical/sensory
+                  - generic [ref=f122e191]: ◐
+                - link "Lab results" [ref=f122e193] [cursor=pointer]:
+                  - /url: /en/technical/lab-results
+                  - generic [ref=f122e194]: 🧪
+                - link "Compliance" [ref=f122e196] [cursor=pointer]:
+                  - /url: /en/technical/compliance
+                  - generic [ref=f122e197]: ✅
+                - link "Change control (ECO)" [ref=f122e199] [cursor=pointer]:
+                  - /url: /en/technical/eco
+                  - generic [ref=f122e200]: Δ
+                - link "Revision history" [ref=f122e202] [cursor=pointer]:
+                  - /url: /en/technical/revisions
+                  - generic [ref=f122e203]: ↺
+        - main [ref=f122e205]:
+          - main [ref=f122e206]:
+            - navigation "Breadcrumb" [ref=f122e207]:
+              - link "Technical" [ref=f122e208] [cursor=pointer]:
+                - /url: /en/technical
+              - text: / Factory specifications
+            - generic [ref=f122e209]:
+              - generic [ref=f122e210]:
+                - heading "Factory specifications" [level=1] [ref=f122e211]
+                - paragraph [ref=f122e212]: Technical-owned production specifications (factory_spec / internal_product_spec) per finished good — versioned, released on Technical approval.
+              - button "+ New specification" [ref=f122e213] [cursor=pointer]
+            - table "Factory specifications" [ref=f122e215]:
+              - rowgroup [ref=f122e216]:
+                - row [ref=f122e217]:
+                  - columnheader "Spec" [ref=f122e218]
+                  - columnheader "Product" [ref=f122e219]
+                  - columnheader "Category" [ref=f122e220]
+                  - columnheader "Ver." [ref=f122e221]
+                  - columnheader "Shelf life" [ref=f122e222]
+                  - columnheader "Status" [ref=f122e223]
+                  - columnheader "Actions" [ref=f122e224]
+              - rowgroup [ref=f122e225]:
+                - row [ref=f122e226]:
+                  - cell "FS-FG-016-v2" [ref=f122e227]
+                  - cell "FG-016 drozdzowka" [ref=f122e228]
+                  - cell "—" [ref=f122e229]
+                  - cell "v2" [ref=f122e230]
+                  - cell "30 d" [ref=f122e231]
+                  - cell "Approved for factory" [ref=f122e232]
+                  - cell "Review Release via NPD handoff + New version" [ref=f122e234]:
+                    - generic [ref=f122e235]:
+                      - button "Review" [ref=f122e236]
+                      - generic "NPD-backed products must be released from NPD Handoff, not Technical." [ref=f122e237]: Release via NPD handoff
+                      - button "+ New version" [ref=f122e238]
+                - row [ref=f122e239]:
+                  - cell "NPD-NPD-016" [ref=f122e240]
+                  - cell "FG-016 drozdzowka" [ref=f122e241]
+                  - cell "—" [ref=f122e242]
+                  - cell "v1" [ref=f122e243]
+                  - cell "30 d" [ref=f122e244]
+                  - cell "Draft" [ref=f122e245]
+                  - cell [ref=f122e247]:
+                    - generic [ref=f122e248]:
+                      - button "Review" [ref=f122e249]
+                      - button "Edit" [ref=f122e250]
+                      - button "Save version" [ref=f122e251]
+                      - button "Delete" [ref=f122e252]
+                - row [ref=f122e253]:
+                  - cell "NPD-NPD-019" [ref=f122e254]
+                  - cell "FG-019 bake" [ref=f122e255]
+                  - cell "—" [ref=f122e256]
+                  - cell "v1" [ref=f122e257]
+                  - cell "—" [ref=f122e258]
+                  - cell "Draft" [ref=f122e259]
+                  - cell [ref=f122e261]:
+                    - generic [ref=f122e262]:
+                      - button "Review" [ref=f122e263]
+                      - button "Edit" [ref=f122e264]
+                      - button "Save version" [ref=f122e265]
+                      - button "Delete" [ref=f122e266]
+                - row [ref=f122e267]:
+                  - cell "NPD-NPD-020" [ref=f122e268]
+                  - cell "FG-020 SOL-R04-20260715-0913-FGEDIT" [ref=f122e269]
+                  - cell "—" [ref=f122e270]
+                  - cell "v1" [ref=f122e271]
+                  - cell "—" [ref=f122e272]
+                  - cell "Draft" [ref=f122e273]
+                  - cell [ref=f122e275]:
+                    - generic [ref=f122e276]:
+                      - button "Review" [ref=f122e277]
+                      - button "Edit" [ref=f122e278]
+                      - button "Save version" [ref=f122e279]
+                      - button "Delete" [ref=f122e280]
+                - row [ref=f122e281]:
+                  - cell "NPD-NPD-021" [ref=f122e282]
+                  - cell "FG-021 NIGHT R04 NPD 0837" [ref=f122e283]
+                  - cell "—" [ref=f122e284]
+                  - cell "v1" [ref=f122e285]
+                  - cell "—" [ref=f122e286]
+                  - cell "Draft" [ref=f122e287]
+                  - cell [ref=f122e289]:
+                    - generic [ref=f122e290]:
+                      - button "Review" [ref=f122e291]
+                      - button "Edit" [ref=f122e292]
+                      - button "Save version" [ref=f122e293]
+                      - button "Delete" [ref=f122e294]
+                - row [ref=f122e295]:
+                  - cell "FS-FG0014-v4" [ref=f122e296]
+                  - cell "FG0014 Butter Shortbread 250g" [ref=f122e297]
+                  - cell "—" [ref=f122e298]
+                  - cell "v4" [ref=f122e299]
+                  - cell "30 d" [ref=f122e300]
+                  - cell "Released to factory" [ref=f122e301]
+                  - cell [ref=f122e303]:
+                    - generic [ref=f122e304]:
+                      - button "Review" [ref=f122e305]
+                      - button "Recall to draft" [ref=f122e306]
+                      - button "+ New version" [ref=f122e307]
+                - row [ref=f122e308]:
+                  - cell "FS-FG0014-v3" [ref=f122e309]
+                  - cell "FG0014 Butter Shortbread 250g" [ref=f122e310]
+                  - cell "—" [ref=f122e311]
+                  - cell "v3" [ref=f122e312]
+                  - cell "30 d" [ref=f122e313]
+                  - cell "Superseded" [ref=f122e314]
+                  - cell [ref=f122e316]:
+                    - button "Review" [ref=f122e318]
+                - row [ref=f122e319]:
+                  - cell "FS-FG0014-v2" [ref=f122e320]
+                  - cell "FG0014 Butter Shortbread 250g" [ref=f122e321]
+                  - cell "—" [ref=f122e322]
+                  - cell "v2" [ref=f122e323]
+                  - cell "30 d" [ref=f122e324]
+                  - cell "Superseded" [ref=f122e325]
+                  - cell [ref=f122e327]:
+                    - button "Review" [ref=f122e329]
+                - row [ref=f122e330]:
+                  - cell "NPD-NPD-001" [ref=f122e331]
+                  - cell "FG0014 Butter Shortbread 250g" [ref=f122e332]
+                  - cell "—" [ref=f122e333]
+                  - cell "v1" [ref=f122e334]
+                  - cell "30 d" [ref=f122e335]
+                  - cell "Draft" [ref=f122e336]
+                  - cell [ref=f122e338]:
+                    - generic [ref=f122e339]:
+                      - button "Review" [ref=f122e340]
+                      - button "Edit" [ref=f122e341]
+                      - button "Save version" [ref=f122e342]
+                      - button "Delete" [ref=f122e343]
+                - row [ref=f122e344]:
+                  - cell "FS-FG0015-v2" [ref=f122e345]
+                  - cell "FG0015 test bread 1" [ref=f122e346]
+                  - cell "—" [ref=f122e347]
+                  - cell "v2" [ref=f122e348]
+                  - cell "30 d" [ref=f122e349]
+                  - cell "Approved for factory" [ref=f122e350]
+                  - cell "Review Release via NPD handoff + New version" [ref=f122e352]:
+                    - generic [ref=f122e353]:
+                      - button "Review" [ref=f122e354]
+                      - generic "NPD-backed products must be released from NPD Handoff, not Technical." [ref=f122e355]: Release via NPD handoff
+                      - button "+ New version" [ref=f122e356]
+                - row [ref=f122e357]:
+                  - cell "NPD-NPD-002" [ref=f122e358]
+                  - cell "FG0015 test bread 1" [ref=f122e359]
+                  - cell "—" [ref=f122e360]
+                  - cell "v1" [ref=f122e361]
+                  - cell "30 d" [ref=f122e362]
+                  - cell "Draft" [ref=f122e363]
+                  - cell [ref=f122e365]:
+                    - generic [ref=f122e366]:
+                      - button "Review" [ref=f122e367]
+                      - button "Edit" [ref=f122e368]
+                      - button "Save version" [ref=f122e369]
+                      - button "Delete" [ref=f122e370]
+                - row [ref=f122e371]:
+                  - cell "NPD-NPD-003" [ref=f122e372]
+                  - cell "FG0016 test" [ref=f122e373]
+                  - cell "—" [ref=f122e374]
+                  - cell "v1" [ref=f122e375]
+                  - cell "—" [ref=f122e376]
+                  - cell "Draft" [ref=f122e377]
+                  - cell [ref=f122e379]:
+                    - generic [ref=f122e380]:
+                      - button "Review" [ref=f122e381]
+                      - button "Edit" [ref=f122e382]
+                      - button "Save version" [ref=f122e383]
+                      - button "Delete" [ref=f122e384]
+                - row [ref=f122e385]:
+                  - cell "NPD-NPD-004" [ref=f122e386]
+                  - cell "FG0017 bulka" [ref=f122e387]
+                  - cell "—" [ref=f122e388]
+                  - cell "v1" [ref=f122e389]
+                  - cell "—" [ref=f122e390]
+                  - cell "Draft" [ref=f122e391]
+                  - cell [ref=f122e393]:
+                    - generic [ref=f122e394]:
+                      - button "Review" [ref=f122e395]
+                      - button "Edit" [ref=f122e396]
+                      - button "Save version" [ref=f122e397]
+                      - button "Delete" [ref=f122e398]
+                - row [ref=f122e821]:
+                  - cell "FS-NIGHT-R06-1138" [ref=f122e549]
+                  - cell "NIGHT-R06-FG-1138 NIGHT R06 Revision Test 1138" [ref=f122e550]
+                  - cell "NIGHT-R06" [ref=f122e551]
+                  - cell "v2" [ref=f122e552]
+                  - cell "—" [ref=f122e553]
+                  - cell "In review" [ref=f122e822]
+                  - cell [ref=f122e697]:
+                    - generic [ref=f122e557]:
+                      - button "Review" [ref=f122e558]
+                      - button "Edit" [ref=f122e559]
+                      - button "Save version" [ref=f122e560]
+                      - button "Delete" [ref=f122e561]
+                      - dialog [ref=f122e699]:
+                        - generic [ref=f122e700]:
+                          - generic [ref=f122e701]:
+                            - heading "Review specification · FS-NIGHT-R06-1138" [level=2] [ref=f122e702]
+                            - paragraph [ref=f122e703]: NIGHT-R06-FG-1138 NIGHT R06 Revision Test 1138 · v2
+                          - button "Close" [ref=f122e704] [cursor=pointer]: ✕
+                        - generic [ref=f122e705]:
+                          - generic [ref=f122e706]:
+                            - generic [ref=f122e707]:
+                              - term [ref=f122e708]: Release status
+                              - definition [ref=f122e709]: Pending Technical approval
+                            - generic [ref=f122e710]:
+                              - term [ref=f122e711]: Paired BOM
+                              - definition [ref=f122e712]: No BOM paired yet
+                            - generic [ref=f122e713]:
+                              - term [ref=f122e714]: Shelf life
+                              - definition [ref=f122e715]: —
+                            - generic [ref=f122e716]:
+                              - term [ref=f122e717]: Source
+                              - definition [ref=f122e718]: technical
+                            - generic [ref=f122e719]:
+                              - term [ref=f122e720]: Notes
+                              - definition [ref=f122e721]: RUN06 spec v2 after active BOM and routing publication — RUN06 verify clone-on-write history and active BOM binding
+                          - generic [ref=f122e722]:
+                            - generic [ref=f122e723]: Pending Technical approval
+                            - generic [ref=f122e724]: Pending Technical approval
+                          - generic [ref=f122e725]:
+                            - button "Open bundle approval" [ref=f122e726]
+                            - dialog [ref=f122e731]:
+                              - generic [ref=f122e732]:
+                                - generic [ref=f122e733]:
+                                  - heading "Approve FactorySpec + BOM bundle" [level=2] [ref=f122e734]
+                                  - paragraph [ref=f122e735]: NIGHT-R06-FG-1138 NIGHT R06 Revision Test 1138 · paired Technical release
+                                - button "Cancel" [ref=f122e736] [cursor=pointer]: ✕
+                              - generic [ref=f122e737]:
+                                - status [ref=f122e738]: D365 integration is disabled. Local Technical approval still unlocks factory use — D365 sync is informational only.
+                                - generic [ref=f122e739]:
+                                  - generic [ref=f122e740]:
+                                    - generic [ref=f122e741]:
+                                      - strong [ref=f122e742]: factory_spec
+                                      - generic [ref=f122e743]: In review
+                                    - generic [ref=f122e744]:
+                                      - generic [ref=f122e745]:
+                                        - term [ref=f122e746]: Spec id
+                                        - definition [ref=f122e747]: FS-NIGHT-R06-1138 v2
+                                      - generic [ref=f122e748]:
+                                        - term [ref=f122e749]: Owner
+                                        - definition [ref=f122e750]: admin@monopilot.test
+                                      - generic [ref=f122e751]:
+                                        - term [ref=f122e752]: Last edit
+                                        - definition [ref=f122e753]: 2026-07-17 12:14
+                                  - generic [ref=f122e754]:
+                                    - strong [ref=f122e756]: shared BOM
+                                    - generic [ref=f122e757]:
+                                      - generic [ref=f122e758]:
+                                        - term [ref=f122e759]: BOM id
+                                        - definition [ref=f122e760]: —
+                                      - generic [ref=f122e761]:
+                                        - term [ref=f122e762]: Version
+                                        - definition [ref=f122e763]: —
+                                      - generic [ref=f122e764]:
+                                        - term [ref=f122e765]: Cloned from
+                                        - definition [ref=f122e766]: —
+                                - generic [ref=f122e767]:
+                                  - status [ref=f122e823]: Factory specification submitted for review.
+                                  - generic [ref=f122e769]:
+                                    - strong [ref=f122e770]: Release flow
+                                    - paragraph [ref=f122e771]: Pair a matching shared BOM, then submit the draft for Technical review.
+                                  - generic [ref=f122e773]:
+                                    - generic [ref=f122e774]:
+                                      - generic [ref=f122e775]: Linked BOM
+                                      - combobox "Linked BOM" [expanded] [active] [ref=f122e777] [cursor=pointer]:
+                                        - generic [ref=f122e778]: ⌄
+                                      - text: Only shared BOM headers whose product_id matches this FG item are listed.
+                                    - button "Link BOM" [disabled] [ref=f122e780]
+                                - generic [ref=f122e781]:
+                                  - strong [ref=f122e782]: Blockers & preflight
+                                  - generic [ref=f122e783]:
+                                    - generic [ref=f122e824]:
+                                      - generic [ref=f122e825]: block
+                                      - generic [ref=f122e826]: Release guardNo shared BOM is paired with this factory_spec yet.
+                                    - generic [ref=f122e827]:
+                                      - generic [ref=f122e828]: info
+                                      - generic [ref=f122e829]: Release guardD365 integration is disabled — local Technical approval still unlocks factory use.
+                                    - paragraph [ref=f122e793]: Approve disabled — resolve 1 preflight blocker(s) above.
+                                - generic [ref=f122e794]:
+                                  - strong [ref=f122e795]: Approval / rejection history
+                                  - generic [ref=f122e796]:
+                                    - generic [ref=f122e830]:
+                                      - generic [ref=f122e831]: 2026-07-17 12:14
+                                      - generic [ref=f122e832]: admin@monopilot.test
+                                      - generic [ref=f122e833]: factory_spec.submitted_for_review
+                                    - generic [ref=f122e834]:
+                                      - generic [ref=f122e835]: 2026-07-17 12:10
+                                      - generic [ref=f122e836]: admin@monopilot.test
+                                      - generic [ref=f122e837]: factory_spec.version_saved
+                                - group [ref=f122e801]:
+                                  - generic [ref=f122e802]:
+                                    - radio "Approve bundle" [checked] [disabled] [ref=f122e803]
+                                    - generic [ref=f122e804]:
+                                      - text: Approve bundle
+                                      - generic [ref=f122e805]: Releases the FactorySpec + BOM bundle to factory use. Local Technical release — D365 sync is optional/informational.
+                                  - generic [ref=f122e806]:
+                                    - radio "Reject bundle" [ref=f122e807]
+                                    - generic [ref=f122e808]:
+                                      - text: Reject bundle
+                                      - generic [ref=f122e809]: Both artifacts return to draft; the author is notified with the reason below.
+                                - generic [ref=f122e810]:
+                                  - generic [ref=f122e811]: Approval reason
+                                  - textbox "Approval reason" [ref=f122e812]
+                                  - text: Audit-logged with your e-signature.
+                                - generic [ref=f122e813]:
+                                  - generic [ref=f122e814]: E-sign PIN or account password
+                                  - textbox "E-sign PIN or account password" [ref=f122e815]
+                                  - generic [ref=f122e816]:
+                                    - text: Verified server-side and never stored (CFR 21 Part 11). Your account password is accepted only while you have no e-sign PIN enrolled.
+                                    - link "No PIN? Set it in Settings →" [ref=f122e817] [cursor=pointer]:
+                                      - /url: /account/pin
+                                - generic [ref=f122e818]:
+                                  - button "Cancel" [ref=f122e819] [cursor=pointer]
+                                  - button "Approve (blocked)" [disabled] [ref=f122e820]
+                        - generic [ref=f122e727]:
+                          - button "Close" [ref=f122e728] [cursor=pointer]
+                          - button "Mark reviewed" [ref=f122e729] [cursor=pointer]
+                - row [ref=f122e562]:
+                  - cell "FS-NIGHT-R06-1138" [ref=f122e455]
+                  - cell "NIGHT-R06-FG-1138 NIGHT R06 Revision Test 1138" [ref=f122e456]
+                  - cell "NIGHT-R06" [ref=f122e457]
+                  - cell "v1" [ref=f122e458]
+                  - cell "—" [ref=f122e459]
+                  - cell "Archived" [ref=f122e563]
+                  - cell [ref=f122e564]:
+                    - button "Review" [ref=f122e464]
+                - row [ref=f122e399]:
+                  - cell "SOL-R08-FSPEC-20260715" [ref=f122e400]
+                  - cell "SOL-R08-20260715-1048-FG SOL-R08 20260715 1048 Finished Good EDITED" [ref=f122e401]
+                  - cell "—" [ref=f122e402]
+                  - cell "v1" [ref=f122e403]
+                  - cell "—" [ref=f122e404]
+                  - cell "In review" [ref=f122e405]
+                  - cell [ref=f122e407]:
+                    - generic [ref=f122e408]:
+                      - button "Review" [ref=f122e409]
+                      - button "Edit" [ref=f122e410]
+                      - button "Save version" [ref=f122e411]
+                      - button "Delete" [ref=f122e412]
+  - alert [ref=f122e413]
+  - listbox [ref=f122e838]:
+    - option "v3 · Active" [ref=f122e839] [cursor=pointer]
+    - option "v2 · Superseded" [ref=f122e840] [cursor=pointer]
+    - option "v1 · Archived" [ref=f122e841] [cursor=pointer]

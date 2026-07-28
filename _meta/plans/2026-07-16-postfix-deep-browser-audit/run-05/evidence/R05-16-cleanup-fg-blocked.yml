@@ -1,0 +1,109 @@
+- main [ref=f114e206]:
+  - navigation "Breadcrumb" [ref=f114e207]:
+    - link "Items" [ref=f114e208] [cursor=pointer]:
+      - /url: ../items
+    - text: / FG-023
+  - generic [ref=f114e209]:
+    - generic [ref=f114e210]:
+      - heading "FG-023 · NIGHT-R05-FG-1054 Blocked" [level=1] [ref=f114e211]:
+        - generic [ref=f114e212]: FG-023
+        - generic [ref=f114e213]: ·
+        - generic [ref=f114e214]: NIGHT-R05-FG-1054
+        - generic [ref=f114e215]: Blocked
+      - paragraph [ref=f114e216]: Technical master for Finished good. Used in BOMs, NPD components and customer specs.
+    - button "Edit" [ref=f114e218] [cursor=pointer]
+  - region "Item FG-023 sections" [ref=f114e219]:
+    - generic [ref=f114e220]:
+      - tablist "Item detail sections" [ref=f114e221]:
+        - tab "Overview" [selected] [ref=f114e222] [cursor=pointer]
+        - tab "BOM" [ref=f114e223] [cursor=pointer]
+        - tab "Allergens" [ref=f114e224] [cursor=pointer]
+        - tab "Nutrition" [ref=f114e225] [cursor=pointer]
+        - tab "Cost history" [ref=f114e226] [cursor=pointer]
+        - tab "Routing" [ref=f114e227] [cursor=pointer]
+        - tab "Supplier specs" [ref=f114e228] [cursor=pointer]
+        - tab "Lab results" [ref=f114e229] [cursor=pointer]
+        - tab "D365 status" [ref=f114e230] [cursor=pointer]
+      - tabpanel "Overview" [ref=f114e231]:
+        - generic [ref=f114e233]:
+          - generic [ref=f114e234]:
+            - strong [ref=f114e235]: Identification
+            - generic [ref=f114e236]:
+              - generic [ref=f114e237]:
+                - term [ref=f114e238]: Code
+                - definition [ref=f114e239]: FG-023
+              - generic [ref=f114e240]:
+                - term [ref=f114e241]: Name
+                - definition [ref=f114e242]: NIGHT-R05-FG-1054
+              - generic [ref=f114e243]:
+                - term [ref=f114e244]: Type
+                - definition [ref=f114e245]: Finished good
+              - generic [ref=f114e246]:
+                - term [ref=f114e247]: Status
+                - definition [ref=f114e248]: Blocked
+              - generic [ref=f114e249]:
+                - term [ref=f114e250]: Product group
+                - definition [ref=f114e251]: —
+              - generic [ref=f114e252]:
+                - term [ref=f114e253]: Description
+                - definition [ref=f114e254]: —
+              - generic [ref=f114e255]:
+                - term [ref=f114e256]: GS1 GTIN
+                - definition [ref=f114e257]: —
+          - generic [ref=f114e258]:
+            - strong [ref=f114e259]: Commercial & weight
+            - generic [ref=f114e260]:
+              - generic [ref=f114e261]:
+                - term [ref=f114e262]: Base UoM
+                - definition [ref=f114e263]: kg
+              - generic [ref=f114e264]:
+                - term [ref=f114e265]: Secondary UoM
+                - definition [ref=f114e266]: —
+              - generic [ref=f114e267]:
+                - term [ref=f114e268]: Output unit
+                - definition [ref=f114e269]: Base unit
+              - generic [ref=f114e270]:
+                - term [ref=f114e271]: Pack hierarchy
+                - definition [ref=f114e272]: —
+              - generic [ref=f114e273]:
+                - term [ref=f114e274]: Net content per each
+                - definition [ref=f114e275]: —
+              - generic [ref=f114e276]:
+                - term [ref=f114e277]: Each per box
+                - definition [ref=f114e278]: —
+              - generic [ref=f114e279]:
+                - term [ref=f114e280]: Boxes per pallet
+                - definition [ref=f114e281]: —
+              - generic [ref=f114e282]:
+                - term [ref=f114e283]: Effective cost (source)
+                - definition [ref=f114e284]: —
+              - generic [ref=f114e285]:
+                - term [ref=f114e286]: Standard cost
+                - definition [ref=f114e287]: —
+              - generic [ref=f114e288]:
+                - term [ref=f114e289]: Supplier price (buy)
+                - definition [ref=f114e290]: —
+              - generic [ref=f114e291]:
+                - term [ref=f114e292]: Sell price (list)
+                - definition [ref=f114e293]: —
+              - generic [ref=f114e294]:
+                - term [ref=f114e295]: Weight mode
+                - definition [ref=f114e296]: fixed
+              - generic [ref=f114e297]:
+                - term [ref=f114e298]: Nominal weight
+                - definition [ref=f114e299]: —
+              - generic [ref=f114e300]:
+                - term [ref=f114e301]: Tare weight
+                - definition [ref=f114e302]: —
+              - generic [ref=f114e303]:
+                - term [ref=f114e304]: Gross weight max
+                - definition [ref=f114e305]: —
+              - generic [ref=f114e306]:
+                - term [ref=f114e307]: Variance tolerance
+                - definition [ref=f114e308]: "5"
+              - generic [ref=f114e309]:
+                - term [ref=f114e310]: Shelf life
+                - definition [ref=f114e311]: —
+              - generic [ref=f114e312]:
+                - term [ref=f114e313]: Updated
+                - definition [ref=f114e314]: 2026-07-17

@@ -1,0 +1,30 @@
+- table [ref=f24e366]:
+  - rowgroup [ref=f24e367]:
+    - row [ref=f24e368]:
+      - columnheader "Code" [ref=f24e369]
+      - columnheader "Name" [ref=f24e370]
+      - columnheader "Direction" [ref=f24e371]
+      - columnheader "Warehouse" [ref=f24e372]
+      - columnheader "Status" [ref=f24e373]
+      - columnheader "Actions" [ref=f24e374]
+  - rowgroup [ref=f24e375]:
+    - row [ref=f24e434]:
+      - cell "N17R02D1" [ref=f24e435]
+      - cell "NIGHT R02 Dock 1" [ref=f24e436]
+      - cell "Both" [ref=f24e437]
+      - cell "NIGHT R02 Warehouse Edited" [ref=f24e439]
+      - cell "Active" [ref=f24e440]
+      - cell [ref=f24e442]:
+        - generic [ref=f24e443]:
+          - button "Edit" [ref=f24e444] [cursor=pointer]
+          - button "Delete" [ref=f24e445] [cursor=pointer]
+    - row [ref=f24e376]:
+      - cell "SOL-R02-DOCK-0557" [ref=f24e377]
+      - cell "SOL-R02 Dock 0557 Edited" [ref=f24e378]
+      - cell "Both" [ref=f24e379]
+      - cell "No warehouse" [ref=f24e381]
+      - cell "Inactive" [ref=f24e382]
+      - cell [ref=f24e384]:
+        - generic [ref=f24e385]:
+          - button "Edit" [ref=f24e386] [cursor=pointer]
+          - button "Delete" [ref=f24e387] [cursor=pointer]

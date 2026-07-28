@@ -1,0 +1,19 @@
+url: https://monopilot-kira.vercel.app/en/pipeline/e60aa78f-f093-48dc-baf3-50e312af783b/gate
+captured_at: 2026-07-17T08:49:02+01:00
+run: 04
+transition: "G2 Business Case -> G3 Development"
+visible_gate_state:
+  required_complete: 1
+  required_total: 1
+  status: "No blockers — ready to advance"
+  advance_button: enabled
+server_transition_result:
+  status: blocked
+  message: "This stage still has blockers — resolve them and try again."
+  semantic_blocker: "Add at least one ingredient to the recipe before advancing."
+observations:
+  - "Server-side semantic gate correctly prevented a zero-ingredient project from reaching Development."
+  - "The client preflight contradicts the server by saying No blockers and enabling the transition."
+  - "After the server rejection, the same Advance button remains enabled without an override/recovery action."
+verdict: "logic pass; preflight/UX defect candidate"
+candidate_severity: P2

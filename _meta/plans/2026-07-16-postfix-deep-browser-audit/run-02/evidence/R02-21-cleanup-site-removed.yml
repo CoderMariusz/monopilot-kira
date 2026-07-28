@@ -1,0 +1,31 @@
+- main "Sites & production lines" [ref=f33e317]:
+  - generic [ref=f33e318]:
+    - generic [ref=f33e319]:
+      - generic [ref=f33e320]: Sites & production lines
+      - generic [ref=f33e321]: Factories, lines, and work centers where production happens.
+    - button "+ Add site" [ref=f33e323] [cursor=pointer]
+  - generic [ref=f33e324]:
+    - generic [ref=f33e325]:
+      - generic [ref=f33e326]: Sites (6)
+      - generic [ref=f33e329]:
+        - generic [ref=f33e331]: uk
+        - button "tester1 (2 of 6)" [pressed] [ref=f33e463] [cursor=pointer]
+        - button "CODEX-R14 SITE (3 of 6)" [ref=f33e464] [cursor=pointer]
+        - button "Main Factory (4 of 6)" [ref=f33e465] [cursor=pointer]
+        - button "makery (1 of 6)" [ref=f33e466] [cursor=pointer]
+        - button "SOL-R02 Site 0539 Edited (6 of 6)" [ref=f33e467] [cursor=pointer]
+        - button "warehouse 1 (5 of 6)" [ref=f33e468] [cursor=pointer]
+      - list [ref=f33e346]:
+        - listitem [ref=f33e347]
+        - listitem [ref=f33e352]
+        - listitem [ref=f33e356]
+        - listitem [ref=f33e360]
+        - listitem [ref=f33e368]
+        - listitem [ref=f33e372]
+    - generic [ref=f33e376]:
+      - generic [ref=f33e377]:
+        - generic [ref=f33e378]
+        - table [ref=f33e469]
+      - region "Site settings" [ref=f33e411]:
+        - generic [ref=f33e412]
+        - generic [ref=f33e416]

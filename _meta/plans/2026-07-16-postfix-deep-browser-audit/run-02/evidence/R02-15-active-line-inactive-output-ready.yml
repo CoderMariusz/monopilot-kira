@@ -1,0 +1,35 @@
+- dialog [ref=f19e528]:
+  - generic [ref=f19e529]:
+    - generic [ref=f19e530]:
+      - heading "Edit production line" [level=2] [ref=f19e531]
+      - button "Cancel" [ref=f19e532] [cursor=pointer]: x
+    - generic [ref=f19e533]:
+      - generic [ref=f19e534]:
+        - text: Code
+        - textbox "Code" [ref=f19e536]: N17R02L1
+      - generic [ref=f19e537]:
+        - text: Name
+        - textbox "Name" [ref=f19e539]: NIGHT R02 Line 1 Edited
+      - generic [ref=f19e540]:
+        - generic [ref=f19e541]: Site
+        - combobox "Site" [ref=f19e543] [cursor=pointer]:
+          - generic [ref=f19e544]: N17R02 - NIGHT-R02 Site 0731
+          - generic [ref=f19e545]: ⌄
+      - generic [ref=f19e546]:
+        - generic [ref=f19e547]: Warehouse
+        - combobox "Warehouse" [ref=f19e549] [cursor=pointer]:
+          - generic [ref=f19e550]: NIGHT R02 Warehouse Edited
+          - generic [ref=f19e551]: ⌄
+      - generic [ref=f19e552]:
+        - generic [ref=f19e553]: Default output location
+        - combobox "Default output location" [ref=f19e555] [cursor=pointer]:
+          - generic [ref=f19e556]: R02-BIN1 - NIGHT R02 Bin 1 Edited (R02-ZONE.R02-BIN1)
+          - generic [ref=f19e557]: ⌄
+      - generic [ref=f19e558]:
+        - generic [ref=f19e559]: Status
+        - combobox "Status" [active] [ref=f19e561] [cursor=pointer]:
+          - generic [ref=f19e562]: active
+          - generic [ref=f19e563]: ⌄
+      - generic [ref=f19e564]:
+        - button "Cancel" [ref=f19e565] [cursor=pointer]
+        - button "Save changes" [ref=f19e566] [cursor=pointer]

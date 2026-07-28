@@ -1,0 +1,112 @@
+- generic [active] [ref=f5e1]:
+  - generic [ref=f5e2]:
+    - banner [ref=f5e4]:
+      - generic "MonoPilot MES" [ref=f5e5]
+      - searchbox "Search settings…" [ref=f5e7]
+      - generic [ref=f5e8]:
+        - button "Switch organization (platform admin)" [ref=f5e10] [cursor=pointer]:
+          - generic [ref=f5e11]: A2
+          - generic [ref=f5e12]: "000000000000"
+          - generic [ref=f5e13]: Apex 22
+          - generic [ref=f5e14]: ▼
+        - generic "Filters work orders, license plates and OEE only — other screens stay org-wide" [ref=f5e15]:
+          - generic [ref=f5e16]: Site
+          - combobox "Site" [ref=f5e17] [cursor=pointer]:
+            - option "All sites"
+            - option "tester1"
+            - option "CODEX-R14 SITE"
+            - option "Main Factory" [selected]
+            - option "makery"
+            - option "SOL-R02 Site 0539 Edited"
+            - option "warehouse 1"
+        - button "Notifications" [ref=f5e19]
+        - button "Open user menu for Apex Admin" [ref=f5e24]: AA
+    - navigation "Primary" [ref=f5e25]:
+      - generic [ref=f5e26]:
+        - generic [ref=f5e27]:
+          - heading "Core" [level=2] [ref=f5e28]
+          - generic [ref=f5e29]:
+            - link "Dashboard" [ref=f5e30] [cursor=pointer]:
+              - /url: /en/dashboard
+              - generic [ref=f5e31]: ◆
+            - link "Settings" [ref=f5e34] [cursor=pointer]:
+              - /url: /en/settings
+              - generic [ref=f5e35]: ⚙
+        - generic [ref=f5e38]:
+          - heading "Operations" [level=2] [ref=f5e39]
+          - generic [ref=f5e40]:
+            - link "Planning" [ref=f5e41] [cursor=pointer]:
+              - /url: /en/planning
+              - generic [ref=f5e42]: ▤
+            - link "Freight" [ref=f5e45] [cursor=pointer]:
+              - /url: /en/planning/carriers
+              - generic [ref=f5e46]: F
+            - link "Scheduler" [ref=f5e49] [cursor=pointer]:
+              - /url: /en/scheduler
+              - generic [ref=f5e50]: ⧗
+            - link "Production" [ref=f5e53] [cursor=pointer]:
+              - /url: /en/production
+              - generic [ref=f5e54]: ⚒
+            - link "Yard" [ref=f5e57] [cursor=pointer]:
+              - /url: /en/yard
+              - generic [ref=f5e58]: "Y"
+            - link "Warehouse" [ref=f5e61] [cursor=pointer]:
+              - /url: /en/warehouse
+              - generic [ref=f5e62]: ▥
+            - link "Scanner" [ref=f5e65] [cursor=pointer]:
+              - /url: /en/scanner/home
+              - generic [ref=f5e66]: 📱
+        - generic [ref=f5e69]:
+          - heading "QA & Shipping" [level=2] [ref=f5e70]
+          - generic [ref=f5e71]:
+            - link "Quality" [ref=f5e72] [cursor=pointer]:
+              - /url: /en/quality
+              - generic [ref=f5e73]: ✓
+            - link "Shipping" [ref=f5e76] [cursor=pointer]:
+              - /url: /en/shipping
+              - generic [ref=f5e77]: →
+        - generic [ref=f5e80]:
+          - heading "Premium" [level=2] [ref=f5e81]
+          - generic [ref=f5e82]:
+            - link "Technical" [ref=f5e83] [cursor=pointer]:
+              - /url: /en/technical
+              - generic [ref=f5e84]: ▦
+            - link "NPD" [ref=f5e87] [cursor=pointer]:
+              - /url: /en/pipeline
+              - generic [ref=f5e88]: ★
+            - link "Finance" [ref=f5e91] [cursor=pointer]:
+              - /url: /en/finance
+              - generic [ref=f5e92]: $
+            - link "OEE" [ref=f5e95] [cursor=pointer]:
+              - /url: /en/oee
+              - generic [ref=f5e96]: ◉
+            - link "Maintenance" [ref=f5e99] [cursor=pointer]:
+              - /url: /en/maintenance
+              - generic [ref=f5e100]: 🔧
+        - generic [ref=f5e103]:
+          - heading "Analytics & Network" [level=2] [ref=f5e104]
+          - generic [ref=f5e105]:
+            - link "Reporting" [ref=f5e106] [cursor=pointer]:
+              - /url: /en/reporting
+              - generic [ref=f5e107]: ▧
+            - link "Multi-Site" [ref=f5e110] [cursor=pointer]:
+              - /url: /en/multi-site
+              - generic [ref=f5e111]: ❖
+    - main [ref=f5e114]:
+      - main [ref=f5e115]:
+        - generic [ref=f5e117]:
+          - navigation "Breadcrumb" [ref=f5e118]:
+            - list [ref=f5e119]:
+              - listitem [ref=f5e120]
+              - listitem [ref=f5e122]
+          - generic [ref=f5e125]:
+            - heading "Reorder thresholds" [level=1] [ref=f5e126]
+            - paragraph [ref=f5e127]: Per-item minimum stock floors and reorder lots feeding MRP below-min alerts
+        - generic [ref=f5e128]:
+          - button "+ Add threshold" [ref=f5e130] [cursor=pointer]
+          - table [ref=f5e135]:
+            - rowgroup [ref=f5e136]:
+              - row "Item Min qty Reorder qty Preferred supplier Lead time Updated" [ref=f5e137]
+            - rowgroup [ref=f5e145]:
+              - row "RM-R09-144638 NIGHT-R09-20260717T144638Z Raw Material 15.875000 kg 4.000000 kg SUP-R09-144638 NIGHT-R09-20260717T144638Z Supplier 9 days 17/07/2026 Edit Delete" [ref=f5e146]
+  - alert [ref=f5e132]

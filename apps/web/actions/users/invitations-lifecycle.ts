@@ -51,7 +51,12 @@ function inviteCreatorCte(orgParam: string): string {
            al.actor_type
       from public.audit_log al
      where al.org_id = ${orgParam}::uuid
-       and al.resource_type = 'user_invitation'
+       -- inviteUser (invite.ts) stamps resource_type 'users' on the CREATION row, while
+       -- resend/revoke here use 'user_invitation'. Filtering on one value alone matched
+       -- zero rows, so "Invited By" always fell through to Unknown even though the actor
+       -- was recorded. The action already narrows this to invitations; the resource_type
+       -- list only spans the two writers.
+       and al.resource_type in ('user_invitation', 'users')
        and al.action = 'settings.user.invited'
      order by al.resource_id, al.occurred_at asc
   )`;
@@ -88,7 +93,7 @@ const INVITATION_LIST_WHERE = `
                 select 1
                   from public.audit_log al
                  where al.org_id = u.org_id
-                   and al.resource_type = 'user_invitation'
+                   and al.resource_type in ('user_invitation', 'users')
                    and al.resource_id = u.id::text
                    and al.occurred_at >= u.created_at
                    and al.action in (

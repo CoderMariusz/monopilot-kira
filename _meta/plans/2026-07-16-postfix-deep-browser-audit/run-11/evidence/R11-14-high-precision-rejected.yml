@@ -1,0 +1,203 @@
+- generic:
+  - generic:
+    - generic:
+      - banner:
+        - generic: MonoPilot MES
+        - generic:
+          - searchbox
+        - generic:
+          - generic:
+            - button:
+              - generic: A2
+              - generic: "000000000000"
+              - generic: Apex 22
+              - generic: ▼
+          - generic:
+            - generic: Site
+            - combobox
+          - generic:
+            - button
+          - generic:
+            - button: AA
+    - navigation:
+      - generic:
+        - generic:
+          - heading [level=2]: Core
+          - generic:
+            - link:
+              - /url: /en/dashboard
+              - generic: ◆
+              - generic: Dashboard
+            - link:
+              - /url: /en/settings
+              - generic: ⚙
+              - generic: Settings
+        - generic:
+          - heading [level=2]: Operations
+          - generic:
+            - link:
+              - /url: /en/planning
+              - generic: ▤
+              - generic: Planning
+            - link:
+              - /url: /en/planning/carriers
+              - generic: F
+              - generic: Freight
+            - link:
+              - /url: /en/scheduler
+              - generic: ⧗
+              - generic: Scheduler
+            - link:
+              - /url: /en/production
+              - generic: ⚒
+              - generic: Production
+            - link:
+              - /url: /en/yard
+              - generic: "Y"
+              - generic: Yard
+            - link:
+              - /url: /en/warehouse
+              - generic: ▥
+              - generic: Warehouse
+            - link:
+              - /url: /en/scanner/home
+              - generic: 📱
+              - generic: Scanner
+        - generic:
+          - heading [level=2]: QA & Shipping
+          - generic:
+            - link:
+              - /url: /en/quality
+              - generic: ✓
+              - generic: Quality
+            - link:
+              - /url: /en/shipping
+              - generic: →
+              - generic: Shipping
+        - generic:
+          - heading [level=2]: Premium
+          - generic:
+            - link:
+              - /url: /en/technical
+              - generic: ▦
+              - generic: Technical
+            - link:
+              - /url: /en/pipeline
+              - generic: ★
+              - generic: NPD
+            - link:
+              - /url: /en/finance
+              - generic: $
+              - generic: Finance
+            - link:
+              - /url: /en/oee
+              - generic: ◉
+              - generic: OEE
+            - link:
+              - /url: /en/maintenance
+              - generic: 🔧
+              - generic: Maintenance
+        - generic:
+          - heading [level=2]: Analytics & Network
+          - generic:
+            - link:
+              - /url: /en/reporting
+              - generic: ▧
+              - generic: Reporting
+            - link:
+              - /url: /en/multi-site
+              - generic: ❖
+              - generic: Multi-Site
+    - main:
+      - main:
+        - generic:
+          - generic:
+            - navigation:
+              - list:
+                - listitem
+                - listitem
+                - listitem
+            - generic:
+              - heading [level=1]: Work order
+        - generic:
+          - generic:
+            - generic: WO-202607-0030
+            - generic: Draft
+            - generic: normal
+            - generic:
+              - button: Release
+              - button: Edit
+              - button: Cancel chain
+          - generic:
+            - generic:
+              - term: Product
+              - definition: FG0014
+            - generic:
+              - term: Qty
+              - definition: 14.875 kg
+            - generic:
+              - term: Scheduled start
+              - definition: Jul 26, 2026, 12:00 AM
+            - generic:
+              - term: Scheduled end
+              - definition: —
+            - generic:
+              - term: Line
+              - definition: LINE1 — Packing Line 1
+            - generic:
+              - term: Priority
+              - definition: normal
+            - generic:
+              - term: Source
+              - definition: manual
+          - generic:
+            - tablist:
+              - tab: Overview
+              - tab: Outputs 1
+              - tab [selected]: Dependencies 1
+              - tab: Reservations
+              - tab: Sequencing
+              - tab: State history 2
+              - tab: D365 sync
+            - tabpanel:
+              - generic:
+                - heading [level=3]: Dependencies
+                - table
+  - alert
+  - dialog [ref=f4e240]:
+    - generic [ref=f4e241]:
+      - heading "Edit work order" [level=2] [ref=f4e242]
+      - button "Close" [ref=f4e243] [cursor=pointer]: ✕
+    - generic [ref=f4e245]:
+      - alert [ref=f4e281]: Enter a positive quantity (up to 3 decimals).
+      - note [ref=f4e246]: Changing the product or quantity rebuilds this work order's components and operations from the current BOM and routing.
+      - generic [ref=f4e247]:
+        - generic [ref=f4e248]: Product (finished good)
+        - generic [ref=f4e249]: FG0014
+        - button "Change product" [ref=f4e253] [cursor=pointer]
+      - generic [ref=f4e254]:
+        - generic [ref=f4e255]: Order unit
+        - combobox "Order unit" [ref=f4e257] [cursor=pointer]:
+          - generic [ref=f4e258]: kg
+          - generic [ref=f4e259]: ⌄
+      - generic [ref=f4e260]:
+        - generic [ref=f4e261]: Planned quantity
+        - textbox "Planned quantity" [ref=f4e263]:
+          - /placeholder: e.g. 1000 or 1000.500
+          - text: "0.0004"
+      - generic [ref=f4e264]:
+        - generic [ref=f4e265]: Scheduled start
+        - textbox "Scheduled start" [ref=f4e267]: 2026-07-26
+      - generic [ref=f4e268]:
+        - generic [ref=f4e269]: Production line
+        - combobox "Production line" [ref=f4e271] [cursor=pointer]:
+          - generic [ref=f4e272]: LINE1 — Packing Line 1
+          - generic [ref=f4e273]: ⌄
+      - generic [ref=f4e274]:
+        - generic [ref=f4e275]: Notes
+        - textbox "Notes" [ref=f4e277]:
+          - /placeholder: Optional notes…
+          - text: NIGHT-R11-2222 edited draft parent qty/date/line
+    - generic [ref=f4e278]:
+      - button "Cancel" [ref=f4e279] [cursor=pointer]
+      - button "Save changes" [active] [ref=f4e280] [cursor=pointer]

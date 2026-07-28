@@ -1,0 +1,126 @@
+- generic [active] [ref=e1]:
+  - alert [ref=e39]
+  - generic [ref=e40]:
+    - banner [ref=e42]:
+      - generic "MonoPilot MES" [ref=e43]
+      - searchbox "Search settings…" [ref=e45]
+      - generic [ref=e46]:
+        - button "Switch organization (platform admin)" [ref=e48] [cursor=pointer]:
+          - generic [ref=e49]: A2
+          - generic [ref=e50]: "000000000000"
+          - generic [ref=e51]: Apex 22
+          - generic [ref=e52]: ▼
+        - generic "Filters work orders, license plates and OEE only — other screens stay org-wide" [ref=e53]:
+          - generic [ref=e54]: Site
+          - combobox "Site" [ref=e55] [cursor=pointer]:
+            - option "All sites"
+            - option "tester1"
+            - option "CODEX-R14 SITE"
+            - option "Main Factory" [selected]
+            - option "makery"
+            - option "SOL-R02 Site 0539 Edited"
+            - option "warehouse 1"
+        - button "Notifications" [ref=e57]
+        - button "Open user menu for Apex Admin" [ref=e62]: AA
+    - navigation "Primary" [ref=e63]:
+      - generic [ref=e64]:
+        - generic [ref=e65]:
+          - heading "Core" [level=2] [ref=e66]
+          - generic [ref=e67]:
+            - link "Dashboard" [ref=e68] [cursor=pointer]:
+              - /url: /en/dashboard
+              - generic [ref=e69]: ◆
+            - link "Settings" [ref=e72] [cursor=pointer]:
+              - /url: /en/settings
+              - generic [ref=e73]: ⚙
+        - generic [ref=e76]:
+          - heading "Operations" [level=2] [ref=e77]
+          - generic [ref=e78]:
+            - link "Planning" [ref=e79] [cursor=pointer]:
+              - /url: /en/planning
+              - generic [ref=e80]: ▤
+            - link "Freight" [ref=e83] [cursor=pointer]:
+              - /url: /en/planning/carriers
+              - generic [ref=e84]: F
+            - link "Scheduler" [ref=e87] [cursor=pointer]:
+              - /url: /en/scheduler
+              - generic [ref=e88]: ⧗
+            - link "Production" [ref=e91] [cursor=pointer]:
+              - /url: /en/production
+              - generic [ref=e92]: ⚒
+            - link "Yard" [ref=e95] [cursor=pointer]:
+              - /url: /en/yard
+              - generic [ref=e96]: "Y"
+            - link "Warehouse" [ref=e99] [cursor=pointer]:
+              - /url: /en/warehouse
+              - generic [ref=e100]: ▥
+            - link "Scanner" [ref=e103] [cursor=pointer]:
+              - /url: /en/scanner/home
+              - generic [ref=e104]: 📱
+        - generic [ref=e107]:
+          - heading "QA & Shipping" [level=2] [ref=e108]
+          - generic [ref=e109]:
+            - link "Quality" [ref=e110] [cursor=pointer]:
+              - /url: /en/quality
+              - generic [ref=e111]: ✓
+            - link "Shipping" [ref=e114] [cursor=pointer]:
+              - /url: /en/shipping
+              - generic [ref=e115]: →
+        - generic [ref=e118]:
+          - heading "Premium" [level=2] [ref=e119]
+          - generic [ref=e120]:
+            - link "Technical" [ref=e121] [cursor=pointer]:
+              - /url: /en/technical
+              - generic [ref=e122]: ▦
+            - link "NPD" [ref=e125] [cursor=pointer]:
+              - /url: /en/pipeline
+              - generic [ref=e126]: ★
+            - link "Finance" [ref=e129] [cursor=pointer]:
+              - /url: /en/finance
+              - generic [ref=e130]: $
+            - link "OEE" [ref=e133] [cursor=pointer]:
+              - /url: /en/oee
+              - generic [ref=e134]: ◉
+            - link "Maintenance" [ref=e137] [cursor=pointer]:
+              - /url: /en/maintenance
+              - generic [ref=e138]: 🔧
+        - generic [ref=e141]:
+          - heading "Analytics & Network" [level=2] [ref=e142]
+          - generic [ref=e143]:
+            - link "Reporting" [ref=e144] [cursor=pointer]:
+              - /url: /en/reporting
+              - generic [ref=e145]: ▧
+            - link "Multi-Site" [ref=e148] [cursor=pointer]:
+              - /url: /en/multi-site
+              - generic [ref=e149]: ❖
+    - main [ref=e152]:
+      - main [ref=e5722]:
+        - generic [ref=e5724]:
+          - navigation "Breadcrumb" [ref=e5725]:
+            - list [ref=e5726]:
+              - listitem [ref=e5727]:
+                - link "Planning" [ref=e5728] [cursor=pointer]:
+                  - /url: /en/planning
+              - listitem [ref=e5729]:
+                - generic [ref=e5730]: /
+                - generic [ref=e5731]: MRP
+          - generic [ref=e5732]:
+            - heading "MRP" [level=1] [ref=e5733]
+            - paragraph [ref=e5734]: Material requirements — demand vs supply netting (read-only)
+        - generic [ref=e5735]:
+          - generic [ref=e5736]:
+            - paragraph [ref=e5737]: This run will be saved to MRP history (run header + requirements ledger). No orders are created.
+            - generic [ref=e5738]:
+              - generic [ref=e5739]:
+                - generic [ref=e5740]: Planning horizon
+                - combobox "Planning horizon" [ref=e5743] [cursor=pointer]:
+                  - generic [ref=e5744]: 12 weeks
+                  - generic [ref=e5745]: ⌄
+              - generic [ref=e5746]:
+                - checkbox "Save this run" [checked] [ref=e5747]
+                - text: Save this run
+              - button "Run MRP" [ref=e5748] [cursor=pointer]
+          - alert [ref=e5758]: MRP run failed. Try again.
+          - generic [ref=e5754]:
+            - generic [ref=e5755]: Previous runs
+            - generic [ref=e5757]: No persisted runs yet — enable “Save this run” before running.

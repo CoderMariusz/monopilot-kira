@@ -1,0 +1,298 @@
+- generic [active]:
+  - generic:
+    - generic:
+      - banner:
+        - generic: MonoPilot MES
+        - generic:
+          - searchbox
+        - generic:
+          - generic:
+            - button:
+              - generic: A2
+              - generic: "000000000000"
+              - generic: Apex 22
+              - generic: ▼
+          - generic:
+            - generic: Site
+            - combobox
+          - generic:
+            - button
+          - generic:
+            - button: AA
+    - navigation:
+      - generic:
+        - generic:
+          - heading [level=2]: Core
+          - generic:
+            - link:
+              - /url: /en/dashboard
+              - generic: ◆
+              - generic: Dashboard
+            - link:
+              - /url: /en/settings
+              - generic: ⚙
+              - generic: Settings
+        - generic:
+          - heading [level=2]: Operations
+          - generic:
+            - link:
+              - /url: /en/planning
+              - generic: ▤
+              - generic: Planning
+            - link:
+              - /url: /en/planning/carriers
+              - generic: F
+              - generic: Freight
+            - link:
+              - /url: /en/scheduler
+              - generic: ⧗
+              - generic: Scheduler
+            - link:
+              - /url: /en/production
+              - generic: ⚒
+              - generic: Production
+            - link:
+              - /url: /en/yard
+              - generic: "Y"
+              - generic: Yard
+            - link:
+              - /url: /en/warehouse
+              - generic: ▥
+              - generic: Warehouse
+            - link:
+              - /url: /en/scanner/home
+              - generic: 📱
+              - generic: Scanner
+        - generic:
+          - heading [level=2]: QA & Shipping
+          - generic:
+            - link:
+              - /url: /en/quality
+              - generic: ✓
+              - generic: Quality
+            - link:
+              - /url: /en/shipping
+              - generic: →
+              - generic: Shipping
+        - generic:
+          - heading [level=2]: Premium
+          - generic:
+            - link:
+              - /url: /en/technical
+              - generic: ▦
+              - generic: Technical
+            - link:
+              - /url: /en/pipeline
+              - generic: ★
+              - generic: NPD
+            - link:
+              - /url: /en/finance
+              - generic: $
+              - generic: Finance
+            - link:
+              - /url: /en/oee
+              - generic: ◉
+              - generic: OEE
+            - link:
+              - /url: /en/maintenance
+              - generic: 🔧
+              - generic: Maintenance
+        - generic:
+          - heading [level=2]: Analytics & Network
+          - generic:
+            - link:
+              - /url: /en/reporting
+              - generic: ▧
+              - generic: Reporting
+            - link:
+              - /url: /en/multi-site
+              - generic: ❖
+              - generic: Multi-Site
+    - main:
+      - main:
+        - generic:
+          - generic:
+            - navigation:
+              - list:
+                - listitem:
+                  - link:
+                    - /url: /en/warehouse
+                    - text: Warehouse
+                - listitem:
+                  - generic: /
+                  - link:
+                    - /url: /en/warehouse/grns
+                    - text: Goods receipts
+            - generic:
+              - heading [level=1]: Goods receipts
+        - generic:
+          - link:
+            - /url: /en/warehouse/grns
+            - text: ← Back to goods receipts
+          - generic:
+            - generic:
+              - generic:
+                - generic: Source
+                - generic: PO
+              - generic:
+                - generic: Supplier
+                - generic: Web Foods Ltd.
+              - generic:
+                - generic: Receipt date
+                - generic: 2026-07-17
+              - generic:
+                - generic: Warehouse
+                - generic: WH1
+              - generic:
+                - generic: Purchase Order
+                - generic:
+                  - link:
+                    - /url: /en/planning/purchase-orders/7969df57-e7c0-4aad-b551-5b84cf7ac9d7
+                    - text: NIGHT-R07-PO-1300
+              - generic:
+                - generic: Status
+                - generic: Draft
+            - generic:
+              - link:
+                - /url: /en/warehouse/receive-po/7969df57-e7c0-4aad-b551-5b84cf7ac9d7
+                - text: Receive remaining lines
+            - generic:
+              - generic:
+                - heading [level=2]: Receipt lines (2)
+                - generic:
+                  - link:
+                    - /url: /en/warehouse/grns/3c546225-bb71-4c55-a1cc-44e57b37ac2f/print
+                    - text: Print GRN
+                  - button: Export CSV
+              - table:
+                - rowgroup:
+                  - row:
+                    - columnheader: Line
+                    - columnheader: Item
+                    - columnheader: Ordered
+                    - columnheader: Received
+                    - columnheader: Outstanding
+                    - columnheader: Batch
+                    - columnheader: Supplier batch
+                    - columnheader: Expiry
+                    - columnheader: LP created
+                    - columnheader: QA
+                    - columnheader
+                    - columnheader:
+                      - generic: Cancel receipt…
+                - rowgroup:
+                  - row:
+                    - cell: "1"
+                    - cell:
+                      - generic:
+                        - generic: Butter
+                        - generic: RM-BUTTER
+                    - cell: 12.345600 kg
+                    - cell: 2.346000 kg
+                    - cell:
+                      - generic: 0.0006 kg
+                    - cell: NIGHT-R07-BATCH-1300-A
+                    - cell: NIGHT-R07-BATCH-1300-A
+                    - cell: 2027-07-26
+                    - cell:
+                      - link:
+                        - /url: /en/warehouse/license-plates/a6fad054-5a84-4a22-a14a-a21a5fc23062
+                        - text: LP-1784294626167-AG8E
+                    - cell:
+                      - generic: pending
+                    - cell:
+                      - generic:
+                        - button: Release QC
+                        - button: Print labels
+                        - generic:
+                          - generic:
+                            - generic:
+                              - spinbutton
+                            - generic: °C
+                            - button: Record temp
+                    - cell:
+                      - button: Cancel receipt…
+                  - row:
+                    - cell: "2"
+                    - cell:
+                      - generic:
+                        - generic: Butter
+                        - generic: RM-BUTTER
+                    - cell: 12.345600 kg
+                    - cell: 9.999000 kg
+                    - cell:
+                      - generic: 0.0006 kg
+                    - cell: NIGHT-R07-BATCH-1300-B
+                    - cell: NIGHT-R07-BATCH-1300-B
+                    - cell: 2027-07-26
+                    - cell:
+                      - link:
+                        - /url: /en/warehouse/license-plates/3b635317-cb6a-46b4-b97e-51dd003fa161
+                        - text: LP-1784294829641-RT3F
+                    - cell:
+                      - generic: pending
+                    - cell:
+                      - generic:
+                        - button: Release QC
+                        - button: Print labels
+                        - generic:
+                          - generic:
+                            - generic:
+                              - spinbutton
+                            - generic: °C
+                            - button: Record temp
+                    - cell:
+                      - button: Cancel receipt…
+          - group:
+            - generic:
+              - generic:
+                - generic:
+                  - heading [level=2]: History
+                  - paragraph: Read-only audit trail for this document.
+                - generic: ▾
+            - generic:
+              - generic:
+                - list:
+                  - listitem:
+                    - generic:
+                      - generic:
+                        - generic: Status change
+                        - generic: lp_state.transition
+                      - generic:
+                        - time: 17 Jul 2026, 14:27
+                        - text: · Admin
+                      - group:
+                        - generic: Details
+                  - listitem:
+                    - generic:
+                      - generic:
+                        - generic: Status change
+                        - generic: lp_state.transition
+                      - generic:
+                        - time: 17 Jul 2026, 14:23
+                        - text: · Admin
+                      - group:
+                        - generic: Details
+  - alert
+  - dialog [ref=f5e268]:
+    - generic [ref=f5e269]:
+      - heading "Cancel receipt line 2" [level=2] [ref=f5e270]
+      - button "Close" [ref=f5e271] [cursor=pointer]: ✕
+    - generic [ref=f5e273]:
+      - paragraph [ref=f5e274]: Cancelling voids the license plate created for this line and reverses the receipt. The line stays in the ledger, struck through, with the reason recorded.
+      - generic [ref=f5e275]:
+        - generic [ref=f5e276]: Reason *
+        - combobox "Reason" [ref=f5e279] [cursor=pointer]:
+          - generic [ref=f5e294]: Wrong quantity
+          - generic [ref=f5e280]: ⌄
+      - generic [ref=f5e281]:
+        - generic [ref=f5e282]:
+          - text: Note
+          - generic [ref=f5e283]: (optional)
+        - textbox "Note (optional)" [ref=f5e284]:
+          - /placeholder: Add context for the cancellation
+          - text: NIGHT-R07 cancellation CRUD and reversal verification
+      - alert [ref=f5e295]: We could not cancel this receipt line. Try again.
+    - generic [ref=f5e285]:
+      - button "Close" [ref=f5e286]
+      - button "Cancel receipt" [ref=f5e287]

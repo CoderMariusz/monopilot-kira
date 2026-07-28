@@ -1,0 +1,50 @@
+- generic [ref=f19e138]:
+  - generic [ref=f19e139]:
+    - heading "Red tier — expired or within warning window" [level=2] [ref=f19e140]
+    - generic [ref=f19e141]: 2 rows
+  - table "Red tier — expired or within warning window" [ref=f19e142]:
+    - rowgroup [ref=f19e143]:
+      - row [ref=f19e144]:
+        - columnheader "LP" [ref=f19e145]
+        - columnheader "Item" [ref=f19e146]
+        - columnheader "Batch" [ref=f19e147]
+        - columnheader "Expiry" [ref=f19e148]
+        - columnheader "Days left" [ref=f19e149]
+        - columnheader "Location" [ref=f19e150]
+        - columnheader "Status" [ref=f19e151]
+        - columnheader "Action" [ref=f19e152]
+    - rowgroup [ref=f19e153]:
+      - row [ref=f19e154]:
+        - cell [ref=f19e155]:
+          - link "LP-1784155926752-KY7N" [ref=f19e156] [cursor=pointer]:
+            - /url: /en/warehouse/license-plates/b07cfbe9-21cf-4e44-b5af-cc926b6be381
+        - cell "Butter Shortbread 250g FG0014" [ref=f19e157]:
+          - generic [ref=f19e158]:
+            - generic [ref=f19e159]: Butter Shortbread 250g
+            - generic [ref=f19e160]: FG0014
+        - cell "—" [ref=f19e161]
+        - cell "2026-07-16" [ref=f19e162]
+        - cell "expired 2d ago" [ref=f19e163]
+        - cell "RECV · WH1" [ref=f19e164]:
+          - text: RECV
+          - generic [ref=f19e165]: · WH1
+        - cell "—" [ref=f19e166]
+        - cell [ref=f19e167]:
+          - button "Force block" [ref=f19e168]
+      - row [ref=f19e169]:
+        - cell [ref=f19e170]:
+          - link "LP-7A6E5C1FE645" [ref=f19e171] [cursor=pointer]:
+            - /url: /en/warehouse/license-plates/7a6e5c1f-e645-4fd3-a4b7-997443344dcb
+        - cell "Butter RM-BUTTER" [ref=f19e172]:
+          - generic [ref=f19e173]:
+            - generic [ref=f19e174]: Butter
+            - generic [ref=f19e175]: RM-BUTTER
+        - cell "—" [ref=f19e176]
+        - cell "2026-07-24" [ref=f19e177]
+        - cell "6d" [ref=f19e178]
+        - cell "RECV · WH1" [ref=f19e179]:
+          - text: RECV
+          - generic [ref=f19e180]: · WH1
+        - cell "—" [ref=f19e181]
+        - cell [ref=f19e182]:
+          - button "Force block" [ref=f19e183]

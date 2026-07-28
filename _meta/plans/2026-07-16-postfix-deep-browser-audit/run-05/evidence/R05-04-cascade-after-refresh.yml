@@ -1,0 +1,124 @@
+- table [ref=f96e224]:
+  - rowgroup [ref=f96e225]:
+    - row [ref=f96e226]:
+      - columnheader "Ingredient" [ref=f96e227]
+      - columnheader "Qty / pack (kg)" [ref=f96e228]
+      - columnheader "£ / kg" [ref=f96e229]
+      - columnheader "Contrib." [ref=f96e230]
+      - columnheader "Allergen" [ref=f96e231]
+      - columnheader "Delete ingredient" [ref=f96e232]
+  - rowgroup [ref=f96e234]:
+    - row [ref=f96e235]:
+      - cell "Toggle sub-recipe for NIGHT-R05-L2-1020 WIP Ingredient Open item in Technical NIGHT-R05-L2-1020(NIGHT-R05-L2-1020)" [ref=f96e236]:
+        - generic [ref=f96e237]:
+          - button "Toggle sub-recipe for NIGHT-R05-L2-1020" [expanded] [active] [ref=f96e238] [cursor=pointer]:
+            - generic [ref=f96e239]: ⌄
+          - generic [ref=f96e240]: WIP
+          - generic "Ingredient" [ref=f96e241]: WIP-20260717-0012
+          - link "Open item in Technical" [ref=f96e242] [cursor=pointer]:
+            - /url: /technical/items/WIP-20260717-0012
+            - text: ↗
+        - generic [ref=f96e243]:
+          - text: NIGHT-R05-L2-1020
+          - generic [ref=f96e244]: (NIGHT-R05-L2-1020)
+      - cell [ref=f96e245]:
+        - textbox "Qty / pack (kg)" [ref=f96e247]: "0.823456"
+      - cell [ref=f96e248]:
+        - textbox "£ / kg" [ref=f96e250]: "158.71290000000000000000"
+      - cell "130.693 £" [ref=f96e251]
+      - cell "gluten milk" [ref=f96e252]:
+        - generic [ref=f96e253]:
+          - generic [ref=f96e254]: gluten
+          - generic [ref=f96e255]: milk
+      - cell [ref=f96e256]:
+        - button "Delete ingredient" [ref=f96e257] [cursor=pointer]:
+          - generic [ref=f96e258]: ✕
+    - row [ref=f96e531]:
+      - cell "WIP-019 WIP-20260714-0011" [ref=f96e532]:
+        - generic [ref=f96e533]: WIP-019
+        - generic [ref=f96e534]: WIP-20260714-0011
+      - cell "73%" [ref=f96e535]
+      - cell "217.230 £" [ref=f96e536]
+      - cell "—" [ref=f96e537]
+      - cell "No nutrition data" [ref=f96e538]
+      - cell [ref=f96e539]
+    - row [ref=f96e540]:
+      - cell "Butter RM-BUTTER" [ref=f96e541]:
+        - generic [ref=f96e542]: Butter
+        - generic [ref=f96e543]: RM-BUTTER
+      - cell "20%" [ref=f96e544]
+      - cell "4.000 £" [ref=f96e545]
+      - cell "—" [ref=f96e546]
+      - 'cell "fat_g: 81 · salt_g: 0.02 · carbs_g: 0.6" [ref=f96e547]'
+      - cell [ref=f96e548]
+    - row [ref=f96e549]:
+      - cell "Max depth reached." [ref=f96e550]
+    - row [ref=f96e551]:
+      - cell "Caster Sugar ING-SUGAR" [ref=f96e552]:
+        - generic [ref=f96e553]: Caster Sugar
+        - generic [ref=f96e554]: ING-SUGAR
+      - cell "10%" [ref=f96e555]
+      - cell "0.800 £" [ref=f96e556]
+      - cell "—" [ref=f96e557]
+      - 'cell "fat_g: 0 · salt_g: 0 · carbs_g: 99.7" [ref=f96e558]'
+      - cell [ref=f96e559]
+    - row [ref=f96e560]:
+      - cell "Max depth reached." [ref=f96e561]
+    - row [ref=f96e562]:
+      - cell "Wheat Flour ING-FLOUR" [ref=f96e563]:
+        - generic [ref=f96e564]: Wheat Flour
+        - generic [ref=f96e565]: ING-FLOUR
+      - cell "70%" [ref=f96e566]
+      - cell "0.500 £" [ref=f96e567]
+      - cell "—" [ref=f96e568]
+      - 'cell "fat_g: 0 · salt_g: 0 · carbs_g: 30" [ref=f96e569]'
+      - cell [ref=f96e570]
+    - row [ref=f96e571]:
+      - cell "Max depth reached." [ref=f96e572]
+    - row [ref=f96e573]:
+      - cell "Wheat Flour ING-FLOUR" [ref=f96e574]:
+        - generic [ref=f96e575]: Wheat Flour
+        - generic [ref=f96e576]: ING-FLOUR
+      - cell "27%" [ref=f96e577]
+      - cell "0.500 £" [ref=f96e578]
+      - cell "—" [ref=f96e579]
+      - 'cell "fat_g: 0 · salt_g: 0 · carbs_g: 30" [ref=f96e580]'
+      - cell [ref=f96e581]
+    - row [ref=f96e582]:
+      - cell "Sub-recipe total" [ref=f96e583]
+      - cell [ref=f96e584]
+      - cell [ref=f96e585]
+      - cell "158.713 £" [ref=f96e586]
+      - cell [ref=f96e587]
+      - cell [ref=f96e588]
+    - row [ref=f96e259]:
+      - cell "Toggle sub-recipe for Caster Sugar Ingredient Open item in Technical Pick item Caster Sugar Substitute Pick substitute Pick substitute" [ref=f96e260]:
+        - generic [ref=f96e261]:
+          - button "Toggle sub-recipe for Caster Sugar" [ref=f96e262] [cursor=pointer]:
+            - generic [ref=f96e263]: ›
+          - generic "Ingredient" [ref=f96e264]: ING-SUGAR
+          - link "Open item in Technical" [ref=f96e265] [cursor=pointer]:
+            - /url: /technical/items/ING-SUGAR
+            - text: ↗
+          - button "Pick item" [ref=f96e267] [cursor=pointer]
+        - generic [ref=f96e268]: Caster Sugar
+        - generic [ref=f96e269]:
+          - generic [ref=f96e270]: Substitute
+          - generic [ref=f96e271]: Pick substitute
+          - button "Pick substitute" [ref=f96e273] [cursor=pointer]
+      - cell [ref=f96e274]:
+        - textbox "Qty / pack (kg)" [ref=f96e276]: "0.176544"
+      - cell [ref=f96e277]:
+        - textbox "£ / kg" [ref=f96e279]: "0.8000"
+      - cell "0.141 £" [ref=f96e280]
+      - cell "—" [ref=f96e281]
+      - cell [ref=f96e282]:
+        - button "Delete ingredient" [ref=f96e283] [cursor=pointer]:
+          - generic [ref=f96e284]: ✕
+    - row [ref=f96e285]:
+      - cell "Total" [ref=f96e286]
+      - cell "1.000 kg" [ref=f96e287]
+      - cell "—" [ref=f96e288]
+      - cell "130.8343 £" [ref=f96e289]
+      - cell [ref=f96e290]
+      - cell [ref=f96e291]

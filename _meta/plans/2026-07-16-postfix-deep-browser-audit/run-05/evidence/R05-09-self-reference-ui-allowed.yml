@@ -1,0 +1,38 @@
+- table "Composition" [ref=f101e248]:
+  - rowgroup [ref=f101e249]:
+    - row [ref=f101e250]:
+      - columnheader "Item" [ref=f101e251]
+      - columnheader "Qty / output unit" [ref=f101e252]
+      - columnheader "UoM" [ref=f101e253]
+      - columnheader "Actions" [ref=f101e254]
+  - rowgroup [ref=f101e255]:
+    - row [ref=f101e256]:
+      - cell "WIP-20260714-0011WIP-019" [ref=f101e257]
+      - cell [ref=f101e258]:
+        - spinbutton "Qty / output unit" [ref=f101e260]: "0.690000"
+      - cell [ref=f101e261]:
+        - combobox "UoM" [ref=f101e263] [cursor=pointer]:
+          - generic [ref=f101e264]: kg
+          - generic [ref=f101e265]: ⌄
+      - cell [ref=f101e266]:
+        - button "Remove" [ref=f101e267] [cursor=pointer]
+    - row [ref=f101e268]:
+      - cell "ING-FLOURWheat Flour" [ref=f101e269]
+      - cell [ref=f101e270]:
+        - spinbutton "Qty / output unit" [ref=f101e272]: "0.310000"
+      - cell [ref=f101e273]:
+        - combobox "UoM" [ref=f101e275] [cursor=pointer]:
+          - generic [ref=f101e276]: kg
+          - generic [ref=f101e277]: ⌄
+      - cell [ref=f101e278]:
+        - button "Remove" [ref=f101e279] [cursor=pointer]
+    - row [ref=f101e333]:
+      - cell "WIP-20260717-0012NIGHT-R05-L2-1020" [ref=f101e334]
+      - cell [ref=f101e335]:
+        - spinbutton "Qty / output unit" [ref=f101e337]: "0"
+      - cell [ref=f101e338]:
+        - combobox "UoM" [ref=f101e340] [cursor=pointer]:
+          - generic [ref=f101e341]: kg
+          - generic [ref=f101e342]: ⌄
+      - cell [ref=f101e343]:
+        - button "Remove" [ref=f101e344] [cursor=pointer]

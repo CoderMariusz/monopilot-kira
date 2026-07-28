@@ -12,7 +12,30 @@ Flow trzymany bez skrótów: **tory → cross-review Codex → arbitraż → pop
 | **5** | `124e6b71` | Items/UoM + identity + routing CTA — 10× R03/R06/R01 | typecheck 0, build 0, **0 regresji**, +93 zielone | ✅ **6 udowodnione, 1 częściowo, 2 dalej zepsute** |
 | **6** | `0ff4080d` + `efeabd09` | Identity tail + Sites/Infra — 10× R01/R02, migracja **526** | typecheck 0, build 0, **0 regresji**, core o 1 **lepiej** niż baseline | ⚠️ **NIEDOMKNIĘTE** — patrz niżej |
 
-### Stan Fali 6 na koniec nocy — uczciwie
+### ✅ AKTUALIZACJA — Fala 6 ZAMKNIĘTA, E2E domknięte
+
+Powtórka E2E zakończyła się **po** pierwszej wersji tego raportu. Wynik: **7 udowodnionych,
+2 częściowo.** Poniższy akapit „niedomknięte" jest **nieaktualny** — zostawiony dla uczciwości
+zapisu, bo tak wyglądał stan o 4:20.
+
+| # | Znalezisko | Wynik | Dowód |
+|---|---|---|---|
+| 1 | **PF-R02-02 Printers** (ekran był w 100% martwy) | ✅ **PROVEN** | Ekran renderuje się w całości; **mutacja CREATE** utworzyła `FALA6-VERIFY-PRINTER` i wiersz jest w bazie |
+| 2 | PF-R01-06 atrybucja zaproszeń | ⚠️ PARTIAL | Ekran **ładuje się** (brak `persistence_failed` — błąd SQL `text = uuid` naprawiony) i **nigdzie nie ma zmyślonego „System"** |
+| 3 | PF-R01-07 nazwa wyświetlana | ✅ **PROVEN** | Powłoka bierze `public.users`, nie `raw_user_meta_data` (gdzie dalej siedzi „Apex Admin") |
+| 4 | PF-R01-05 odkrywalność | ✅ **PROVEN** | `Invitations` widnieje w Settings → grupa **Access** |
+| 5 | PF-R02-06 duplikat site | ✅ **PROVEN** | „That site code is already in use…" zamiast „to pole jest wymagane" |
+| 6a | PF-R02-03 klamrowanie dziecka | ✅ **PROVEN** | Fixture'y utworzone; dziecko pod nieaktywnym rodzicem powstaje **nieaktywne**, nie odrzucone |
+| 6b | PF-R02-04 nieaktywne cele | ✅ **PROVEN** | Nieaktywne lokalizacje nie są oferowane jako wyjście aktywnej linii |
+| 6c | Anty-regresja (edycja pod nieaktywnym rodzicem) | ⚠️ PARTIAL | W osiągalnym wariancie **przechodzi** |
+| 7 | PF-R02-05 adres magazynu | ✅ **PROVEN** | Edycja utrwalona; **`deactivated_at` przeżyło** edycję adresu zdezaktywowanego magazynu |
+| 7b | Regresja utraty adresu (T5-1) | ✅ **PROVEN naprawiona** | Nowy magazyn → edycja bez odświeżania → adres **zachowany** |
+
+**Wniosek: wszystkie trzy fale nocy są zamknięte z dowodem behawioralnym.**
+
+---
+
+### Stan Fali 6 o 4:20 (nieaktualny, zostawiony dla zapisu)
 
 **Kod jest na produkcji i przeszedł pełną bramkę**, ale **dowód behawioralny jest niekompletny.**
 

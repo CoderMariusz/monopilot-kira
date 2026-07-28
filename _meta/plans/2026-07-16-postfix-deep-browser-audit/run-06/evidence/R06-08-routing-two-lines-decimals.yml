@@ -1,0 +1,81 @@
+- dialog [ref=f121e273]:
+  - generic [ref=f121e274]:
+    - heading "New routing" [level=2] [ref=f121e275]
+    - button "Close" [ref=f121e276] [cursor=pointer]: ✕
+  - generic [ref=f121e277]:
+    - paragraph [ref=f121e278]: Operations run in order (op 1 → n). Each operation binds a line (V-TEC-61) and a manufacturing-operation name from the reference (V-TEC-63).
+    - generic [ref=f121e279]:
+      - generic [ref=f121e280]:
+        - generic [ref=f121e281]:
+          - generic [ref=f121e282]: Operation 1
+          - button "Remove" [ref=f121e339]
+        - generic [ref=f121e283]:
+          - generic [ref=f121e284]:
+            - generic [ref=f121e285]: Operation name
+            - textbox "Operation name" [ref=f121e286]:
+              - /placeholder: e.g. Smoking — phase 2
+              - text: R06 Cook Phase Decimal
+          - generic [ref=f121e287]:
+            - generic [ref=f121e288]: Op code
+            - textbox "Op code" [ref=f121e289]:
+              - /placeholder: auto
+              - text: R06-COOK
+          - generic [ref=f121e290]:
+            - generic [ref=f121e291]: Line
+            - combobox "Operation 1 Line" [ref=f121e293] [cursor=pointer]:
+              - generic [ref=f121e325]: LINE02 · Oven Line
+              - generic [ref=f121e294]: ⌄
+          - generic [ref=f121e295]:
+            - generic [ref=f121e296]: Manufacturing operation
+            - combobox "Operation 1 Manufacturing operation" [ref=f121e298] [cursor=pointer]:
+              - generic [ref=f121e338]: Cooking
+              - generic [ref=f121e299]: ⌄
+          - generic [ref=f121e300]:
+            - generic [ref=f121e301]:
+              - generic [ref=f121e302]: Setup (min)
+              - spinbutton "Setup (min)" [ref=f121e303]: "12.345"
+            - generic [ref=f121e304]:
+              - generic [ref=f121e305]: Run (s/unit)
+              - textbox "Run (s/unit)" [ref=f121e306]: "4.56789"
+            - generic [ref=f121e307]:
+              - generic [ref=f121e308]: Cost/h
+              - textbox "Cost/h" [ref=f121e309]: "23.4567"
+      - generic [ref=f121e340]:
+        - generic [ref=f121e341]:
+          - generic [ref=f121e342]: Operation 2
+          - button "Remove" [ref=f121e343]
+        - generic [ref=f121e344]:
+          - generic [ref=f121e345]:
+            - generic [ref=f121e346]: Operation name
+            - textbox "Operation name" [ref=f121e347]:
+              - /placeholder: e.g. Smoking — phase 2
+              - text: R06 Pack Phase Decimal
+          - generic [ref=f121e348]:
+            - generic [ref=f121e349]: Op code
+            - textbox "Op code" [ref=f121e350]:
+              - /placeholder: auto
+              - text: R06-PACK
+          - generic [ref=f121e351]:
+            - generic [ref=f121e352]: Line
+            - combobox "Operation 2 Line" [ref=f121e354] [cursor=pointer]:
+              - generic [ref=f121e382]: LINE03 · Assembly Line
+              - generic [ref=f121e355]: ⌄
+          - generic [ref=f121e356]:
+            - generic [ref=f121e357]: Manufacturing operation
+            - combobox "Operation 2 Manufacturing operation" [ref=f121e359] [cursor=pointer]:
+              - generic [ref=f121e395]: Packing
+              - generic [ref=f121e360]: ⌄
+          - generic [ref=f121e361]:
+            - generic [ref=f121e362]:
+              - generic [ref=f121e363]: Setup (min)
+              - spinbutton "Setup (min)" [ref=f121e364]: "7.891"
+            - generic [ref=f121e365]:
+              - generic [ref=f121e366]: Run (s/unit)
+              - textbox "Run (s/unit)" [ref=f121e367]: "8.76543"
+            - generic [ref=f121e368]:
+              - generic [ref=f121e369]: Cost/h
+              - textbox "Cost/h" [active] [ref=f121e370]: "45.6789"
+      - button "+ Add operation" [ref=f121e310]
+  - generic [ref=f121e311]:
+    - button "Cancel" [ref=f121e312] [cursor=pointer]
+    - button "Save routing" [ref=f121e313] [cursor=pointer]

@@ -1,0 +1,104 @@
+- generic [active] [ref=f44e1]:
+  - generic [ref=f44e2]:
+    - banner [ref=f44e4]:
+      - generic "MonoPilot MES" [ref=f44e5]
+      - searchbox "Search settings…" [ref=f44e7]
+      - generic [ref=f44e8]:
+        - button "Switch organization (platform admin)" [ref=f44e10] [cursor=pointer]:
+          - generic [ref=f44e11]: A2
+          - generic [ref=f44e12]: "000000000000"
+          - generic [ref=f44e13]: Apex 22
+          - generic [ref=f44e14]: ▼
+        - generic "Filters work orders, license plates and OEE only — other screens stay org-wide" [ref=f44e15]:
+          - generic [ref=f44e16]: Site
+          - combobox "Site" [ref=f44e17] [cursor=pointer]:
+            - option "All sites" [selected]
+            - option "tester1"
+            - option "CODEX-R14 SITE"
+            - option "Main Factory"
+            - option "makery"
+            - option "SOL-R02 Site 0539 Edited"
+            - option "warehouse 1"
+        - button "Notifications" [ref=f44e19]
+        - button "Open user menu for Apex Admin" [ref=f44e24]: AA
+    - navigation "Primary" [ref=f44e25]:
+      - generic [ref=f44e26]:
+        - generic [ref=f44e27]:
+          - heading "Core" [level=2] [ref=f44e28]
+          - generic [ref=f44e29]:
+            - link "Dashboard" [ref=f44e30] [cursor=pointer]:
+              - /url: /en/dashboard
+              - generic [ref=f44e31]: ◆
+            - link "Settings" [ref=f44e34] [cursor=pointer]:
+              - /url: /en/settings
+              - generic [ref=f44e35]: ⚙
+        - generic [ref=f44e38]:
+          - heading "Operations" [level=2] [ref=f44e39]
+          - generic [ref=f44e40]:
+            - link "Planning" [ref=f44e41] [cursor=pointer]:
+              - /url: /en/planning
+              - generic [ref=f44e42]: ▤
+            - link "Freight" [ref=f44e45] [cursor=pointer]:
+              - /url: /en/planning/carriers
+              - generic [ref=f44e46]: F
+            - link "Scheduler" [ref=f44e49] [cursor=pointer]:
+              - /url: /en/scheduler
+              - generic [ref=f44e50]: ⧗
+            - link "Production" [ref=f44e53] [cursor=pointer]:
+              - /url: /en/production
+              - generic [ref=f44e54]: ⚒
+            - link "Yard" [ref=f44e57] [cursor=pointer]:
+              - /url: /en/yard
+              - generic [ref=f44e58]: "Y"
+            - link "Warehouse" [ref=f44e61] [cursor=pointer]:
+              - /url: /en/warehouse
+              - generic [ref=f44e62]: ▥
+            - link "Scanner" [ref=f44e65] [cursor=pointer]:
+              - /url: /en/scanner/home
+              - generic [ref=f44e66]: 📱
+        - generic [ref=f44e69]:
+          - heading "QA & Shipping" [level=2] [ref=f44e70]
+          - generic [ref=f44e71]:
+            - link "Quality" [ref=f44e72] [cursor=pointer]:
+              - /url: /en/quality
+              - generic [ref=f44e73]: ✓
+            - link "Shipping" [ref=f44e76] [cursor=pointer]:
+              - /url: /en/shipping
+              - generic [ref=f44e77]: →
+        - generic [ref=f44e80]:
+          - heading "Premium" [level=2] [ref=f44e81]
+          - generic [ref=f44e82]:
+            - link "Technical" [ref=f44e83] [cursor=pointer]:
+              - /url: /en/technical
+              - generic [ref=f44e84]: ▦
+            - link "NPD" [ref=f44e87] [cursor=pointer]:
+              - /url: /en/pipeline
+              - generic [ref=f44e88]: ★
+            - link "Finance" [ref=f44e91] [cursor=pointer]:
+              - /url: /en/finance
+              - generic [ref=f44e92]: $
+            - link "OEE" [ref=f44e95] [cursor=pointer]:
+              - /url: /en/oee
+              - generic [ref=f44e96]: ◉
+            - link "Maintenance" [ref=f44e99] [cursor=pointer]:
+              - /url: /en/maintenance
+              - generic [ref=f44e100]: 🔧
+        - generic [ref=f44e103]:
+          - heading "Analytics & Network" [level=2] [ref=f44e104]
+          - generic [ref=f44e105]:
+            - link "Reporting" [ref=f44e106] [cursor=pointer]:
+              - /url: /en/reporting
+              - generic [ref=f44e107]: ▧
+            - link "Multi-Site" [ref=f44e110] [cursor=pointer]:
+              - /url: /en/multi-site
+              - generic [ref=f44e111]: ❖
+    - main [ref=f44e114]:
+      - main [ref=f44e552]:
+        - generic [ref=f44e553]:
+          - generic [ref=f44e554]:
+            - generic [ref=f44e555]: ⚠️
+            - generic [ref=f44e556]: Something went wrong
+            - generic [ref=f44e557]: An unexpected error occurred while loading this screen. You can try again, or head back to your dashboard.
+          - paragraph [ref=f44e558]: "Reference: 494781054"
+          - button "Try again" [ref=f44e560] [cursor=pointer]
+  - alert [ref=f44e144]

@@ -1,0 +1,40 @@
+## FILES TOUCHED
+
+- `apps/web/app/(npd)/pipeline/_actions/_lib/evaluate-stage-gate.ts` *(new — wspólny gate evaluator)*
+- `apps/web/app/(npd)/pipeline/_actions/_lib/gate-helpers.ts`
+- `apps/web/app/(npd)/pipeline/_actions/advance-project-gate.ts`
+- `apps/web/app/(npd)/pipeline/_actions/approve-project-gate.ts`
+- `apps/web/app/(npd)/pipeline/_actions/__tests__/gate-approval-readiness.pg.test.ts` *(new)*
+- `apps/web/app/(npd)/pipeline/_actions/__tests__/advance-checklist-gate.test.ts`
+- `apps/web/app/(npd)/pipeline/_actions/__tests__/gate-machine-honesty.test.ts`
+- `apps/web/app/(npd)/pipeline/_actions/__tests__/gate-actions.integration.test.ts`
+
+## FIX per finding
+
+### PF-R04-01 · P0
+**Root cause:** `approveProjectGate` wołał tylko `getBlockers()` — pomijał wymagany checklist i pola etapu (`incompleteRequiredChecklistItems` / `requiredFieldsMissing` istniały tylko w `advanceProjectGate` jako soft gate).
+
+**Zmiana:** Wyciągnięto `evaluateStageGate` do `_lib/evaluate-stage-gate.ts`. `approveProjectGate` woła go w trybie `formal_approve` przed e-sign i odrzuca approve przy `HARD_BLOCKED` / `SOFT_GATE_BLOCKED` → `BLOCKERS_PRESENT` + `REQUIRED_EVIDENCE_MISSING`.
+
+### PF-R04-04 · P1
+**Root cause:** Wymagany checklist i pola etapu były w `SOFT_GATE_BLOCKED` — dało się je obejść plain-text `override.note` bez autoryzacji.
+
+**Zmiana:** W tym samym evaluatorze checklist + required fields → `HARD_BLOCKED` (nieprzekraczalne). Override zostaje tylko dla advisory (cost/nutrition na `costing_nutrition→trial`) i wymaga `npd.gate.approve`.
+
+## MIGRATION
+
+**none**
+
+## TEST ADDED
+
+`apps/web/app/(npd)/pipeline/_actions/__tests__/gate-approval-readiness.pg.test.ts`
+
+- G3 approve z nieukończonym checklist → `BLOCKERS_PRESENT`, brak `gate_approvals`
+- Advance z `override.note` przy nieukończonym checklist → `BLOCKERS_PRESENT`, brak zmiany stage / audit override
+
+## UNCERTAINTIES
+
+1. **G4 operational criteria** (pilot WO, supplier spec, compliance docs) — jeśli nie są w `gate_checklist_items` / `npd_department_field.required`, `getBlockers()` ich nie złapie; review powinien sprawdzić, czy G4 approval criteria wymagają osobnego hooka w evaluatorze.
+2. **PF-R04-03 (modal≠server)** — advance modal nadal pokazuje soft-override UI; serwer już nie pozwala na bypass required evidence. Spójność UI = osobny tor.
+3. **Istniejące testy integracyjne** z override na cost/nutrition (`gate-actions.integration.test.ts`) — nadal powinny przechodzić (soft path z `npd.gate.approve`).
+4. **Orchestrator** powinien odpalić `gate-approval-readiness.pg.test.ts` + zaktualizowane unit/integration tests przy `DATABASE_URL`.

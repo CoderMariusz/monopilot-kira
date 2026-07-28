@@ -1,0 +1,127 @@
+- generic [active] [ref=e1]:
+  - alert [ref=e39]
+  - generic [ref=e40]:
+    - banner [ref=e42]:
+      - generic "MonoPilot MES" [ref=e43]
+      - searchbox "Search settings…" [ref=e45]
+      - generic [ref=e46]:
+        - button "Switch organization (platform admin)" [ref=e48] [cursor=pointer]:
+          - generic [ref=e49]: A2
+          - generic [ref=e50]: "000000000000"
+          - generic [ref=e51]: Apex 22
+          - generic [ref=e52]: ▼
+        - generic "Filters work orders, license plates and OEE only — other screens stay org-wide" [ref=e53]:
+          - generic [ref=e54]: Site
+          - combobox "Site" [ref=e55] [cursor=pointer]:
+            - option "All sites"
+            - option "tester1"
+            - option "CODEX-R14 SITE"
+            - option "Main Factory" [selected]
+            - option "makery"
+            - option "SOL-R02 Site 0539 Edited"
+            - option "warehouse 1"
+        - button "Notifications" [ref=e57]
+        - button "Open user menu for Apex Admin" [ref=e62]: AA
+    - navigation "Primary" [ref=e63]:
+      - generic [ref=e64]:
+        - generic [ref=e65]:
+          - heading "Core" [level=2] [ref=e66]
+          - generic [ref=e67]:
+            - link "Dashboard" [ref=e68] [cursor=pointer]:
+              - /url: /en/dashboard
+            - link "Settings" [ref=e72] [cursor=pointer]:
+              - /url: /en/settings
+        - generic [ref=e76]:
+          - heading "Operations" [level=2] [ref=e77]
+          - generic [ref=e78]:
+            - link "Planning" [ref=e79] [cursor=pointer]:
+              - /url: /en/planning
+            - link "Freight" [ref=e83] [cursor=pointer]:
+              - /url: /en/planning/carriers
+            - link "Scheduler" [ref=e87] [cursor=pointer]:
+              - /url: /en/scheduler
+            - link "Production" [ref=e91] [cursor=pointer]:
+              - /url: /en/production
+            - link "Yard" [ref=e95] [cursor=pointer]:
+              - /url: /en/yard
+            - link "Warehouse" [ref=e99] [cursor=pointer]:
+              - /url: /en/warehouse
+            - link "Scanner" [ref=e103] [cursor=pointer]:
+              - /url: /en/scanner/home
+        - generic [ref=e107]:
+          - heading "QA & Shipping" [level=2] [ref=e108]
+          - generic [ref=e109]:
+            - link "Quality" [ref=e110] [cursor=pointer]:
+              - /url: /en/quality
+            - link "Shipping" [ref=e114] [cursor=pointer]:
+              - /url: /en/shipping
+        - generic [ref=e118]:
+          - heading "Premium" [level=2] [ref=e119]
+          - generic [ref=e120]:
+            - link "Technical" [ref=e121] [cursor=pointer]:
+              - /url: /en/technical
+            - link "NPD" [ref=e125] [cursor=pointer]:
+              - /url: /en/pipeline
+            - link "Finance" [ref=e129] [cursor=pointer]:
+              - /url: /en/finance
+            - link "OEE" [ref=e133] [cursor=pointer]:
+              - /url: /en/oee
+            - link "Maintenance" [ref=e137] [cursor=pointer]:
+              - /url: /en/maintenance
+        - generic [ref=e141]:
+          - heading "Analytics & Network" [level=2] [ref=e142]
+          - generic [ref=e143]:
+            - link "Reporting" [ref=e144] [cursor=pointer]:
+              - /url: /en/reporting
+            - link "Multi-Site" [ref=e148] [cursor=pointer]:
+              - /url: /en/multi-site
+    - main [ref=e152]:
+      - region [ref=e153]:
+        - generic [ref=e154]:
+          - generic [ref=e155]:
+            - heading "Dashboard" [level=1] [ref=e156]
+            - paragraph [ref=e157]: Live operational overview for your organization.
+          - generic [ref=e158]: Live · Supabase
+        - generic [ref=e159]:
+          - generic [ref=e160]:
+            - generic [ref=e161]: Active Work Orders
+            - generic [ref=e162]: "3"
+            - generic [ref=e163]: Released, in progress or on hold
+          - generic [ref=e164]:
+            - generic [ref=e165]: Pending POs
+            - generic [ref=e166]: "5"
+            - generic [ref=e167]: Open purchase orders
+          - generic [ref=e168]:
+            - generic [ref=e169]: Low Stock Alerts
+            - generic [ref=e170]: "1"
+            - generic [ref=e171]: Stock thresholds not live yet
+          - generic [ref=e172]:
+            - generic [ref=e173]: Quality Holds
+            - generic [ref=e174]: "0"
+            - generic [ref=e175]: Open holds requiring action
+          - generic [ref=e176]:
+            - generic [ref=e177]: Today's Shipments
+            - generic [ref=e178]: "0"
+            - generic [ref=e179]: Created today
+        - generic [ref=e180]:
+          - heading "Quick actions" [level=2] [ref=e182]
+          - generic [ref=e183]:
+            - link "Create Work Order" [ref=e184] [cursor=pointer]:
+              - /url: /en/planning/work-orders?new=1
+            - link "Create Purchase Order" [ref=e185] [cursor=pointer]:
+              - /url: /en/planning/purchase-orders?new=1
+            - link "Receive Goods" [ref=e186] [cursor=pointer]:
+              - /url: /en/warehouse
+            - link "Quality Check" [ref=e187] [cursor=pointer]:
+              - /url: /en/quality
+            - link "Create Shipment" [ref=e188] [cursor=pointer]:
+              - /url: /en/shipping
+            - link "Run MRP" [ref=e189] [cursor=pointer]:
+              - /url: /en/planning/mrp
+        - generic [ref=e190]:
+          - generic [ref=e191]:
+            - heading "Recent activity" [level=2] [ref=e193]
+            - list [ref=e194]
+          - generic [ref=e245]:
+            - heading "System alerts" [level=2] [ref=e247]
+            - generic [ref=e248]

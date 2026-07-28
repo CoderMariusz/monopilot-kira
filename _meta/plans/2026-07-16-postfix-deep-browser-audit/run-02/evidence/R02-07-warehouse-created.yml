@@ -1,0 +1,501 @@
+- generic [active] [ref=f17e1]:
+  - generic [ref=f17e2]:
+    - banner [ref=f17e4]:
+      - generic "MonoPilot MES" [ref=f17e5]
+      - searchbox "Search settings…" [ref=f17e7]
+      - generic [ref=f17e8]:
+        - button "Switch organization (platform admin)" [ref=f17e10] [cursor=pointer]:
+          - generic [ref=f17e11]: A2
+          - generic [ref=f17e12]: "000000000000"
+          - generic [ref=f17e13]: Apex 22
+          - generic [ref=f17e14]: ▼
+        - generic "Filters work orders, license plates and OEE only — other screens stay org-wide" [ref=f17e15]:
+          - generic [ref=f17e16]: Site
+          - combobox "Site" [ref=f17e17] [cursor=pointer]:
+            - option "All sites" [selected]
+            - option "tester1"
+            - option "CODEX-R14 SITE"
+            - option "Main Factory"
+            - option "makery"
+            - option "NIGHT-R02 Site 0731"
+            - option "SOL-R02 Site 0539 Edited"
+            - option "warehouse 1"
+        - button "Notifications" [ref=f17e19]
+        - button "Open user menu for Apex Admin" [ref=f17e24]: AA
+    - navigation "Primary" [ref=f17e25]:
+      - generic [ref=f17e26]:
+        - generic [ref=f17e27]:
+          - heading "Core" [level=2] [ref=f17e28]
+          - generic [ref=f17e29]:
+            - link "Dashboard" [ref=f17e30] [cursor=pointer]:
+              - /url: /en/dashboard
+              - generic [ref=f17e31]: ◆
+            - link "Settings" [ref=f17e34] [cursor=pointer]:
+              - /url: /en/settings
+              - generic [ref=f17e35]: ⚙
+        - generic [ref=f17e38]:
+          - heading "Operations" [level=2] [ref=f17e39]
+          - generic [ref=f17e40]:
+            - link "Planning" [ref=f17e41] [cursor=pointer]:
+              - /url: /en/planning
+              - generic [ref=f17e42]: ▤
+            - link "Freight" [ref=f17e45] [cursor=pointer]:
+              - /url: /en/planning/carriers
+              - generic [ref=f17e46]: F
+            - link "Scheduler" [ref=f17e49] [cursor=pointer]:
+              - /url: /en/scheduler
+              - generic [ref=f17e50]: ⧗
+            - link "Production" [ref=f17e53] [cursor=pointer]:
+              - /url: /en/production
+              - generic [ref=f17e54]: ⚒
+            - link "Yard" [ref=f17e57] [cursor=pointer]:
+              - /url: /en/yard
+              - generic [ref=f17e58]: "Y"
+            - link "Warehouse" [ref=f17e61] [cursor=pointer]:
+              - /url: /en/warehouse
+              - generic [ref=f17e62]: ▥
+            - link "Scanner" [ref=f17e65] [cursor=pointer]:
+              - /url: /en/scanner/home
+              - generic [ref=f17e66]: 📱
+        - generic [ref=f17e69]:
+          - heading "QA & Shipping" [level=2] [ref=f17e70]
+          - generic [ref=f17e71]:
+            - link "Quality" [ref=f17e72] [cursor=pointer]:
+              - /url: /en/quality
+              - generic [ref=f17e73]: ✓
+            - link "Shipping" [ref=f17e76] [cursor=pointer]:
+              - /url: /en/shipping
+              - generic [ref=f17e77]: →
+        - generic [ref=f17e80]:
+          - heading "Premium" [level=2] [ref=f17e81]
+          - generic [ref=f17e82]:
+            - link "Technical" [ref=f17e83] [cursor=pointer]:
+              - /url: /en/technical
+              - generic [ref=f17e84]: ▦
+            - link "NPD" [ref=f17e87] [cursor=pointer]:
+              - /url: /en/pipeline
+              - generic [ref=f17e88]: ★
+            - link "Finance" [ref=f17e91] [cursor=pointer]:
+              - /url: /en/finance
+              - generic [ref=f17e92]: $
+            - link "OEE" [ref=f17e95] [cursor=pointer]:
+              - /url: /en/oee
+              - generic [ref=f17e96]: ◉
+            - link "Maintenance" [ref=f17e99] [cursor=pointer]:
+              - /url: /en/maintenance
+              - generic [ref=f17e100]: 🔧
+        - generic [ref=f17e103]:
+          - heading "Analytics & Network" [level=2] [ref=f17e104]
+          - generic [ref=f17e105]:
+            - link "Reporting" [ref=f17e106] [cursor=pointer]:
+              - /url: /en/reporting
+              - generic [ref=f17e107]: ▧
+            - link "Multi-Site" [ref=f17e110] [cursor=pointer]:
+              - /url: /en/multi-site
+              - generic [ref=f17e111]: ❖
+    - main [ref=f17e114]:
+      - generic [ref=f17e145]:
+        - navigation "Settings" [ref=f17e146]:
+          - generic [ref=f17e147]:
+            - generic [ref=f17e148]:
+              - heading "Organization" [level=2] [ref=f17e149]
+              - generic [ref=f17e150]:
+                - link "Company profile" [ref=f17e151] [cursor=pointer]:
+                  - /url: /en/settings/company
+                  - generic [ref=f17e152]: ◆
+                - link "Compliance profile" [ref=f17e154] [cursor=pointer]:
+                  - /url: /en/settings/compliance
+                  - generic [ref=f17e155]: ✓
+                - link "Sites & lines" [ref=f17e157] [cursor=pointer]:
+                  - /url: /en/settings/sites
+                  - generic [ref=f17e158]: ▤
+                - link "Production lines" [ref=f17e160] [cursor=pointer]:
+                  - /url: /en/settings/infra/lines
+                  - generic [ref=f17e161]: ≣
+                - link "Warehouses" [ref=f17e163] [cursor=pointer]:
+                  - /url: /en/settings/infra/warehouses
+                  - generic [ref=f17e164]: ▥
+                - link "Locations" [ref=f17e166] [cursor=pointer]:
+                  - /url: /en/settings/infra/locations
+                  - generic [ref=f17e167]: ⌖
+                - link "Printers" [ref=f17e169] [cursor=pointer]:
+                  - /url: /en/settings/infra/printers
+                  - generic [ref=f17e170]: 🖨
+                - link "Dock doors" [ref=f17e172] [cursor=pointer]:
+                  - /url: /en/settings/infra/docks
+                  - generic [ref=f17e173]: ⚓
+                - link "Shifts & calendar" [ref=f17e175] [cursor=pointer]:
+                  - /url: /en/settings/shifts
+                  - generic [ref=f17e176]: ⧗
+                - link "Labor rates" [ref=f17e178] [cursor=pointer]:
+                  - /url: /en/settings/labor-rates
+                  - generic [ref=f17e179]: 💰
+            - generic [ref=f17e181]:
+              - heading "Data" [level=2] [ref=f17e182]
+              - generic [ref=f17e183]:
+                - link "NPD fields" [ref=f17e184] [cursor=pointer]:
+                  - /url: /en/settings/npd-fields
+                  - generic [ref=f17e185]: ▦
+                - link "Approval requirements" [ref=f17e187] [cursor=pointer]:
+                  - /url: /en/settings/npd-approval
+                  - generic [ref=f17e188]: ✔
+                - link "Gate checklists" [ref=f17e190] [cursor=pointer]:
+                  - /url: /en/settings/npd-checklist
+                  - generic [ref=f17e191]: ☑
+                - link "Cost parameters" [ref=f17e193] [cursor=pointer]:
+                  - /url: /en/settings/npd-cost-params
+                  - generic [ref=f17e194]: £
+                - link "BOMs & recipes" [ref=f17e196] [cursor=pointer]:
+                  - /url: /en/settings/boms
+                  - generic [ref=f17e197]: ⛓
+                - link "Processes" [ref=f17e199] [cursor=pointer]:
+                  - /url: /en/settings/process-defaults
+                  - generic [ref=f17e200]: ⟶
+                - link "└ Manufacturing operations" [ref=f17e203] [cursor=pointer]:
+                  - /url: /en/settings/reference/manufacturing-operations
+                  - generic [ref=f17e204]: ⚒
+                - link "Product categories" [ref=f17e207] [cursor=pointer]:
+                  - /url: /en/settings/reference/product-categories
+                  - generic [ref=f17e208]: 🏷
+                - link "Suppliers & customers" [ref=f17e211] [cursor=pointer]:
+                  - /url: /en/settings/partners
+                  - generic [ref=f17e212]: ↔
+                - link "Customer prices" [ref=f17e214] [cursor=pointer]:
+                  - /url: /en/settings/customer-prices
+                  - generic [ref=f17e215]: £
+                - link "Units & conversions" [ref=f17e217] [cursor=pointer]:
+                  - /url: /en/settings/units
+                  - generic [ref=f17e218]: ⚖
+                - link "Temperature ranges" [ref=f17e220] [cursor=pointer]:
+                  - /url: /en/settings/quality/temp-ranges
+                  - generic [ref=f17e221]: ❄
+                - link "Import / Export" [ref=f17e223] [cursor=pointer]:
+                  - /url: /en/settings/import-export
+                  - generic [ref=f17e224]: ⇅
+            - generic [ref=f17e227]:
+              - heading "Access" [level=2] [ref=f17e228]
+              - generic [ref=f17e229]:
+                - link "Users & roles" [ref=f17e230] [cursor=pointer]:
+                  - /url: /en/settings/users
+                  - generic [ref=f17e231]: ◉
+                - link "Security" [ref=f17e233] [cursor=pointer]:
+                  - /url: /en/settings/security
+                  - generic [ref=f17e234]: 🔒
+                - link "Audit logs" [ref=f17e236] [cursor=pointer]:
+                  - /url: /en/settings/audit
+                  - generic [ref=f17e237]: ◷
+            - generic [ref=f17e240]:
+              - heading "Sign-off" [level=2] [ref=f17e241]
+              - generic [ref=f17e242]:
+                - link "Sign-off policies" [ref=f17e243] [cursor=pointer]:
+                  - /url: /en/settings/signoff
+                  - generic [ref=f17e244]: ✍
+                - link "Authorization policies" [ref=f17e246] [cursor=pointer]:
+                  - /url: /en/settings/authorization
+                  - generic [ref=f17e247]: 🛡
+                - link "Sign-off & PINs" [ref=f17e249] [cursor=pointer]:
+                  - /url: /en/settings/scanner-auth
+                  - generic [ref=f17e250]: 🔐
+            - generic [ref=f17e252]:
+              - heading "Operations" [level=2] [ref=f17e253]
+              - generic [ref=f17e254]:
+                - link "Scanner devices" [ref=f17e255] [cursor=pointer]:
+                  - /url: /en/settings/devices
+                  - generic [ref=f17e256]: 📱
+                - link "Notifications" [ref=f17e258] [cursor=pointer]:
+                  - /url: /en/settings/notifications
+                  - generic [ref=f17e259]: ◔
+                - link "Feature flags" [ref=f17e261] [cursor=pointer]:
+                  - /url: /en/settings/features
+                  - generic [ref=f17e262]: ◨
+            - generic [ref=f17e264]:
+              - heading "Integrations" [level=2] [ref=f17e265]
+              - link "Integrations" [ref=f17e267] [cursor=pointer]:
+                - /url: /en/settings/integrations
+                - generic [ref=f17e268]: ⇄
+            - generic [ref=f17e270]:
+              - heading "Document templates" [level=2] [ref=f17e271]
+              - generic [ref=f17e272]:
+                - link "Label templates" [ref=f17e273] [cursor=pointer]:
+                  - /url: /en/settings/labels
+                  - generic [ref=f17e274]: ▭
+                - link "Document numbering" [ref=f17e277] [cursor=pointer]:
+                  - /url: /en/settings/documents
+                  - generic [ref=f17e278]: №
+            - generic [ref=f17e280]:
+              - heading "Onboarding" [level=2] [ref=f17e281]
+              - link "Onboarding wizard" [ref=f17e283] [cursor=pointer]:
+                - /url: /en/settings/onboarding
+                - generic [ref=f17e284]: ✦
+            - generic [ref=f17e287]:
+              - heading "Admin" [level=2] [ref=f17e288]
+              - generic [ref=f17e289]:
+                - link "D365 connection" [ref=f17e290] [cursor=pointer]:
+                  - /url: /en/settings/integrations/d365
+                  - generic [ref=f17e291]: ⇆
+                - link "D365 field mapping" [ref=f17e293] [cursor=pointer]:
+                  - /url: /en/settings/integrations/d365/mapping
+                  - generic [ref=f17e294]: ↔
+                - link "D365 cost import" [ref=f17e296] [cursor=pointer]:
+                  - /url: /en/settings/integrations/d365/cost-import
+                  - generic [ref=f17e297]: ⇣
+                - link "D365 DLQ (shipping)" [ref=f17e299] [cursor=pointer]:
+                  - /url: /en/settings/d365-dlq
+                  - generic [ref=f17e300]: "!"
+                - link "Rules registry" [ref=f17e302] [cursor=pointer]:
+                  - /url: /en/settings/rules
+                  - generic [ref=f17e303]: ✦
+                - link "Feature flags (L)" [ref=f17e305] [cursor=pointer]:
+                  - /url: /en/settings/flags
+                  - generic [ref=f17e306]: ◨
+                - link "Schema browser" [ref=f17e308] [cursor=pointer]:
+                  - /url: /en/settings/schema
+                  - generic [ref=f17e309]: ▦
+                - link "└ Column wizard" [ref=f17e311] [cursor=pointer]:
+                  - /url: /en/settings/schema/new
+                  - generic [ref=f17e312]: ✎
+                - link "└ Migrations queue" [ref=f17e314] [cursor=pointer]:
+                  - /url: /en/settings/schema/migrations
+                  - generic [ref=f17e315]: ⇣
+                - link "Tenant variations" [ref=f17e318] [cursor=pointer]:
+                  - /url: /en/settings/tenant
+                  - generic [ref=f17e319]: ❖
+                - link "Reference data" [ref=f17e322] [cursor=pointer]:
+                  - /url: /en/settings/reference
+                  - generic [ref=f17e323]: ⚙
+                - link "Email templates" [ref=f17e325] [cursor=pointer]:
+                  - /url: /en/settings/email
+                  - generic [ref=f17e326]: ✉
+                - link "Email variables" [ref=f17e328] [cursor=pointer]:
+                  - /url: /en/settings/email/variables
+                  - generic [ref=f17e329]: §
+                - link "Shipping override reasons" [ref=f17e331] [cursor=pointer]:
+                  - /url: /en/settings/ship-override-reasons
+                  - generic [ref=f17e332]: ≡
+            - generic [ref=f17e334]:
+              - heading "My account" [level=2] [ref=f17e335]
+              - generic [ref=f17e336]:
+                - link "My profile" [ref=f17e337] [cursor=pointer]:
+                  - /url: /en/account/profile
+                  - generic [ref=f17e338]: ◯
+                - link "Notifications" [ref=f17e340] [cursor=pointer]:
+                  - /url: /en/account/notifications
+                  - generic [ref=f17e341]: ◔
+                - link "E-sign & scanner PIN" [ref=f17e343] [cursor=pointer]:
+                  - /url: /en/account/pin
+                  - generic [ref=f17e344]: ✱
+        - main [ref=f17e346]:
+          - main [ref=f17e347]:
+            - generic [ref=f17e348]:
+              - generic [ref=f17e349]:
+                - generic [ref=f17e350]: Warehouses
+                - generic [ref=f17e351]: Zones, bin locations, and storage rules.
+              - generic "Warehouse actions" [ref=f17e353]:
+                - button "+ Add warehouse" [ref=f17e354] [cursor=pointer]
+                - button "Bulk Activate" [disabled] [ref=f17e355]
+                - button "Bulk Deactivate" [disabled] [ref=f17e356]
+            - status [ref=f17e577]: Warehouse created.
+            - region "Warehouses (6)" [ref=f17e578]:
+              - generic [ref=f17e358]:
+                - generic [ref=f17e359]:
+                  - generic [ref=f17e360]: Warehouses (6)
+                  - generic [ref=f17e361]: Live warehouse rows with site, zone, bin, capacity, and usage provenance.
+                - group "Warehouse table controls" [ref=f17e362]:
+                  - generic [ref=f17e363]:
+                    - text: Filter warehouses
+                    - textbox "Filter warehouses" [ref=f17e365]:
+                      - /placeholder: Search by warehouse, code, or address…
+                  - generic [ref=f17e366]:
+                    - generic [ref=f17e367]: Status
+                    - combobox "Status" [ref=f17e369] [cursor=pointer]:
+                      - generic [ref=f17e370]: All statuses
+                      - generic [ref=f17e371]: ⌄
+                  - generic [ref=f17e372]:
+                    - text: Sort
+                    - combobox "Sort" [ref=f17e374] [cursor=pointer]:
+                      - generic [ref=f17e375]: Name
+                      - generic [ref=f17e376]: ⌄
+              - generic [ref=f17e377]:
+                - paragraph [ref=f17e378]: "Data source: withOrgContext-scoped warehouse query; prototype mock rows are not used in production."
+                - table "Warehouses" [ref=f17e380]:
+                  - rowgroup [ref=f17e381]:
+                    - row [ref=f17e382]:
+                      - columnheader "Select" [ref=f17e383]
+                      - columnheader "Code" [ref=f17e385]
+                      - columnheader "Name" [ref=f17e386]
+                      - columnheader "Site" [ref=f17e387]
+                      - columnheader "Zones" [ref=f17e388]
+                      - columnheader "Bins" [ref=f17e389]
+                      - columnheader "Capacity" [ref=f17e390]
+                      - columnheader "Used" [ref=f17e391]
+                      - columnheader "Status" [ref=f17e392]
+                      - columnheader "Storage rules" [ref=f17e393]
+                  - rowgroup [ref=f17e395]:
+                    - row "BAKERY Bakery makery 0 0 — 0% Active Bakery BAKERY Active" [ref=f17e396]:
+                      - cell [ref=f17e397]:
+                        - checkbox "Select Bakery" [ref=f17e398]
+                      - cell "BAKERY" [ref=f17e399]
+                      - cell [ref=f17e400]:
+                        - link "Open locations for Bakery" [ref=f17e401] [cursor=pointer]:
+                          - /url: /en/settings/infra/locations?warehouseId=efa9e383-f53f-4f75-83cc-57e39c537a82
+                          - text: Bakery
+                      - cell "makery" [ref=f17e402]
+                      - cell "0" [ref=f17e403]
+                      - cell "0" [ref=f17e404]
+                      - cell "—" [ref=f17e405]
+                      - cell "0 0%" [ref=f17e406]:
+                        - generic [ref=f17e407]:
+                          - progressbar [ref=f17e408]
+                          - generic [ref=f17e409]: 0%
+                      - cell "Active" [ref=f17e410]
+                      - cell [ref=f17e412]:
+                        - generic [ref=f17e413]:
+                          - button "Edit storage rules for Bakery" [pressed] [ref=f17e414] [cursor=pointer]: Storage rules
+                          - button "Rename warehouse — Bakery" [ref=f17e415] [cursor=pointer]: Rename warehouse
+                          - button "Delete warehouse — Bakery" [ref=f17e416] [cursor=pointer]: Delete warehouse
+                    - row "CR14WH CODEX-R14 WAREHOUSE CODEX-R14 SITE 0 0 — 0% Active CODEX-R14 WAREHOUSE CR14WH Active" [ref=f17e417]:
+                      - cell [ref=f17e418]:
+                        - checkbox "Select CODEX-R14 WAREHOUSE" [ref=f17e419]
+                      - cell "CR14WH" [ref=f17e420]
+                      - cell [ref=f17e421]:
+                        - link "Open locations for CODEX-R14 WAREHOUSE" [ref=f17e422] [cursor=pointer]:
+                          - /url: /en/settings/infra/locations?warehouseId=573780e8-2699-48ee-94f7-dd31104cdd49
+                          - text: CODEX-R14 WAREHOUSE
+                      - cell "CODEX-R14 SITE" [ref=f17e423]
+                      - cell "0" [ref=f17e424]
+                      - cell "0" [ref=f17e425]
+                      - cell "—" [ref=f17e426]
+                      - cell "0 0%" [ref=f17e427]:
+                        - generic [ref=f17e428]:
+                          - progressbar [ref=f17e429]
+                          - generic [ref=f17e430]: 0%
+                      - cell "Active" [ref=f17e431]
+                      - cell [ref=f17e433]:
+                        - generic [ref=f17e434]:
+                          - button "Edit storage rules for CODEX-R14 WAREHOUSE" [ref=f17e435] [cursor=pointer]: Storage rules
+                          - button "Rename warehouse — CODEX-R14 WAREHOUSE" [ref=f17e436] [cursor=pointer]: Rename warehouse
+                          - button "Delete warehouse — CODEX-R14 WAREHOUSE" [ref=f17e437] [cursor=pointer]: Delete warehouse
+                    - row "WH1 Main Warehouse Main Factory 1 0 — 0% Active Main Warehouse WH1 Active" [ref=f17e438]:
+                      - cell [ref=f17e439]:
+                        - checkbox "Select Main Warehouse" [ref=f17e440]
+                      - cell "WH1" [ref=f17e441]
+                      - cell [ref=f17e442]:
+                        - link "Open locations for Main Warehouse" [ref=f17e443] [cursor=pointer]:
+                          - /url: /en/settings/infra/locations?warehouseId=783bf255-efd8-48fe-9cc4-7a870859624f
+                          - text: Main Warehouse
+                      - cell "Main Factory" [ref=f17e444]
+                      - cell "1" [ref=f17e445]
+                      - cell "0" [ref=f17e446]
+                      - cell "—" [ref=f17e447]
+                      - cell "0 0%" [ref=f17e448]:
+                        - generic [ref=f17e449]:
+                          - progressbar [ref=f17e450]
+                          - generic [ref=f17e451]: 0%
+                      - cell "Active" [ref=f17e452]
+                      - cell [ref=f17e454]:
+                        - generic [ref=f17e455]:
+                          - button "Edit storage rules for Main Warehouse" [ref=f17e456] [cursor=pointer]: Storage rules
+                          - button "Rename warehouse — Main Warehouse" [ref=f17e457] [cursor=pointer]: Rename warehouse
+                          - button "Delete warehouse — Main Warehouse" [ref=f17e458] [cursor=pointer]: Delete warehouse
+                    - row "N17R02WH NIGHT R02 Warehouse NIGHT-R02 Site 0731 0 0 — 0% Active NIGHT R02 Warehouse N17R02WH Active" [ref=f17e579]:
+                      - cell [ref=f17e580]:
+                        - checkbox "Select NIGHT R02 Warehouse" [ref=f17e581]
+                      - cell "N17R02WH" [ref=f17e582]
+                      - cell [ref=f17e583]:
+                        - link "Open locations for NIGHT R02 Warehouse" [ref=f17e584] [cursor=pointer]:
+                          - /url: /en/settings/infra/locations?warehouseId=b5bb66f2-b32e-4777-84cc-30d5f4ef6a2c
+                          - text: NIGHT R02 Warehouse
+                      - cell "NIGHT-R02 Site 0731" [ref=f17e585]
+                      - cell "0" [ref=f17e586]
+                      - cell "0" [ref=f17e587]
+                      - cell "—" [ref=f17e588]
+                      - cell "0 0%" [ref=f17e589]:
+                        - generic [ref=f17e590]:
+                          - progressbar [ref=f17e591]
+                          - generic [ref=f17e592]: 0%
+                      - cell "Active" [ref=f17e593]
+                      - cell [ref=f17e595]:
+                        - generic [ref=f17e596]:
+                          - button "Edit storage rules for NIGHT R02 Warehouse" [ref=f17e597] [cursor=pointer]: Storage rules
+                          - button "Rename warehouse — NIGHT R02 Warehouse" [ref=f17e598] [cursor=pointer]: Rename warehouse
+                          - button "Delete warehouse — NIGHT R02 Warehouse" [ref=f17e599] [cursor=pointer]: Delete warehouse
+                    - row "PRODUCTION Production warehouse 1 2 0 — 0% Active Production PRODUCTION Active" [ref=f17e459]:
+                      - cell [ref=f17e460]:
+                        - checkbox "Select Production" [ref=f17e461]
+                      - cell "PRODUCTION" [ref=f17e462]
+                      - cell [ref=f17e463]:
+                        - link "Open locations for Production" [ref=f17e464] [cursor=pointer]:
+                          - /url: /en/settings/infra/locations?warehouseId=58a811e0-6b13-4a6f-8c50-8d5f75912716
+                          - text: Production
+                      - cell "warehouse 1" [ref=f17e465]
+                      - cell "2" [ref=f17e466]
+                      - cell "0" [ref=f17e467]
+                      - cell "—" [ref=f17e468]
+                      - cell "0 0%" [ref=f17e469]:
+                        - generic [ref=f17e470]:
+                          - progressbar [ref=f17e471]
+                          - generic [ref=f17e472]: 0%
+                      - cell "Active" [ref=f17e473]
+                      - cell [ref=f17e475]:
+                        - generic [ref=f17e476]:
+                          - button "Edit storage rules for Production" [ref=f17e477] [cursor=pointer]: Storage rules
+                          - button "Rename warehouse — Production" [ref=f17e478] [cursor=pointer]: Rename warehouse
+                          - button "Delete warehouse — Production" [ref=f17e479] [cursor=pointer]: Delete warehouse
+                    - row "WH01 wh01 tester1 3 0 — 0% Active wh01 WH01 Active" [ref=f17e480]:
+                      - cell [ref=f17e481]:
+                        - checkbox "Select wh01" [ref=f17e482]
+                      - cell "WH01" [ref=f17e483]
+                      - cell [ref=f17e484]:
+                        - link "Open locations for wh01" [ref=f17e485] [cursor=pointer]:
+                          - /url: /en/settings/infra/locations?warehouseId=05bd197f-3bf4-4ee1-a470-366eef5baa18
+                          - text: wh01
+                      - cell "tester1" [ref=f17e486]
+                      - cell "3" [ref=f17e487]
+                      - cell "0" [ref=f17e488]
+                      - cell "—" [ref=f17e489]
+                      - cell "0 0%" [ref=f17e490]:
+                        - generic [ref=f17e491]:
+                          - progressbar [ref=f17e492]
+                          - generic [ref=f17e493]: 0%
+                      - cell "Active" [ref=f17e494]
+                      - cell [ref=f17e496]:
+                        - generic [ref=f17e497]:
+                          - button "Edit storage rules for wh01" [ref=f17e498] [cursor=pointer]: Storage rules
+                          - button "Rename warehouse — wh01" [ref=f17e499] [cursor=pointer]: Rename warehouse
+                          - button "Delete warehouse — wh01" [ref=f17e500] [cursor=pointer]: Delete warehouse
+            - region "Storage rules — BAKERY" [ref=f17e502]:
+              - generic [ref=f17e504]:
+                - generic [ref=f17e505]: Storage rules — BAKERY
+                - generic [ref=f17e506]: Storage rules for Bakery. These apply to this warehouse only.
+              - generic [ref=f17e507]:
+                - generic [ref=f17e508]:
+                  - generic [ref=f17e509]:
+                    - text: Warehouse
+                    - generic [ref=f17e510]: Select a warehouse to view and edit its storage rules.
+                  - combobox "Warehouse" [ref=f17e513] [cursor=pointer]:
+                    - generic [ref=f17e514]: BAKERY — Bakery
+                    - generic [ref=f17e515]: ⌄
+                - generic [ref=f17e516]:
+                  - generic [ref=f17e517]: Bin assignment strategy
+                  - combobox "Bin assignment strategy" [ref=f17e520] [cursor=pointer]:
+                    - generic [ref=f17e521]: FEFO (First expired, first out)
+                    - generic [ref=f17e522]: ⌄
+                - generic [ref=f17e523]:
+                  - generic [ref=f17e524]:
+                    - generic [ref=f17e525]: Mixed lot bins
+                    - generic [ref=f17e526]: Allow different lots in the same bin.
+                  - generic [ref=f17e528] [cursor=pointer]:
+                    - checkbox "Mixed lot bins"
+                - generic [ref=f17e530]:
+                  - generic [ref=f17e531]:
+                    - text: Expiry warning threshold
+                    - generic [ref=f17e532]: Alert when stock is within this many days of expiry.
+                  - spinbutton "Expiry warning threshold" [ref=f17e534]: "7"
+                - generic [ref=f17e535]:
+                  - generic [ref=f17e536]:
+                    - generic [ref=f17e537]: Block expired stock
+                    - generic [ref=f17e538]: Prevent movements of expired lots automatically.
+                  - generic [ref=f17e540] [cursor=pointer]:
+                    - checkbox "Block expired stock" [checked]
+              - button "Save storage rules" [ref=f17e544] [cursor=pointer]
+  - alert [ref=f17e144]

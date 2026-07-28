@@ -1,0 +1,1823 @@
+- generic:
+  - generic:
+    - generic:
+      - banner:
+        - generic: MonoPilot MES
+        - generic:
+          - searchbox
+        - generic:
+          - generic:
+            - button:
+              - generic: A2
+              - generic: "000000000000"
+              - generic: Apex 22
+              - generic: ▼
+          - generic:
+            - generic: Site
+            - combobox
+          - generic:
+            - button
+          - generic:
+            - button: AA
+    - navigation:
+      - generic:
+        - generic:
+          - heading [level=2]: Core
+          - generic:
+            - link:
+              - /url: /en/dashboard
+              - generic: ◆
+              - generic: Dashboard
+            - link:
+              - /url: /en/settings
+              - generic: ⚙
+              - generic: Settings
+        - generic:
+          - heading [level=2]: Operations
+          - generic:
+            - link:
+              - /url: /en/planning
+              - generic: ▤
+              - generic: Planning
+            - link:
+              - /url: /en/planning/carriers
+              - generic: F
+              - generic: Freight
+            - link:
+              - /url: /en/scheduler
+              - generic: ⧗
+              - generic: Scheduler
+            - link:
+              - /url: /en/production
+              - generic: ⚒
+              - generic: Production
+            - link:
+              - /url: /en/yard
+              - generic: "Y"
+              - generic: Yard
+            - link:
+              - /url: /en/warehouse
+              - generic: ▥
+              - generic: Warehouse
+            - link:
+              - /url: /en/scanner/home
+              - generic: 📱
+              - generic: Scanner
+        - generic:
+          - heading [level=2]: QA & Shipping
+          - generic:
+            - link:
+              - /url: /en/quality
+              - generic: ✓
+              - generic: Quality
+            - link:
+              - /url: /en/shipping
+              - generic: →
+              - generic: Shipping
+        - generic:
+          - heading [level=2]: Premium
+          - generic:
+            - link:
+              - /url: /en/technical
+              - generic: ▦
+              - generic: Technical
+            - link:
+              - /url: /en/pipeline
+              - generic: ★
+              - generic: NPD
+            - link:
+              - /url: /en/finance
+              - generic: $
+              - generic: Finance
+            - link:
+              - /url: /en/oee
+              - generic: ◉
+              - generic: OEE
+            - link:
+              - /url: /en/maintenance
+              - generic: 🔧
+              - generic: Maintenance
+        - generic:
+          - heading [level=2]: Analytics & Network
+          - generic:
+            - link:
+              - /url: /en/reporting
+              - generic: ▧
+              - generic: Reporting
+            - link:
+              - /url: /en/multi-site
+              - generic: ❖
+              - generic: Multi-Site
+    - main:
+      - generic:
+        - navigation:
+          - generic:
+            - generic:
+              - heading [level=2]: Organization
+              - generic:
+                - link:
+                  - /url: /en/settings/company
+                  - generic: ◆
+                  - generic: Company profile
+                - link:
+                  - /url: /en/settings/compliance
+                  - generic: ✓
+                  - generic: Compliance profile
+                - link:
+                  - /url: /en/settings/sites
+                  - generic: ▤
+                  - generic: Sites & lines
+                - link:
+                  - /url: /en/settings/infra/lines
+                  - generic: ≣
+                  - generic: Production lines
+                - link:
+                  - /url: /en/settings/infra/warehouses
+                  - generic: ▥
+                  - generic: Warehouses
+                - link:
+                  - /url: /en/settings/infra/locations
+                  - generic: ⌖
+                  - generic: Locations
+                - link:
+                  - /url: /en/settings/infra/printers
+                  - generic: 🖨
+                  - generic: Printers
+                - link:
+                  - /url: /en/settings/infra/docks
+                  - generic: ⚓
+                  - generic: Dock doors
+                - link:
+                  - /url: /en/settings/shifts
+                  - generic: ⧗
+                  - generic: Shifts & calendar
+                - link:
+                  - /url: /en/settings/labor-rates
+                  - generic: 💰
+                  - generic: Labor rates
+            - generic:
+              - heading [level=2]: Data
+              - generic:
+                - link:
+                  - /url: /en/settings/npd-fields
+                  - generic: ▦
+                  - generic: NPD fields
+                - link:
+                  - /url: /en/settings/npd-approval
+                  - generic: ✔
+                  - generic: Approval requirements
+                - link:
+                  - /url: /en/settings/npd-checklist
+                  - generic: ☑
+                  - generic: Gate checklists
+                - link:
+                  - /url: /en/settings/npd-cost-params
+                  - generic: £
+                  - generic: Cost parameters
+                - link:
+                  - /url: /en/settings/boms
+                  - generic: ⛓
+                  - generic: BOMs & recipes
+                - link:
+                  - /url: /en/settings/process-defaults
+                  - generic: ⟶
+                  - generic: Processes
+                - link:
+                  - /url: /en/settings/reference/manufacturing-operations
+                  - generic: ⚒
+                  - generic: └ Manufacturing operations
+                - link:
+                  - /url: /en/settings/reference/product-categories
+                  - generic: 🏷
+                  - generic: Product categories
+                - link:
+                  - /url: /en/settings/partners
+                  - generic: ↔
+                  - generic: Suppliers & customers
+                - link:
+                  - /url: /en/settings/customer-prices
+                  - generic: £
+                  - generic: Customer prices
+                - link:
+                  - /url: /en/settings/units
+                  - generic: ⚖
+                  - generic: Units & conversions
+                - link:
+                  - /url: /en/settings/quality/temp-ranges
+                  - generic: ❄
+                  - generic: Temperature ranges
+                - link:
+                  - /url: /en/settings/import-export
+                  - generic: ⇅
+                  - generic: Import / Export
+            - generic:
+              - heading [level=2]: Access
+              - generic:
+                - link:
+                  - /url: /en/settings/users
+                  - generic: ◉
+                  - generic: Users & roles
+                - link:
+                  - /url: /en/settings/security
+                  - generic: 🔒
+                  - generic: Security
+                - link:
+                  - /url: /en/settings/audit
+                  - generic: ◷
+                  - generic: Audit logs
+            - generic:
+              - heading [level=2]: Sign-off
+              - generic:
+                - link:
+                  - /url: /en/settings/signoff
+                  - generic: ✍
+                  - generic: Sign-off policies
+                - link:
+                  - /url: /en/settings/authorization
+                  - generic: 🛡
+                  - generic: Authorization policies
+                - link:
+                  - /url: /en/settings/scanner-auth
+                  - generic: 🔐
+                  - generic: Sign-off & PINs
+            - generic:
+              - heading [level=2]: Operations
+              - generic:
+                - link:
+                  - /url: /en/settings/devices
+                  - generic: 📱
+                  - generic: Scanner devices
+                - link:
+                  - /url: /en/settings/notifications
+                  - generic: ◔
+                  - generic: Notifications
+                - link:
+                  - /url: /en/settings/features
+                  - generic: ◨
+                  - generic: Feature flags
+            - generic:
+              - heading [level=2]: Integrations
+              - generic:
+                - link:
+                  - /url: /en/settings/integrations
+                  - generic: ⇄
+                  - generic: Integrations
+            - generic:
+              - heading [level=2]: Document templates
+              - generic:
+                - link:
+                  - /url: /en/settings/labels
+                  - generic: ▭
+                  - generic: Label templates
+                - link:
+                  - /url: /en/settings/documents
+                  - generic: №
+                  - generic: Document numbering
+            - generic:
+              - heading [level=2]: Onboarding
+              - generic:
+                - link:
+                  - /url: /en/settings/onboarding
+                  - generic: ✦
+                  - generic: Onboarding wizard
+            - generic:
+              - heading [level=2]: Admin
+              - generic:
+                - link:
+                  - /url: /en/settings/integrations/d365
+                  - generic: ⇆
+                  - generic: D365 connection
+                - link:
+                  - /url: /en/settings/integrations/d365/mapping
+                  - generic: ↔
+                  - generic: D365 field mapping
+                - link:
+                  - /url: /en/settings/integrations/d365/cost-import
+                  - generic: ⇣
+                  - generic: D365 cost import
+                - link:
+                  - /url: /en/settings/d365-dlq
+                  - generic: "!"
+                  - generic: D365 DLQ (shipping)
+                - link:
+                  - /url: /en/settings/rules
+                  - generic: ✦
+                  - generic: Rules registry
+                - link:
+                  - /url: /en/settings/flags
+                  - generic: ◨
+                  - generic: Feature flags (L)
+                - link:
+                  - /url: /en/settings/schema
+                  - generic: ▦
+                  - generic: Schema browser
+                - link:
+                  - /url: /en/settings/schema/new
+                  - generic: ✎
+                  - generic: └ Column wizard
+                - link:
+                  - /url: /en/settings/schema/migrations
+                  - generic: ⇣
+                  - generic: └ Migrations queue
+                - link:
+                  - /url: /en/settings/tenant
+                  - generic: ❖
+                  - generic: Tenant variations
+                - link:
+                  - /url: /en/settings/reference
+                  - generic: ⚙
+                  - generic: Reference data
+                - link:
+                  - /url: /en/settings/email
+                  - generic: ✉
+                  - generic: Email templates
+                - link:
+                  - /url: /en/settings/email/variables
+                  - generic: §
+                  - generic: Email variables
+                - link:
+                  - /url: /en/settings/ship-override-reasons
+                  - generic: ≡
+                  - generic: Shipping override reasons
+            - generic:
+              - heading [level=2]: My account
+              - generic:
+                - link:
+                  - /url: /en/account/profile
+                  - generic: ◯
+                  - generic: My profile
+                - link:
+                  - /url: /en/account/notifications
+                  - generic: ◔
+                  - generic: Notifications
+                - link:
+                  - /url: /en/account/pin
+                  - generic: ✱
+                  - generic: E-sign & scanner PIN
+        - main:
+          - main:
+            - generic:
+              - generic:
+                - heading [level=1]: Users & roles
+                - paragraph: 8 users · 25 role categories
+              - generic:
+                - button: Export
+                - button: + Invite user
+            - status: Invitation sent to night-r01-20260717-0548@monopilot.test.
+            - region:
+              - generic:
+                - generic: Active
+                - generic: "2"
+              - generic:
+                - generic: Invited
+                - generic: "3"
+              - generic:
+                - generic: Disabled
+                - generic: "3"
+              - generic:
+                - generic: Seats used
+                - generic:
+                  - text: 2 unlimited
+                  - generic: Seats used 2 unlimited
+            - region:
+              - generic:
+                - group:
+                  - button [pressed]: All
+                  - button: Admin
+                  - button: Manager
+                  - button: Operator
+                  - button: Viewer
+                - generic:
+                  - group:
+                    - button [pressed]: Table
+                    - button: Cards
+                  - generic:
+                    - generic: Search by name or email
+                    - generic:
+                      - searchbox
+              - generic:
+                - generic:
+                  - table:
+                    - rowgroup:
+                      - row:
+                        - columnheader
+                        - columnheader: Name
+                        - columnheader: Email
+                        - columnheader: Role
+                        - columnheader: Site
+                        - columnheader: MFA
+                        - columnheader: Last login
+                        - columnheader: Status
+                        - columnheader: Actions
+                    - rowgroup:
+                      - row:
+                        - cell
+                        - cell: Admin
+                        - cell: admin@monopilot.test
+                        - cell
+                        - cell
+                        - cell
+                        - cell: Never
+                        - cell
+                        - cell
+                      - row:
+                        - cell
+                        - cell: E2E R08 Signer
+                        - cell: e2e-r08-signer-20260711@monopilot.test
+                        - cell
+                        - cell
+                        - cell
+                        - cell: Never
+                        - cell
+                        - cell
+                      - row:
+                        - cell
+                        - cell: e2e-f42@test.local
+                        - cell: e2e-f42@test.local
+                        - cell
+                        - cell
+                        - cell
+                        - cell: Never
+                        - cell
+                        - cell
+                      - row:
+                        - cell
+                        - cell: e2e-f4r-inv@test.local
+                        - cell: e2e-f4r-inv@test.local
+                        - cell
+                        - cell
+                        - cell
+                        - cell: Never
+                        - cell
+                        - cell
+                      - row:
+                        - cell
+                        - cell: e2e-f4r@test.local
+                        - cell: e2e-f4r@test.local
+                        - cell
+                        - cell
+                        - cell
+                        - cell: Never
+                        - cell
+                        - cell
+                      - row:
+                        - cell
+                        - cell: NIGHT-R01-20260717-0548
+                        - cell: night-r01-20260717-0548@monopilot.test
+                        - cell
+                        - cell
+                        - cell
+                        - cell: Never
+                        - cell
+                        - cell
+                      - row:
+                        - cell
+                        - cell: SOL-R01-20260715-0512-USER
+                        - cell: sol-r01-20260715-0512-user@monopilot.test
+                        - cell
+                        - cell
+                        - cell
+                        - cell: Never
+                        - cell
+                        - cell
+                      - row:
+                        - cell
+                        - cell: SOL-R01-DUPLICATE
+                        - cell: sol-r01-20260715-0511-inv@monopilot.test
+                        - cell
+                        - cell
+                        - cell
+                        - cell: Never
+                        - cell
+                        - cell
+            - generic:
+              - heading [level=2]: Role permissions
+              - paragraph: What each role can do across modules. Edit by clicking a cell.
+              - generic:
+                - table:
+                  - rowgroup:
+                    - row:
+                      - columnheader: Module
+                      - columnheader: org.access.admin
+                      - columnheader: org.platform.admin
+                      - columnheader: org.schema.admin
+                      - columnheader: E2E-F3 Test Role
+                      - columnheader: NPD Manager
+                      - columnheader: Core User
+                      - columnheader: Department Manager
+                      - columnheader: Department User
+                      - columnheader: Admin
+                      - columnheader: Viewer
+                      - columnheader: Technical Lead
+                      - columnheader: Quality Lead
+                      - columnheader: QA Inspector
+                      - columnheader: Hygiene Lead
+                      - columnheader: Production Manager
+                      - columnheader: Shift Lead
+                      - columnheader: Line Operator
+                      - columnheader: Warehouse Operator
+                      - columnheader: Planner
+                      - columnheader: Buyer
+                      - columnheader: Maintenance Technician
+                      - columnheader: Finance Clerk
+                      - columnheader: Finance Manager
+                      - columnheader: Shipping Coordinator
+                      - columnheader: Shipping Manager
+                  - rowgroup:
+                    - row:
+                      - cell: Org
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                    - row:
+                      - cell: Fg
+                      - cell:
+                        - generic: ✎
+                      - cell:
+                        - generic: ✎
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: ✎
+                      - cell:
+                        - generic: ✎
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: ✎
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                    - row:
+                      - cell: Brief
+                      - cell:
+                        - generic: ✎
+                      - cell:
+                        - generic: ✎
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: ✎
+                      - cell:
+                        - generic: ✎
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: ✎
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                    - row:
+                      - cell: Ref
+                      - cell:
+                        - generic: ✎
+                      - cell:
+                        - generic: ✎
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: ✎
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                    - row:
+                      - cell: Audit
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                    - row:
+                      - cell: Outbox
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                    - row:
+                      - cell: Impersonate
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                    - row:
+                      - cell: Settings
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                    - row:
+                      - cell: Npd
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: ✎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ✎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                    - row:
+                      - cell: Technical
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                    - row:
+                      - cell: Gdpr
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                    - row:
+                      - cell: Production
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: ✎
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                    - row:
+                      - cell: Warehouse
+                      - cell:
+                        - generic: ✎
+                      - cell:
+                        - generic: ✎
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ✎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ✎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                    - row:
+                      - cell: Quality
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: ✎
+                      - cell:
+                        - generic: ✎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                    - row:
+                      - cell: Fin
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                    - row:
+                      - cell: Mnt
+                      - cell:
+                        - generic: ✎
+                      - cell:
+                        - generic: ✎
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ✎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ✎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                    - row:
+                      - cell: Oee
+                      - cell:
+                        - generic: ✎
+                      - cell:
+                        - generic: ✎
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ✎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                    - row:
+                      - cell: Ship
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ✎
+                      - cell:
+                        - generic: ◉
+                    - row:
+                      - cell: Rpt
+                      - cell:
+                        - generic: ✎
+                      - cell:
+                        - generic: ✎
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: ✎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                    - row:
+                      - cell: Multi Site
+                      - cell:
+                        - generic: ✎
+                      - cell:
+                        - generic: ✎
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: ✎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                    - row:
+                      - cell: Scheduler
+                      - cell:
+                        - generic: ✎
+                      - cell:
+                        - generic: ✎
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ✎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ✎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                      - cell:
+                        - generic: ◎
+                    - row:
+                      - cell: Planning
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                    - row:
+                      - cell: Yard
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                    - row:
+                      - cell: Freight
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: ◉
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+                      - cell:
+                        - generic: –
+              - generic:
+                - generic:
+                  - generic: ◉
+                  - text: Full admin
+                - generic:
+                  - generic: ✎
+                  - text: Read & write
+                - generic:
+                  - generic: ◎
+                  - text: Read only
+                - generic:
+                  - generic: –
+                  - text: No access
+  - alert
+  - dialog [ref=f5e1908]:
+    - generic [ref=f5e1909]:
+      - heading "Assign sites" [level=2] [ref=f5e1910]
+      - button "Close" [active] [ref=f5e1911] [cursor=pointer]: ✕
+    - paragraph [ref=f5e1912]: Choose which sites this user can see and select.
+    - generic [ref=f5e1913]:
+      - generic [ref=f5e1915]:
+        - generic [ref=f5e1917]:
+          - generic [ref=f5e1918]: NI
+          - generic [ref=f5e1919]:
+            - generic [ref=f5e1920]: NIGHT-R01-20260717-0548
+            - generic [ref=f5e1921]: night-r01-20260717-0548@monopilot.test
+        - group "Assign sites" [ref=f5e1922]:
+          - generic [ref=f5e1924]:
+            - checkbox "tester1" [ref=f5e1925]
+            - generic [ref=f5e1926]: tester1
+          - generic [ref=f5e1927]:
+            - checkbox "CODEX-R14 SITE" [ref=f5e1928]
+            - generic [ref=f5e1929]: CODEX-R14 SITE
+          - generic [ref=f5e1930]:
+            - checkbox "Main Factory" [ref=f5e1931]
+            - generic [ref=f5e1932]: Main Factory
+          - generic [ref=f5e1933]:
+            - checkbox "makery" [ref=f5e1934]
+            - generic [ref=f5e1935]: makery
+          - generic [ref=f5e1936]:
+            - checkbox "SOL-R02 Site 0539 Edited" [ref=f5e1937]
+            - generic [ref=f5e1938]: SOL-R02 Site 0539 Edited
+          - generic [ref=f5e1939]:
+            - checkbox "warehouse 1" [ref=f5e1940]
+            - generic [ref=f5e1941]: warehouse 1
+        - paragraph [ref=f5e1942]: No sites selected — the user can see ALL sites (unrestricted).
+      - generic [ref=f5e1944]:
+        - button "Cancel" [ref=f5e1945] [cursor=pointer]
+        - button "Save sites" [ref=f5e1946] [cursor=pointer]

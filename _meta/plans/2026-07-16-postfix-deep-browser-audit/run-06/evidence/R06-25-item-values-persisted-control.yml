@@ -1,0 +1,298 @@
+- generic [active] [ref=f131e1]:
+  - generic [ref=f131e2]:
+    - banner [ref=f131e4]:
+      - generic "MonoPilot MES" [ref=f131e5]
+      - searchbox "Search settings…" [ref=f131e7]
+      - generic [ref=f131e8]:
+        - button "Switch organization (platform admin)" [ref=f131e10] [cursor=pointer]:
+          - generic [ref=f131e11]: A2
+          - generic [ref=f131e12]: "000000000000"
+          - generic [ref=f131e13]: Apex 22
+          - generic [ref=f131e14]: ▼
+        - generic "Filters work orders, license plates and OEE only — other screens stay org-wide" [ref=f131e15]:
+          - generic [ref=f131e16]: Site
+          - combobox "Site" [ref=f131e17] [cursor=pointer]:
+            - option "All sites" [selected]
+            - option "tester1"
+            - option "CODEX-R14 SITE"
+            - option "Main Factory"
+            - option "makery"
+            - option "SOL-R02 Site 0539 Edited"
+            - option "warehouse 1"
+        - button "Notifications" [ref=f131e19]
+        - button "Open user menu for Apex Admin" [ref=f131e24]: AA
+    - navigation "Primary" [ref=f131e25]:
+      - generic [ref=f131e26]:
+        - generic [ref=f131e27]:
+          - heading "Core" [level=2] [ref=f131e28]
+          - generic [ref=f131e29]:
+            - link "Dashboard" [ref=f131e30] [cursor=pointer]:
+              - /url: /en/dashboard
+              - generic [ref=f131e31]: ◆
+            - link "Settings" [ref=f131e34] [cursor=pointer]:
+              - /url: /en/settings
+              - generic [ref=f131e35]: ⚙
+        - generic [ref=f131e38]:
+          - heading "Operations" [level=2] [ref=f131e39]
+          - generic [ref=f131e40]:
+            - link "Planning" [ref=f131e41] [cursor=pointer]:
+              - /url: /en/planning
+              - generic [ref=f131e42]: ▤
+            - link "Freight" [ref=f131e45] [cursor=pointer]:
+              - /url: /en/planning/carriers
+              - generic [ref=f131e46]: F
+            - link "Scheduler" [ref=f131e49] [cursor=pointer]:
+              - /url: /en/scheduler
+              - generic [ref=f131e50]: ⧗
+            - link "Production" [ref=f131e53] [cursor=pointer]:
+              - /url: /en/production
+              - generic [ref=f131e54]: ⚒
+            - link "Yard" [ref=f131e57] [cursor=pointer]:
+              - /url: /en/yard
+              - generic [ref=f131e58]: "Y"
+            - link "Warehouse" [ref=f131e61] [cursor=pointer]:
+              - /url: /en/warehouse
+              - generic [ref=f131e62]: ▥
+            - link "Scanner" [ref=f131e65] [cursor=pointer]:
+              - /url: /en/scanner/home
+              - generic [ref=f131e66]: 📱
+        - generic [ref=f131e69]:
+          - heading "QA & Shipping" [level=2] [ref=f131e70]
+          - generic [ref=f131e71]:
+            - link "Quality" [ref=f131e72] [cursor=pointer]:
+              - /url: /en/quality
+              - generic [ref=f131e73]: ✓
+            - link "Shipping" [ref=f131e76] [cursor=pointer]:
+              - /url: /en/shipping
+              - generic [ref=f131e77]: →
+        - generic [ref=f131e80]:
+          - heading "Premium" [level=2] [ref=f131e81]
+          - generic [ref=f131e82]:
+            - link "Technical" [ref=f131e83] [cursor=pointer]:
+              - /url: /en/technical
+              - generic [ref=f131e84]: ▦
+            - link "NPD" [ref=f131e87] [cursor=pointer]:
+              - /url: /en/pipeline
+              - generic [ref=f131e88]: ★
+            - link "Finance" [ref=f131e91] [cursor=pointer]:
+              - /url: /en/finance
+              - generic [ref=f131e92]: $
+            - link "OEE" [ref=f131e95] [cursor=pointer]:
+              - /url: /en/oee
+              - generic [ref=f131e96]: ◉
+            - link "Maintenance" [ref=f131e99] [cursor=pointer]:
+              - /url: /en/maintenance
+              - generic [ref=f131e100]: 🔧
+        - generic [ref=f131e103]:
+          - heading "Analytics & Network" [level=2] [ref=f131e104]
+          - generic [ref=f131e105]:
+            - link "Reporting" [ref=f131e106] [cursor=pointer]:
+              - /url: /en/reporting
+              - generic [ref=f131e107]: ▧
+            - link "Multi-Site" [ref=f131e110] [cursor=pointer]:
+              - /url: /en/multi-site
+              - generic [ref=f131e111]: ❖
+    - main [ref=f131e114]:
+      - generic [ref=f131e115]:
+        - navigation "Technical" [ref=f131e116]:
+          - generic [ref=f131e117]:
+            - generic [ref=f131e118]:
+              - heading "Overview" [level=2] [ref=f131e119]
+              - link "Dashboard" [ref=f131e121] [cursor=pointer]:
+                - /url: /en/technical
+                - generic [ref=f131e122]: ◇
+            - generic [ref=f131e124]:
+              - heading "Products" [level=2] [ref=f131e125]
+              - generic [ref=f131e126]:
+                - link "Products" [ref=f131e127] [cursor=pointer]:
+                  - /url: /en/technical/items
+                  - generic [ref=f131e128]: ◈
+                - link "Materials" [ref=f131e130] [cursor=pointer]:
+                  - /url: /en/technical/materials
+                  - generic [ref=f131e131]: ⬢
+                - link "BOMs & recipes" [ref=f131e133] [cursor=pointer]:
+                  - /url: /en/technical/bom
+                  - generic [ref=f131e134]: ▦
+                - link "Product specifications" [ref=f131e136] [cursor=pointer]:
+                  - /url: /en/technical/factory-specs
+                  - generic [ref=f131e137]: ☰
+                - link "Nutrition panel" [ref=f131e139] [cursor=pointer]:
+                  - /url: /en/technical/nutrition
+                  - generic [ref=f131e140]: ♥
+                - link "Allergen matrix" [ref=f131e142] [cursor=pointer]:
+                  - /url: /en/technical/allergens-config
+                  - generic [ref=f131e143]: "!"
+                - link "Shelf life" [ref=f131e145] [cursor=pointer]:
+                  - /url: /en/technical/shelf-life
+                  - generic [ref=f131e146]: ⧗
+            - generic [ref=f131e148]:
+              - heading "Cost & trace" [level=2] [ref=f131e149]
+              - generic [ref=f131e150]:
+                - link "Recipe costing" [ref=f131e151] [cursor=pointer]:
+                  - /url: /en/technical/cost
+                  - generic [ref=f131e152]: $
+                - link "Cost history" [ref=f131e154] [cursor=pointer]:
+                  - /url: /en/technical/cost/history
+                  - generic [ref=f131e155]: ∿
+                - link "Traceability search" [ref=f131e157] [cursor=pointer]:
+                  - /url: /en/technical/traceability
+                  - generic [ref=f131e158]: ⌕
+                - link "Where-used" [ref=f131e160] [cursor=pointer]:
+                  - /url: /en/technical/where-used
+                  - generic [ref=f131e161]: ↤
+                - link "Portfolio cost" [ref=f131e163] [cursor=pointer]:
+                  - /url: /en/technical/cost/portfolio
+                  - generic [ref=f131e164]: ▣
+            - generic [ref=f131e166]:
+              - heading "Process" [level=2] [ref=f131e167]
+              - generic [ref=f131e168]:
+                - link "Routings" [ref=f131e169] [cursor=pointer]:
+                  - /url: /en/technical/routings
+                  - generic [ref=f131e170]: →
+                - link "WIP library" [ref=f131e172] [cursor=pointer]:
+                  - /url: /en/technical/wip-library
+                  - generic [ref=f131e173]: ⚗
+                - link "Tooling" [ref=f131e175] [cursor=pointer]:
+                  - /url: /en/technical/tooling
+                  - generic [ref=f131e176]: ⚙
+            - generic [ref=f131e178]:
+              - heading "Compliance" [level=2] [ref=f131e179]
+              - generic [ref=f131e180]:
+                - link "Allergen cascade" [ref=f131e181] [cursor=pointer]:
+                  - /url: /en/technical/allergens/cascade
+                  - generic [ref=f131e182]: ⇣
+                - link "Process additions" [ref=f131e184] [cursor=pointer]:
+                  - /url: /en/technical/allergens/process-additions
+                  - generic [ref=f131e185]: ⊕
+                - link "Contamination risk" [ref=f131e187] [cursor=pointer]:
+                  - /url: /en/technical/allergens/contamination-risk
+                  - generic [ref=f131e188]: ▦
+                - link "Sensory" [ref=f131e190] [cursor=pointer]:
+                  - /url: /en/technical/sensory
+                  - generic [ref=f131e191]: ◐
+                - link "Lab results" [ref=f131e193] [cursor=pointer]:
+                  - /url: /en/technical/lab-results
+                  - generic [ref=f131e194]: 🧪
+                - link "Compliance" [ref=f131e196] [cursor=pointer]:
+                  - /url: /en/technical/compliance
+                  - generic [ref=f131e197]: ✅
+                - link "Change control (ECO)" [ref=f131e199] [cursor=pointer]:
+                  - /url: /en/technical/eco
+                  - generic [ref=f131e200]: Δ
+                - link "Revision history" [ref=f131e202] [cursor=pointer]:
+                  - /url: /en/technical/revisions
+                  - generic [ref=f131e203]: ↺
+        - main [ref=f131e205]:
+          - main [ref=f131e206]:
+            - navigation "Breadcrumb" [ref=f131e207]:
+              - link "Items" [ref=f131e208] [cursor=pointer]:
+                - /url: ../items
+              - text: / NIGHT-R06-VAL-1241
+            - generic [ref=f131e209]:
+              - generic [ref=f131e210]:
+                - heading "NIGHT-R06-VAL-1241 · NIGHT R06 Value Persistence 1241 Active" [level=1] [ref=f131e211]:
+                  - generic [ref=f131e212]: NIGHT-R06-VAL-1241
+                  - generic [ref=f131e213]: ·
+                  - generic [ref=f131e214]: NIGHT R06 Value Persistence 1241
+                  - generic [ref=f131e215]: Active
+                - paragraph [ref=f131e216]: Technical master for Finished good. Used in BOMs, NPD components and customer specs.
+              - generic [ref=f131e217]:
+                - button "Deprecate" [ref=f131e218] [cursor=pointer]
+                - button "Edit" [ref=f131e219] [cursor=pointer]
+                - button "Deactivate" [ref=f131e220] [cursor=pointer]
+            - region "Item NIGHT-R06-VAL-1241 sections" [ref=f131e221]:
+              - generic [ref=f131e222]:
+                - tablist "Item detail sections" [ref=f131e223]:
+                  - tab "Overview" [selected] [ref=f131e224] [cursor=pointer]
+                  - tab "BOM" [ref=f131e225] [cursor=pointer]
+                  - tab "Allergens" [ref=f131e226] [cursor=pointer]
+                  - tab "Nutrition" [ref=f131e227] [cursor=pointer]
+                  - tab "Cost history" [ref=f131e228] [cursor=pointer]
+                  - tab "Routing" [ref=f131e229] [cursor=pointer]
+                  - tab "Supplier specs" [ref=f131e230] [cursor=pointer]
+                  - tab "Lab results" [ref=f131e231] [cursor=pointer]
+                  - tab "D365 status" [ref=f131e232] [cursor=pointer]
+                - tabpanel "Overview" [ref=f131e233]:
+                  - generic [ref=f131e235]:
+                    - generic [ref=f131e236]:
+                      - strong [ref=f131e237]: Identification
+                      - generic [ref=f131e238]:
+                        - generic [ref=f131e239]:
+                          - term [ref=f131e240]: Code
+                          - definition [ref=f131e241]: NIGHT-R06-VAL-1241
+                        - generic [ref=f131e242]:
+                          - term [ref=f131e243]: Name
+                          - definition [ref=f131e244]: NIGHT R06 Value Persistence 1241
+                        - generic [ref=f131e245]:
+                          - term [ref=f131e246]: Type
+                          - definition [ref=f131e247]: Finished good
+                        - generic [ref=f131e248]:
+                          - term [ref=f131e249]: Status
+                          - definition [ref=f131e250]: Active
+                        - generic [ref=f131e251]:
+                          - term [ref=f131e252]: Product group
+                          - definition [ref=f131e253]: NIGHT-R06
+                        - generic [ref=f131e254]:
+                          - term [ref=f131e255]: Description
+                          - definition [ref=f131e256]: RUN06 reproduce shelf life and list price persistence
+                        - generic [ref=f131e257]:
+                          - term [ref=f131e258]: GS1 GTIN
+                          - definition [ref=f131e259]: —
+                    - generic [ref=f131e260]:
+                      - strong [ref=f131e261]: Commercial & weight
+                      - generic [ref=f131e262]:
+                        - generic [ref=f131e263]:
+                          - term [ref=f131e264]: Base UoM
+                          - definition [ref=f131e265]: kg
+                        - generic [ref=f131e266]:
+                          - term [ref=f131e267]: Secondary UoM
+                          - definition [ref=f131e268]: —
+                        - generic [ref=f131e269]:
+                          - term [ref=f131e270]: Output unit
+                          - definition [ref=f131e271]: Base unit
+                        - generic [ref=f131e272]:
+                          - term [ref=f131e273]: Pack hierarchy
+                          - definition [ref=f131e274]: —
+                        - generic [ref=f131e275]:
+                          - term [ref=f131e276]: Net content per each
+                          - definition [ref=f131e277]: —
+                        - generic [ref=f131e278]:
+                          - term [ref=f131e279]: Each per box
+                          - definition [ref=f131e280]: —
+                        - generic [ref=f131e281]:
+                          - term [ref=f131e282]: Boxes per pallet
+                          - definition [ref=f131e283]: —
+                        - generic [ref=f131e284]:
+                          - term [ref=f131e285]: Effective cost (source)
+                          - definition [ref=f131e286]: 4.321 GBP (List price)
+                        - generic [ref=f131e287]:
+                          - term [ref=f131e288]: Standard cost
+                          - definition [ref=f131e289]: —
+                        - generic [ref=f131e290]:
+                          - term [ref=f131e291]: Supplier price (buy)
+                          - definition [ref=f131e292]: —
+                        - generic [ref=f131e293]:
+                          - term [ref=f131e294]: Sell price (list)
+                          - definition [ref=f131e295]: "4.321"
+                        - generic [ref=f131e296]:
+                          - term [ref=f131e297]: Weight mode
+                          - definition [ref=f131e298]: fixed
+                        - generic [ref=f131e299]:
+                          - term [ref=f131e300]: Nominal weight
+                          - definition [ref=f131e301]: —
+                        - generic [ref=f131e302]:
+                          - term [ref=f131e303]: Tare weight
+                          - definition [ref=f131e304]: —
+                        - generic [ref=f131e305]:
+                          - term [ref=f131e306]: Gross weight max
+                          - definition [ref=f131e307]: —
+                        - generic [ref=f131e308]:
+                          - term [ref=f131e309]: Variance tolerance
+                          - definition [ref=f131e310]: —
+                        - generic [ref=f131e311]:
+                          - term [ref=f131e312]: Shelf life
+                          - definition [ref=f131e313]: 19 d (best_before)
+                        - generic [ref=f131e314]:
+                          - term [ref=f131e315]: Updated
+                          - definition [ref=f131e316]: 2026-07-17
+  - alert [ref=f131e317]

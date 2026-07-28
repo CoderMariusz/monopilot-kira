@@ -1,0 +1,45 @@
+- generic [ref=f1e1] [box=0,0,1185,908]:
+  - main [ref=f1e2] [box=0,0,1185,908]:
+    - application "MonoPilot Scanner" [ref=f1e3] [box=398,32,390,844]:
+      - generic [ref=f1e4] [box=398,32,390,44]:
+        - generic [ref=f1e5] [box=424,45,37,18]: 09:18
+        - generic [ref=f1e6] [box=566,46,80,15]: MonoPilot MES
+        - generic "Online" [ref=f1e7] [box=752,50,8,8]
+      - generic [ref=f1e86] [box=398,76,390,756]:
+        - generic [ref=f1e87] [box=398,76,390,56]:
+          - button [disabled] [ref=f1e88] [cursor=pointer] [box=404,82,44,44]: ·
+          - generic [ref=f1e89] [box=452,93,270,21]: Sign in
+          - 'status "Sync status: ONLINE" [ref=f1e90] [box=726,94,56,20]': ONLINE
+        - generic [ref=f1e91] [box=398,132,390,532]:
+          - generic [ref=f1e92] [box=398,132,375,151]:
+            - generic [ref=f1e93] [box=418,160,335,62]: 🏭
+            - generic [ref=f1e94] [box=418,228,335,31]: MonoPilot
+            - generic [ref=f1e95] [box=418,258,335,17]: Scanner · MES System
+          - generic [ref=f1e96] [box=398,283,375,87]:
+            - generic [ref=f1e97] [box=414,291,343,15]: Email / Login
+            - textbox "Email / Login" [invalid] [ref=f1e98] [box=414,313,343,50]:
+              - /placeholder: name@company.com
+              - text: "[REDACTED AUTHORIZED TEST LOGIN]"
+          - generic [ref=f1e99] [box=398,371,375,48]:
+            - generic [ref=f1e100] [box=414,379,343,18]: Enter your 4–6 digit PIN
+            - group "PIN" [ref=f1e101] [box=414,405,343,14]
+          - generic [ref=f1e108] [box=398,427,375,280]:
+            - button "1" [ref=f1e109] [cursor=pointer] [box=414,439,109,58]
+            - button "2" [ref=f1e110] [cursor=pointer] [box=531,439,109,58]
+            - button "3" [ref=f1e111] [cursor=pointer] [box=648,439,109,58]
+            - button "4" [ref=f1e112] [cursor=pointer] [box=414,505,109,58]
+            - button "5" [ref=f1e113] [cursor=pointer] [box=531,505,109,58]
+            - button "6" [ref=f1e114] [cursor=pointer] [box=648,505,109,58]
+            - button "7" [ref=f1e115] [cursor=pointer] [box=414,571,109,58]
+            - button "8" [ref=f1e116] [cursor=pointer] [box=531,571,109,58]
+            - button "9" [ref=f1e117] [cursor=pointer] [box=648,571,109,58]
+            - button "0" [ref=f1e119] [cursor=pointer] [box=531,637,109,58]
+            - button "Delete" [ref=f1e120] [cursor=pointer] [box=648,637,109,58]: ⌫
+          - generic [ref=f1e121] [box=398,707,375,42]: v3.0 · MonoPilot MES
+        - alert [active] [ref=f1e126] [box=398,664,390,41]:
+          - text: ✗
+          - generic [ref=f1e127] [box=398,683,390,20]: Invalid email or PIN.
+        - generic [ref=f1e123] [box=398,709,390,123]:
+          - button "Sign in →" [disabled] [ref=f1e124] [box=414,720,358,50]
+          - button "First time? Set up your PIN" [ref=f1e125] [cursor=pointer] [box=414,778,358,44]
+  - alert [ref=f1e85] [box=-1,907,1,1]

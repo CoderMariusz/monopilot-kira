@@ -1,0 +1,145 @@
+- generic [active] [ref=f15e1]:
+  - generic [ref=f15e2]:
+    - banner [ref=f15e4]:
+      - generic "MonoPilot MES" [ref=f15e5]
+      - searchbox "Search settings…" [ref=f15e7]
+      - generic [ref=f15e8]:
+        - button "Switch organization (platform admin)" [ref=f15e10] [cursor=pointer]:
+          - generic [ref=f15e11]: A2
+          - generic [ref=f15e12]: "000000000000"
+          - generic [ref=f15e13]: Apex 22
+          - generic [ref=f15e14]: ▼
+        - generic "Filters work orders, license plates and OEE only — other screens stay org-wide" [ref=f15e15]:
+          - generic [ref=f15e16]: Site
+          - combobox "Site" [ref=f15e17] [cursor=pointer]:
+            - option "All sites"
+            - option "tester1"
+            - option "CODEX-R14 SITE"
+            - option "Main Factory" [selected]
+            - option "makery"
+            - option "SOL-R02 Site 0539 Edited"
+            - option "warehouse 1"
+        - button "Notifications" [ref=f15e19]
+        - button "Open user menu for Apex Admin" [ref=f15e24]: AA
+    - navigation "Primary" [ref=f15e25]:
+      - generic [ref=f15e26]:
+        - generic [ref=f15e27]:
+          - heading "Core" [level=2] [ref=f15e28]
+          - generic [ref=f15e29]:
+            - link "Dashboard" [ref=f15e30] [cursor=pointer]:
+              - /url: /en/dashboard
+              - generic [ref=f15e31]: ◆
+            - link "Settings" [ref=f15e34] [cursor=pointer]:
+              - /url: /en/settings
+              - generic [ref=f15e35]: ⚙
+        - generic [ref=f15e38]:
+          - heading "Operations" [level=2] [ref=f15e39]
+          - generic [ref=f15e40]:
+            - link "Planning" [ref=f15e41] [cursor=pointer]:
+              - /url: /en/planning
+              - generic [ref=f15e42]: ▤
+            - link "Freight" [ref=f15e45] [cursor=pointer]:
+              - /url: /en/planning/carriers
+              - generic [ref=f15e46]: F
+            - link "Scheduler" [ref=f15e49] [cursor=pointer]:
+              - /url: /en/scheduler
+              - generic [ref=f15e50]: ⧗
+            - link "Production" [ref=f15e53] [cursor=pointer]:
+              - /url: /en/production
+              - generic [ref=f15e54]: ⚒
+            - link "Yard" [ref=f15e57] [cursor=pointer]:
+              - /url: /en/yard
+              - generic [ref=f15e58]: "Y"
+            - link "Warehouse" [ref=f15e61] [cursor=pointer]:
+              - /url: /en/warehouse
+              - generic [ref=f15e62]: ▥
+            - link "Scanner" [ref=f15e65] [cursor=pointer]:
+              - /url: /en/scanner/home
+              - generic [ref=f15e66]: 📱
+        - generic [ref=f15e69]:
+          - heading "QA & Shipping" [level=2] [ref=f15e70]
+          - generic [ref=f15e71]:
+            - link "Quality" [ref=f15e72] [cursor=pointer]:
+              - /url: /en/quality
+              - generic [ref=f15e73]: ✓
+            - link "Shipping" [ref=f15e76] [cursor=pointer]:
+              - /url: /en/shipping
+              - generic [ref=f15e77]: →
+        - generic [ref=f15e80]:
+          - heading "Premium" [level=2] [ref=f15e81]
+          - generic [ref=f15e82]:
+            - link "Technical" [ref=f15e83] [cursor=pointer]:
+              - /url: /en/technical
+              - generic [ref=f15e84]: ▦
+            - link "NPD" [ref=f15e87] [cursor=pointer]:
+              - /url: /en/pipeline
+              - generic [ref=f15e88]: ★
+            - link "Finance" [ref=f15e91] [cursor=pointer]:
+              - /url: /en/finance
+              - generic [ref=f15e92]: $
+            - link "OEE" [ref=f15e95] [cursor=pointer]:
+              - /url: /en/oee
+              - generic [ref=f15e96]: ◉
+            - link "Maintenance" [ref=f15e99] [cursor=pointer]:
+              - /url: /en/maintenance
+              - generic [ref=f15e100]: 🔧
+        - generic [ref=f15e103]:
+          - heading "Analytics & Network" [level=2] [ref=f15e104]
+          - generic [ref=f15e105]:
+            - link "Reporting" [ref=f15e106] [cursor=pointer]:
+              - /url: /en/reporting
+              - generic [ref=f15e107]: ▧
+            - link "Multi-Site" [ref=f15e110] [cursor=pointer]:
+              - /url: /en/multi-site
+              - generic [ref=f15e111]: ❖
+    - main [ref=f15e114]:
+      - main [ref=f15e115]:
+        - generic [ref=f15e117]:
+          - navigation "Breadcrumb" [ref=f15e118]:
+            - list [ref=f15e119]:
+              - listitem [ref=f15e120]:
+                - link "Planning" [ref=f15e121] [cursor=pointer]:
+                  - /url: /en/planning
+              - listitem [ref=f15e122]:
+                - generic [ref=f15e123]: /
+                - link "Transfer orders" [ref=f15e124] [cursor=pointer]:
+                  - /url: /en/planning/transfer-orders
+              - listitem [ref=f15e125]:
+                - generic [ref=f15e126]: /
+                - generic [ref=f15e127]: Detail
+          - heading "Transfer order" [level=1] [ref=f15e129]
+        - generic [ref=f15e134]:
+          - generic [ref=f15e135]:
+            - generic [ref=f15e136]:
+              - generic [ref=f15e137]:
+                - generic [ref=f15e138]
+                - paragraph [ref=f15e142]: "Scheduled date: Jul 20, 2026 · 2 to lines"
+              - generic [ref=f15e143]: No further status actions available.
+            - generic [ref=f15e145]:
+              - generic [ref=f15e146]:
+                - generic [ref=f15e147]: TO lines · 2
+                - table [ref=f15e149]
+              - generic [ref=f15e176]:
+                - heading "TO summary" [level=3] [ref=f15e177]
+                - generic [ref=f15e178]
+          - group [ref=f15e203]:
+            - generic "History Read-only audit trail for this document." [ref=f15e204] [cursor=pointer]:
+              - generic [ref=f15e205]:
+                - generic [ref=f15e206]
+                - generic [ref=f15e209]: ▾
+            - list "History" [ref=f15e212]:
+              - listitem [ref=f15e213]:
+                - generic [ref=f15e214]
+              - listitem [ref=f15e222]:
+                - generic [ref=f15e223]
+              - listitem [ref=f15e231]:
+                - generic [ref=f15e232]
+              - listitem [ref=f15e240]:
+                - generic [ref=f15e241]
+              - listitem [ref=f15e249]:
+                - generic [ref=f15e250]
+              - listitem [ref=f15e258]:
+                - generic [ref=f15e259]
+              - listitem [ref=f15e267]:
+                - generic [ref=f15e268]
+  - alert [ref=f15e133]

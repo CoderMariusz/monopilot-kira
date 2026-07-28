@@ -1,0 +1,113 @@
+- generic [ref=f12e116]:
+  - generic [ref=f12e117]:
+    - generic [ref=f12e118]:
+      - generic [ref=f12e119]:
+        - link "← Back to license plates" [ref=f12e120] [cursor=pointer]:
+          - /url: /en/warehouse/license-plates
+        - heading "LP-1784311327233-1IIY Wheat Flour" [level=1] [ref=f12e121]:
+          - generic [ref=f12e122]: LP-1784311327233-1IIY
+          - generic [ref=f12e123]: Wheat Flour
+        - paragraph [ref=f12e124]: 6.125000 kg · Batch NIGHT-R10-BATCH-174328 · Expiry 2027-07-18
+      - generic [ref=f12e125]:
+        - generic [ref=f12e126]: Available
+        - generic [ref=f12e127]: Released
+    - generic [ref=f12e128]:
+      - generic [ref=f12e129]:
+        - heading "Identity" [level=2] [ref=f12e130]
+        - generic [ref=f12e131]:
+          - generic [ref=f12e132]: Product
+          - generic [ref=f12e133]:
+            - text: ING-FLOUR
+            - generic [ref=f12e134]: — Wheat Flour
+        - generic [ref=f12e135]:
+          - generic [ref=f12e136]: Quantity
+          - generic [ref=f12e137]: 6.125000 kg
+        - generic [ref=f12e139]:
+          - generic [ref=f12e140]: Available
+          - generic [ref=f12e141]: 6.125000 kg
+        - generic [ref=f12e143]:
+          - generic [ref=f12e144]: Batch
+          - generic [ref=f12e145]: NIGHT-R10-BATCH-174328
+        - generic [ref=f12e146]:
+          - generic [ref=f12e147]: Supplier batch
+          - generic [ref=f12e148]: —
+        - generic [ref=f12e149]:
+          - generic [ref=f12e150]: Expiry date
+          - generic [ref=f12e151]: 2027-07-18
+        - generic [ref=f12e152]:
+          - generic [ref=f12e153]: Best before
+          - generic [ref=f12e154]: 2027-07-18
+        - generic [ref=f12e155]:
+          - generic [ref=f12e156]: Location
+          - generic [ref=f12e157]: —
+        - generic [ref=f12e158]:
+          - generic [ref=f12e159]: Warehouse
+          - generic [ref=f12e160]:
+            - text: BAKERY
+            - generic [ref=f12e161]: — Bakery
+        - generic [ref=f12e162]:
+          - generic [ref=f12e163]: Source
+          - generic [ref=f12e164]: transfer
+        - generic [ref=f12e165]:
+          - generic [ref=f12e166]: Parent LP
+          - link "LP-1784310651421-D2PF" [ref=f12e168] [cursor=pointer]:
+            - /url: /en/warehouse/license-plates/81ba864d-113c-487c-a9ea-2af634e3a531
+        - generic [ref=f12e169]:
+          - button "Split" [ref=f12e170]
+          - button "Merge" [ref=f12e171]
+          - button "Change QA status" [disabled] [ref=f12e172]
+          - button "Reserve" [ref=f12e173]
+          - button "Move" [ref=f12e174]
+          - button "Block" [ref=f12e175]
+          - button "Destroy / scrap" [ref=f12e176]
+          - button "Edit metadata…" [ref=f12e177]
+        - paragraph [ref=f12e178]: Available actions are determined by the LP state machine. Split, Merge, and Destroy are live.
+      - generic [ref=f12e179]:
+        - tablist "Identity" [ref=f12e180]:
+          - tab "Overview" [selected] [ref=f12e181]
+          - tab "State history" [ref=f12e182]
+          - tab "Reservations" [ref=f12e183]
+          - tab "Movements" [ref=f12e184]
+          - tab "Genealogy" [ref=f12e185]
+          - tab "Labels" [ref=f12e186]
+          - tab "Raw" [ref=f12e187]
+        - generic [ref=f12e188]:
+          - heading "Identity snapshot" [level=3] [ref=f12e189]
+          - generic [ref=f12e190]:
+            - term [ref=f12e191]: Product
+            - definition [ref=f12e192]: ING-FLOUR — Wheat Flour
+            - term [ref=f12e193]: Quantity
+            - definition [ref=f12e194]: 6.125000 kg
+            - term [ref=f12e195]: Reserved
+            - definition [ref=f12e196]: 0.000000 kg
+            - term [ref=f12e197]: Available
+            - definition [ref=f12e198]: 6.125000 kg
+            - term [ref=f12e199]: Batch
+            - definition [ref=f12e200]: NIGHT-R10-BATCH-174328
+            - term [ref=f12e201]: Expiry date
+            - definition [ref=f12e202]: 2027-07-18
+            - term [ref=f12e203]: Location
+            - definition [ref=f12e204]: —
+            - term [ref=f12e205]: Warehouse
+            - definition [ref=f12e206]: BAKERY
+            - term [ref=f12e207]: Source
+            - definition [ref=f12e208]: transfer
+            - term [ref=f12e209]: Parent LP
+            - definition [ref=f12e210]: LP-1784310651421-D2PF
+  - group [ref=f12e211]:
+    - generic [ref=f12e213] [cursor=pointer]:
+      - generic [ref=f12e214]:
+        - heading "History" [level=2] [ref=f12e215]
+        - paragraph [ref=f12e216]: Read-only audit trail for this document.
+      - generic [ref=f12e217]: ▾
+    - list "History" [ref=f12e220]:
+      - listitem [ref=f12e221]:
+        - generic [ref=f12e222]:
+          - generic [ref=f12e223]:
+            - generic [ref=f12e224]: Status change
+            - generic [ref=f12e225]: lp_state.transition
+          - generic [ref=f12e226]:
+            - time [ref=f12e227]: 17 Jul 2026, 19:02
+            - text: · Admin
+          - group [ref=f12e228]:
+            - generic "Details" [ref=f12e229] [cursor=pointer]

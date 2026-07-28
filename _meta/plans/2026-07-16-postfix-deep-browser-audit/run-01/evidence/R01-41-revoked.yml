@@ -1,0 +1,355 @@
+- generic [active] [ref=f13e1]:
+  - generic [ref=f13e2]:
+    - banner [ref=f13e4]:
+      - generic "MonoPilot MES" [ref=f13e5]
+      - searchbox "Search settings…" [ref=f13e7]
+      - generic [ref=f13e8]:
+        - button "Switch organization (platform admin)" [ref=f13e10] [cursor=pointer]:
+          - generic [ref=f13e11]: A2
+          - generic [ref=f13e12]: "000000000000"
+          - generic [ref=f13e13]: Apex 22
+          - generic [ref=f13e14]: ▼
+        - generic "Filters work orders, license plates and OEE only — other screens stay org-wide" [ref=f13e15]:
+          - generic [ref=f13e16]: Site
+          - combobox "Site" [ref=f13e17] [cursor=pointer]:
+            - option "All sites" [selected]
+            - option "tester1"
+            - option "CODEX-R14 SITE"
+            - option "Main Factory"
+            - option "makery"
+            - option "SOL-R02 Site 0539 Edited"
+            - option "warehouse 1"
+        - button "Notifications" [ref=f13e19]
+        - button "Open user menu for Apex Admin" [ref=f13e24]: AA
+    - navigation "Primary" [ref=f13e25]:
+      - generic [ref=f13e26]:
+        - generic [ref=f13e27]:
+          - heading "Core" [level=2] [ref=f13e28]
+          - generic [ref=f13e29]:
+            - link "Dashboard" [ref=f13e30] [cursor=pointer]:
+              - /url: /en/dashboard
+              - generic [ref=f13e31]: ◆
+            - link "Settings" [ref=f13e34] [cursor=pointer]:
+              - /url: /en/settings
+              - generic [ref=f13e35]: ⚙
+        - generic [ref=f13e38]:
+          - heading "Operations" [level=2] [ref=f13e39]
+          - generic [ref=f13e40]:
+            - link "Planning" [ref=f13e41] [cursor=pointer]:
+              - /url: /en/planning
+              - generic [ref=f13e42]: ▤
+            - link "Freight" [ref=f13e45] [cursor=pointer]:
+              - /url: /en/planning/carriers
+              - generic [ref=f13e46]: F
+            - link "Scheduler" [ref=f13e49] [cursor=pointer]:
+              - /url: /en/scheduler
+              - generic [ref=f13e50]: ⧗
+            - link "Production" [ref=f13e53] [cursor=pointer]:
+              - /url: /en/production
+              - generic [ref=f13e54]: ⚒
+            - link "Yard" [ref=f13e57] [cursor=pointer]:
+              - /url: /en/yard
+              - generic [ref=f13e58]: "Y"
+            - link "Warehouse" [ref=f13e61] [cursor=pointer]:
+              - /url: /en/warehouse
+              - generic [ref=f13e62]: ▥
+            - link "Scanner" [ref=f13e65] [cursor=pointer]:
+              - /url: /en/scanner/home
+              - generic [ref=f13e66]: 📱
+        - generic [ref=f13e69]:
+          - heading "QA & Shipping" [level=2] [ref=f13e70]
+          - generic [ref=f13e71]:
+            - link "Quality" [ref=f13e72] [cursor=pointer]:
+              - /url: /en/quality
+              - generic [ref=f13e73]: ✓
+            - link "Shipping" [ref=f13e76] [cursor=pointer]:
+              - /url: /en/shipping
+              - generic [ref=f13e77]: →
+        - generic [ref=f13e80]:
+          - heading "Premium" [level=2] [ref=f13e81]
+          - generic [ref=f13e82]:
+            - link "Technical" [ref=f13e83] [cursor=pointer]:
+              - /url: /en/technical
+              - generic [ref=f13e84]: ▦
+            - link "NPD" [ref=f13e87] [cursor=pointer]:
+              - /url: /en/pipeline
+              - generic [ref=f13e88]: ★
+            - link "Finance" [ref=f13e91] [cursor=pointer]:
+              - /url: /en/finance
+              - generic [ref=f13e92]: $
+            - link "OEE" [ref=f13e95] [cursor=pointer]:
+              - /url: /en/oee
+              - generic [ref=f13e96]: ◉
+            - link "Maintenance" [ref=f13e99] [cursor=pointer]:
+              - /url: /en/maintenance
+              - generic [ref=f13e100]: 🔧
+        - generic [ref=f13e103]:
+          - heading "Analytics & Network" [level=2] [ref=f13e104]
+          - generic [ref=f13e105]:
+            - link "Reporting" [ref=f13e106] [cursor=pointer]:
+              - /url: /en/reporting
+              - generic [ref=f13e107]: ▧
+            - link "Multi-Site" [ref=f13e110] [cursor=pointer]:
+              - /url: /en/multi-site
+              - generic [ref=f13e111]: ❖
+    - main [ref=f13e114]:
+      - generic [ref=f13e145]:
+        - navigation "Settings" [ref=f13e146]:
+          - generic [ref=f13e147]:
+            - generic [ref=f13e148]:
+              - heading "Organization" [level=2] [ref=f13e149]
+              - generic [ref=f13e150]:
+                - link "Company profile" [ref=f13e151] [cursor=pointer]:
+                  - /url: /en/settings/company
+                  - generic [ref=f13e152]: ◆
+                - link "Compliance profile" [ref=f13e154] [cursor=pointer]:
+                  - /url: /en/settings/compliance
+                  - generic [ref=f13e155]: ✓
+                - link "Sites & lines" [ref=f13e157] [cursor=pointer]:
+                  - /url: /en/settings/sites
+                  - generic [ref=f13e158]: ▤
+                - link "Production lines" [ref=f13e160] [cursor=pointer]:
+                  - /url: /en/settings/infra/lines
+                  - generic [ref=f13e161]: ≣
+                - link "Warehouses" [ref=f13e163] [cursor=pointer]:
+                  - /url: /en/settings/infra/warehouses
+                  - generic [ref=f13e164]: ▥
+                - link "Locations" [ref=f13e166] [cursor=pointer]:
+                  - /url: /en/settings/infra/locations
+                  - generic [ref=f13e167]: ⌖
+                - link "Printers" [ref=f13e169] [cursor=pointer]:
+                  - /url: /en/settings/infra/printers
+                  - generic [ref=f13e170]: 🖨
+                - link "Dock doors" [ref=f13e172] [cursor=pointer]:
+                  - /url: /en/settings/infra/docks
+                  - generic [ref=f13e173]: ⚓
+                - link "Shifts & calendar" [ref=f13e175] [cursor=pointer]:
+                  - /url: /en/settings/shifts
+                  - generic [ref=f13e176]: ⧗
+                - link "Labor rates" [ref=f13e178] [cursor=pointer]:
+                  - /url: /en/settings/labor-rates
+                  - generic [ref=f13e179]: 💰
+            - generic [ref=f13e181]:
+              - heading "Data" [level=2] [ref=f13e182]
+              - generic [ref=f13e183]:
+                - link "NPD fields" [ref=f13e184] [cursor=pointer]:
+                  - /url: /en/settings/npd-fields
+                  - generic [ref=f13e185]: ▦
+                - link "Approval requirements" [ref=f13e187] [cursor=pointer]:
+                  - /url: /en/settings/npd-approval
+                  - generic [ref=f13e188]: ✔
+                - link "Gate checklists" [ref=f13e190] [cursor=pointer]:
+                  - /url: /en/settings/npd-checklist
+                  - generic [ref=f13e191]: ☑
+                - link "Cost parameters" [ref=f13e193] [cursor=pointer]:
+                  - /url: /en/settings/npd-cost-params
+                  - generic [ref=f13e194]: £
+                - link "BOMs & recipes" [ref=f13e196] [cursor=pointer]:
+                  - /url: /en/settings/boms
+                  - generic [ref=f13e197]: ⛓
+                - link "Processes" [ref=f13e199] [cursor=pointer]:
+                  - /url: /en/settings/process-defaults
+                  - generic [ref=f13e200]: ⟶
+                - link "└ Manufacturing operations" [ref=f13e203] [cursor=pointer]:
+                  - /url: /en/settings/reference/manufacturing-operations
+                  - generic [ref=f13e204]: ⚒
+                - link "Product categories" [ref=f13e207] [cursor=pointer]:
+                  - /url: /en/settings/reference/product-categories
+                  - generic [ref=f13e208]: 🏷
+                - link "Suppliers & customers" [ref=f13e211] [cursor=pointer]:
+                  - /url: /en/settings/partners
+                  - generic [ref=f13e212]: ↔
+                - link "Customer prices" [ref=f13e214] [cursor=pointer]:
+                  - /url: /en/settings/customer-prices
+                  - generic [ref=f13e215]: £
+                - link "Units & conversions" [ref=f13e217] [cursor=pointer]:
+                  - /url: /en/settings/units
+                  - generic [ref=f13e218]: ⚖
+                - link "Temperature ranges" [ref=f13e220] [cursor=pointer]:
+                  - /url: /en/settings/quality/temp-ranges
+                  - generic [ref=f13e221]: ❄
+                - link "Import / Export" [ref=f13e223] [cursor=pointer]:
+                  - /url: /en/settings/import-export
+                  - generic [ref=f13e224]: ⇅
+            - generic [ref=f13e227]:
+              - heading "Access" [level=2] [ref=f13e228]
+              - generic [ref=f13e229]:
+                - link "Users & roles" [ref=f13e230] [cursor=pointer]:
+                  - /url: /en/settings/users
+                  - generic [ref=f13e231]: ◉
+                - link "Security" [ref=f13e233] [cursor=pointer]:
+                  - /url: /en/settings/security
+                  - generic [ref=f13e234]: 🔒
+                - link "Audit logs" [ref=f13e236] [cursor=pointer]:
+                  - /url: /en/settings/audit
+                  - generic [ref=f13e237]: ◷
+            - generic [ref=f13e240]:
+              - heading "Sign-off" [level=2] [ref=f13e241]
+              - generic [ref=f13e242]:
+                - link "Sign-off policies" [ref=f13e243] [cursor=pointer]:
+                  - /url: /en/settings/signoff
+                  - generic [ref=f13e244]: ✍
+                - link "Authorization policies" [ref=f13e246] [cursor=pointer]:
+                  - /url: /en/settings/authorization
+                  - generic [ref=f13e247]: 🛡
+                - link "Sign-off & PINs" [ref=f13e249] [cursor=pointer]:
+                  - /url: /en/settings/scanner-auth
+                  - generic [ref=f13e250]: 🔐
+            - generic [ref=f13e252]:
+              - heading "Operations" [level=2] [ref=f13e253]
+              - generic [ref=f13e254]:
+                - link "Scanner devices" [ref=f13e255] [cursor=pointer]:
+                  - /url: /en/settings/devices
+                  - generic [ref=f13e256]: 📱
+                - link "Notifications" [ref=f13e258] [cursor=pointer]:
+                  - /url: /en/settings/notifications
+                  - generic [ref=f13e259]: ◔
+                - link "Feature flags" [ref=f13e261] [cursor=pointer]:
+                  - /url: /en/settings/features
+                  - generic [ref=f13e262]: ◨
+            - generic [ref=f13e264]:
+              - heading "Integrations" [level=2] [ref=f13e265]
+              - link "Integrations" [ref=f13e267] [cursor=pointer]:
+                - /url: /en/settings/integrations
+                - generic [ref=f13e268]: ⇄
+            - generic [ref=f13e270]:
+              - heading "Document templates" [level=2] [ref=f13e271]
+              - generic [ref=f13e272]:
+                - link "Label templates" [ref=f13e273] [cursor=pointer]:
+                  - /url: /en/settings/labels
+                  - generic [ref=f13e274]: ▭
+                - link "Document numbering" [ref=f13e277] [cursor=pointer]:
+                  - /url: /en/settings/documents
+                  - generic [ref=f13e278]: №
+            - generic [ref=f13e280]:
+              - heading "Onboarding" [level=2] [ref=f13e281]
+              - link "Onboarding wizard" [ref=f13e283] [cursor=pointer]:
+                - /url: /en/settings/onboarding
+                - generic [ref=f13e284]: ✦
+            - generic [ref=f13e287]:
+              - heading "Admin" [level=2] [ref=f13e288]
+              - generic [ref=f13e289]:
+                - link "D365 connection" [ref=f13e290] [cursor=pointer]:
+                  - /url: /en/settings/integrations/d365
+                  - generic [ref=f13e291]: ⇆
+                - link "D365 field mapping" [ref=f13e293] [cursor=pointer]:
+                  - /url: /en/settings/integrations/d365/mapping
+                  - generic [ref=f13e294]: ↔
+                - link "D365 cost import" [ref=f13e296] [cursor=pointer]:
+                  - /url: /en/settings/integrations/d365/cost-import
+                  - generic [ref=f13e297]: ⇣
+                - link "D365 DLQ (shipping)" [ref=f13e299] [cursor=pointer]:
+                  - /url: /en/settings/d365-dlq
+                  - generic [ref=f13e300]: "!"
+                - link "Rules registry" [ref=f13e302] [cursor=pointer]:
+                  - /url: /en/settings/rules
+                  - generic [ref=f13e303]: ✦
+                - link "Feature flags (L)" [ref=f13e305] [cursor=pointer]:
+                  - /url: /en/settings/flags
+                  - generic [ref=f13e306]: ◨
+                - link "Schema browser" [ref=f13e308] [cursor=pointer]:
+                  - /url: /en/settings/schema
+                  - generic [ref=f13e309]: ▦
+                - link "└ Column wizard" [ref=f13e311] [cursor=pointer]:
+                  - /url: /en/settings/schema/new
+                  - generic [ref=f13e312]: ✎
+                - link "└ Migrations queue" [ref=f13e314] [cursor=pointer]:
+                  - /url: /en/settings/schema/migrations
+                  - generic [ref=f13e315]: ⇣
+                - link "Tenant variations" [ref=f13e318] [cursor=pointer]:
+                  - /url: /en/settings/tenant
+                  - generic [ref=f13e319]: ❖
+                - link "Reference data" [ref=f13e322] [cursor=pointer]:
+                  - /url: /en/settings/reference
+                  - generic [ref=f13e323]: ⚙
+                - link "Email templates" [ref=f13e325] [cursor=pointer]:
+                  - /url: /en/settings/email
+                  - generic [ref=f13e326]: ✉
+                - link "Email variables" [ref=f13e328] [cursor=pointer]:
+                  - /url: /en/settings/email/variables
+                  - generic [ref=f13e329]: §
+                - link "Shipping override reasons" [ref=f13e331] [cursor=pointer]:
+                  - /url: /en/settings/ship-override-reasons
+                  - generic [ref=f13e332]: ≡
+            - generic [ref=f13e334]:
+              - heading "My account" [level=2] [ref=f13e335]
+              - generic [ref=f13e336]:
+                - link "My profile" [ref=f13e337] [cursor=pointer]:
+                  - /url: /en/account/profile
+                  - generic [ref=f13e338]: ◯
+                - link "Notifications" [ref=f13e340] [cursor=pointer]:
+                  - /url: /en/account/notifications
+                  - generic [ref=f13e341]: ◔
+                - link "E-sign & scanner PIN" [ref=f13e343] [cursor=pointer]:
+                  - /url: /en/account/pin
+                  - generic [ref=f13e344]: ✱
+        - main [ref=f13e346]:
+          - main [ref=f13e347]:
+            - generic [ref=f13e348]:
+              - generic [ref=f13e349]:
+                - heading "Pending Invitations" [level=1] [ref=f13e350]
+                - paragraph [ref=f13e351]: View and manage outstanding user invitations for this organisation.
+              - button "Invite User" [ref=f13e352] [cursor=pointer]
+            - status [ref=f13e431]: Invitation revoked for night-r01-20260717-0548@monopilot.test. Audit result recorded.
+            - region "Pending invitations panel" [ref=f13e353]:
+              - generic [ref=f13e354]:
+                - heading "Invitation lifecycle" [level=2] [ref=f13e355]
+                - paragraph [ref=f13e356]: Pending can be resent or revoked; expired can be resent; accepted invitations are immutable.
+              - table "Pending Invitations" [ref=f13e358]:
+                - rowgroup [ref=f13e359]:
+                  - row [ref=f13e360]:
+                    - columnheader "Email" [ref=f13e361]
+                    - columnheader "Role" [ref=f13e362]
+                    - columnheader "Invited By" [ref=f13e363]
+                    - columnheader "Invited At" [ref=f13e364]
+                    - columnheader "Expires At" [ref=f13e365]
+                    - columnheader "Status" [ref=f13e366]
+                    - columnheader "Actions" [ref=f13e367]
+                - rowgroup [ref=f13e368]:
+                  - row [ref=f13e369]:
+                    - cell "night-r01-20260717-0548@monopilot.test" [ref=f13e370]
+                    - cell "Viewer" [ref=f13e371]
+                    - cell "System" [ref=f13e372]
+                    - cell "2026-07-17T05:58:31.300Z" [ref=f13e373]
+                    - cell "2026-07-24T06:00:42.897Z" [ref=f13e374]
+                    - cell "Pending" [ref=f13e375]
+                    - cell "Resend Revoke" [ref=f13e377]:
+                      - generic [ref=f13e378]:
+                        - button "Resend" [ref=f13e379] [cursor=pointer]
+                        - button "Revoke" [ref=f13e380] [cursor=pointer]
+                  - row [ref=f13e381]:
+                    - cell "sol-r01-20260715-0511-inv@monopilot.test" [ref=f13e382]
+                    - cell "NPD Manager" [ref=f13e383]
+                    - cell "System" [ref=f13e384]
+                    - cell "2026-07-15T05:10:53.608Z" [ref=f13e385]
+                    - cell "2026-07-22T05:11:33.298Z" [ref=f13e386]
+                    - cell "Pending" [ref=f13e387]
+                    - cell "Resend Revoke" [ref=f13e389]:
+                      - generic [ref=f13e390]:
+                        - button "Resend" [ref=f13e391] [cursor=pointer]
+                        - button "Revoke" [ref=f13e392] [cursor=pointer]
+                  - row [ref=f13e393]:
+                    - cell "e2e-r08-signer-20260711@monopilot.test" [ref=f13e394]
+                    - cell "Viewer" [ref=f13e395]
+                    - cell "System" [ref=f13e396]
+                    - cell "2026-07-11T21:25:43.370Z" [ref=f13e397]
+                    - cell "—" [ref=f13e398]
+                    - cell "Accepted" [ref=f13e399]
+                    - cell "Accepted user is immutable." [ref=f13e401]
+                  - row [ref=f13e402]:
+                    - cell "e2e-f4r-inv@test.local" [ref=f13e403]
+                    - cell "Viewer" [ref=f13e404]
+                    - cell "System" [ref=f13e405]
+                    - cell "2026-07-02T20:34:40.927Z" [ref=f13e406]
+                    - cell "2026-07-09T20:34:40.662Z" [ref=f13e407]
+                    - cell "Expired" [ref=f13e408]
+                    - cell "Lifecycle action unavailable" [ref=f13e410]
+                  - row [ref=f13e411]:
+                    - cell "admin@monopilot.test" [ref=f13e412]
+                    - cell "Admin" [ref=f13e413]
+                    - cell "System" [ref=f13e414]
+                    - cell "2026-05-20T09:00:41.869Z" [ref=f13e415]
+                    - cell "—" [ref=f13e416]
+                    - cell "Accepted" [ref=f13e417]
+                    - cell "Accepted user is immutable." [ref=f13e419]
+  - alert [ref=f13e144]

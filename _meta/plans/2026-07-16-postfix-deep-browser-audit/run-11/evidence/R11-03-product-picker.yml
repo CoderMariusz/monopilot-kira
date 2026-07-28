@@ -1,0 +1,579 @@
+- generic:
+  - alert
+  - generic:
+    - generic:
+      - banner:
+        - generic: MonoPilot MES
+        - generic:
+          - searchbox
+        - generic:
+          - generic:
+            - button:
+              - generic: A2
+              - generic: "000000000000"
+              - generic: Apex 22
+              - generic: ▼
+          - generic:
+            - generic: Site
+            - combobox
+          - generic:
+            - button
+          - generic:
+            - button: AA
+    - navigation:
+      - generic:
+        - generic:
+          - heading [level=2]: Core
+          - generic:
+            - link:
+              - /url: /en/dashboard
+              - generic: ◆
+              - generic: Dashboard
+            - link:
+              - /url: /en/settings
+              - generic: ⚙
+              - generic: Settings
+        - generic:
+          - heading [level=2]: Operations
+          - generic:
+            - link:
+              - /url: /en/planning
+              - generic: ▤
+              - generic: Planning
+            - link:
+              - /url: /en/planning/carriers
+              - generic: F
+              - generic: Freight
+            - link:
+              - /url: /en/scheduler
+              - generic: ⧗
+              - generic: Scheduler
+            - link:
+              - /url: /en/production
+              - generic: ⚒
+              - generic: Production
+            - link:
+              - /url: /en/yard
+              - generic: "Y"
+              - generic: Yard
+            - link:
+              - /url: /en/warehouse
+              - generic: ▥
+              - generic: Warehouse
+            - link:
+              - /url: /en/scanner/home
+              - generic: 📱
+              - generic: Scanner
+        - generic:
+          - heading [level=2]: QA & Shipping
+          - generic:
+            - link:
+              - /url: /en/quality
+              - generic: ✓
+              - generic: Quality
+            - link:
+              - /url: /en/shipping
+              - generic: →
+              - generic: Shipping
+        - generic:
+          - heading [level=2]: Premium
+          - generic:
+            - link:
+              - /url: /en/technical
+              - generic: ▦
+              - generic: Technical
+            - link:
+              - /url: /en/pipeline
+              - generic: ★
+              - generic: NPD
+            - link:
+              - /url: /en/finance
+              - generic: $
+              - generic: Finance
+            - link:
+              - /url: /en/oee
+              - generic: ◉
+              - generic: OEE
+            - link:
+              - /url: /en/maintenance
+              - generic: 🔧
+              - generic: Maintenance
+        - generic:
+          - heading [level=2]: Analytics & Network
+          - generic:
+            - link:
+              - /url: /en/reporting
+              - generic: ▧
+              - generic: Reporting
+            - link:
+              - /url: /en/multi-site
+              - generic: ❖
+              - generic: Multi-Site
+    - main:
+      - main:
+        - generic:
+          - generic:
+            - navigation:
+              - list:
+                - listitem:
+                  - generic: Planning
+                - listitem:
+                  - generic: /
+                  - generic: Work orders
+            - generic:
+              - heading [level=1]: Work orders
+              - paragraph: Plan, release and track production work orders.
+        - generic:
+          - generic:
+            - generic:
+              - searchbox
+            - generic:
+              - link:
+                - /url: /en/planning/work-orders/import
+                - text: Import WOs
+              - button: + Create WO
+          - tablist:
+            - tab [selected]: All26
+            - tab: Draft6
+            - tab: Released0
+            - tab: In progress3
+            - tab: On hold0
+            - tab: Completed1
+            - tab: Archive0
+            - generic: 26 rows
+          - generic:
+            - table:
+              - rowgroup:
+                - row:
+                  - columnheader: WO
+                  - columnheader: Product
+                  - columnheader: Status
+                  - columnheader: Qty
+                  - columnheader: Scheduled start
+                  - columnheader: Line
+                  - columnheader: BOM
+                  - columnheader
+              - rowgroup:
+                - row:
+                  - cell:
+                    - link:
+                      - /url: /en/planning/work-orders/b503edfc-9d96-4495-aac8-24263e3c66c8
+                      - text: WO-202607-0018
+                  - cell: FG0014
+                  - cell:
+                    - generic: Cancelled
+                  - cell: 15.000 kg
+                  - cell: Jul 13, 2026
+                  - cell: LINE02
+                  - cell:
+                    - generic: BOM
+                  - cell
+                - row:
+                  - cell:
+                    - link:
+                      - /url: /en/planning/work-orders/7144ec99-f2e7-45b7-98f0-2a6fea6b4de0
+                      - text: WO-202607-0018-W1
+                  - cell: WIP-20260707-0006
+                  - cell:
+                    - generic: Cancelled
+                  - cell: 12.600 kg
+                  - cell: Jul 13, 2026
+                  - cell: LINE02
+                  - cell:
+                    - generic: BOM
+                  - cell
+                - row:
+                  - cell:
+                    - link:
+                      - /url: /en/planning/work-orders/233b13ac-e4a5-4e6b-9e7e-ec6930214b5e
+                      - text: WO-202607-0013-W1
+                  - cell: WIP-20260707-0006
+                  - cell:
+                    - generic: Cancelled
+                  - cell: 8.820 kg
+                  - cell: Jul 14, 2026
+                  - cell: LINE02
+                  - cell:
+                    - generic: BOM
+                  - cell
+                - row:
+                  - cell:
+                    - link:
+                      - /url: /en/planning/work-orders/ea97d0c1-11be-460e-b596-772a34974be2
+                      - text: WO-202607-0026
+                  - cell: FG0014
+                  - cell:
+                    - generic: Cancelled
+                  - cell: 1.500 kg
+                  - cell: Jul 15, 2026
+                  - cell: LINE03
+                  - cell:
+                    - generic: BOM
+                  - cell
+                - row:
+                  - cell:
+                    - link:
+                      - /url: /en/planning/work-orders/69179fb9-73e6-4276-b6ec-b431bfc0436e
+                      - text: WO-202607-0026-W1
+                  - cell: WIP-20260707-0006
+                  - cell:
+                    - generic: Cancelled
+                  - cell: 1.260 kg
+                  - cell: Jul 15, 2026
+                  - cell: LINE02
+                  - cell:
+                    - generic: BOM
+                  - cell
+                - row:
+                  - cell:
+                    - link:
+                      - /url: /en/planning/work-orders/71b04d4b-27d6-4714-9fbc-2cfbc7acf8e8
+                      - text: WO-202607-0019-W1
+                  - cell: WIP-20260707-0006
+                  - cell:
+                    - generic: Draft
+                  - cell: 252.155 kg
+                  - cell: Jul 15, 2026
+                  - cell: LINE02
+                  - cell:
+                    - generic: BOM
+                  - cell:
+                    - generic:
+                      - button: Release
+                      - button: Delete draft
+                - row:
+                  - cell:
+                    - link:
+                      - /url: /en/planning/work-orders/bbc1091b-35f5-4d38-9f48-9477b05f6515
+                      - text: WO-202607-0013
+                  - cell: FG0014
+                  - cell:
+                    - generic: Cancelled
+                  - cell: 12.750 kg
+                  - cell: Jul 15, 2026
+                  - cell: LINE03
+                  - cell:
+                    - generic: BOM
+                  - cell
+                - row:
+                  - cell:
+                    - link:
+                      - /url: /en/planning/work-orders/83f11c2f-81c8-4e5a-a969-bfe8f5f00930
+                      - text: WO-202607-0022-W1
+                  - cell: WIP-20260707-0006
+                  - cell:
+                    - generic: Cancelled
+                  - cell: 25.452 kg
+                  - cell: Jul 17, 2026
+                  - cell: LINE02
+                  - cell:
+                    - generic: BOM
+                  - cell
+                - row:
+                  - cell:
+                    - link:
+                      - /url: /en/planning/work-orders/2da5ba5f-5485-4e35-ae1f-5b53b57d9c21
+                      - text: WO-202607-0022
+                  - cell: FG0014
+                  - cell:
+                    - generic: Cancelled
+                  - cell: 30.300 kg
+                  - cell: Jul 18, 2026
+                  - cell: LINE1
+                  - cell:
+                    - generic: BOM
+                  - cell
+                - row:
+                  - cell:
+                    - link:
+                      - /url: /en/planning/work-orders/659829a2-3d7d-43d3-8da5-c31ec524cfb2
+                      - text: WO-202607-0023-W1
+                  - cell: WIP-20260707-0006
+                  - cell:
+                    - generic: Cancelled
+                  - cell: 10.080 kg
+                  - cell: Jul 19, 2026
+                  - cell: LINE02
+                  - cell:
+                    - generic: BOM
+                  - cell
+                - row:
+                  - cell:
+                    - link:
+                      - /url: /en/planning/work-orders/618cdd44-d94c-4838-bfc6-4c15ada41d89
+                      - text: WO-202607-0023
+                  - cell: FG0014
+                  - cell:
+                    - generic: Cancelled
+                  - cell: 12.000 kg
+                  - cell: Jul 19, 2026
+                  - cell: LINE03
+                  - cell:
+                    - generic: BOM
+                  - cell
+                - row:
+                  - cell:
+                    - link:
+                      - /url: /en/planning/work-orders/481ab3c2-b884-4a3c-a81b-e526bb14c4f8
+                      - text: WO-202607-0029
+                  - cell: FG-R09-144638
+                  - cell:
+                    - generic: Draft
+                  - cell: 8.400 kg
+                  - cell: Jul 20, 2026
+                  - cell: LINE02
+                  - cell:
+                    - generic: No BOM
+                  - cell:
+                    - generic:
+                      - button: Release
+                      - button: Delete draft
+                - row:
+                  - cell:
+                    - link:
+                      - /url: /en/planning/work-orders/d7fec36b-976f-4d1c-a206-7bdd59776cf5
+                      - text: WO-202607-0024
+                  - cell: FG0014
+                  - cell:
+                    - generic: Cancelled
+                  - cell: 6.000 kg
+                  - cell: Jul 20, 2026
+                  - cell: LINE03
+                  - cell:
+                    - generic: BOM
+                  - cell
+                - row:
+                  - cell:
+                    - link:
+                      - /url: /en/planning/work-orders/4398ea7d-d6ca-404f-acc9-1aad74af7e88
+                      - text: WO-202607-0024-W1
+                  - cell: WIP-20260707-0006
+                  - cell:
+                    - generic: Cancelled
+                  - cell: 5.040 kg
+                  - cell: Jul 20, 2026
+                  - cell: LINE02
+                  - cell:
+                    - generic: BOM
+                  - cell
+                - row:
+                  - cell:
+                    - link:
+                      - /url: /en/planning/work-orders/ca42b933-9820-49cf-a120-bbf48476644a
+                      - text: WO-202607-0025
+                  - cell: FG0014
+                  - cell:
+                    - generic: Cancelled
+                  - cell: 3.000 kg
+                  - cell: Jul 21, 2026
+                  - cell: LINE03
+                  - cell:
+                    - generic: BOM
+                  - cell
+                - row:
+                  - cell:
+                    - link:
+                      - /url: /en/planning/work-orders/396bc20e-143b-4cf2-b4c7-4e47171b9b22
+                      - text: WO-202607-0025-W1
+                  - cell: WIP-20260707-0006
+                  - cell:
+                    - generic: Cancelled
+                  - cell: 2.520 kg
+                  - cell: Jul 21, 2026
+                  - cell: LINE02
+                  - cell:
+                    - generic: BOM
+                  - cell
+                - row:
+                  - cell:
+                    - link:
+                      - /url: /en/planning/work-orders/a0000007-0000-4000-8000-00000000000a
+                      - text: E2E-A-N1-DISPLAY
+                  - cell: FG0014
+                  - cell:
+                    - generic: In progress
+                  - cell: 300.000 kg
+                  - cell: —
+                  - cell: LINE1
+                  - cell:
+                    - generic: No BOM
+                  - cell
+                - row:
+                  - cell:
+                    - link:
+                      - /url: /en/planning/work-orders/a0000004-0000-4000-8000-000000000006
+                      - text: E2E-A-S8-TIMESTAMPS
+                  - cell: FG0015
+                  - cell:
+                    - generic: In progress
+                  - cell: 50.000 kg
+                  - cell: —
+                  - cell: LINE1
+                  - cell:
+                    - generic: No BOM
+                  - cell
+                - row:
+                  - cell:
+                    - link:
+                      - /url: /en/planning/work-orders/a0000003-0000-4000-8000-000000000004
+                      - text: E2E-A-HOLD-CONSUME
+                  - cell: FG0014
+                  - cell:
+                    - generic: In progress
+                  - cell: 100.000 kg
+                  - cell: —
+                  - cell: LINE1
+                  - cell:
+                    - generic: BOM
+                  - cell
+                - row:
+                  - cell:
+                    - link:
+                      - /url: /en/planning/work-orders/a0000002-0000-4000-8000-000000000003
+                      - text: E2E-A-C5-WIP
+                  - cell: WIP-20260707-0005
+                  - cell:
+                    - generic: Draft
+                  - cell: 50.000 kg
+                  - cell: —
+                  - cell: LINE1
+                  - cell:
+                    - generic: No BOM
+                  - cell:
+                    - generic:
+                      - button: Release
+                      - button: Delete draft
+                - row:
+                  - cell:
+                    - link:
+                      - /url: /en/planning/work-orders/a0000002-0000-4000-8000-000000000002
+                      - text: E2E-A-C5-FG
+                  - cell: FG0015
+                  - cell:
+                    - generic: Draft
+                  - cell: 50.000 kg
+                  - cell: —
+                  - cell: LINE1
+                  - cell:
+                    - generic: No BOM
+                  - cell:
+                    - generic:
+                      - button: Release
+                      - button: Delete draft
+                - row:
+                  - cell:
+                    - link:
+                      - /url: /en/planning/work-orders/a0000001-0000-4000-8000-000000000001
+                      - text: E2E-A-C4-YIELD
+                  - cell: FG0014
+                  - cell:
+                    - generic: Completed
+                  - cell: 100.000 kg
+                  - cell: —
+                  - cell: LINE1
+                  - cell:
+                    - generic: No BOM
+                  - cell
+                - row:
+                  - cell:
+                    - link:
+                      - /url: /en/planning/work-orders/87864e8a-6ab0-4c1d-81f3-92020237bd80
+                      - text: WO-202607-0014-W1
+                  - cell: WIP-20260707-0006
+                  - cell:
+                    - generic: Cancelled
+                  - cell: 12.600 kg
+                  - cell: —
+                  - cell: LINE02
+                  - cell:
+                    - generic: BOM
+                  - cell
+                - row:
+                  - cell:
+                    - link:
+                      - /url: /en/planning/work-orders/099f3775-e037-4151-bcb1-b5925e2ab242
+                      - text: WO-202607-0014
+                  - cell: FG0014
+                  - cell:
+                    - generic: Cancelled
+                  - cell: 15.000 kg
+                  - cell: —
+                  - cell: LINE03
+                  - cell:
+                    - generic: BOM
+                  - cell
+                - row:
+                  - cell:
+                    - link:
+                      - /url: /en/planning/work-orders/5b015b4e-fea7-46db-9108-0ac4869804f5
+                      - text: WO-202607-0009-W1
+                  - cell: WIP-20260707-0006
+                  - cell:
+                    - generic: Draft
+                  - cell: 63.000 kg
+                  - cell: —
+                  - cell: LINE02
+                  - cell:
+                    - generic: BOM
+                  - cell:
+                    - generic:
+                      - button: Release
+                      - button: Delete draft
+                - row:
+                  - cell:
+                    - link:
+                      - /url: /en/planning/work-orders/1443e4f4-487d-4d19-9e8f-e01cfc2a464e
+                      - text: WO-202607-0009
+                  - cell: FG0014
+                  - cell:
+                    - generic: Draft
+                  - cell: 75.000 kg
+                  - cell: —
+                  - cell: LINE03
+                  - cell:
+                    - generic: BOM
+                  - cell:
+                    - generic:
+                      - button: Release
+                      - button: Delete draft
+            - generic:
+              - generic: Showing 26 of 26
+              - generic:
+                - generic: Previous
+                - generic: Next
+  - dialog [ref=e253]:
+    - generic [ref=e254]:
+      - heading "Create work order" [level=2] [ref=e255]
+      - button "Close" [ref=e256] [cursor=pointer]: ✕
+    - generic [ref=e258]:
+      - generic [ref=e259]:
+        - generic [ref=e260]: Product (finished good)
+        - button "+ Select product" [expanded] [ref=e262] [cursor=pointer]
+      - generic [ref=e263]:
+        - generic [ref=e264]: Planned quantity
+        - textbox "Planned quantity" [ref=e266]:
+          - /placeholder: e.g. 1000 or 1000.500
+      - generic [ref=e267]:
+        - generic [ref=e268]: Scheduled start
+        - textbox "Scheduled start" [ref=e270]: 2026-07-17
+      - generic [ref=e271]:
+        - generic [ref=e272]: Production line
+        - combobox "Production line" [ref=e274] [cursor=pointer]:
+          - generic [ref=e275]: — None —
+          - generic [ref=e276]: ⌄
+      - generic [ref=e277]:
+        - generic [ref=e278]: Notes
+        - textbox "Notes" [ref=e280]:
+          - /placeholder: Optional notes…
+    - generic [ref=e281]:
+      - button "Cancel" [ref=e282] [cursor=pointer]
+      - button "Create work order" [ref=e283] [cursor=pointer]
+    - dialog "Search finished goods" [ref=e284]:
+      - combobox "Search finished goods" [expanded] [active] [ref=e286]
+      - listbox "Search finished goods" [ref=e287]:
+        - option "FG-R09-144638NIGHT-R09-20260717T144638Z Finished Goodfg—/kg" [selected] [ref=e288] [cursor=pointer]
+        - option "FG0014Butter Shortbread 250gfg—/kg" [ref=e289] [cursor=pointer]
+        - option "FG-018CODEX-R02-20260713230614fg—/kg" [ref=e290] [cursor=pointer]
+        - option "FG-017CODEX-R01-20260713-224632fg—/kg" [ref=e291] [cursor=pointer]
+        - option "FG-014E2E CRUD NPD 0712fg—/kg" [ref=e292] [cursor=pointer]
+      - button "Cancel" [ref=e294] [cursor=pointer]

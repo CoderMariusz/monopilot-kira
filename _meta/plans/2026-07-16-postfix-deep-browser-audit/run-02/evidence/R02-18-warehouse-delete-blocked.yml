@@ -1,0 +1,8 @@
+- dialog [ref=f25e566]:
+  - generic [ref=f25e567]:
+    - heading "Delete warehouse" [level=2] [ref=f25e568]
+    - paragraph [ref=f25e569]: Delete NIGHT R02 Warehouse Edited? This cannot be undone.
+    - alert [ref=f25e573]: This warehouse still has dependent records and cannot be deleted.
+    - generic [ref=f25e570]:
+      - button "Cancel" [ref=f25e571] [cursor=pointer]
+      - button "Delete" [ref=f25e572] [cursor=pointer]

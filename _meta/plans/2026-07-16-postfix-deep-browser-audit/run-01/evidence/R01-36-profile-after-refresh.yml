@@ -1,0 +1,192 @@
+- generic [active] [ref=f10e1]:
+  - generic [ref=f10e2]:
+    - banner [ref=f10e4]:
+      - generic "MonoPilot MES" [ref=f10e5]
+      - searchbox "Search settings…" [ref=f10e7]
+      - generic [ref=f10e8]:
+        - button "Switch organization (platform admin)" [ref=f10e10] [cursor=pointer]:
+          - generic [ref=f10e11]: A2
+          - generic [ref=f10e12]: "000000000000"
+          - generic [ref=f10e13]: Apex 22
+          - generic [ref=f10e14]: ▼
+        - generic "Filters work orders, license plates and OEE only — other screens stay org-wide" [ref=f10e15]:
+          - generic [ref=f10e16]: Site
+          - combobox "Site" [ref=f10e17] [cursor=pointer]:
+            - option "All sites" [selected]
+            - option "tester1"
+            - option "CODEX-R14 SITE"
+            - option "Main Factory"
+            - option "makery"
+            - option "SOL-R02 Site 0539 Edited"
+            - option "warehouse 1"
+        - button "Notifications" [ref=f10e19]
+        - button "Open user menu for Apex Admin" [ref=f10e24]: AA
+    - navigation "Primary" [ref=f10e25]:
+      - generic [ref=f10e26]:
+        - generic [ref=f10e27]:
+          - heading "Core" [level=2] [ref=f10e28]
+          - generic [ref=f10e29]:
+            - link "Dashboard" [ref=f10e30] [cursor=pointer]:
+              - /url: /en/dashboard
+              - generic [ref=f10e31]: ◆
+            - link "Settings" [ref=f10e34] [cursor=pointer]:
+              - /url: /en/settings
+              - generic [ref=f10e35]: ⚙
+        - generic [ref=f10e38]:
+          - heading "Operations" [level=2] [ref=f10e39]
+          - generic [ref=f10e40]:
+            - link "Planning" [ref=f10e41] [cursor=pointer]:
+              - /url: /en/planning
+              - generic [ref=f10e42]: ▤
+            - link "Freight" [ref=f10e45] [cursor=pointer]:
+              - /url: /en/planning/carriers
+              - generic [ref=f10e46]: F
+            - link "Scheduler" [ref=f10e49] [cursor=pointer]:
+              - /url: /en/scheduler
+              - generic [ref=f10e50]: ⧗
+            - link "Production" [ref=f10e53] [cursor=pointer]:
+              - /url: /en/production
+              - generic [ref=f10e54]: ⚒
+            - link "Yard" [ref=f10e57] [cursor=pointer]:
+              - /url: /en/yard
+              - generic [ref=f10e58]: "Y"
+            - link "Warehouse" [ref=f10e61] [cursor=pointer]:
+              - /url: /en/warehouse
+              - generic [ref=f10e62]: ▥
+            - link "Scanner" [ref=f10e65] [cursor=pointer]:
+              - /url: /en/scanner/home
+              - generic [ref=f10e66]: 📱
+        - generic [ref=f10e69]:
+          - heading "QA & Shipping" [level=2] [ref=f10e70]
+          - generic [ref=f10e71]:
+            - link "Quality" [ref=f10e72] [cursor=pointer]:
+              - /url: /en/quality
+              - generic [ref=f10e73]: ✓
+            - link "Shipping" [ref=f10e76] [cursor=pointer]:
+              - /url: /en/shipping
+              - generic [ref=f10e77]: →
+        - generic [ref=f10e80]:
+          - heading "Premium" [level=2] [ref=f10e81]
+          - generic [ref=f10e82]:
+            - link "Technical" [ref=f10e83] [cursor=pointer]:
+              - /url: /en/technical
+              - generic [ref=f10e84]: ▦
+            - link "NPD" [ref=f10e87] [cursor=pointer]:
+              - /url: /en/pipeline
+              - generic [ref=f10e88]: ★
+            - link "Finance" [ref=f10e91] [cursor=pointer]:
+              - /url: /en/finance
+              - generic [ref=f10e92]: $
+            - link "OEE" [ref=f10e95] [cursor=pointer]:
+              - /url: /en/oee
+              - generic [ref=f10e96]: ◉
+            - link "Maintenance" [ref=f10e99] [cursor=pointer]:
+              - /url: /en/maintenance
+              - generic [ref=f10e100]: 🔧
+        - generic [ref=f10e103]:
+          - heading "Analytics & Network" [level=2] [ref=f10e104]
+          - generic [ref=f10e105]:
+            - link "Reporting" [ref=f10e106] [cursor=pointer]:
+              - /url: /en/reporting
+              - generic [ref=f10e107]: ▧
+            - link "Multi-Site" [ref=f10e110] [cursor=pointer]:
+              - /url: /en/multi-site
+              - generic [ref=f10e111]: ❖
+    - main [ref=f10e114]:
+      - main [ref=f10e115]:
+        - generic [ref=f10e117]:
+          - generic [ref=f10e118]: My profile
+          - generic [ref=f10e119]: Your personal info — only visible to admins and you.
+        - region "Profile" [ref=f10e120]:
+          - generic [ref=f10e124]:
+            - generic [ref=f10e125]:
+              - generic [ref=f10e126]: Avatar
+              - generic [ref=f10e129]:
+                - generic [ref=f10e130]: A
+                - generic [ref=f10e131]:
+                  - button "Upload" [ref=f10e132] [cursor=pointer]
+                  - generic [ref=f10e133]: PNG or JPG · 200×200px
+            - generic [ref=f10e134]:
+              - generic [ref=f10e135]: Role
+              - generic [ref=f10e137]: Admin
+            - generic [ref=f10e140]:
+              - generic [ref=f10e141]: Full name
+              - textbox "Full name" [ref=f10e143]: Admin
+            - generic [ref=f10e144]:
+              - generic [ref=f10e145]:
+                - text: Display name
+                - generic [ref=f10e146]: Shown in the UI.
+              - textbox "Display name" [ref=f10e148]: Admin NIGHT-R01
+            - generic [ref=f10e149]:
+              - generic [ref=f10e150]: Email
+              - textbox "Email" [disabled] [ref=f10e152]: admin@monopilot.test
+            - generic [ref=f10e153]:
+              - generic [ref=f10e154]:
+                - text: Phone
+                - generic [ref=f10e155]: Phone number storage is not yet available — this field cannot be saved.
+              - textbox "Phone" [disabled] [ref=f10e157]
+            - generic [ref=f10e158]:
+              - generic [ref=f10e159]: Language
+              - combobox "Language" [ref=f10e162] [cursor=pointer]:
+                - generic [ref=f10e163]: English
+                - generic [ref=f10e164]: ⌄
+            - generic [ref=f10e165]:
+              - generic [ref=f10e166]: Timezone
+              - combobox "Timezone" [ref=f10e169] [cursor=pointer]:
+                - generic [ref=f10e170]: Europe/Warsaw
+                - generic [ref=f10e171]: ⌄
+          - generic [ref=f10e172]:
+            - button "Cancel" [disabled] [ref=f10e173]
+            - button "Save changes" [disabled] [ref=f10e174]
+        - region "Password" [ref=f10e175]:
+          - generic [ref=f10e179]:
+            - generic [ref=f10e180]:
+              - generic [ref=f10e181]: Current password
+              - textbox "Current password" [ref=f10e183]:
+                - /placeholder: ••••••••
+            - generic [ref=f10e184]:
+              - generic [ref=f10e185]: New password
+              - textbox "New password" [ref=f10e187]:
+                - /placeholder: Min. 12 characters
+            - generic [ref=f10e188]:
+              - generic [ref=f10e189]: Confirm new
+              - textbox "Confirm new" [ref=f10e191]
+          - button "Update password" [ref=f10e193] [cursor=pointer]
+        - region "Two-factor authentication" [ref=f10e194]:
+          - generic [ref=f10e195]:
+            - generic [ref=f10e196]: Two-factor authentication
+            - generic [ref=f10e198]: ● Disabled
+          - generic [ref=f10e199]:
+            - generic [ref=f10e200]:
+              - generic [ref=f10e201]:
+                - generic [ref=f10e202]: Authenticator app
+                - generic [ref=f10e203]: TOTP enrollment is not configured on this deployment (MFA_MASTER_KEY missing).
+              - button "Reconfigure" [disabled] [ref=f10e205]
+            - generic [ref=f10e206]:
+              - generic [ref=f10e207]:
+                - generic [ref=f10e208]: Backup codes
+                - generic [ref=f10e209]: Use these if you lose access to your authenticator.
+              - button "Show codes" [disabled] [ref=f10e211]
+        - region "Active sessions" [ref=f10e212]:
+          - table "Active sessions" [ref=f10e217]:
+            - rowgroup [ref=f10e218]:
+              - row [ref=f10e219]:
+                - columnheader [ref=f10e220]
+                - columnheader "Device" [ref=f10e221]
+                - columnheader "Location" [ref=f10e222]
+                - columnheader "Last active" [ref=f10e223]
+                - columnheader [ref=f10e224]
+            - rowgroup [ref=f10e225]:
+              - row [ref=f10e226]:
+                - cell "💻" [ref=f10e227]
+                - cell "This browser admin@monopilot.test" [ref=f10e228]:
+                  - generic [ref=f10e229]: This browser
+                  - generic [ref=f10e230]: admin@monopilot.test
+                - cell "—" [ref=f10e231]
+                - cell "Current session" [ref=f10e232]
+                - cell [ref=f10e234]
+        - region "Danger zone" [ref=f10e235]:
+          - generic [ref=f10e240]:
+            - generic [ref=f10e241]: Log out of all devices
+            - button "Log out everywhere" [ref=f10e244] [cursor=pointer]
+  - alert [ref=f10e245]

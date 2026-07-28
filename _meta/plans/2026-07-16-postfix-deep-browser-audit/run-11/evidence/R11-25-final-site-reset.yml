@@ -1,0 +1,43 @@
+- generic [active] [ref=f9e1]:
+  - generic [ref=f9e2]:
+    - banner [ref=f9e4]:
+      - generic "MonoPilot MES" [ref=f9e5]
+      - searchbox "Search settings…" [ref=f9e7]
+      - generic [ref=f9e8]:
+        - button "Switch organization (platform admin)" [ref=f9e10] [cursor=pointer]:
+          - generic [ref=f9e11]: A2
+          - generic [ref=f9e12]: "000000000000"
+          - generic [ref=f9e13]: Apex 22
+          - generic [ref=f9e14]: ▼
+        - generic "Filters work orders, license plates and OEE only — other screens stay org-wide" [ref=f9e15]:
+          - generic [ref=f9e16]: Site
+          - combobox "Site" [ref=f9e17] [cursor=pointer]
+        - button "Notifications" [ref=f9e19]
+        - button "Open user menu for Apex Admin" [ref=f9e24]: AA
+    - navigation "Primary" [ref=f9e25]:
+      - generic [ref=f9e26]:
+        - generic [ref=f9e27]:
+          - heading "Core" [level=2] [ref=f9e28]
+          - generic [ref=f9e29]
+        - generic [ref=f9e38]:
+          - heading "Operations" [level=2] [ref=f9e39]
+          - generic [ref=f9e40]
+        - generic [ref=f9e69]:
+          - heading "QA & Shipping" [level=2] [ref=f9e70]
+          - generic [ref=f9e71]
+        - generic [ref=f9e80]:
+          - heading "Premium" [level=2] [ref=f9e81]
+          - generic [ref=f9e82]
+        - generic [ref=f9e103]:
+          - heading "Analytics & Network" [level=2] [ref=f9e104]
+          - generic [ref=f9e105]
+    - main [ref=f9e114]:
+      - main [ref=f9e115]:
+        - generic [ref=f9e117]:
+          - navigation "Breadcrumb" [ref=f9e118]
+          - generic [ref=f9e125]
+        - generic [ref=f9e128]:
+          - generic [ref=f9e129]
+          - tablist "All" [ref=f9e135]
+          - generic [ref=f9e144]
+  - alert [ref=f9e177]

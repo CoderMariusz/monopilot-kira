@@ -1,0 +1,59 @@
+## FILES TOUCHED
+
+- `apps/web/app/[locale]/(app)/(modules)/technical/wip-library/_actions/wip-definition-cycle.ts` *(new)*
+- `apps/web/app/[locale]/(app)/(modules)/technical/wip-library/_actions/wip-definition-actions.ts`
+- `apps/web/app/[locale]/(app)/(modules)/technical/wip-library/_actions/__tests__/wip-definition-cycle.unit.test.ts` *(new)*
+- `apps/web/app/[locale]/(app)/(modules)/technical/wip-library/_components/wip-definition-detail.client.tsx`
+- `apps/web/app/[locale]/(app)/(modules)/technical/wip-library/_components/wip-labels.ts`
+- `apps/web/i18n/en.json`, `apps/web/i18n/pl.json`
+- `apps/web/app/(npd)/pipeline/[projectId]/formulation/_actions/load-recipe-cascade.ts`
+- `apps/web/app/(npd)/pipeline/[projectId]/formulation/_actions/load-recipe-cascade.test.ts`
+- `apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/formulation/_components/formulation-editor.tsx`
+
+**Nie dotknięte (świadomie):** `wip-definition-schemas.ts`, `wip-sub-bom.ts` (loader read-only), `technical/allergens/cascade/_actions/load-cascade.ts` (inna powierzchnia niż objawy z audytu).
+
+---
+
+## FIX per finding
+
+### PF-R05-01 · P0 — WIP może zawierać samą siebie
+**Root cause:** `saveWipDefinition` zapisywał skład bez walidacji grafu `item_id → ingredient item_id` (self-ref + pętle A→B→A przez aktywne definicje).
+
+**Zmiana:** Współdzielony moduł `wip-definition-cycle.ts` (reuse `buildGraph` / `detectCycle` z BOM V-TEC-13). Przed jakimkolwiek zapisem definicji/skladników:
+- ładuje krawędzie aktywnych/draft definicji (z wykluczeniem edytowanej),
+- odrzuca zapis z `code: WIP_DEFINITION_CYCLE`, `status: 409`,
+- UI mapuje błąd na i18n `Technical.wip.detail.saveCycleError` (en+pl).
+
+### PF-R05-08 · P2 — Cascade stale + fałszywe max-depth na liściach
+**Root cause (audyt R05-03/04):**
+1. `loadSubRecipe` używał `depth >= MAX_DEPTH` **przed** sprawdzeniem, czy węzeł ma w ogóle sub-recipe → zwykłe liście dostawały `maxDepthReached`.
+2. `formulation-editor` cache’ował `cascadeRows` po pierwszym loadzie; po dodaniu/zapisie składnika nie invalidował stanu.
+
+**Zmiana:**
+- `depth > MAX_DEPTH` + `hasExpandableSubRecipe()` — `maxDepthReached` tylko gdy faktycznie jest co rozwijać; liście → `undefined`.
+- `cascadeSignature` na `rows` invaliduje `cascadeRows` po zmianie składników (odświeżenie po save bez hard refresh).
+
+---
+
+## MIGRATION
+
+**none** — wystarczy serwerowy guard przed zapisem; constraint DB niepotrzebny.
+
+---
+
+## TEST ADDED
+
+`apps/web/app/[locale]/(app)/(modules)/technical/wip-library/_actions/__tests__/wip-definition-cycle.unit.test.ts`
+- self-cycle (pure graph + `saveWipDefinition` bez INSERT/UPDATE)
+- multi-node A→B→A (pure graph + `saveWipDefinition`)
+
+Dodatkowo w `load-recipe-cascade.test.ts`: `does not mark terminal leaves as max-depth failures`.
+
+---
+
+## UNCERTAINTIES
+
+1. **Ścieżka PF-R05-08 w zadaniu** wskazywała `technical/allergens/cascade/load-cascade.ts`, ale dowody audytu (R05-03/04) dotyczą **recipe cascade** w formulation — fix jest w `load-recipe-cascade.ts` + `formulation-editor.tsx`.
+2. **`wip-sub-bom.ts`** — tylko lazy read; cykl blokowany przy zapisie definicji, nie przy expand BOM.
+3. **BOM `addBomLine`** nadal używa wyłącznie grafu BOM (V-TEC-13), nie grafu definicji WIP — ewentualny osobny tor.
+4. Review powinien potwierdzić, że po dodaniu WIP do receptury expand ładuje świeże drzewo bez „Max depth reached” na RM i że self-cycle w pickerze zwraca `WIP_DEFINITION_CYCLE` w UI.

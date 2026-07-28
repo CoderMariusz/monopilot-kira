@@ -1,0 +1,16 @@
+- main "WIP definition NIGHT-R05-L2-1020 immediately after confirmed Archive":
+  - generic: "Reusable in formulations"
+  - switch "Reusable in formulations" [checked]
+  - generic: "Status"
+  - generic: active
+  - generic: "Version"
+  - generic: v3
+  - generic: "Item code"
+  - generic: WIP-20260717-0012
+  - generic: "Not referenced by any project."
+  - button "Save"
+  - button "Archive"
+
+# Extracted verbatim from the Playwright accessibility snapshot returned by the
+# successful confirmation click. R05-14-cleanup-wip-archived.yml is the same
+# record after a hard navigation, when it finally renders archived/disabled.

@@ -1,0 +1,23 @@
+- dialog [ref=f17e545]:
+  - generic [ref=f17e546]:
+    - generic [ref=f17e547]:
+      - heading "Add warehouse" [level=2] [ref=f17e548]
+      - button "Cancel" [ref=f17e549] [cursor=pointer]: ×
+    - generic [ref=f17e550]:
+      - generic [ref=f17e551]:
+        - text: Code
+        - textbox "Code" [ref=f17e553]: N17R02WH
+      - generic [ref=f17e554]:
+        - text: Name
+        - textbox "Name" [ref=f17e556]: NIGHT R02 Warehouse
+      - generic [ref=f17e557]:
+        - generic [ref=f17e558]: Site
+        - combobox "Site" [active] [ref=f17e560] [cursor=pointer]:
+          - generic [ref=f17e576]: NIGHT-R02 Site 0731
+          - generic [ref=f17e561]: ⌄
+      - generic [ref=f17e562]:
+        - text: Address
+        - textbox "Address" [ref=f17e564]: R02 Test Yard
+      - generic [ref=f17e565]:
+        - button "Cancel" [ref=f17e566] [cursor=pointer]
+        - button "Create warehouse" [ref=f17e567] [cursor=pointer]

@@ -1,0 +1,97 @@
+- generic [active] [ref=f6e1]:
+  - generic [ref=f6e2]:
+    - banner [ref=f6e4]:
+      - generic "MonoPilot MES" [ref=f6e5]
+      - searchbox "Search settings…" [ref=f6e7]
+      - generic [ref=f6e8]:
+        - button "Switch organization (platform admin)" [ref=f6e10] [cursor=pointer]:
+          - generic [ref=f6e11]: A2
+          - generic [ref=f6e12]: "000000000000"
+          - generic [ref=f6e13]: Apex 22
+          - generic [ref=f6e14]: ▼
+        - generic "Filters work orders, license plates and OEE only — other screens stay org-wide" [ref=f6e15]:
+          - generic [ref=f6e16]: Site
+          - combobox "Site" [ref=f6e17] [cursor=pointer]:
+            - option "All sites"
+            - option "tester1"
+            - option "CODEX-R14 SITE"
+            - option "Main Factory" [selected]
+            - option "makery"
+            - option "SOL-R02 Site 0539 Edited"
+            - option "warehouse 1"
+        - button "Notifications" [ref=f6e19]
+        - button "Open user menu for Apex Admin" [ref=f6e24]: AA
+    - navigation "Primary" [ref=f6e25]:
+      - generic [ref=f6e26]:
+        - generic [ref=f6e27]:
+          - heading "Core" [level=2] [ref=f6e28]
+          - generic [ref=f6e29]:
+            - link "Dashboard" [ref=f6e30] [cursor=pointer]:
+              - /url: /en/dashboard
+              - generic [ref=f6e31]: ◆
+            - link "Settings" [ref=f6e34] [cursor=pointer]:
+              - /url: /en/settings
+              - generic [ref=f6e35]: ⚙
+        - generic [ref=f6e38]:
+          - heading "Operations" [level=2] [ref=f6e39]
+          - generic [ref=f6e40]:
+            - link "Planning" [ref=f6e41] [cursor=pointer]:
+              - /url: /en/planning
+              - generic [ref=f6e42]: ▤
+            - link "Freight" [ref=f6e45] [cursor=pointer]:
+              - /url: /en/planning/carriers
+              - generic [ref=f6e46]: F
+            - link "Scheduler" [ref=f6e49] [cursor=pointer]:
+              - /url: /en/scheduler
+              - generic [ref=f6e50]: ⧗
+            - link "Production" [ref=f6e53] [cursor=pointer]:
+              - /url: /en/production
+              - generic [ref=f6e54]: ⚒
+            - link "Yard" [ref=f6e57] [cursor=pointer]:
+              - /url: /en/yard
+              - generic [ref=f6e58]: "Y"
+            - link "Warehouse" [ref=f6e61] [cursor=pointer]:
+              - /url: /en/warehouse
+              - generic [ref=f6e62]: ▥
+            - link "Scanner" [ref=f6e65] [cursor=pointer]:
+              - /url: /en/scanner/home
+              - generic [ref=f6e66]: 📱
+        - generic [ref=f6e69]:
+          - heading "QA & Shipping" [level=2] [ref=f6e70]
+          - generic [ref=f6e71]:
+            - link "Quality" [ref=f6e72] [cursor=pointer]:
+              - /url: /en/quality
+              - generic [ref=f6e73]: ✓
+            - link "Shipping" [ref=f6e76] [cursor=pointer]:
+              - /url: /en/shipping
+              - generic [ref=f6e77]: →
+        - generic [ref=f6e80]:
+          - heading "Premium" [level=2] [ref=f6e81]
+          - generic [ref=f6e82]:
+            - link "Technical" [ref=f6e83] [cursor=pointer]:
+              - /url: /en/technical
+              - generic [ref=f6e84]: ▦
+            - link "NPD" [ref=f6e87] [cursor=pointer]:
+              - /url: /en/pipeline
+              - generic [ref=f6e88]: ★
+            - link "Finance" [ref=f6e91] [cursor=pointer]:
+              - /url: /en/finance
+              - generic [ref=f6e92]: $
+            - link "OEE" [ref=f6e95] [cursor=pointer]:
+              - /url: /en/oee
+              - generic [ref=f6e96]: ◉
+            - link "Maintenance" [ref=f6e99] [cursor=pointer]:
+              - /url: /en/maintenance
+              - generic [ref=f6e100]: 🔧
+        - generic [ref=f6e103]:
+          - heading "Analytics & Network" [level=2] [ref=f6e104]
+          - generic [ref=f6e105]:
+            - link "Reporting" [ref=f6e106] [cursor=pointer]:
+              - /url: /en/reporting
+              - generic [ref=f6e107]: ▧
+            - link "Multi-Site" [ref=f6e110] [cursor=pointer]:
+              - /url: /en/multi-site
+              - generic [ref=f6e111]: ❖
+    - main [ref=f6e114]:
+      - main [ref=f6e115]
+  - alert [ref=f6e121]

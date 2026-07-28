@@ -1,0 +1,140 @@
+- generic [active] [ref=f21e1]:
+  - generic [ref=f21e2]:
+    - banner [ref=f21e4]:
+      - generic "MonoPilot MES" [ref=f21e5]
+      - searchbox "Search settings…" [ref=f21e7]
+      - generic [ref=f21e8]:
+        - button "Switch organization (platform admin)" [ref=f21e10] [cursor=pointer]:
+          - generic [ref=f21e11]: A2
+          - generic [ref=f21e12]: "000000000000"
+          - generic [ref=f21e13]: Apex 22
+          - generic [ref=f21e14]: ▼
+        - generic "Filters work orders, license plates and OEE only — other screens stay org-wide" [ref=f21e15]:
+          - generic [ref=f21e16]: Site
+          - combobox "Site" [ref=f21e17] [cursor=pointer]:
+            - option "All sites"
+            - option "tester1" [selected]
+            - option "CODEX-R14 SITE"
+            - option "Main Factory"
+            - option "makery"
+            - option "SOL-R02 Site 0539 Edited"
+            - option "warehouse 1"
+        - button "Notifications" [ref=f21e19]
+        - button "Open user menu for Apex Admin" [ref=f21e24]: AA
+    - navigation "Primary" [ref=f21e25]:
+      - generic [ref=f21e26]:
+        - generic [ref=f21e27]:
+          - heading "Core" [level=2] [ref=f21e28]
+          - generic [ref=f21e29]:
+            - link "Dashboard" [ref=f21e30] [cursor=pointer]:
+              - /url: /en/dashboard
+              - generic [ref=f21e31]: ◆
+            - link "Settings" [ref=f21e34] [cursor=pointer]:
+              - /url: /en/settings
+              - generic [ref=f21e35]: ⚙
+        - generic [ref=f21e38]:
+          - heading "Operations" [level=2] [ref=f21e39]
+          - generic [ref=f21e40]:
+            - link "Planning" [ref=f21e41] [cursor=pointer]:
+              - /url: /en/planning
+              - generic [ref=f21e42]: ▤
+            - link "Freight" [ref=f21e45] [cursor=pointer]:
+              - /url: /en/planning/carriers
+              - generic [ref=f21e46]: F
+            - link "Scheduler" [ref=f21e49] [cursor=pointer]:
+              - /url: /en/scheduler
+              - generic [ref=f21e50]: ⧗
+            - link "Production" [ref=f21e53] [cursor=pointer]:
+              - /url: /en/production
+              - generic [ref=f21e54]: ⚒
+            - link "Yard" [ref=f21e57] [cursor=pointer]:
+              - /url: /en/yard
+              - generic [ref=f21e58]: "Y"
+            - link "Warehouse" [ref=f21e61] [cursor=pointer]:
+              - /url: /en/warehouse
+              - generic [ref=f21e62]: ▥
+            - link "Scanner" [ref=f21e65] [cursor=pointer]:
+              - /url: /en/scanner/home
+              - generic [ref=f21e66]: 📱
+        - generic [ref=f21e69]:
+          - heading "QA & Shipping" [level=2] [ref=f21e70]
+          - generic [ref=f21e71]:
+            - link "Quality" [ref=f21e72] [cursor=pointer]:
+              - /url: /en/quality
+              - generic [ref=f21e73]: ✓
+            - link "Shipping" [ref=f21e76] [cursor=pointer]:
+              - /url: /en/shipping
+              - generic [ref=f21e77]: →
+        - generic [ref=f21e80]:
+          - heading "Premium" [level=2] [ref=f21e81]
+          - generic [ref=f21e82]:
+            - link "Technical" [ref=f21e83] [cursor=pointer]:
+              - /url: /en/technical
+              - generic [ref=f21e84]: ▦
+            - link "NPD" [ref=f21e87] [cursor=pointer]:
+              - /url: /en/pipeline
+              - generic [ref=f21e88]: ★
+            - link "Finance" [ref=f21e91] [cursor=pointer]:
+              - /url: /en/finance
+              - generic [ref=f21e92]: $
+            - link "OEE" [ref=f21e95] [cursor=pointer]:
+              - /url: /en/oee
+              - generic [ref=f21e96]: ◉
+            - link "Maintenance" [ref=f21e99] [cursor=pointer]:
+              - /url: /en/maintenance
+              - generic [ref=f21e100]: 🔧
+        - generic [ref=f21e103]:
+          - heading "Analytics & Network" [level=2] [ref=f21e104]
+          - generic [ref=f21e105]:
+            - link "Reporting" [ref=f21e106] [cursor=pointer]:
+              - /url: /en/reporting
+              - generic [ref=f21e107]: ▧
+            - link "Multi-Site" [ref=f21e110] [cursor=pointer]:
+              - /url: /en/multi-site
+              - generic [ref=f21e111]: ❖
+    - main [ref=f21e114]:
+      - main [ref=f21e115]:
+        - generic [ref=f21e116]:
+          - generic [ref=f21e117]:
+            - generic [ref=f21e118]:
+              - generic [ref=f21e119]:
+                - link "← Back to license plates" [ref=f21e120] [cursor=pointer]:
+                  - /url: /en/warehouse/license-plates
+                - heading "LP-7A6E5C1FE645 Butter" [level=1] [ref=f21e121]
+                - paragraph [ref=f21e124]: 12.345000 kg · Batch NIGHT-R08-SB-1400 · Expiry 2026-07-24
+              - generic [ref=f21e125]:
+                - generic [ref=f21e126]: Available
+                - generic [ref=f21e127]: Released
+            - generic [ref=f21e128]:
+              - generic [ref=f21e129]:
+                - heading "Identity" [level=2] [ref=f21e130]
+                - generic [ref=f21e131]
+                - generic [ref=f21e135]
+                - generic [ref=f21e139]
+                - generic [ref=f21e143]
+                - generic [ref=f21e146]
+                - generic [ref=f21e149]
+                - generic [ref=f21e152]
+                - generic [ref=f21e156]
+                - generic [ref=f21e160]
+                - generic [ref=f21e163]
+                - generic [ref=f21e167]
+                - paragraph [ref=f21e176]: Available actions are determined by the LP state machine. Split, Merge, and Destroy are live.
+              - generic [ref=f21e177]:
+                - tablist "Identity" [ref=f21e178]
+                - generic [ref=f21e186]
+          - group [ref=f21e209]:
+            - generic "History Read-only audit trail for this document." [ref=f21e210] [cursor=pointer]:
+              - generic [ref=f21e211]:
+                - generic [ref=f21e212]
+                - generic [ref=f21e215]: ▾
+            - list "History" [ref=f21e218]:
+              - listitem [ref=f21e219]:
+                - generic [ref=f21e220]
+              - listitem [ref=f21e228]:
+                - generic [ref=f21e229]
+              - listitem [ref=f21e237]:
+                - generic [ref=f21e238]
+              - listitem [ref=f21e246]:
+                - generic [ref=f21e247]
+  - alert [ref=f21e255]

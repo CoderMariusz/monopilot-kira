@@ -1,0 +1,195 @@
+- generic [active] [ref=f5e1]:
+  - generic [ref=f5e2]:
+    - banner [ref=f5e4]:
+      - generic "MonoPilot MES" [ref=f5e5]
+      - searchbox "Search settings…" [ref=f5e7]
+      - generic [ref=f5e8]:
+        - button "Switch organization (platform admin)" [ref=f5e10] [cursor=pointer]:
+          - generic [ref=f5e11]: A2
+          - generic [ref=f5e12]: "000000000000"
+          - generic [ref=f5e13]: Apex 22
+          - generic [ref=f5e14]: ▼
+        - generic "Filters work orders, license plates and OEE only — other screens stay org-wide" [ref=f5e15]:
+          - generic [ref=f5e16]: Site
+          - combobox "Site" [ref=f5e17] [cursor=pointer]:
+            - option "All sites"
+            - option "tester1"
+            - option "CODEX-R14 SITE"
+            - option "Main Factory" [selected]
+            - option "makery"
+            - option "SOL-R02 Site 0539 Edited"
+            - option "warehouse 1"
+        - button "Notifications" [ref=f5e19]
+        - button "Open user menu for Apex Admin" [ref=f5e24]: AA
+    - navigation "Primary" [ref=f5e25]:
+      - generic [ref=f5e26]:
+        - generic [ref=f5e27]:
+          - heading "Core" [level=2] [ref=f5e28]
+          - generic [ref=f5e29]:
+            - link "Dashboard" [ref=f5e30] [cursor=pointer]:
+              - /url: /en/dashboard
+              - generic [ref=f5e31]: ◆
+            - link "Settings" [ref=f5e34] [cursor=pointer]:
+              - /url: /en/settings
+              - generic [ref=f5e35]: ⚙
+        - generic [ref=f5e38]:
+          - heading "Operations" [level=2] [ref=f5e39]
+          - generic [ref=f5e40]:
+            - link "Planning" [ref=f5e41] [cursor=pointer]:
+              - /url: /en/planning
+              - generic [ref=f5e42]: ▤
+            - link "Freight" [ref=f5e45] [cursor=pointer]:
+              - /url: /en/planning/carriers
+              - generic [ref=f5e46]: F
+            - link "Scheduler" [ref=f5e49] [cursor=pointer]:
+              - /url: /en/scheduler
+              - generic [ref=f5e50]: ⧗
+            - link "Production" [ref=f5e53] [cursor=pointer]:
+              - /url: /en/production
+              - generic [ref=f5e54]: ⚒
+            - link "Yard" [ref=f5e57] [cursor=pointer]:
+              - /url: /en/yard
+              - generic [ref=f5e58]: "Y"
+            - link "Warehouse" [ref=f5e61] [cursor=pointer]:
+              - /url: /en/warehouse
+              - generic [ref=f5e62]: ▥
+            - link "Scanner" [ref=f5e65] [cursor=pointer]:
+              - /url: /en/scanner/home
+              - generic [ref=f5e66]: 📱
+        - generic [ref=f5e69]:
+          - heading "QA & Shipping" [level=2] [ref=f5e70]
+          - generic [ref=f5e71]:
+            - link "Quality" [ref=f5e72] [cursor=pointer]:
+              - /url: /en/quality
+              - generic [ref=f5e73]: ✓
+            - link "Shipping" [ref=f5e76] [cursor=pointer]:
+              - /url: /en/shipping
+              - generic [ref=f5e77]: →
+        - generic [ref=f5e80]:
+          - heading "Premium" [level=2] [ref=f5e81]
+          - generic [ref=f5e82]:
+            - link "Technical" [ref=f5e83] [cursor=pointer]:
+              - /url: /en/technical
+              - generic [ref=f5e84]: ▦
+            - link "NPD" [ref=f5e87] [cursor=pointer]:
+              - /url: /en/pipeline
+              - generic [ref=f5e88]: ★
+            - link "Finance" [ref=f5e91] [cursor=pointer]:
+              - /url: /en/finance
+              - generic [ref=f5e92]: $
+            - link "OEE" [ref=f5e95] [cursor=pointer]:
+              - /url: /en/oee
+              - generic [ref=f5e96]: ◉
+            - link "Maintenance" [ref=f5e99] [cursor=pointer]:
+              - /url: /en/maintenance
+              - generic [ref=f5e100]: 🔧
+        - generic [ref=f5e103]:
+          - heading "Analytics & Network" [level=2] [ref=f5e104]
+          - generic [ref=f5e105]:
+            - link "Reporting" [ref=f5e106] [cursor=pointer]:
+              - /url: /en/reporting
+              - generic [ref=f5e107]: ▧
+            - link "Multi-Site" [ref=f5e110] [cursor=pointer]:
+              - /url: /en/multi-site
+              - generic [ref=f5e111]: ❖
+    - main [ref=f5e114]:
+      - main [ref=f5e209]:
+        - generic [ref=f5e211]:
+          - navigation "Breadcrumb" [ref=f5e212]:
+            - list [ref=f5e213]:
+              - listitem [ref=f5e214]:
+                - link "Warehouse" [ref=f5e215] [cursor=pointer]:
+                  - /url: /en/warehouse
+              - listitem [ref=f5e216]:
+                - generic [ref=f5e217]: /
+                - link "Goods receipts" [ref=f5e218] [cursor=pointer]:
+                  - /url: /en/warehouse/grns
+          - heading "Goods receipts" [level=1] [ref=f5e220]
+        - generic [ref=f5e221]:
+          - link "← Back to goods receipts" [ref=f5e222] [cursor=pointer]:
+            - /url: /en/warehouse/grns
+          - generic [ref=f5e223]:
+            - generic [ref=f5e224]:
+              - generic [ref=f5e225]:
+                - generic [ref=f5e226]: Source
+                - generic [ref=f5e227]: PO
+              - generic [ref=f5e228]:
+                - generic [ref=f5e229]: Supplier
+                - generic [ref=f5e230]: Web Foods Ltd.
+              - generic [ref=f5e231]:
+                - generic [ref=f5e232]: Receipt date
+                - generic [ref=f5e233]: 2026-07-17
+              - generic [ref=f5e234]:
+                - generic [ref=f5e235]: Warehouse
+                - generic [ref=f5e236]: WH1
+              - generic [ref=f5e237]:
+                - generic [ref=f5e238]: Purchase Order
+                - link "NIGHT-R08-PO-1400" [ref=f5e240] [cursor=pointer]:
+                  - /url: /en/planning/purchase-orders/8e8ca83a-f79e-49aa-b905-0ace9472151d
+              - generic [ref=f5e241]:
+                - generic [ref=f5e242]: Status
+                - generic [ref=f5e243]: Completed
+            - generic [ref=f5e245]:
+              - generic [ref=f5e246]:
+                - heading "Receipt lines (1)" [level=2] [ref=f5e247]
+                - generic [ref=f5e248]:
+                  - link "Print GRN" [ref=f5e249] [cursor=pointer]:
+                    - /url: /en/warehouse/grns/027e6fb2-e90d-4b71-801f-be78692d1f6b/print
+                  - button "Export CSV" [ref=f5e250]
+              - table "Receipt lines (1)" [ref=f5e253]:
+                - rowgroup [ref=f5e254]:
+                  - row [ref=f5e255]:
+                    - columnheader "Line" [ref=f5e256]
+                    - columnheader "Item" [ref=f5e257]
+                    - columnheader "Ordered" [ref=f5e258]
+                    - columnheader "Received" [ref=f5e259]
+                    - columnheader "Outstanding" [ref=f5e260]
+                    - columnheader "Batch" [ref=f5e261]
+                    - columnheader "Supplier batch" [ref=f5e262]
+                    - columnheader "Expiry" [ref=f5e263]
+                    - columnheader "LP created" [ref=f5e264]
+                    - columnheader "QA" [ref=f5e265]
+                    - columnheader [ref=f5e266]
+                - rowgroup [ref=f5e267]:
+                  - row [ref=f5e268]:
+                    - cell "1" [ref=f5e269]
+                    - cell "Butter RM-BUTTER" [ref=f5e270]:
+                      - generic [ref=f5e271]:
+                        - generic [ref=f5e272]: Butter
+                        - generic [ref=f5e273]: RM-BUTTER
+                    - cell "12.345000 kg" [ref=f5e274]
+                    - cell "12.345000 kg" [ref=f5e275]
+                    - cell "0 kg" [ref=f5e276]
+                    - cell "NIGHT-R08-SB-1400" [ref=f5e279]
+                    - cell "NIGHT-R08-SB-1400" [ref=f5e280]
+                    - cell "2026-07-24" [ref=f5e281]
+                    - cell [ref=f5e282]:
+                      - link "LP-1784297297223-HFWI" [ref=f5e283] [cursor=pointer]:
+                        - /url: /en/warehouse/license-plates/0d838aa9-a350-4fa9-b3df-1286f9cd48a8
+                    - cell "pending" [ref=f5e284]
+                    - cell [ref=f5e286]:
+                      - generic [ref=f5e287]:
+                        - button "Release QC" [ref=f5e288]
+                        - button "Print labels" [ref=f5e289]
+                        - generic [ref=f5e291]:
+                          - spinbutton "Delivery temperature in degrees Celsius" [disabled] [ref=f5e293]
+                          - generic [ref=f5e294]: °C
+                          - 'button "Record temp — Insufficient permissions: quality.coldchain.record is required to record delivery temperatures." [disabled] [ref=f5e295]': Record temp
+          - group [ref=f5e296]:
+            - generic [ref=f5e298] [cursor=pointer]:
+              - generic [ref=f5e299]:
+                - heading "History" [level=2] [ref=f5e300]
+                - paragraph [ref=f5e301]: Read-only audit trail for this document.
+              - generic [ref=f5e302]: ▾
+            - list "History" [ref=f5e305]:
+              - listitem [ref=f5e306]:
+                - generic [ref=f5e307]:
+                  - generic [ref=f5e308]:
+                    - generic [ref=f5e309]: Status change
+                    - generic [ref=f5e310]: lp_state.transition
+                  - generic [ref=f5e311]:
+                    - time [ref=f5e312]: 17 Jul 2026, 15:08
+                    - text: · Admin
+                  - group [ref=f5e313]:
+                    - generic "Details" [ref=f5e314] [cursor=pointer]
+  - alert [ref=f5e208]

@@ -1,0 +1,3 @@
+28. [POST] https://monopilot-kira.vercel.app/en/settings/users => [200] 
+
+Note: 27 static requests not shown, run with "static" option to see them.

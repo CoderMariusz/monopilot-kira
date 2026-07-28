@@ -1,0 +1,91 @@
+- main "Sites & production lines" [ref=f16e317]:
+  - generic [ref=f16e318]:
+    - generic [ref=f16e319]:
+      - generic [ref=f16e320]: Sites & production lines
+      - generic [ref=f16e321]: Factories, lines, and work centers where production happens.
+    - button "+ Add site" [ref=f16e323] [cursor=pointer]
+  - generic [ref=f16e324]:
+    - generic [ref=f16e325]:
+      - generic [ref=f16e326]: Sites (7)
+      - generic [ref=f16e329]:
+        - generic [ref=f16e331]: GB
+        - button "tester1 (2 of 7)" [ref=f16e473] [cursor=pointer]:
+          - generic: tester1
+        - button "CODEX-R14 SITE (3 of 7)" [ref=f16e474] [cursor=pointer]:
+          - generic: CODEX-R14 SITE
+        - button "Main Factory (4 of 7)" [ref=f16e475] [cursor=pointer]:
+          - generic: Main Factory
+        - button "makery (1 of 7)" [ref=f16e476] [cursor=pointer]:
+          - generic: makery
+        - button "NIGHT-R02 Site 0731 (5 of 7)" [pressed] [ref=f16e477] [cursor=pointer]:
+          - generic: NIGHT-R02 Site 0731
+        - button "SOL-R02 Site 0539 Edited (7 of 7)" [ref=f16e479] [cursor=pointer]:
+          - generic: SOL-R02 Site 0539 Edited
+        - button "warehouse 1 (6 of 7)" [ref=f16e480] [cursor=pointer]:
+          - generic: warehouse 1
+      - list [ref=f16e344]:
+        - listitem [ref=f16e345]:
+          - button "tester1 Primary 2 lines · 0 workers" [ref=f16e346] [cursor=pointer]:
+            - generic [ref=f16e347]:
+              - text: tester1
+              - generic [ref=f16e348]: Primary
+            - generic [ref=f16e349]: 2 lines · 0 workers
+        - listitem [ref=f16e350]:
+          - button "CODEX-R14 SITE 1 lines · 0 workers" [ref=f16e351] [cursor=pointer]:
+            - generic [ref=f16e352]: CODEX-R14 SITE
+            - generic [ref=f16e353]: 1 lines · 0 workers
+        - listitem [ref=f16e354]:
+          - button "Main Factory 3 lines · 0 workers" [ref=f16e355] [cursor=pointer]:
+            - generic [ref=f16e356]: Main Factory
+            - generic [ref=f16e357]: 3 lines · 0 workers
+        - listitem [ref=f16e358]:
+          - button "makery 3 lines · 0 workers" [ref=f16e359] [cursor=pointer]:
+            - generic [ref=f16e360]: makery
+            - generic [ref=f16e361]: 3 lines · 0 workers
+        - listitem [ref=f16e481]:
+          - button "NIGHT-R02 Site 0731 0 lines · 0 workers" [active] [pressed] [ref=f16e482] [cursor=pointer]:
+            - generic [ref=f16e483]: NIGHT-R02 Site 0731
+            - generic [ref=f16e484]: 0 lines · 0 workers
+        - listitem [ref=f16e362]:
+          - button "SOL-R02 Site 0539 Edited 1 lines · 0 workers" [ref=f16e363] [cursor=pointer]:
+            - generic [ref=f16e364]: SOL-R02 Site 0539 Edited
+            - generic [ref=f16e365]: 1 lines · 0 workers
+        - listitem [ref=f16e366]:
+          - button "warehouse 1 2 lines · 0 workers" [ref=f16e367] [cursor=pointer]:
+            - generic [ref=f16e368]: warehouse 1
+            - generic [ref=f16e369]: 2 lines · 0 workers
+    - generic [ref=f16e370]:
+      - generic [ref=f16e371]:
+        - generic [ref=f16e372]:
+          - generic [ref=f16e373]: NIGHT-R02 Site 0731
+          - generic [ref=f16e375]:
+            - button "Rename site" [ref=f16e376] [cursor=pointer]
+            - button "Delete site" [ref=f16e377] [cursor=pointer]
+            - button "+ Add line" [ref=f16e378] [cursor=pointer]
+        - status [ref=f16e485]: No production lines are assigned to this site yet.
+      - region "Site settings" [ref=f16e405]:
+        - generic [ref=f16e406]:
+          - generic [ref=f16e407]: Site settings
+          - button "Edit" [ref=f16e409] [cursor=pointer]
+        - generic [ref=f16e410]:
+          - generic [ref=f16e411]:
+            - generic [ref=f16e412]:
+              - generic [ref=f16e413]: Primary site
+              - generic [ref=f16e414]: Used as default for new products and orders.
+            - generic [ref=f16e416] [cursor=pointer]:
+              - checkbox "Primary site" [disabled]
+          - generic [ref=f16e418]:
+            - generic [ref=f16e419]: Timezone
+            - generic [ref=f16e421]: Europe/London
+          - generic [ref=f16e423]:
+            - generic [ref=f16e424]: Country
+            - generic [ref=f16e426]: GB
+          - generic [ref=f16e428]:
+            - generic [ref=f16e429]: Legal entity
+            - generic [ref=f16e431]: Apex 22
+          - generic [ref=f16e433]:
+            - generic [ref=f16e434]: Operating hours
+            - generic [ref=f16e436]: Mon-Fri 06:00-22:00
+          - generic [ref=f16e438]:
+            - generic [ref=f16e439]: HACCP certification
+            - generic [ref=f16e441]: Not certified

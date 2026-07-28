@@ -1,0 +1,28 @@
+- dialog [active] [ref=f16e487]:
+  - generic [ref=f16e488]:
+    - heading "Add site" [level=2] [ref=f16e489]
+    - button "Close" [ref=f16e490] [cursor=pointer]: ✕
+  - generic [ref=f16e491]:
+    - generic [ref=f16e492]:
+      - generic [ref=f16e493]:
+        - generic [ref=f16e494]: Site code *
+        - textbox "Site code required" [ref=f16e495]: N17R02
+      - generic [ref=f16e496]:
+        - generic [ref=f16e497]: Name *
+        - textbox "Name required" [ref=f16e498]: Duplicate R02
+      - generic [ref=f16e499]:
+        - generic [ref=f16e500]: Timezone
+        - textbox "Timezone" [ref=f16e501]: UTC
+      - generic [ref=f16e502]:
+        - generic [ref=f16e503]: Country
+        - textbox "Country" [ref=f16e504]: GB
+      - generic [ref=f16e505]:
+        - generic [ref=f16e506]: Legal entity
+        - textbox "Legal entity" [ref=f16e507]: Apex 22
+      - generic [ref=f16e509]:
+        - checkbox "Primary site" [ref=f16e510]
+        - text: Primary site
+      - alert [ref=f16e515]: This field is required.
+    - generic [ref=f16e511]:
+      - button "Cancel" [ref=f16e512] [cursor=pointer]
+      - button "Save" [ref=f16e513] [cursor=pointer]

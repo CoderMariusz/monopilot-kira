@@ -1,0 +1,12 @@
+Total messages: 1 (Errors: 1, Warnings: 0)
+
+Error: Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings.
+    at rX (https://monopilot-kira.vercel.app/_next/static/chunks/3zwcazv_dbgvy.js:2:47240)
+    at rG (https://monopilot-kira.vercel.app/_next/static/chunks/3zwcazv_dbgvy.js:2:48273)
+    at https://monopilot-kira.vercel.app/_next/static/chunks/3zwcazv_dbgvy.js:2:142621
+    at sh (https://monopilot-kira.vercel.app/_next/static/chunks/3zwcazv_dbgvy.js:2:147782)
+    at sd (https://monopilot-kira.vercel.app/_next/static/chunks/3zwcazv_dbgvy.js:2:139032)
+    at https://monopilot-kira.vercel.app/_next/static/chunks/3zwcazv_dbgvy.js:2:133857
+    at se (https://monopilot-kira.vercel.app/_next/static/chunks/3zwcazv_dbgvy.js:2:133958)
+    at s$ (https://monopilot-kira.vercel.app/_next/static/chunks/3zwcazv_dbgvy.js:2:160522)
+    at MessagePort.O (https://monopilot-kira.vercel.app/_next/static/chunks/3zwcazv_dbgvy.js:2:8681)

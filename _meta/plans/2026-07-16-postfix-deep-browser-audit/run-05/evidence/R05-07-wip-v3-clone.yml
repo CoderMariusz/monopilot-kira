@@ -1,0 +1,95 @@
+- main [ref=f99e370]:
+  - navigation "Breadcrumb" [ref=f99e371]:
+    - link "Technical" [ref=f99e372] [cursor=pointer]:
+      - /url: /en/technical
+    - text: /
+    - link "WIP library" [ref=f99e373] [cursor=pointer]:
+      - /url: /en/technical/wip-library
+    - text: / NIGHT-R05-L2-1020
+  - generic [ref=f99e374]:
+    - generic [ref=f99e376]:
+      - generic [ref=f99e377]:
+        - generic [ref=f99e378]: Name
+        - textbox "Name" [ref=f99e380]: NIGHT-R05-L2-1020
+      - generic [ref=f99e381]:
+        - generic [ref=f99e382]: Base UoM
+        - combobox "Base UoM" [ref=f99e384] [cursor=pointer]:
+          - generic [ref=f99e385]: kg
+          - generic [ref=f99e386]: ⌄
+      - generic [ref=f99e387]:
+        - generic [ref=f99e388]: Description
+        - textbox "Description" [ref=f99e390]
+      - generic [ref=f99e391]:
+        - generic [ref=f99e392]: Yield %
+        - spinbutton "Yield %" [ref=f99e394]: "87.500"
+      - generic [ref=f99e395]:
+        - generic [ref=f99e396]: Reusable in formulations
+        - switch "Reusable in formulations" [checked] [ref=f99e397] [cursor=pointer]
+      - generic [ref=f99e399]:
+        - generic [ref=f99e400]: Status
+        - generic [ref=f99e401]: active
+      - generic [ref=f99e402]:
+        - generic [ref=f99e403]: Version
+        - generic [ref=f99e404]: v3
+      - generic [ref=f99e405]:
+        - generic [ref=f99e406]: Item code
+        - generic [ref=f99e407]: WIP-20260717-0012
+    - generic [ref=f99e408]:
+      - generic [ref=f99e409]:
+        - heading "Composition" [level=2] [ref=f99e410]
+        - paragraph [ref=f99e411]: Raw materials per 1 output unit of this WIP.
+      - table "Composition" [ref=f99e412]:
+        - rowgroup [ref=f99e413]:
+          - row [ref=f99e414]:
+            - columnheader "Item" [ref=f99e415]
+            - columnheader "Qty / output unit" [ref=f99e416]
+            - columnheader "UoM" [ref=f99e417]
+            - columnheader "Actions" [ref=f99e418]
+        - rowgroup [ref=f99e419]:
+          - row [ref=f99e420]:
+            - cell "WIP-20260714-0011WIP-019" [ref=f99e421]
+            - cell [ref=f99e422]:
+              - spinbutton "Qty / output unit" [ref=f99e424]: "0.690000"
+            - cell [ref=f99e425]:
+              - combobox "UoM" [ref=f99e427] [cursor=pointer]:
+                - generic [ref=f99e428]: kg
+                - generic [ref=f99e429]: ⌄
+            - cell [ref=f99e430]:
+              - button "Remove" [ref=f99e431] [cursor=pointer]
+          - row [ref=f99e432]:
+            - cell "ING-FLOURWheat Flour" [ref=f99e433]
+            - cell [ref=f99e434]:
+              - spinbutton "Qty / output unit" [ref=f99e436]: "0.310000"
+            - cell [ref=f99e437]:
+              - combobox "UoM" [ref=f99e439] [cursor=pointer]:
+                - generic [ref=f99e440]: kg
+                - generic [ref=f99e441]: ⌄
+            - cell [ref=f99e442]:
+              - button "Remove" [ref=f99e443] [cursor=pointer]
+      - button "+ Add ingredient" [ref=f99e446] [cursor=pointer]
+    - generic [ref=f99e447]:
+      - generic [ref=f99e448]:
+        - generic [ref=f99e449]:
+          - heading "Process chain" [level=2] [ref=f99e450]
+          - paragraph [ref=f99e451]: Ordered manufacturing operations with duration, cost, throughput, and staffing.
+        - button "+ Add process" [ref=f99e453] [cursor=pointer]
+      - list [ref=f99e454]:
+        - listitem [ref=f99e455]:
+          - generic [ref=f99e456]:
+            - generic [ref=f99e457]: Mixing
+            - generic [ref=f99e458]:
+              - generic [ref=f99e459]: "Duration (h): 1.25"
+              - generic [ref=f99e460]: "Additional cost: 3.3333"
+              - button "Edit" [ref=f99e461] [cursor=pointer]
+              - button "Remove" [ref=f99e462] [cursor=pointer]
+          - generic [ref=f99e463]:
+            - generic [ref=f99e464]: "Roles:"
+            - generic [ref=f99e465]: packer ×3
+    - generic [ref=f99e466]:
+      - generic [ref=f99e467]:
+        - heading "Where used" [level=2] [ref=f99e468]
+        - paragraph [ref=f99e469]: NPD projects referencing this definition and their accepted version.
+      - generic [ref=f99e470]: Not referenced by any project.
+    - generic [ref=f99e471]:
+      - button "Save" [ref=f99e472] [cursor=pointer]
+      - button "Archive" [ref=f99e473] [cursor=pointer]

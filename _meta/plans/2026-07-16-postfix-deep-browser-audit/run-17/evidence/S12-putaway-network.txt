@@ -1,0 +1,5 @@
+23. [GET] https://monopilot-kira.vercel.app/api/warehouse/scanner/lp?code=LP-1784363420662-6L1D => [200] 
+24. [GET] https://monopilot-kira.vercel.app/api/warehouse/scanner/putaway/suggest?lpId=75a3c314-e7a5-48a9-a9bf-857904a9e081 => [200] 
+25. [POST] https://monopilot-kira.vercel.app/api/warehouse/scanner/putaway => [200] 
+
+Note: 21 static requests not shown, run with "static" option to see them.

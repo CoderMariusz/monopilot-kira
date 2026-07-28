@@ -1,0 +1,1731 @@
+- generic [ref=f4e1]:
+  - generic [ref=f4e2]:
+    - banner [ref=f4e4]:
+      - generic "MonoPilot MES" [ref=f4e5]
+      - searchbox "Search settings…" [ref=f4e7]
+      - generic [ref=f4e8]:
+        - button "Switch organization (platform admin)" [ref=f4e10] [cursor=pointer]:
+          - generic [ref=f4e11]: A2
+          - generic [ref=f4e12]: "000000000000"
+          - generic [ref=f4e13]: Apex 22
+          - generic [ref=f4e14]: ▼
+        - generic "Filters work orders, license plates and OEE only — other screens stay org-wide" [ref=f4e15]:
+          - generic [ref=f4e16]: Site
+          - combobox "Site" [ref=f4e17] [cursor=pointer]:
+            - option "All sites" [selected]
+            - option "tester1"
+            - option "CODEX-R14 SITE"
+            - option "Main Factory"
+            - option "makery"
+            - option "SOL-R02 Site 0539 Edited"
+            - option "warehouse 1"
+        - button "Notifications" [ref=f4e19]
+        - button "Open user menu for Apex Admin" [ref=f4e24]: AA
+    - navigation "Primary" [ref=f4e25]:
+      - generic [ref=f4e26]:
+        - generic [ref=f4e27]:
+          - heading "Core" [level=2] [ref=f4e28]
+          - generic [ref=f4e29]:
+            - link "Dashboard" [ref=f4e30] [cursor=pointer]:
+              - /url: /en/dashboard
+              - generic [ref=f4e31]: ◆
+            - link "Settings" [ref=f4e34] [cursor=pointer]:
+              - /url: /en/settings
+              - generic [ref=f4e35]: ⚙
+        - generic [ref=f4e38]:
+          - heading "Operations" [level=2] [ref=f4e39]
+          - generic [ref=f4e40]:
+            - link "Planning" [ref=f4e41] [cursor=pointer]:
+              - /url: /en/planning
+              - generic [ref=f4e42]: ▤
+            - link "Freight" [ref=f4e45] [cursor=pointer]:
+              - /url: /en/planning/carriers
+              - generic [ref=f4e46]: F
+            - link "Scheduler" [ref=f4e49] [cursor=pointer]:
+              - /url: /en/scheduler
+              - generic [ref=f4e50]: ⧗
+            - link "Production" [ref=f4e53] [cursor=pointer]:
+              - /url: /en/production
+              - generic [ref=f4e54]: ⚒
+            - link "Yard" [ref=f4e57] [cursor=pointer]:
+              - /url: /en/yard
+              - generic [ref=f4e58]: "Y"
+            - link "Warehouse" [ref=f4e61] [cursor=pointer]:
+              - /url: /en/warehouse
+              - generic [ref=f4e62]: ▥
+            - link "Scanner" [ref=f4e65] [cursor=pointer]:
+              - /url: /en/scanner/home
+              - generic [ref=f4e66]: 📱
+        - generic [ref=f4e69]:
+          - heading "QA & Shipping" [level=2] [ref=f4e70]
+          - generic [ref=f4e71]:
+            - link "Quality" [ref=f4e72] [cursor=pointer]:
+              - /url: /en/quality
+              - generic [ref=f4e73]: ✓
+            - link "Shipping" [ref=f4e76] [cursor=pointer]:
+              - /url: /en/shipping
+              - generic [ref=f4e77]: →
+        - generic [ref=f4e80]:
+          - heading "Premium" [level=2] [ref=f4e81]
+          - generic [ref=f4e82]:
+            - link "Technical" [ref=f4e83] [cursor=pointer]:
+              - /url: /en/technical
+              - generic [ref=f4e84]: ▦
+            - link "NPD" [ref=f4e87] [cursor=pointer]:
+              - /url: /en/pipeline
+              - generic [ref=f4e88]: ★
+            - link "Finance" [ref=f4e91] [cursor=pointer]:
+              - /url: /en/finance
+              - generic [ref=f4e92]: $
+            - link "OEE" [ref=f4e95] [cursor=pointer]:
+              - /url: /en/oee
+              - generic [ref=f4e96]: ◉
+            - link "Maintenance" [ref=f4e99] [cursor=pointer]:
+              - /url: /en/maintenance
+              - generic [ref=f4e100]: 🔧
+        - generic [ref=f4e103]:
+          - heading "Analytics & Network" [level=2] [ref=f4e104]
+          - generic [ref=f4e105]:
+            - link "Reporting" [ref=f4e106] [cursor=pointer]:
+              - /url: /en/reporting
+              - generic [ref=f4e107]: ▧
+            - link "Multi-Site" [ref=f4e110] [cursor=pointer]:
+              - /url: /en/multi-site
+              - generic [ref=f4e111]: ❖
+    - main [ref=f4e114]:
+      - generic [ref=f4e145]:
+        - navigation "Settings" [ref=f4e146]:
+          - generic [ref=f4e147]:
+            - generic [ref=f4e148]:
+              - heading "Organization" [level=2] [ref=f4e149]
+              - generic [ref=f4e150]:
+                - link "Company profile" [ref=f4e151] [cursor=pointer]:
+                  - /url: /en/settings/company
+                  - generic [ref=f4e152]: ◆
+                - link "Compliance profile" [ref=f4e154] [cursor=pointer]:
+                  - /url: /en/settings/compliance
+                  - generic [ref=f4e155]: ✓
+                - link "Sites & lines" [ref=f4e157] [cursor=pointer]:
+                  - /url: /en/settings/sites
+                  - generic [ref=f4e158]: ▤
+                - link "Production lines" [ref=f4e160] [cursor=pointer]:
+                  - /url: /en/settings/infra/lines
+                  - generic [ref=f4e161]: ≣
+                - link "Warehouses" [ref=f4e163] [cursor=pointer]:
+                  - /url: /en/settings/infra/warehouses
+                  - generic [ref=f4e164]: ▥
+                - link "Locations" [ref=f4e166] [cursor=pointer]:
+                  - /url: /en/settings/infra/locations
+                  - generic [ref=f4e167]: ⌖
+                - link "Printers" [ref=f4e169] [cursor=pointer]:
+                  - /url: /en/settings/infra/printers
+                  - generic [ref=f4e170]: 🖨
+                - link "Dock doors" [ref=f4e172] [cursor=pointer]:
+                  - /url: /en/settings/infra/docks
+                  - generic [ref=f4e173]: ⚓
+                - link "Shifts & calendar" [ref=f4e175] [cursor=pointer]:
+                  - /url: /en/settings/shifts
+                  - generic [ref=f4e176]: ⧗
+                - link "Labor rates" [ref=f4e178] [cursor=pointer]:
+                  - /url: /en/settings/labor-rates
+                  - generic [ref=f4e179]: 💰
+            - generic [ref=f4e181]:
+              - heading "Data" [level=2] [ref=f4e182]
+              - generic [ref=f4e183]:
+                - link "NPD fields" [ref=f4e184] [cursor=pointer]:
+                  - /url: /en/settings/npd-fields
+                  - generic [ref=f4e185]: ▦
+                - link "Approval requirements" [ref=f4e187] [cursor=pointer]:
+                  - /url: /en/settings/npd-approval
+                  - generic [ref=f4e188]: ✔
+                - link "Gate checklists" [ref=f4e190] [cursor=pointer]:
+                  - /url: /en/settings/npd-checklist
+                  - generic [ref=f4e191]: ☑
+                - link "Cost parameters" [ref=f4e193] [cursor=pointer]:
+                  - /url: /en/settings/npd-cost-params
+                  - generic [ref=f4e194]: £
+                - link "BOMs & recipes" [ref=f4e196] [cursor=pointer]:
+                  - /url: /en/settings/boms
+                  - generic [ref=f4e197]: ⛓
+                - link "Processes" [ref=f4e199] [cursor=pointer]:
+                  - /url: /en/settings/process-defaults
+                  - generic [ref=f4e200]: ⟶
+                - link "└ Manufacturing operations" [ref=f4e203] [cursor=pointer]:
+                  - /url: /en/settings/reference/manufacturing-operations
+                  - generic [ref=f4e204]: ⚒
+                - link "Product categories" [ref=f4e207] [cursor=pointer]:
+                  - /url: /en/settings/reference/product-categories
+                  - generic [ref=f4e208]: 🏷
+                - link "Suppliers & customers" [ref=f4e211] [cursor=pointer]:
+                  - /url: /en/settings/partners
+                  - generic [ref=f4e212]: ↔
+                - link "Customer prices" [ref=f4e214] [cursor=pointer]:
+                  - /url: /en/settings/customer-prices
+                  - generic [ref=f4e215]: £
+                - link "Units & conversions" [ref=f4e217] [cursor=pointer]:
+                  - /url: /en/settings/units
+                  - generic [ref=f4e218]: ⚖
+                - link "Temperature ranges" [ref=f4e220] [cursor=pointer]:
+                  - /url: /en/settings/quality/temp-ranges
+                  - generic [ref=f4e221]: ❄
+                - link "Import / Export" [ref=f4e223] [cursor=pointer]:
+                  - /url: /en/settings/import-export
+                  - generic [ref=f4e224]: ⇅
+            - generic [ref=f4e227]:
+              - heading "Access" [level=2] [ref=f4e228]
+              - generic [ref=f4e229]:
+                - link "Users & roles" [ref=f4e230] [cursor=pointer]:
+                  - /url: /en/settings/users
+                  - generic [ref=f4e231]: ◉
+                - link "Security" [ref=f4e233] [cursor=pointer]:
+                  - /url: /en/settings/security
+                  - generic [ref=f4e234]: 🔒
+                - link "Audit logs" [ref=f4e236] [cursor=pointer]:
+                  - /url: /en/settings/audit
+                  - generic [ref=f4e237]: ◷
+            - generic [ref=f4e240]:
+              - heading "Sign-off" [level=2] [ref=f4e241]
+              - generic [ref=f4e242]:
+                - link "Sign-off policies" [ref=f4e243] [cursor=pointer]:
+                  - /url: /en/settings/signoff
+                  - generic [ref=f4e244]: ✍
+                - link "Authorization policies" [ref=f4e246] [cursor=pointer]:
+                  - /url: /en/settings/authorization
+                  - generic [ref=f4e247]: 🛡
+                - link "Sign-off & PINs" [ref=f4e249] [cursor=pointer]:
+                  - /url: /en/settings/scanner-auth
+                  - generic [ref=f4e250]: 🔐
+            - generic [ref=f4e252]:
+              - heading "Operations" [level=2] [ref=f4e253]
+              - generic [ref=f4e254]:
+                - link "Scanner devices" [ref=f4e255] [cursor=pointer]:
+                  - /url: /en/settings/devices
+                  - generic [ref=f4e256]: 📱
+                - link "Notifications" [ref=f4e258] [cursor=pointer]:
+                  - /url: /en/settings/notifications
+                  - generic [ref=f4e259]: ◔
+                - link "Feature flags" [ref=f4e261] [cursor=pointer]:
+                  - /url: /en/settings/features
+                  - generic [ref=f4e262]: ◨
+            - generic [ref=f4e264]:
+              - heading "Integrations" [level=2] [ref=f4e265]
+              - link "Integrations" [ref=f4e267] [cursor=pointer]:
+                - /url: /en/settings/integrations
+                - generic [ref=f4e268]: ⇄
+            - generic [ref=f4e270]:
+              - heading "Document templates" [level=2] [ref=f4e271]
+              - generic [ref=f4e272]:
+                - link "Label templates" [ref=f4e273] [cursor=pointer]:
+                  - /url: /en/settings/labels
+                  - generic [ref=f4e274]: ▭
+                - link "Document numbering" [ref=f4e277] [cursor=pointer]:
+                  - /url: /en/settings/documents
+                  - generic [ref=f4e278]: №
+            - generic [ref=f4e280]:
+              - heading "Onboarding" [level=2] [ref=f4e281]
+              - link "Onboarding wizard" [ref=f4e283] [cursor=pointer]:
+                - /url: /en/settings/onboarding
+                - generic [ref=f4e284]: ✦
+            - generic [ref=f4e287]:
+              - heading "Admin" [level=2] [ref=f4e288]
+              - generic [ref=f4e289]:
+                - link "D365 connection" [ref=f4e290] [cursor=pointer]:
+                  - /url: /en/settings/integrations/d365
+                  - generic [ref=f4e291]: ⇆
+                - link "D365 field mapping" [ref=f4e293] [cursor=pointer]:
+                  - /url: /en/settings/integrations/d365/mapping
+                  - generic [ref=f4e294]: ↔
+                - link "D365 cost import" [ref=f4e296] [cursor=pointer]:
+                  - /url: /en/settings/integrations/d365/cost-import
+                  - generic [ref=f4e297]: ⇣
+                - link "D365 DLQ (shipping)" [ref=f4e299] [cursor=pointer]:
+                  - /url: /en/settings/d365-dlq
+                  - generic [ref=f4e300]: "!"
+                - link "Rules registry" [ref=f4e302] [cursor=pointer]:
+                  - /url: /en/settings/rules
+                  - generic [ref=f4e303]: ✦
+                - link "Feature flags (L)" [ref=f4e305] [cursor=pointer]:
+                  - /url: /en/settings/flags
+                  - generic [ref=f4e306]: ◨
+                - link "Schema browser" [ref=f4e308] [cursor=pointer]:
+                  - /url: /en/settings/schema
+                  - generic [ref=f4e309]: ▦
+                - link "└ Column wizard" [ref=f4e311] [cursor=pointer]:
+                  - /url: /en/settings/schema/new
+                  - generic [ref=f4e312]: ✎
+                - link "└ Migrations queue" [ref=f4e314] [cursor=pointer]:
+                  - /url: /en/settings/schema/migrations
+                  - generic [ref=f4e315]: ⇣
+                - link "Tenant variations" [ref=f4e318] [cursor=pointer]:
+                  - /url: /en/settings/tenant
+                  - generic [ref=f4e319]: ❖
+                - link "Reference data" [ref=f4e322] [cursor=pointer]:
+                  - /url: /en/settings/reference
+                  - generic [ref=f4e323]: ⚙
+                - link "Email templates" [ref=f4e325] [cursor=pointer]:
+                  - /url: /en/settings/email
+                  - generic [ref=f4e326]: ✉
+                - link "Email variables" [ref=f4e328] [cursor=pointer]:
+                  - /url: /en/settings/email/variables
+                  - generic [ref=f4e329]: §
+                - link "Shipping override reasons" [ref=f4e331] [cursor=pointer]:
+                  - /url: /en/settings/ship-override-reasons
+                  - generic [ref=f4e332]: ≡
+            - generic [ref=f4e334]:
+              - heading "My account" [level=2] [ref=f4e335]
+              - generic [ref=f4e336]:
+                - link "My profile" [ref=f4e337] [cursor=pointer]:
+                  - /url: /en/account/profile
+                  - generic [ref=f4e338]: ◯
+                - link "Notifications" [ref=f4e340] [cursor=pointer]:
+                  - /url: /en/account/notifications
+                  - generic [ref=f4e341]: ◔
+                - link "E-sign & scanner PIN" [ref=f4e343] [cursor=pointer]:
+                  - /url: /en/account/pin
+                  - generic [ref=f4e344]: ✱
+        - main [ref=f4e346]:
+          - main [ref=f4e347]:
+            - generic [ref=f4e348]:
+              - generic [ref=f4e349]:
+                - heading "Users & roles" [level=1] [ref=f4e350]
+                - paragraph [ref=f4e351]: 7 users · 25 role categories
+              - generic [ref=f4e352]:
+                - button "Export" [ref=f4e353] [cursor=pointer]
+                - button "+ Invite user" [active] [ref=f4e354] [cursor=pointer]
+            - status [ref=f4e1883]: Invitation sent to night-r01-20260717-0548@monopilot.test.
+            - region "User KPIs" [ref=f4e355]:
+              - generic [ref=f4e356]:
+                - generic [ref=f4e357]: Active
+                - generic [ref=f4e358]: "2"
+              - generic [ref=f4e359]:
+                - generic [ref=f4e360]: Invited
+                - generic [ref=f4e361]: "2"
+              - generic [ref=f4e362]:
+                - generic [ref=f4e363]: Disabled
+                - generic [ref=f4e364]: "3"
+              - generic [ref=f4e365]:
+                - generic [ref=f4e366]: Seats used
+                - generic [ref=f4e367]:
+                  - text: 2 unlimited
+                  - generic [ref=f4e368]: Seats used 2 unlimited
+            - region "User directory" [ref=f4e369]:
+              - generic [ref=f4e370]:
+                - group "User directory" [ref=f4e371]:
+                  - button "All" [pressed] [ref=f4e372] [cursor=pointer]
+                  - button "Admin" [ref=f4e373] [cursor=pointer]
+                  - button "Manager" [ref=f4e374] [cursor=pointer]
+                  - button "Operator" [ref=f4e375] [cursor=pointer]
+                  - button "Viewer" [ref=f4e376] [cursor=pointer]
+                - generic [ref=f4e377]:
+                  - group "Directory view" [ref=f4e378]:
+                    - button "Table" [pressed] [ref=f4e379] [cursor=pointer]
+                    - button "Cards" [ref=f4e380] [cursor=pointer]
+                  - generic [ref=f4e381]:
+                    - generic [ref=f4e382]: Search by name or email
+                    - searchbox "Search by name or email" [ref=f4e384]
+              - table "Users & roles" [ref=f4e387]:
+                - rowgroup [ref=f4e388]:
+                  - row "Avatar Name Email Role Site MFA Last login Status Actions" [ref=f4e389]:
+                    - columnheader "Avatar" [ref=f4e390]
+                    - columnheader "Name" [ref=f4e391]
+                    - columnheader "Email" [ref=f4e392]
+                    - columnheader "Role" [ref=f4e393]
+                    - columnheader "Site" [ref=f4e394]
+                    - columnheader "MFA" [ref=f4e395]
+                    - columnheader "Last login" [ref=f4e396]
+                    - columnheader "Status" [ref=f4e397]
+                    - columnheader "Actions" [ref=f4e398]
+                - rowgroup [ref=f4e399]:
+                  - row "AD Admin admin@monopilot.test Admin Admin All sites Assign sites for Admin Not enrolled Never ● Active Reset password for Admin Deactivate Admin" [ref=f4e400]:
+                    - cell "AD" [ref=f4e401]
+                    - cell "Admin" [ref=f4e403]
+                    - cell "admin@monopilot.test" [ref=f4e404]
+                    - cell "Admin Admin" [ref=f4e405]:
+                      - generic [ref=f4e406]
+                    - cell "All sites Assign sites for Admin" [ref=f4e409]:
+                      - generic [ref=f4e410]
+                    - cell "Not enrolled" [ref=f4e413]:
+                      - generic [ref=f4e414]
+                    - cell "Never" [ref=f4e416]
+                    - cell "● Active" [ref=f4e417]
+                    - cell "Reset password for Admin Deactivate Admin" [ref=f4e419]:
+                      - generic [ref=f4e420]
+                  - row "ER E2E R08 Signer e2e-r08-signer-20260711@monopilot.test Viewer Viewer All sites Assign sites for E2E R08 Signer Not enrolled Never ● Active Reset password for E2E R08 Signer Deactivate E2E R08 Signer" [ref=f4e423]:
+                    - cell "ER" [ref=f4e424]
+                    - cell "E2E R08 Signer" [ref=f4e426]
+                    - cell "e2e-r08-signer-20260711@monopilot.test" [ref=f4e427]
+                    - cell "Viewer Viewer" [ref=f4e428]:
+                      - generic [ref=f4e429]
+                    - cell "All sites Assign sites for E2E R08 Signer" [ref=f4e432]:
+                      - generic [ref=f4e433]
+                    - cell "Not enrolled" [ref=f4e436]:
+                      - generic [ref=f4e437]
+                    - cell "Never" [ref=f4e439]
+                    - cell "● Active" [ref=f4e440]
+                    - cell "Reset password for E2E R08 Signer Deactivate E2E R08 Signer" [ref=f4e442]:
+                      - generic [ref=f4e443]
+                  - row "E2 e2e-f42@test.local e2e-f42@test.local Viewer Viewer All sites Assign sites for e2e-f42@test.local Not enrolled Never ✕ Disabled Reset password for e2e-f42@test.local Reactivate e2e-f42@test.local" [ref=f4e446]:
+                    - cell "E2" [ref=f4e447]
+                    - cell "e2e-f42@test.local" [ref=f4e449]
+                    - cell "e2e-f42@test.local" [ref=f4e450]
+                    - cell "Viewer Viewer" [ref=f4e451]:
+                      - generic [ref=f4e452]
+                    - cell "All sites Assign sites for e2e-f42@test.local" [ref=f4e455]:
+                      - generic [ref=f4e456]
+                    - cell "Not enrolled" [ref=f4e459]:
+                      - generic [ref=f4e460]
+                    - cell "Never" [ref=f4e462]
+                    - cell "✕ Disabled" [ref=f4e463]
+                    - cell "Reset password for e2e-f42@test.local Reactivate e2e-f42@test.local" [ref=f4e465]:
+                      - generic [ref=f4e466]
+                  - row "E2 e2e-f4r-inv@test.local e2e-f4r-inv@test.local Viewer Viewer All sites Assign sites for e2e-f4r-inv@test.local Not enrolled Never ⟳ Invited Reset password for e2e-f4r-inv@test.local Deactivate e2e-f4r-inv@test.local" [ref=f4e469]:
+                    - cell "E2" [ref=f4e470]
+                    - cell "e2e-f4r-inv@test.local" [ref=f4e472]
+                    - cell "e2e-f4r-inv@test.local" [ref=f4e473]
+                    - cell "Viewer Viewer" [ref=f4e474]:
+                      - generic [ref=f4e475]
+                    - cell "All sites Assign sites for e2e-f4r-inv@test.local" [ref=f4e478]:
+                      - generic [ref=f4e479]
+                    - cell "Not enrolled" [ref=f4e482]:
+                      - generic [ref=f4e483]
+                    - cell "Never" [ref=f4e485]
+                    - cell "⟳ Invited" [ref=f4e486]
+                    - cell "Reset password for e2e-f4r-inv@test.local Deactivate e2e-f4r-inv@test.local" [ref=f4e488]:
+                      - generic [ref=f4e489]
+                  - row "E2 e2e-f4r@test.local e2e-f4r@test.local Core User Viewer All sites Assign sites for e2e-f4r@test.local Not enrolled Never ✕ Disabled Reset password for e2e-f4r@test.local Reactivate e2e-f4r@test.local" [ref=f4e492]:
+                    - cell "E2" [ref=f4e493]
+                    - cell "e2e-f4r@test.local" [ref=f4e495]
+                    - cell "e2e-f4r@test.local" [ref=f4e496]
+                    - cell "Core User Viewer" [ref=f4e497]:
+                      - generic [ref=f4e498]
+                    - cell "All sites Assign sites for e2e-f4r@test.local" [ref=f4e501]:
+                      - generic [ref=f4e502]
+                    - cell "Not enrolled" [ref=f4e505]:
+                      - generic [ref=f4e506]
+                    - cell "Never" [ref=f4e508]
+                    - cell "✕ Disabled" [ref=f4e509]
+                    - cell "Reset password for e2e-f4r@test.local Reactivate e2e-f4r@test.local" [ref=f4e511]:
+                      - generic [ref=f4e512]
+                  - row "SO SOL-R01-20260715-0512-USER sol-r01-20260715-0512-user@monopilot.test Viewer Viewer All sites Assign sites for SOL-R01-20260715-0512-USER Not enrolled Never ✕ Disabled Reset password for SOL-R01-20260715-0512-USER Reactivate SOL-R01-20260715-0512-USER" [ref=f4e515]:
+                    - cell "SO" [ref=f4e516]
+                    - cell "SOL-R01-20260715-0512-USER" [ref=f4e518]
+                    - cell "sol-r01-20260715-0512-user@monopilot.test" [ref=f4e519]
+                    - cell "Viewer Viewer" [ref=f4e520]:
+                      - generic [ref=f4e521]
+                    - cell "All sites Assign sites for SOL-R01-20260715-0512-USER" [ref=f4e524]:
+                      - generic [ref=f4e525]
+                    - cell "Not enrolled" [ref=f4e528]:
+                      - generic [ref=f4e529]
+                    - cell "Never" [ref=f4e531]
+                    - cell "✕ Disabled" [ref=f4e532]
+                    - cell "Reset password for SOL-R01-20260715-0512-USER Reactivate SOL-R01-20260715-0512-USER" [ref=f4e534]:
+                      - generic [ref=f4e535]
+                  - row "SO SOL-R01-DUPLICATE sol-r01-20260715-0511-inv@monopilot.test NPD Manager Manager All sites Assign sites for SOL-R01-DUPLICATE Not enrolled Never ⟳ Invited Reset password for SOL-R01-DUPLICATE Deactivate SOL-R01-DUPLICATE" [ref=f4e538]:
+                    - cell "SO" [ref=f4e539]
+                    - cell "SOL-R01-DUPLICATE" [ref=f4e541]
+                    - cell "sol-r01-20260715-0511-inv@monopilot.test" [ref=f4e542]
+                    - cell "NPD Manager Manager" [ref=f4e543]:
+                      - generic [ref=f4e544]
+                    - cell "All sites Assign sites for SOL-R01-DUPLICATE" [ref=f4e547]:
+                      - generic [ref=f4e548]
+                    - cell "Not enrolled" [ref=f4e551]:
+                      - generic [ref=f4e552]
+                    - cell "Never" [ref=f4e554]
+                    - cell "⟳ Invited" [ref=f4e555]
+                    - cell "Reset password for SOL-R01-DUPLICATE Deactivate SOL-R01-DUPLICATE" [ref=f4e557]:
+                      - generic [ref=f4e558]
+            - generic [ref=f4e561]:
+              - heading "Role permissions" [level=2] [ref=f4e562]
+              - paragraph [ref=f4e563]: What each role can do across modules. Edit by clicking a cell.
+              - table "Role permissions" [ref=f4e565]:
+                - rowgroup [ref=f4e566]:
+                  - row [ref=f4e567]:
+                    - columnheader "Module" [ref=f4e568]
+                    - columnheader "org.access.admin" [ref=f4e569]
+                    - columnheader "org.platform.admin" [ref=f4e570]
+                    - columnheader "org.schema.admin" [ref=f4e571]
+                    - columnheader "E2E-F3 Test Role" [ref=f4e572]
+                    - columnheader "NPD Manager" [ref=f4e573]
+                    - columnheader "Core User" [ref=f4e574]
+                    - columnheader "Department Manager" [ref=f4e575]
+                    - columnheader "Department User" [ref=f4e576]
+                    - columnheader "Admin" [ref=f4e577]
+                    - columnheader "Viewer" [ref=f4e578]
+                    - columnheader "Technical Lead" [ref=f4e579]
+                    - columnheader "Quality Lead" [ref=f4e580]
+                    - columnheader "QA Inspector" [ref=f4e581]
+                    - columnheader "Hygiene Lead" [ref=f4e582]
+                    - columnheader "Production Manager" [ref=f4e583]
+                    - columnheader "Shift Lead" [ref=f4e584]
+                    - columnheader "Line Operator" [ref=f4e585]
+                    - columnheader "Warehouse Operator" [ref=f4e586]
+                    - columnheader "Planner" [ref=f4e587]
+                    - columnheader "Buyer" [ref=f4e588]
+                    - columnheader "Maintenance Technician" [ref=f4e589]
+                    - columnheader "Finance Clerk" [ref=f4e590]
+                    - columnheader "Finance Manager" [ref=f4e591]
+                    - columnheader "Shipping Coordinator" [ref=f4e592]
+                    - columnheader "Shipping Manager" [ref=f4e593]
+                - rowgroup [ref=f4e594]:
+                  - row [ref=f4e595]:
+                    - cell "Org" [ref=f4e596]
+                    - cell "Full admin" [ref=f4e597]:
+                      - generic "Full admin" [ref=f4e598]: ◉
+                    - cell "Full admin" [ref=f4e599]:
+                      - generic "Full admin" [ref=f4e600]: ◉
+                    - cell "Full admin" [ref=f4e601]:
+                      - generic "Full admin" [ref=f4e602]: ◉
+                    - cell "No access" [ref=f4e603]:
+                      - generic "No access" [ref=f4e604]: –
+                    - cell "No access" [ref=f4e605]:
+                      - generic "No access" [ref=f4e606]: –
+                    - cell "No access" [ref=f4e607]:
+                      - generic "No access" [ref=f4e608]: –
+                    - cell "No access" [ref=f4e609]:
+                      - generic "No access" [ref=f4e610]: –
+                    - cell "No access" [ref=f4e611]:
+                      - generic "No access" [ref=f4e612]: –
+                    - cell "Full admin" [ref=f4e613]:
+                      - generic "Full admin" [ref=f4e614]: ◉
+                    - cell "No access" [ref=f4e615]:
+                      - generic "No access" [ref=f4e616]: –
+                    - cell "No access" [ref=f4e617]:
+                      - generic "No access" [ref=f4e618]: –
+                    - cell "No access" [ref=f4e619]:
+                      - generic "No access" [ref=f4e620]: –
+                    - cell "No access" [ref=f4e621]:
+                      - generic "No access" [ref=f4e622]: –
+                    - cell "No access" [ref=f4e623]:
+                      - generic "No access" [ref=f4e624]: –
+                    - cell "No access" [ref=f4e625]:
+                      - generic "No access" [ref=f4e626]: –
+                    - cell "No access" [ref=f4e627]:
+                      - generic "No access" [ref=f4e628]: –
+                    - cell "No access" [ref=f4e629]:
+                      - generic "No access" [ref=f4e630]: –
+                    - cell "No access" [ref=f4e631]:
+                      - generic "No access" [ref=f4e632]: –
+                    - cell "No access" [ref=f4e633]:
+                      - generic "No access" [ref=f4e634]: –
+                    - cell "No access" [ref=f4e635]:
+                      - generic "No access" [ref=f4e636]: –
+                    - cell "No access" [ref=f4e637]:
+                      - generic "No access" [ref=f4e638]: –
+                    - cell "No access" [ref=f4e639]:
+                      - generic "No access" [ref=f4e640]: –
+                    - cell "No access" [ref=f4e641]:
+                      - generic "No access" [ref=f4e642]: –
+                    - cell "No access" [ref=f4e643]:
+                      - generic "No access" [ref=f4e644]: –
+                    - cell "No access" [ref=f4e645]:
+                      - generic "No access" [ref=f4e646]: –
+                  - row [ref=f4e647]:
+                    - cell "Fg" [ref=f4e648]
+                    - cell "Read & write" [ref=f4e649]:
+                      - generic "Read & write" [ref=f4e650]: ✎
+                    - cell "Read & write" [ref=f4e651]:
+                      - generic "Read & write" [ref=f4e652]: ✎
+                    - cell "No access" [ref=f4e653]:
+                      - generic "No access" [ref=f4e654]: –
+                    - cell "No access" [ref=f4e655]:
+                      - generic "No access" [ref=f4e656]: –
+                    - cell "Read & write" [ref=f4e657]:
+                      - generic "Read & write" [ref=f4e658]: ✎
+                    - cell "Read & write" [ref=f4e659]:
+                      - generic "Read & write" [ref=f4e660]: ✎
+                    - cell "No access" [ref=f4e661]:
+                      - generic "No access" [ref=f4e662]: –
+                    - cell "No access" [ref=f4e663]:
+                      - generic "No access" [ref=f4e664]: –
+                    - cell "Read & write" [ref=f4e665]:
+                      - generic "Read & write" [ref=f4e666]: ✎
+                    - cell "No access" [ref=f4e667]:
+                      - generic "No access" [ref=f4e668]: –
+                    - cell "No access" [ref=f4e669]:
+                      - generic "No access" [ref=f4e670]: –
+                    - cell "No access" [ref=f4e671]:
+                      - generic "No access" [ref=f4e672]: –
+                    - cell "No access" [ref=f4e673]:
+                      - generic "No access" [ref=f4e674]: –
+                    - cell "No access" [ref=f4e675]:
+                      - generic "No access" [ref=f4e676]: –
+                    - cell "No access" [ref=f4e677]:
+                      - generic "No access" [ref=f4e678]: –
+                    - cell "No access" [ref=f4e679]:
+                      - generic "No access" [ref=f4e680]: –
+                    - cell "No access" [ref=f4e681]:
+                      - generic "No access" [ref=f4e682]: –
+                    - cell "No access" [ref=f4e683]:
+                      - generic "No access" [ref=f4e684]: –
+                    - cell "No access" [ref=f4e685]:
+                      - generic "No access" [ref=f4e686]: –
+                    - cell "No access" [ref=f4e687]:
+                      - generic "No access" [ref=f4e688]: –
+                    - cell "No access" [ref=f4e689]:
+                      - generic "No access" [ref=f4e690]: –
+                    - cell "No access" [ref=f4e691]:
+                      - generic "No access" [ref=f4e692]: –
+                    - cell "No access" [ref=f4e693]:
+                      - generic "No access" [ref=f4e694]: –
+                    - cell "No access" [ref=f4e695]:
+                      - generic "No access" [ref=f4e696]: –
+                    - cell "No access" [ref=f4e697]:
+                      - generic "No access" [ref=f4e698]: –
+                  - row [ref=f4e699]:
+                    - cell "Brief" [ref=f4e700]
+                    - cell "Read & write" [ref=f4e701]:
+                      - generic "Read & write" [ref=f4e702]: ✎
+                    - cell "Read & write" [ref=f4e703]:
+                      - generic "Read & write" [ref=f4e704]: ✎
+                    - cell "No access" [ref=f4e705]:
+                      - generic "No access" [ref=f4e706]: –
+                    - cell "No access" [ref=f4e707]:
+                      - generic "No access" [ref=f4e708]: –
+                    - cell "Read & write" [ref=f4e709]:
+                      - generic "Read & write" [ref=f4e710]: ✎
+                    - cell "Read & write" [ref=f4e711]:
+                      - generic "Read & write" [ref=f4e712]: ✎
+                    - cell "No access" [ref=f4e713]:
+                      - generic "No access" [ref=f4e714]: –
+                    - cell "No access" [ref=f4e715]:
+                      - generic "No access" [ref=f4e716]: –
+                    - cell "Read & write" [ref=f4e717]:
+                      - generic "Read & write" [ref=f4e718]: ✎
+                    - cell "No access" [ref=f4e719]:
+                      - generic "No access" [ref=f4e720]: –
+                    - cell "No access" [ref=f4e721]:
+                      - generic "No access" [ref=f4e722]: –
+                    - cell "No access" [ref=f4e723]:
+                      - generic "No access" [ref=f4e724]: –
+                    - cell "No access" [ref=f4e725]:
+                      - generic "No access" [ref=f4e726]: –
+                    - cell "No access" [ref=f4e727]:
+                      - generic "No access" [ref=f4e728]: –
+                    - cell "No access" [ref=f4e729]:
+                      - generic "No access" [ref=f4e730]: –
+                    - cell "No access" [ref=f4e731]:
+                      - generic "No access" [ref=f4e732]: –
+                    - cell "No access" [ref=f4e733]:
+                      - generic "No access" [ref=f4e734]: –
+                    - cell "No access" [ref=f4e735]:
+                      - generic "No access" [ref=f4e736]: –
+                    - cell "No access" [ref=f4e737]:
+                      - generic "No access" [ref=f4e738]: –
+                    - cell "No access" [ref=f4e739]:
+                      - generic "No access" [ref=f4e740]: –
+                    - cell "No access" [ref=f4e741]:
+                      - generic "No access" [ref=f4e742]: –
+                    - cell "No access" [ref=f4e743]:
+                      - generic "No access" [ref=f4e744]: –
+                    - cell "No access" [ref=f4e745]:
+                      - generic "No access" [ref=f4e746]: –
+                    - cell "No access" [ref=f4e747]:
+                      - generic "No access" [ref=f4e748]: –
+                    - cell "No access" [ref=f4e749]:
+                      - generic "No access" [ref=f4e750]: –
+                  - row [ref=f4e751]:
+                    - cell "Ref" [ref=f4e752]
+                    - cell "Read & write" [ref=f4e753]:
+                      - generic "Read & write" [ref=f4e754]: ✎
+                    - cell "Read & write" [ref=f4e755]:
+                      - generic "Read & write" [ref=f4e756]: ✎
+                    - cell "No access" [ref=f4e757]:
+                      - generic "No access" [ref=f4e758]: –
+                    - cell "No access" [ref=f4e759]:
+                      - generic "No access" [ref=f4e760]: –
+                    - cell "No access" [ref=f4e761]:
+                      - generic "No access" [ref=f4e762]: –
+                    - cell "No access" [ref=f4e763]:
+                      - generic "No access" [ref=f4e764]: –
+                    - cell "No access" [ref=f4e765]:
+                      - generic "No access" [ref=f4e766]: –
+                    - cell "No access" [ref=f4e767]:
+                      - generic "No access" [ref=f4e768]: –
+                    - cell "Read & write" [ref=f4e769]:
+                      - generic "Read & write" [ref=f4e770]: ✎
+                    - cell "No access" [ref=f4e771]:
+                      - generic "No access" [ref=f4e772]: –
+                    - cell "No access" [ref=f4e773]:
+                      - generic "No access" [ref=f4e774]: –
+                    - cell "No access" [ref=f4e775]:
+                      - generic "No access" [ref=f4e776]: –
+                    - cell "No access" [ref=f4e777]:
+                      - generic "No access" [ref=f4e778]: –
+                    - cell "No access" [ref=f4e779]:
+                      - generic "No access" [ref=f4e780]: –
+                    - cell "No access" [ref=f4e781]:
+                      - generic "No access" [ref=f4e782]: –
+                    - cell "No access" [ref=f4e783]:
+                      - generic "No access" [ref=f4e784]: –
+                    - cell "No access" [ref=f4e785]:
+                      - generic "No access" [ref=f4e786]: –
+                    - cell "No access" [ref=f4e787]:
+                      - generic "No access" [ref=f4e788]: –
+                    - cell "No access" [ref=f4e789]:
+                      - generic "No access" [ref=f4e790]: –
+                    - cell "No access" [ref=f4e791]:
+                      - generic "No access" [ref=f4e792]: –
+                    - cell "No access" [ref=f4e793]:
+                      - generic "No access" [ref=f4e794]: –
+                    - cell "No access" [ref=f4e795]:
+                      - generic "No access" [ref=f4e796]: –
+                    - cell "No access" [ref=f4e797]:
+                      - generic "No access" [ref=f4e798]: –
+                    - cell "No access" [ref=f4e799]:
+                      - generic "No access" [ref=f4e800]: –
+                    - cell "No access" [ref=f4e801]:
+                      - generic "No access" [ref=f4e802]: –
+                  - row [ref=f4e803]:
+                    - cell "Audit" [ref=f4e804]
+                    - cell "Read only" [ref=f4e805]:
+                      - generic "Read only" [ref=f4e806]: ◎
+                    - cell "Read only" [ref=f4e807]:
+                      - generic "Read only" [ref=f4e808]: ◎
+                    - cell "No access" [ref=f4e809]:
+                      - generic "No access" [ref=f4e810]: –
+                    - cell "No access" [ref=f4e811]:
+                      - generic "No access" [ref=f4e812]: –
+                    - cell "Read only" [ref=f4e813]:
+                      - generic "Read only" [ref=f4e814]: ◎
+                    - cell "No access" [ref=f4e815]:
+                      - generic "No access" [ref=f4e816]: –
+                    - cell "Read only" [ref=f4e817]:
+                      - generic "Read only" [ref=f4e818]: ◎
+                    - cell "No access" [ref=f4e819]:
+                      - generic "No access" [ref=f4e820]: –
+                    - cell "Read only" [ref=f4e821]:
+                      - generic "Read only" [ref=f4e822]: ◎
+                    - cell "Read only" [ref=f4e823]:
+                      - generic "Read only" [ref=f4e824]: ◎
+                    - cell "Read only" [ref=f4e825]:
+                      - generic "Read only" [ref=f4e826]: ◎
+                    - cell "Read only" [ref=f4e827]:
+                      - generic "Read only" [ref=f4e828]: ◎
+                    - cell "No access" [ref=f4e829]:
+                      - generic "No access" [ref=f4e830]: –
+                    - cell "Read only" [ref=f4e831]:
+                      - generic "Read only" [ref=f4e832]: ◎
+                    - cell "Read only" [ref=f4e833]:
+                      - generic "Read only" [ref=f4e834]: ◎
+                    - cell "Read only" [ref=f4e835]:
+                      - generic "Read only" [ref=f4e836]: ◎
+                    - cell "No access" [ref=f4e837]:
+                      - generic "No access" [ref=f4e838]: –
+                    - cell "No access" [ref=f4e839]:
+                      - generic "No access" [ref=f4e840]: –
+                    - cell "Read only" [ref=f4e841]:
+                      - generic "Read only" [ref=f4e842]: ◎
+                    - cell "Read only" [ref=f4e843]:
+                      - generic "Read only" [ref=f4e844]: ◎
+                    - cell "Read only" [ref=f4e845]:
+                      - generic "Read only" [ref=f4e846]: ◎
+                    - cell "Read only" [ref=f4e847]:
+                      - generic "Read only" [ref=f4e848]: ◎
+                    - cell "Read only" [ref=f4e849]:
+                      - generic "Read only" [ref=f4e850]: ◎
+                    - cell "Read only" [ref=f4e851]:
+                      - generic "Read only" [ref=f4e852]: ◎
+                    - cell "Read only" [ref=f4e853]:
+                      - generic "Read only" [ref=f4e854]: ◎
+                  - row [ref=f4e855]:
+                    - cell "Outbox" [ref=f4e856]
+                    - cell "Full admin" [ref=f4e857]:
+                      - generic "Full admin" [ref=f4e858]: ◉
+                    - cell "Full admin" [ref=f4e859]:
+                      - generic "Full admin" [ref=f4e860]: ◉
+                    - cell "No access" [ref=f4e861]:
+                      - generic "No access" [ref=f4e862]: –
+                    - cell "No access" [ref=f4e863]:
+                      - generic "No access" [ref=f4e864]: –
+                    - cell "No access" [ref=f4e865]:
+                      - generic "No access" [ref=f4e866]: –
+                    - cell "No access" [ref=f4e867]:
+                      - generic "No access" [ref=f4e868]: –
+                    - cell "No access" [ref=f4e869]:
+                      - generic "No access" [ref=f4e870]: –
+                    - cell "No access" [ref=f4e871]:
+                      - generic "No access" [ref=f4e872]: –
+                    - cell "Full admin" [ref=f4e873]:
+                      - generic "Full admin" [ref=f4e874]: ◉
+                    - cell "No access" [ref=f4e875]:
+                      - generic "No access" [ref=f4e876]: –
+                    - cell "No access" [ref=f4e877]:
+                      - generic "No access" [ref=f4e878]: –
+                    - cell "No access" [ref=f4e879]:
+                      - generic "No access" [ref=f4e880]: –
+                    - cell "No access" [ref=f4e881]:
+                      - generic "No access" [ref=f4e882]: –
+                    - cell "No access" [ref=f4e883]:
+                      - generic "No access" [ref=f4e884]: –
+                    - cell "No access" [ref=f4e885]:
+                      - generic "No access" [ref=f4e886]: –
+                    - cell "No access" [ref=f4e887]:
+                      - generic "No access" [ref=f4e888]: –
+                    - cell "No access" [ref=f4e889]:
+                      - generic "No access" [ref=f4e890]: –
+                    - cell "No access" [ref=f4e891]:
+                      - generic "No access" [ref=f4e892]: –
+                    - cell "No access" [ref=f4e893]:
+                      - generic "No access" [ref=f4e894]: –
+                    - cell "No access" [ref=f4e895]:
+                      - generic "No access" [ref=f4e896]: –
+                    - cell "No access" [ref=f4e897]:
+                      - generic "No access" [ref=f4e898]: –
+                    - cell "No access" [ref=f4e899]:
+                      - generic "No access" [ref=f4e900]: –
+                    - cell "No access" [ref=f4e901]:
+                      - generic "No access" [ref=f4e902]: –
+                    - cell "No access" [ref=f4e903]:
+                      - generic "No access" [ref=f4e904]: –
+                    - cell "No access" [ref=f4e905]:
+                      - generic "No access" [ref=f4e906]: –
+                  - row [ref=f4e907]:
+                    - cell "Impersonate" [ref=f4e908]
+                    - cell "No access" [ref=f4e909]:
+                      - generic "No access" [ref=f4e910]: –
+                    - cell "No access" [ref=f4e911]:
+                      - generic "No access" [ref=f4e912]: –
+                    - cell "No access" [ref=f4e913]:
+                      - generic "No access" [ref=f4e914]: –
+                    - cell "No access" [ref=f4e915]:
+                      - generic "No access" [ref=f4e916]: –
+                    - cell "No access" [ref=f4e917]:
+                      - generic "No access" [ref=f4e918]: –
+                    - cell "No access" [ref=f4e919]:
+                      - generic "No access" [ref=f4e920]: –
+                    - cell "No access" [ref=f4e921]:
+                      - generic "No access" [ref=f4e922]: –
+                    - cell "No access" [ref=f4e923]:
+                      - generic "No access" [ref=f4e924]: –
+                    - cell "No access" [ref=f4e925]:
+                      - generic "No access" [ref=f4e926]: –
+                    - cell "No access" [ref=f4e927]:
+                      - generic "No access" [ref=f4e928]: –
+                    - cell "No access" [ref=f4e929]:
+                      - generic "No access" [ref=f4e930]: –
+                    - cell "No access" [ref=f4e931]:
+                      - generic "No access" [ref=f4e932]: –
+                    - cell "No access" [ref=f4e933]:
+                      - generic "No access" [ref=f4e934]: –
+                    - cell "No access" [ref=f4e935]:
+                      - generic "No access" [ref=f4e936]: –
+                    - cell "No access" [ref=f4e937]:
+                      - generic "No access" [ref=f4e938]: –
+                    - cell "No access" [ref=f4e939]:
+                      - generic "No access" [ref=f4e940]: –
+                    - cell "No access" [ref=f4e941]:
+                      - generic "No access" [ref=f4e942]: –
+                    - cell "No access" [ref=f4e943]:
+                      - generic "No access" [ref=f4e944]: –
+                    - cell "No access" [ref=f4e945]:
+                      - generic "No access" [ref=f4e946]: –
+                    - cell "No access" [ref=f4e947]:
+                      - generic "No access" [ref=f4e948]: –
+                    - cell "No access" [ref=f4e949]:
+                      - generic "No access" [ref=f4e950]: –
+                    - cell "No access" [ref=f4e951]:
+                      - generic "No access" [ref=f4e952]: –
+                    - cell "No access" [ref=f4e953]:
+                      - generic "No access" [ref=f4e954]: –
+                    - cell "No access" [ref=f4e955]:
+                      - generic "No access" [ref=f4e956]: –
+                    - cell "No access" [ref=f4e957]:
+                      - generic "No access" [ref=f4e958]: –
+                  - row [ref=f4e959]:
+                    - cell "Settings" [ref=f4e960]
+                    - cell "Full admin" [ref=f4e961]:
+                      - generic "Full admin" [ref=f4e962]: ◉
+                    - cell "Full admin" [ref=f4e963]:
+                      - generic "Full admin" [ref=f4e964]: ◉
+                    - cell "No access" [ref=f4e965]:
+                      - generic "No access" [ref=f4e966]: –
+                    - cell "No access" [ref=f4e967]:
+                      - generic "No access" [ref=f4e968]: –
+                    - cell "Read only" [ref=f4e969]:
+                      - generic "Read only" [ref=f4e970]: ◎
+                    - cell "No access" [ref=f4e971]:
+                      - generic "No access" [ref=f4e972]: –
+                    - cell "Read only" [ref=f4e973]:
+                      - generic "Read only" [ref=f4e974]: ◎
+                    - cell "No access" [ref=f4e975]:
+                      - generic "No access" [ref=f4e976]: –
+                    - cell "Full admin" [ref=f4e977]:
+                      - generic "Full admin" [ref=f4e978]: ◉
+                    - cell "Read only" [ref=f4e979]:
+                      - generic "Read only" [ref=f4e980]: ◎
+                    - cell "Read only" [ref=f4e981]:
+                      - generic "Read only" [ref=f4e982]: ◎
+                    - cell "Read only" [ref=f4e983]:
+                      - generic "Read only" [ref=f4e984]: ◎
+                    - cell "No access" [ref=f4e985]:
+                      - generic "No access" [ref=f4e986]: –
+                    - cell "Read only" [ref=f4e987]:
+                      - generic "Read only" [ref=f4e988]: ◎
+                    - cell "Read only" [ref=f4e989]:
+                      - generic "Read only" [ref=f4e990]: ◎
+                    - cell "Read only" [ref=f4e991]:
+                      - generic "Read only" [ref=f4e992]: ◎
+                    - cell "No access" [ref=f4e993]:
+                      - generic "No access" [ref=f4e994]: –
+                    - cell "No access" [ref=f4e995]:
+                      - generic "No access" [ref=f4e996]: –
+                    - cell "Read only" [ref=f4e997]:
+                      - generic "Read only" [ref=f4e998]: ◎
+                    - cell "Read only" [ref=f4e999]:
+                      - generic "Read only" [ref=f4e1000]: ◎
+                    - cell "Read only" [ref=f4e1001]:
+                      - generic "Read only" [ref=f4e1002]: ◎
+                    - cell "Read only" [ref=f4e1003]:
+                      - generic "Read only" [ref=f4e1004]: ◎
+                    - cell "Read only" [ref=f4e1005]:
+                      - generic "Read only" [ref=f4e1006]: ◎
+                    - cell "Read only" [ref=f4e1007]:
+                      - generic "Read only" [ref=f4e1008]: ◎
+                    - cell "Read only" [ref=f4e1009]:
+                      - generic "Read only" [ref=f4e1010]: ◎
+                  - row [ref=f4e1011]:
+                    - cell "Npd" [ref=f4e1012]
+                    - cell "Full admin" [ref=f4e1013]:
+                      - generic "Full admin" [ref=f4e1014]: ◉
+                    - cell "Full admin" [ref=f4e1015]:
+                      - generic "Full admin" [ref=f4e1016]: ◉
+                    - cell "No access" [ref=f4e1017]:
+                      - generic "No access" [ref=f4e1018]: –
+                    - cell "No access" [ref=f4e1019]:
+                      - generic "No access" [ref=f4e1020]: –
+                    - cell "Full admin" [ref=f4e1021]:
+                      - generic "Full admin" [ref=f4e1022]: ◉
+                    - cell "Full admin" [ref=f4e1023]:
+                      - generic "Full admin" [ref=f4e1024]: ◉
+                    - cell "Read & write" [ref=f4e1025]:
+                      - generic "Read & write" [ref=f4e1026]: ✎
+                    - cell "Read only" [ref=f4e1027]:
+                      - generic "Read only" [ref=f4e1028]: ◎
+                    - cell "Full admin" [ref=f4e1029]:
+                      - generic "Full admin" [ref=f4e1030]: ◉
+                    - cell "Read only" [ref=f4e1031]:
+                      - generic "Read only" [ref=f4e1032]: ◎
+                    - cell "Read & write" [ref=f4e1033]:
+                      - generic "Read & write" [ref=f4e1034]: ✎
+                    - cell "Read only" [ref=f4e1035]:
+                      - generic "Read only" [ref=f4e1036]: ◎
+                    - cell "Read only" [ref=f4e1037]:
+                      - generic "Read only" [ref=f4e1038]: ◎
+                    - cell "Read only" [ref=f4e1039]:
+                      - generic "Read only" [ref=f4e1040]: ◎
+                    - cell "Read only" [ref=f4e1041]:
+                      - generic "Read only" [ref=f4e1042]: ◎
+                    - cell "Read only" [ref=f4e1043]:
+                      - generic "Read only" [ref=f4e1044]: ◎
+                    - cell "Read only" [ref=f4e1045]:
+                      - generic "Read only" [ref=f4e1046]: ◎
+                    - cell "Read only" [ref=f4e1047]:
+                      - generic "Read only" [ref=f4e1048]: ◎
+                    - cell "Read only" [ref=f4e1049]:
+                      - generic "Read only" [ref=f4e1050]: ◎
+                    - cell "Read only" [ref=f4e1051]:
+                      - generic "Read only" [ref=f4e1052]: ◎
+                    - cell "Read only" [ref=f4e1053]:
+                      - generic "Read only" [ref=f4e1054]: ◎
+                    - cell "Read only" [ref=f4e1055]:
+                      - generic "Read only" [ref=f4e1056]: ◎
+                    - cell "Read only" [ref=f4e1057]:
+                      - generic "Read only" [ref=f4e1058]: ◎
+                    - cell "Read only" [ref=f4e1059]:
+                      - generic "Read only" [ref=f4e1060]: ◎
+                    - cell "Read only" [ref=f4e1061]:
+                      - generic "Read only" [ref=f4e1062]: ◎
+                  - row [ref=f4e1063]:
+                    - cell "Technical" [ref=f4e1064]
+                    - cell "Full admin" [ref=f4e1065]:
+                      - generic "Full admin" [ref=f4e1066]: ◉
+                    - cell "Full admin" [ref=f4e1067]:
+                      - generic "Full admin" [ref=f4e1068]: ◉
+                    - cell "No access" [ref=f4e1069]:
+                      - generic "No access" [ref=f4e1070]: –
+                    - cell "No access" [ref=f4e1071]:
+                      - generic "No access" [ref=f4e1072]: –
+                    - cell "Read only" [ref=f4e1073]:
+                      - generic "Read only" [ref=f4e1074]: ◎
+                    - cell "Read only" [ref=f4e1075]:
+                      - generic "Read only" [ref=f4e1076]: ◎
+                    - cell "Read only" [ref=f4e1077]:
+                      - generic "Read only" [ref=f4e1078]: ◎
+                    - cell "Read only" [ref=f4e1079]:
+                      - generic "Read only" [ref=f4e1080]: ◎
+                    - cell "Full admin" [ref=f4e1081]:
+                      - generic "Full admin" [ref=f4e1082]: ◉
+                    - cell "Read only" [ref=f4e1083]:
+                      - generic "Read only" [ref=f4e1084]: ◎
+                    - cell "Full admin" [ref=f4e1085]:
+                      - generic "Full admin" [ref=f4e1086]: ◉
+                    - cell "Read only" [ref=f4e1087]:
+                      - generic "Read only" [ref=f4e1088]: ◎
+                    - cell "Read only" [ref=f4e1089]:
+                      - generic "Read only" [ref=f4e1090]: ◎
+                    - cell "Read only" [ref=f4e1091]:
+                      - generic "Read only" [ref=f4e1092]: ◎
+                    - cell "Read only" [ref=f4e1093]:
+                      - generic "Read only" [ref=f4e1094]: ◎
+                    - cell "Read only" [ref=f4e1095]:
+                      - generic "Read only" [ref=f4e1096]: ◎
+                    - cell "Read only" [ref=f4e1097]:
+                      - generic "Read only" [ref=f4e1098]: ◎
+                    - cell "Read only" [ref=f4e1099]:
+                      - generic "Read only" [ref=f4e1100]: ◎
+                    - cell "Read only" [ref=f4e1101]:
+                      - generic "Read only" [ref=f4e1102]: ◎
+                    - cell "Read only" [ref=f4e1103]:
+                      - generic "Read only" [ref=f4e1104]: ◎
+                    - cell "Read only" [ref=f4e1105]:
+                      - generic "Read only" [ref=f4e1106]: ◎
+                    - cell "Read only" [ref=f4e1107]:
+                      - generic "Read only" [ref=f4e1108]: ◎
+                    - cell "Read only" [ref=f4e1109]:
+                      - generic "Read only" [ref=f4e1110]: ◎
+                    - cell "Read only" [ref=f4e1111]:
+                      - generic "Read only" [ref=f4e1112]: ◎
+                    - cell "Read only" [ref=f4e1113]:
+                      - generic "Read only" [ref=f4e1114]: ◎
+                  - row [ref=f4e1115]:
+                    - cell "Gdpr" [ref=f4e1116]
+                    - cell "Read only" [ref=f4e1117]:
+                      - generic "Read only" [ref=f4e1118]: ◎
+                    - cell "Read only" [ref=f4e1119]:
+                      - generic "Read only" [ref=f4e1120]: ◎
+                    - cell "No access" [ref=f4e1121]:
+                      - generic "No access" [ref=f4e1122]: –
+                    - cell "No access" [ref=f4e1123]:
+                      - generic "No access" [ref=f4e1124]: –
+                    - cell "No access" [ref=f4e1125]:
+                      - generic "No access" [ref=f4e1126]: –
+                    - cell "No access" [ref=f4e1127]:
+                      - generic "No access" [ref=f4e1128]: –
+                    - cell "No access" [ref=f4e1129]:
+                      - generic "No access" [ref=f4e1130]: –
+                    - cell "No access" [ref=f4e1131]:
+                      - generic "No access" [ref=f4e1132]: –
+                    - cell "Read only" [ref=f4e1133]:
+                      - generic "Read only" [ref=f4e1134]: ◎
+                    - cell "No access" [ref=f4e1135]:
+                      - generic "No access" [ref=f4e1136]: –
+                    - cell "No access" [ref=f4e1137]:
+                      - generic "No access" [ref=f4e1138]: –
+                    - cell "No access" [ref=f4e1139]:
+                      - generic "No access" [ref=f4e1140]: –
+                    - cell "No access" [ref=f4e1141]:
+                      - generic "No access" [ref=f4e1142]: –
+                    - cell "No access" [ref=f4e1143]:
+                      - generic "No access" [ref=f4e1144]: –
+                    - cell "No access" [ref=f4e1145]:
+                      - generic "No access" [ref=f4e1146]: –
+                    - cell "No access" [ref=f4e1147]:
+                      - generic "No access" [ref=f4e1148]: –
+                    - cell "No access" [ref=f4e1149]:
+                      - generic "No access" [ref=f4e1150]: –
+                    - cell "No access" [ref=f4e1151]:
+                      - generic "No access" [ref=f4e1152]: –
+                    - cell "No access" [ref=f4e1153]:
+                      - generic "No access" [ref=f4e1154]: –
+                    - cell "No access" [ref=f4e1155]:
+                      - generic "No access" [ref=f4e1156]: –
+                    - cell "No access" [ref=f4e1157]:
+                      - generic "No access" [ref=f4e1158]: –
+                    - cell "No access" [ref=f4e1159]:
+                      - generic "No access" [ref=f4e1160]: –
+                    - cell "No access" [ref=f4e1161]:
+                      - generic "No access" [ref=f4e1162]: –
+                    - cell "No access" [ref=f4e1163]:
+                      - generic "No access" [ref=f4e1164]: –
+                    - cell "No access" [ref=f4e1165]:
+                      - generic "No access" [ref=f4e1166]: –
+                  - row [ref=f4e1167]:
+                    - cell "Production" [ref=f4e1168]
+                    - cell "Full admin" [ref=f4e1169]:
+                      - generic "Full admin" [ref=f4e1170]: ◉
+                    - cell "Full admin" [ref=f4e1171]:
+                      - generic "Full admin" [ref=f4e1172]: ◉
+                    - cell "No access" [ref=f4e1173]:
+                      - generic "No access" [ref=f4e1174]: –
+                    - cell "No access" [ref=f4e1175]:
+                      - generic "No access" [ref=f4e1176]: –
+                    - cell "Read only" [ref=f4e1177]:
+                      - generic "Read only" [ref=f4e1178]: ◎
+                    - cell "Read only" [ref=f4e1179]:
+                      - generic "Read only" [ref=f4e1180]: ◎
+                    - cell "Read only" [ref=f4e1181]:
+                      - generic "Read only" [ref=f4e1182]: ◎
+                    - cell "Read only" [ref=f4e1183]:
+                      - generic "Read only" [ref=f4e1184]: ◎
+                    - cell "Full admin" [ref=f4e1185]:
+                      - generic "Full admin" [ref=f4e1186]: ◉
+                    - cell "Read only" [ref=f4e1187]:
+                      - generic "Read only" [ref=f4e1188]: ◎
+                    - cell "Read only" [ref=f4e1189]:
+                      - generic "Read only" [ref=f4e1190]: ◎
+                    - cell "Full admin" [ref=f4e1191]:
+                      - generic "Full admin" [ref=f4e1192]: ◉
+                    - cell "Read only" [ref=f4e1193]:
+                      - generic "Read only" [ref=f4e1194]: ◎
+                    - cell "Full admin" [ref=f4e1195]:
+                      - generic "Full admin" [ref=f4e1196]: ◉
+                    - cell "Read & write" [ref=f4e1197]:
+                      - generic "Read & write" [ref=f4e1198]: ✎
+                    - cell "Full admin" [ref=f4e1199]:
+                      - generic "Full admin" [ref=f4e1200]: ◉
+                    - cell "Full admin" [ref=f4e1201]:
+                      - generic "Full admin" [ref=f4e1202]: ◉
+                    - cell "Full admin" [ref=f4e1203]:
+                      - generic "Full admin" [ref=f4e1204]: ◉
+                    - cell "Read only" [ref=f4e1205]:
+                      - generic "Read only" [ref=f4e1206]: ◎
+                    - cell "Read only" [ref=f4e1207]:
+                      - generic "Read only" [ref=f4e1208]: ◎
+                    - cell "Read only" [ref=f4e1209]:
+                      - generic "Read only" [ref=f4e1210]: ◎
+                    - cell "Read only" [ref=f4e1211]:
+                      - generic "Read only" [ref=f4e1212]: ◎
+                    - cell "Read only" [ref=f4e1213]:
+                      - generic "Read only" [ref=f4e1214]: ◎
+                    - cell "Read only" [ref=f4e1215]:
+                      - generic "Read only" [ref=f4e1216]: ◎
+                    - cell "Read only" [ref=f4e1217]:
+                      - generic "Read only" [ref=f4e1218]: ◎
+                  - row [ref=f4e1219]:
+                    - cell "Warehouse" [ref=f4e1220]
+                    - cell "Read & write" [ref=f4e1221]:
+                      - generic "Read & write" [ref=f4e1222]: ✎
+                    - cell "Read & write" [ref=f4e1223]:
+                      - generic "Read & write" [ref=f4e1224]: ✎
+                    - cell "No access" [ref=f4e1225]:
+                      - generic "No access" [ref=f4e1226]: –
+                    - cell "No access" [ref=f4e1227]:
+                      - generic "No access" [ref=f4e1228]: –
+                    - cell "Read only" [ref=f4e1229]:
+                      - generic "Read only" [ref=f4e1230]: ◎
+                    - cell "Read only" [ref=f4e1231]:
+                      - generic "Read only" [ref=f4e1232]: ◎
+                    - cell "Read only" [ref=f4e1233]:
+                      - generic "Read only" [ref=f4e1234]: ◎
+                    - cell "Read only" [ref=f4e1235]:
+                      - generic "Read only" [ref=f4e1236]: ◎
+                    - cell "Read & write" [ref=f4e1237]:
+                      - generic "Read & write" [ref=f4e1238]: ✎
+                    - cell "Read only" [ref=f4e1239]:
+                      - generic "Read only" [ref=f4e1240]: ◎
+                    - cell "Read only" [ref=f4e1241]:
+                      - generic "Read only" [ref=f4e1242]: ◎
+                    - cell "Read only" [ref=f4e1243]:
+                      - generic "Read only" [ref=f4e1244]: ◎
+                    - cell "Read only" [ref=f4e1245]:
+                      - generic "Read only" [ref=f4e1246]: ◎
+                    - cell "Read only" [ref=f4e1247]:
+                      - generic "Read only" [ref=f4e1248]: ◎
+                    - cell "Read only" [ref=f4e1249]:
+                      - generic "Read only" [ref=f4e1250]: ◎
+                    - cell "Read only" [ref=f4e1251]:
+                      - generic "Read only" [ref=f4e1252]: ◎
+                    - cell "Read only" [ref=f4e1253]:
+                      - generic "Read only" [ref=f4e1254]: ◎
+                    - cell "Read & write" [ref=f4e1255]:
+                      - generic "Read & write" [ref=f4e1256]: ✎
+                    - cell "Read only" [ref=f4e1257]:
+                      - generic "Read only" [ref=f4e1258]: ◎
+                    - cell "Read only" [ref=f4e1259]:
+                      - generic "Read only" [ref=f4e1260]: ◎
+                    - cell "Read only" [ref=f4e1261]:
+                      - generic "Read only" [ref=f4e1262]: ◎
+                    - cell "Read only" [ref=f4e1263]:
+                      - generic "Read only" [ref=f4e1264]: ◎
+                    - cell "Read only" [ref=f4e1265]:
+                      - generic "Read only" [ref=f4e1266]: ◎
+                    - cell "Read only" [ref=f4e1267]:
+                      - generic "Read only" [ref=f4e1268]: ◎
+                    - cell "Read only" [ref=f4e1269]:
+                      - generic "Read only" [ref=f4e1270]: ◎
+                  - row [ref=f4e1271]:
+                    - cell "Quality" [ref=f4e1272]
+                    - cell "Full admin" [ref=f4e1273]:
+                      - generic "Full admin" [ref=f4e1274]: ◉
+                    - cell "Full admin" [ref=f4e1275]:
+                      - generic "Full admin" [ref=f4e1276]: ◉
+                    - cell "No access" [ref=f4e1277]:
+                      - generic "No access" [ref=f4e1278]: –
+                    - cell "No access" [ref=f4e1279]:
+                      - generic "No access" [ref=f4e1280]: –
+                    - cell "Read only" [ref=f4e1281]:
+                      - generic "Read only" [ref=f4e1282]: ◎
+                    - cell "Read only" [ref=f4e1283]:
+                      - generic "Read only" [ref=f4e1284]: ◎
+                    - cell "Read only" [ref=f4e1285]:
+                      - generic "Read only" [ref=f4e1286]: ◎
+                    - cell "Read only" [ref=f4e1287]:
+                      - generic "Read only" [ref=f4e1288]: ◎
+                    - cell "Full admin" [ref=f4e1289]:
+                      - generic "Full admin" [ref=f4e1290]: ◉
+                    - cell "Read only" [ref=f4e1291]:
+                      - generic "Read only" [ref=f4e1292]: ◎
+                    - cell "Read only" [ref=f4e1293]:
+                      - generic "Read only" [ref=f4e1294]: ◎
+                    - cell "Full admin" [ref=f4e1295]:
+                      - generic "Full admin" [ref=f4e1296]: ◉
+                    - cell "Read & write" [ref=f4e1297]:
+                      - generic "Read & write" [ref=f4e1298]: ✎
+                    - cell "Read & write" [ref=f4e1299]:
+                      - generic "Read & write" [ref=f4e1300]: ✎
+                    - cell "Read only" [ref=f4e1301]:
+                      - generic "Read only" [ref=f4e1302]: ◎
+                    - cell "Read only" [ref=f4e1303]:
+                      - generic "Read only" [ref=f4e1304]: ◎
+                    - cell "Read only" [ref=f4e1305]:
+                      - generic "Read only" [ref=f4e1306]: ◎
+                    - cell "Read only" [ref=f4e1307]:
+                      - generic "Read only" [ref=f4e1308]: ◎
+                    - cell "Read only" [ref=f4e1309]:
+                      - generic "Read only" [ref=f4e1310]: ◎
+                    - cell "Read only" [ref=f4e1311]:
+                      - generic "Read only" [ref=f4e1312]: ◎
+                    - cell "Read only" [ref=f4e1313]:
+                      - generic "Read only" [ref=f4e1314]: ◎
+                    - cell "Read only" [ref=f4e1315]:
+                      - generic "Read only" [ref=f4e1316]: ◎
+                    - cell "Read only" [ref=f4e1317]:
+                      - generic "Read only" [ref=f4e1318]: ◎
+                    - cell "Read only" [ref=f4e1319]:
+                      - generic "Read only" [ref=f4e1320]: ◎
+                    - cell "Read only" [ref=f4e1321]:
+                      - generic "Read only" [ref=f4e1322]: ◎
+                  - row [ref=f4e1323]:
+                    - cell "Fin" [ref=f4e1324]
+                    - cell "Full admin" [ref=f4e1325]:
+                      - generic "Full admin" [ref=f4e1326]: ◉
+                    - cell "Full admin" [ref=f4e1327]:
+                      - generic "Full admin" [ref=f4e1328]: ◉
+                    - cell "No access" [ref=f4e1329]:
+                      - generic "No access" [ref=f4e1330]: –
+                    - cell "No access" [ref=f4e1331]:
+                      - generic "No access" [ref=f4e1332]: –
+                    - cell "Read only" [ref=f4e1333]:
+                      - generic "Read only" [ref=f4e1334]: ◎
+                    - cell "No access" [ref=f4e1335]:
+                      - generic "No access" [ref=f4e1336]: –
+                    - cell "Read only" [ref=f4e1337]:
+                      - generic "Read only" [ref=f4e1338]: ◎
+                    - cell "No access" [ref=f4e1339]:
+                      - generic "No access" [ref=f4e1340]: –
+                    - cell "Full admin" [ref=f4e1341]:
+                      - generic "Full admin" [ref=f4e1342]: ◉
+                    - cell "Read only" [ref=f4e1343]:
+                      - generic "Read only" [ref=f4e1344]: ◎
+                    - cell "Read only" [ref=f4e1345]:
+                      - generic "Read only" [ref=f4e1346]: ◎
+                    - cell "Read only" [ref=f4e1347]:
+                      - generic "Read only" [ref=f4e1348]: ◎
+                    - cell "No access" [ref=f4e1349]:
+                      - generic "No access" [ref=f4e1350]: –
+                    - cell "Read only" [ref=f4e1351]:
+                      - generic "Read only" [ref=f4e1352]: ◎
+                    - cell "Read only" [ref=f4e1353]:
+                      - generic "Read only" [ref=f4e1354]: ◎
+                    - cell "Read only" [ref=f4e1355]:
+                      - generic "Read only" [ref=f4e1356]: ◎
+                    - cell "No access" [ref=f4e1357]:
+                      - generic "No access" [ref=f4e1358]: –
+                    - cell "No access" [ref=f4e1359]:
+                      - generic "No access" [ref=f4e1360]: –
+                    - cell "Read only" [ref=f4e1361]:
+                      - generic "Read only" [ref=f4e1362]: ◎
+                    - cell "Read only" [ref=f4e1363]:
+                      - generic "Read only" [ref=f4e1364]: ◎
+                    - cell "Read only" [ref=f4e1365]:
+                      - generic "Read only" [ref=f4e1366]: ◎
+                    - cell "Full admin" [ref=f4e1367]:
+                      - generic "Full admin" [ref=f4e1368]: ◉
+                    - cell "Read only" [ref=f4e1369]:
+                      - generic "Read only" [ref=f4e1370]: ◎
+                    - cell "Read only" [ref=f4e1371]:
+                      - generic "Read only" [ref=f4e1372]: ◎
+                    - cell "Read only" [ref=f4e1373]:
+                      - generic "Read only" [ref=f4e1374]: ◎
+                  - row [ref=f4e1375]:
+                    - cell "Mnt" [ref=f4e1376]
+                    - cell "Read & write" [ref=f4e1377]:
+                      - generic "Read & write" [ref=f4e1378]: ✎
+                    - cell "Read & write" [ref=f4e1379]:
+                      - generic "Read & write" [ref=f4e1380]: ✎
+                    - cell "No access" [ref=f4e1381]:
+                      - generic "No access" [ref=f4e1382]: –
+                    - cell "No access" [ref=f4e1383]:
+                      - generic "No access" [ref=f4e1384]: –
+                    - cell "Read only" [ref=f4e1385]:
+                      - generic "Read only" [ref=f4e1386]: ◎
+                    - cell "Read only" [ref=f4e1387]:
+                      - generic "Read only" [ref=f4e1388]: ◎
+                    - cell "Read only" [ref=f4e1389]:
+                      - generic "Read only" [ref=f4e1390]: ◎
+                    - cell "Read only" [ref=f4e1391]:
+                      - generic "Read only" [ref=f4e1392]: ◎
+                    - cell "Read & write" [ref=f4e1393]:
+                      - generic "Read & write" [ref=f4e1394]: ✎
+                    - cell "Read only" [ref=f4e1395]:
+                      - generic "Read only" [ref=f4e1396]: ◎
+                    - cell "Read only" [ref=f4e1397]:
+                      - generic "Read only" [ref=f4e1398]: ◎
+                    - cell "Read only" [ref=f4e1399]:
+                      - generic "Read only" [ref=f4e1400]: ◎
+                    - cell "Read only" [ref=f4e1401]:
+                      - generic "Read only" [ref=f4e1402]: ◎
+                    - cell "Read only" [ref=f4e1403]:
+                      - generic "Read only" [ref=f4e1404]: ◎
+                    - cell "Read only" [ref=f4e1405]:
+                      - generic "Read only" [ref=f4e1406]: ◎
+                    - cell "Read only" [ref=f4e1407]:
+                      - generic "Read only" [ref=f4e1408]: ◎
+                    - cell "Read only" [ref=f4e1409]:
+                      - generic "Read only" [ref=f4e1410]: ◎
+                    - cell "Read only" [ref=f4e1411]:
+                      - generic "Read only" [ref=f4e1412]: ◎
+                    - cell "Read only" [ref=f4e1413]:
+                      - generic "Read only" [ref=f4e1414]: ◎
+                    - cell "Read only" [ref=f4e1415]:
+                      - generic "Read only" [ref=f4e1416]: ◎
+                    - cell "Read & write" [ref=f4e1417]:
+                      - generic "Read & write" [ref=f4e1418]: ✎
+                    - cell "Read only" [ref=f4e1419]:
+                      - generic "Read only" [ref=f4e1420]: ◎
+                    - cell "Read only" [ref=f4e1421]:
+                      - generic "Read only" [ref=f4e1422]: ◎
+                    - cell "Read only" [ref=f4e1423]:
+                      - generic "Read only" [ref=f4e1424]: ◎
+                    - cell "Read only" [ref=f4e1425]:
+                      - generic "Read only" [ref=f4e1426]: ◎
+                  - row [ref=f4e1427]:
+                    - cell "Oee" [ref=f4e1428]
+                    - cell "Read & write" [ref=f4e1429]:
+                      - generic "Read & write" [ref=f4e1430]: ✎
+                    - cell "Read & write" [ref=f4e1431]:
+                      - generic "Read & write" [ref=f4e1432]: ✎
+                    - cell "No access" [ref=f4e1433]:
+                      - generic "No access" [ref=f4e1434]: –
+                    - cell "No access" [ref=f4e1435]:
+                      - generic "No access" [ref=f4e1436]: –
+                    - cell "Read only" [ref=f4e1437]:
+                      - generic "Read only" [ref=f4e1438]: ◎
+                    - cell "Read only" [ref=f4e1439]:
+                      - generic "Read only" [ref=f4e1440]: ◎
+                    - cell "Read only" [ref=f4e1441]:
+                      - generic "Read only" [ref=f4e1442]: ◎
+                    - cell "Read only" [ref=f4e1443]:
+                      - generic "Read only" [ref=f4e1444]: ◎
+                    - cell "Read & write" [ref=f4e1445]:
+                      - generic "Read & write" [ref=f4e1446]: ✎
+                    - cell "Read only" [ref=f4e1447]:
+                      - generic "Read only" [ref=f4e1448]: ◎
+                    - cell "Read only" [ref=f4e1449]:
+                      - generic "Read only" [ref=f4e1450]: ◎
+                    - cell "Read only" [ref=f4e1451]:
+                      - generic "Read only" [ref=f4e1452]: ◎
+                    - cell "Read only" [ref=f4e1453]:
+                      - generic "Read only" [ref=f4e1454]: ◎
+                    - cell "Read only" [ref=f4e1455]:
+                      - generic "Read only" [ref=f4e1456]: ◎
+                    - cell "Read only" [ref=f4e1457]:
+                      - generic "Read only" [ref=f4e1458]: ◎
+                    - cell "Read only" [ref=f4e1459]:
+                      - generic "Read only" [ref=f4e1460]: ◎
+                    - cell "Read only" [ref=f4e1461]:
+                      - generic "Read only" [ref=f4e1462]: ◎
+                    - cell "Read only" [ref=f4e1463]:
+                      - generic "Read only" [ref=f4e1464]: ◎
+                    - cell "Read only" [ref=f4e1465]:
+                      - generic "Read only" [ref=f4e1466]: ◎
+                    - cell "Read only" [ref=f4e1467]:
+                      - generic "Read only" [ref=f4e1468]: ◎
+                    - cell "Read only" [ref=f4e1469]:
+                      - generic "Read only" [ref=f4e1470]: ◎
+                    - cell "Read only" [ref=f4e1471]:
+                      - generic "Read only" [ref=f4e1472]: ◎
+                    - cell "Read only" [ref=f4e1473]:
+                      - generic "Read only" [ref=f4e1474]: ◎
+                    - cell "Read only" [ref=f4e1475]:
+                      - generic "Read only" [ref=f4e1476]: ◎
+                    - cell "Read only" [ref=f4e1477]:
+                      - generic "Read only" [ref=f4e1478]: ◎
+                  - row [ref=f4e1479]:
+                    - cell "Ship" [ref=f4e1480]
+                    - cell "Full admin" [ref=f4e1481]:
+                      - generic "Full admin" [ref=f4e1482]: ◉
+                    - cell "Full admin" [ref=f4e1483]:
+                      - generic "Full admin" [ref=f4e1484]: ◉
+                    - cell "No access" [ref=f4e1485]:
+                      - generic "No access" [ref=f4e1486]: –
+                    - cell "No access" [ref=f4e1487]:
+                      - generic "No access" [ref=f4e1488]: –
+                    - cell "Read only" [ref=f4e1489]:
+                      - generic "Read only" [ref=f4e1490]: ◎
+                    - cell "Read only" [ref=f4e1491]:
+                      - generic "Read only" [ref=f4e1492]: ◎
+                    - cell "Read only" [ref=f4e1493]:
+                      - generic "Read only" [ref=f4e1494]: ◎
+                    - cell "Read only" [ref=f4e1495]:
+                      - generic "Read only" [ref=f4e1496]: ◎
+                    - cell "Full admin" [ref=f4e1497]:
+                      - generic "Full admin" [ref=f4e1498]: ◉
+                    - cell "Read only" [ref=f4e1499]:
+                      - generic "Read only" [ref=f4e1500]: ◎
+                    - cell "Read only" [ref=f4e1501]:
+                      - generic "Read only" [ref=f4e1502]: ◎
+                    - cell "Read only" [ref=f4e1503]:
+                      - generic "Read only" [ref=f4e1504]: ◎
+                    - cell "Read only" [ref=f4e1505]:
+                      - generic "Read only" [ref=f4e1506]: ◎
+                    - cell "Read only" [ref=f4e1507]:
+                      - generic "Read only" [ref=f4e1508]: ◎
+                    - cell "Read only" [ref=f4e1509]:
+                      - generic "Read only" [ref=f4e1510]: ◎
+                    - cell "Read only" [ref=f4e1511]:
+                      - generic "Read only" [ref=f4e1512]: ◎
+                    - cell "Read only" [ref=f4e1513]:
+                      - generic "Read only" [ref=f4e1514]: ◎
+                    - cell "Read only" [ref=f4e1515]:
+                      - generic "Read only" [ref=f4e1516]: ◎
+                    - cell "Read only" [ref=f4e1517]:
+                      - generic "Read only" [ref=f4e1518]: ◎
+                    - cell "Read only" [ref=f4e1519]:
+                      - generic "Read only" [ref=f4e1520]: ◎
+                    - cell "Read only" [ref=f4e1521]:
+                      - generic "Read only" [ref=f4e1522]: ◎
+                    - cell "Read only" [ref=f4e1523]:
+                      - generic "Read only" [ref=f4e1524]: ◎
+                    - cell "Read only" [ref=f4e1525]:
+                      - generic "Read only" [ref=f4e1526]: ◎
+                    - cell "Read & write" [ref=f4e1527]:
+                      - generic "Read & write" [ref=f4e1528]: ✎
+                    - cell "Full admin" [ref=f4e1529]:
+                      - generic "Full admin" [ref=f4e1530]: ◉
+                  - row [ref=f4e1531]:
+                    - cell "Rpt" [ref=f4e1532]
+                    - cell "Read & write" [ref=f4e1533]:
+                      - generic "Read & write" [ref=f4e1534]: ✎
+                    - cell "Read & write" [ref=f4e1535]:
+                      - generic "Read & write" [ref=f4e1536]: ✎
+                    - cell "No access" [ref=f4e1537]:
+                      - generic "No access" [ref=f4e1538]: –
+                    - cell "No access" [ref=f4e1539]:
+                      - generic "No access" [ref=f4e1540]: –
+                    - cell "Read only" [ref=f4e1541]:
+                      - generic "Read only" [ref=f4e1542]: ◎
+                    - cell "Read only" [ref=f4e1543]:
+                      - generic "Read only" [ref=f4e1544]: ◎
+                    - cell "Read only" [ref=f4e1545]:
+                      - generic "Read only" [ref=f4e1546]: ◎
+                    - cell "No access" [ref=f4e1547]:
+                      - generic "No access" [ref=f4e1548]: –
+                    - cell "Read & write" [ref=f4e1549]:
+                      - generic "Read & write" [ref=f4e1550]: ✎
+                    - cell "Read only" [ref=f4e1551]:
+                      - generic "Read only" [ref=f4e1552]: ◎
+                    - cell "Read only" [ref=f4e1553]:
+                      - generic "Read only" [ref=f4e1554]: ◎
+                    - cell "Read only" [ref=f4e1555]:
+                      - generic "Read only" [ref=f4e1556]: ◎
+                    - cell "No access" [ref=f4e1557]:
+                      - generic "No access" [ref=f4e1558]: –
+                    - cell "Read only" [ref=f4e1559]:
+                      - generic "Read only" [ref=f4e1560]: ◎
+                    - cell "Read only" [ref=f4e1561]:
+                      - generic "Read only" [ref=f4e1562]: ◎
+                    - cell "Read only" [ref=f4e1563]:
+                      - generic "Read only" [ref=f4e1564]: ◎
+                    - cell "No access" [ref=f4e1565]:
+                      - generic "No access" [ref=f4e1566]: –
+                    - cell "No access" [ref=f4e1567]:
+                      - generic "No access" [ref=f4e1568]: –
+                    - cell "Read only" [ref=f4e1569]:
+                      - generic "Read only" [ref=f4e1570]: ◎
+                    - cell "Read only" [ref=f4e1571]:
+                      - generic "Read only" [ref=f4e1572]: ◎
+                    - cell "Read only" [ref=f4e1573]:
+                      - generic "Read only" [ref=f4e1574]: ◎
+                    - cell "Read only" [ref=f4e1575]:
+                      - generic "Read only" [ref=f4e1576]: ◎
+                    - cell "Read only" [ref=f4e1577]:
+                      - generic "Read only" [ref=f4e1578]: ◎
+                    - cell "Read only" [ref=f4e1579]:
+                      - generic "Read only" [ref=f4e1580]: ◎
+                    - cell "Read only" [ref=f4e1581]:
+                      - generic "Read only" [ref=f4e1582]: ◎
+                  - row [ref=f4e1583]:
+                    - cell "Multi Site" [ref=f4e1584]
+                    - cell "Read & write" [ref=f4e1585]:
+                      - generic "Read & write" [ref=f4e1586]: ✎
+                    - cell "Read & write" [ref=f4e1587]:
+                      - generic "Read & write" [ref=f4e1588]: ✎
+                    - cell "No access" [ref=f4e1589]:
+                      - generic "No access" [ref=f4e1590]: –
+                    - cell "No access" [ref=f4e1591]:
+                      - generic "No access" [ref=f4e1592]: –
+                    - cell "Read only" [ref=f4e1593]:
+                      - generic "Read only" [ref=f4e1594]: ◎
+                    - cell "No access" [ref=f4e1595]:
+                      - generic "No access" [ref=f4e1596]: –
+                    - cell "Read only" [ref=f4e1597]:
+                      - generic "Read only" [ref=f4e1598]: ◎
+                    - cell "No access" [ref=f4e1599]:
+                      - generic "No access" [ref=f4e1600]: –
+                    - cell "Read & write" [ref=f4e1601]:
+                      - generic "Read & write" [ref=f4e1602]: ✎
+                    - cell "Read only" [ref=f4e1603]:
+                      - generic "Read only" [ref=f4e1604]: ◎
+                    - cell "Read only" [ref=f4e1605]:
+                      - generic "Read only" [ref=f4e1606]: ◎
+                    - cell "Read only" [ref=f4e1607]:
+                      - generic "Read only" [ref=f4e1608]: ◎
+                    - cell "No access" [ref=f4e1609]:
+                      - generic "No access" [ref=f4e1610]: –
+                    - cell "Read only" [ref=f4e1611]:
+                      - generic "Read only" [ref=f4e1612]: ◎
+                    - cell "Read only" [ref=f4e1613]:
+                      - generic "Read only" [ref=f4e1614]: ◎
+                    - cell "Read only" [ref=f4e1615]:
+                      - generic "Read only" [ref=f4e1616]: ◎
+                    - cell "No access" [ref=f4e1617]:
+                      - generic "No access" [ref=f4e1618]: –
+                    - cell "No access" [ref=f4e1619]:
+                      - generic "No access" [ref=f4e1620]: –
+                    - cell "Read only" [ref=f4e1621]:
+                      - generic "Read only" [ref=f4e1622]: ◎
+                    - cell "Read only" [ref=f4e1623]:
+                      - generic "Read only" [ref=f4e1624]: ◎
+                    - cell "Read only" [ref=f4e1625]:
+                      - generic "Read only" [ref=f4e1626]: ◎
+                    - cell "Read only" [ref=f4e1627]:
+                      - generic "Read only" [ref=f4e1628]: ◎
+                    - cell "Read only" [ref=f4e1629]:
+                      - generic "Read only" [ref=f4e1630]: ◎
+                    - cell "Read only" [ref=f4e1631]:
+                      - generic "Read only" [ref=f4e1632]: ◎
+                    - cell "Read only" [ref=f4e1633]:
+                      - generic "Read only" [ref=f4e1634]: ◎
+                  - row [ref=f4e1635]:
+                    - cell "Scheduler" [ref=f4e1636]
+                    - cell "Read & write" [ref=f4e1637]:
+                      - generic "Read & write" [ref=f4e1638]: ✎
+                    - cell "Read & write" [ref=f4e1639]:
+                      - generic "Read & write" [ref=f4e1640]: ✎
+                    - cell "No access" [ref=f4e1641]:
+                      - generic "No access" [ref=f4e1642]: –
+                    - cell "No access" [ref=f4e1643]:
+                      - generic "No access" [ref=f4e1644]: –
+                    - cell "Read only" [ref=f4e1645]:
+                      - generic "Read only" [ref=f4e1646]: ◎
+                    - cell "Read only" [ref=f4e1647]:
+                      - generic "Read only" [ref=f4e1648]: ◎
+                    - cell "Read only" [ref=f4e1649]:
+                      - generic "Read only" [ref=f4e1650]: ◎
+                    - cell "Read only" [ref=f4e1651]:
+                      - generic "Read only" [ref=f4e1652]: ◎
+                    - cell "Read & write" [ref=f4e1653]:
+                      - generic "Read & write" [ref=f4e1654]: ✎
+                    - cell "Read only" [ref=f4e1655]:
+                      - generic "Read only" [ref=f4e1656]: ◎
+                    - cell "Read only" [ref=f4e1657]:
+                      - generic "Read only" [ref=f4e1658]: ◎
+                    - cell "Read only" [ref=f4e1659]:
+                      - generic "Read only" [ref=f4e1660]: ◎
+                    - cell "Read only" [ref=f4e1661]:
+                      - generic "Read only" [ref=f4e1662]: ◎
+                    - cell "Read only" [ref=f4e1663]:
+                      - generic "Read only" [ref=f4e1664]: ◎
+                    - cell "Read only" [ref=f4e1665]:
+                      - generic "Read only" [ref=f4e1666]: ◎
+                    - cell "Read only" [ref=f4e1667]:
+                      - generic "Read only" [ref=f4e1668]: ◎
+                    - cell "Read only" [ref=f4e1669]:
+                      - generic "Read only" [ref=f4e1670]: ◎
+                    - cell "Read only" [ref=f4e1671]:
+                      - generic "Read only" [ref=f4e1672]: ◎
+                    - cell "Read & write" [ref=f4e1673]:
+                      - generic "Read & write" [ref=f4e1674]: ✎
+                    - cell "Read only" [ref=f4e1675]:
+                      - generic "Read only" [ref=f4e1676]: ◎
+                    - cell "Read only" [ref=f4e1677]:
+                      - generic "Read only" [ref=f4e1678]: ◎
+                    - cell "Read only" [ref=f4e1679]:
+                      - generic "Read only" [ref=f4e1680]: ◎
+                    - cell "Read only" [ref=f4e1681]:
+                      - generic "Read only" [ref=f4e1682]: ◎
+                    - cell "Read only" [ref=f4e1683]:
+                      - generic "Read only" [ref=f4e1684]: ◎
+                    - cell "Read only" [ref=f4e1685]:
+                      - generic "Read only" [ref=f4e1686]: ◎
+                  - row [ref=f4e1687]:
+                    - cell "Planning" [ref=f4e1688]
+                    - cell "Full admin" [ref=f4e1689]:
+                      - generic "Full admin" [ref=f4e1690]: ◉
+                    - cell "Full admin" [ref=f4e1691]:
+                      - generic "Full admin" [ref=f4e1692]: ◉
+                    - cell "No access" [ref=f4e1693]:
+                      - generic "No access" [ref=f4e1694]: –
+                    - cell "No access" [ref=f4e1695]:
+                      - generic "No access" [ref=f4e1696]: –
+                    - cell "Full admin" [ref=f4e1697]:
+                      - generic "Full admin" [ref=f4e1698]: ◉
+                    - cell "No access" [ref=f4e1699]:
+                      - generic "No access" [ref=f4e1700]: –
+                    - cell "No access" [ref=f4e1701]:
+                      - generic "No access" [ref=f4e1702]: –
+                    - cell "No access" [ref=f4e1703]:
+                      - generic "No access" [ref=f4e1704]: –
+                    - cell "Full admin" [ref=f4e1705]:
+                      - generic "Full admin" [ref=f4e1706]: ◉
+                    - cell "No access" [ref=f4e1707]:
+                      - generic "No access" [ref=f4e1708]: –
+                    - cell "No access" [ref=f4e1709]:
+                      - generic "No access" [ref=f4e1710]: –
+                    - cell "No access" [ref=f4e1711]:
+                      - generic "No access" [ref=f4e1712]: –
+                    - cell "No access" [ref=f4e1713]:
+                      - generic "No access" [ref=f4e1714]: –
+                    - cell "No access" [ref=f4e1715]:
+                      - generic "No access" [ref=f4e1716]: –
+                    - cell "No access" [ref=f4e1717]:
+                      - generic "No access" [ref=f4e1718]: –
+                    - cell "No access" [ref=f4e1719]:
+                      - generic "No access" [ref=f4e1720]: –
+                    - cell "No access" [ref=f4e1721]:
+                      - generic "No access" [ref=f4e1722]: –
+                    - cell "No access" [ref=f4e1723]:
+                      - generic "No access" [ref=f4e1724]: –
+                    - cell "Full admin" [ref=f4e1725]:
+                      - generic "Full admin" [ref=f4e1726]: ◉
+                    - cell "No access" [ref=f4e1727]:
+                      - generic "No access" [ref=f4e1728]: –
+                    - cell "No access" [ref=f4e1729]:
+                      - generic "No access" [ref=f4e1730]: –
+                    - cell "No access" [ref=f4e1731]:
+                      - generic "No access" [ref=f4e1732]: –
+                    - cell "No access" [ref=f4e1733]:
+                      - generic "No access" [ref=f4e1734]: –
+                    - cell "No access" [ref=f4e1735]:
+                      - generic "No access" [ref=f4e1736]: –
+                    - cell "No access" [ref=f4e1737]:
+                      - generic "No access" [ref=f4e1738]: –
+                  - row [ref=f4e1739]:
+                    - cell "Yard" [ref=f4e1740]
+                    - cell "Full admin" [ref=f4e1741]:
+                      - generic "Full admin" [ref=f4e1742]: ◉
+                    - cell "Full admin" [ref=f4e1743]:
+                      - generic "Full admin" [ref=f4e1744]: ◉
+                    - cell "No access" [ref=f4e1745]:
+                      - generic "No access" [ref=f4e1746]: –
+                    - cell "No access" [ref=f4e1747]:
+                      - generic "No access" [ref=f4e1748]: –
+                    - cell "No access" [ref=f4e1749]:
+                      - generic "No access" [ref=f4e1750]: –
+                    - cell "No access" [ref=f4e1751]:
+                      - generic "No access" [ref=f4e1752]: –
+                    - cell "No access" [ref=f4e1753]:
+                      - generic "No access" [ref=f4e1754]: –
+                    - cell "No access" [ref=f4e1755]:
+                      - generic "No access" [ref=f4e1756]: –
+                    - cell "Full admin" [ref=f4e1757]:
+                      - generic "Full admin" [ref=f4e1758]: ◉
+                    - cell "No access" [ref=f4e1759]:
+                      - generic "No access" [ref=f4e1760]: –
+                    - cell "No access" [ref=f4e1761]:
+                      - generic "No access" [ref=f4e1762]: –
+                    - cell "No access" [ref=f4e1763]:
+                      - generic "No access" [ref=f4e1764]: –
+                    - cell "No access" [ref=f4e1765]:
+                      - generic "No access" [ref=f4e1766]: –
+                    - cell "No access" [ref=f4e1767]:
+                      - generic "No access" [ref=f4e1768]: –
+                    - cell "No access" [ref=f4e1769]:
+                      - generic "No access" [ref=f4e1770]: –
+                    - cell "No access" [ref=f4e1771]:
+                      - generic "No access" [ref=f4e1772]: –
+                    - cell "No access" [ref=f4e1773]:
+                      - generic "No access" [ref=f4e1774]: –
+                    - cell "No access" [ref=f4e1775]:
+                      - generic "No access" [ref=f4e1776]: –
+                    - cell "No access" [ref=f4e1777]:
+                      - generic "No access" [ref=f4e1778]: –
+                    - cell "No access" [ref=f4e1779]:
+                      - generic "No access" [ref=f4e1780]: –
+                    - cell "No access" [ref=f4e1781]:
+                      - generic "No access" [ref=f4e1782]: –
+                    - cell "No access" [ref=f4e1783]:
+                      - generic "No access" [ref=f4e1784]: –
+                    - cell "No access" [ref=f4e1785]:
+                      - generic "No access" [ref=f4e1786]: –
+                    - cell "No access" [ref=f4e1787]:
+                      - generic "No access" [ref=f4e1788]: –
+                    - cell "No access" [ref=f4e1789]:
+                      - generic "No access" [ref=f4e1790]: –
+                  - row [ref=f4e1791]:
+                    - cell "Freight" [ref=f4e1792]
+                    - cell "Full admin" [ref=f4e1793]:
+                      - generic "Full admin" [ref=f4e1794]: ◉
+                    - cell "Full admin" [ref=f4e1795]:
+                      - generic "Full admin" [ref=f4e1796]: ◉
+                    - cell "No access" [ref=f4e1797]:
+                      - generic "No access" [ref=f4e1798]: –
+                    - cell "No access" [ref=f4e1799]:
+                      - generic "No access" [ref=f4e1800]: –
+                    - cell "No access" [ref=f4e1801]:
+                      - generic "No access" [ref=f4e1802]: –
+                    - cell "No access" [ref=f4e1803]:
+                      - generic "No access" [ref=f4e1804]: –
+                    - cell "No access" [ref=f4e1805]:
+                      - generic "No access" [ref=f4e1806]: –
+                    - cell "No access" [ref=f4e1807]:
+                      - generic "No access" [ref=f4e1808]: –
+                    - cell "Full admin" [ref=f4e1809]:
+                      - generic "Full admin" [ref=f4e1810]: ◉
+                    - cell "No access" [ref=f4e1811]:
+                      - generic "No access" [ref=f4e1812]: –
+                    - cell "No access" [ref=f4e1813]:
+                      - generic "No access" [ref=f4e1814]: –
+                    - cell "No access" [ref=f4e1815]:
+                      - generic "No access" [ref=f4e1816]: –
+                    - cell "No access" [ref=f4e1817]:
+                      - generic "No access" [ref=f4e1818]: –
+                    - cell "No access" [ref=f4e1819]:
+                      - generic "No access" [ref=f4e1820]: –
+                    - cell "No access" [ref=f4e1821]:
+                      - generic "No access" [ref=f4e1822]: –
+                    - cell "No access" [ref=f4e1823]:
+                      - generic "No access" [ref=f4e1824]: –
+                    - cell "No access" [ref=f4e1825]:
+                      - generic "No access" [ref=f4e1826]: –
+                    - cell "No access" [ref=f4e1827]:
+                      - generic "No access" [ref=f4e1828]: –
+                    - cell "No access" [ref=f4e1829]:
+                      - generic "No access" [ref=f4e1830]: –
+                    - cell "No access" [ref=f4e1831]:
+                      - generic "No access" [ref=f4e1832]: –
+                    - cell "No access" [ref=f4e1833]:
+                      - generic "No access" [ref=f4e1834]: –
+                    - cell "No access" [ref=f4e1835]:
+                      - generic "No access" [ref=f4e1836]: –
+                    - cell "No access" [ref=f4e1837]:
+                      - generic "No access" [ref=f4e1838]: –
+                    - cell "No access" [ref=f4e1839]:
+                      - generic "No access" [ref=f4e1840]: –
+                    - cell "No access" [ref=f4e1841]:
+                      - generic "No access" [ref=f4e1842]: –
+              - generic [ref=f4e1843]:
+                - generic [ref=f4e1844]:
+                  - generic [ref=f4e1845]: ◉
+                  - text: Full admin
+                - generic [ref=f4e1846]:
+                  - generic [ref=f4e1847]: ✎
+                  - text: Read & write
+                - generic [ref=f4e1848]:
+                  - generic [ref=f4e1849]: ◎
+                  - text: Read only
+                - generic [ref=f4e1850]:
+                  - generic [ref=f4e1851]: –
+                  - text: No access
+  - alert [ref=f4e144]

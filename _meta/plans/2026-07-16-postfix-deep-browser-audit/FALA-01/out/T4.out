@@ -1,0 +1,28 @@
+## FILES TOUCHED
+
+- `factory-spec-lifecycle.ts`
+- `factory-spec-lifecycle.unit.test.ts`
+- `bundle-data.ts`
+- `bundle-data.unit.test.ts`
+- `release-bundle-panel.client.tsx`
+- `factory-specs-ui.test.tsx`
+- `apps/web/i18n/en.json`
+- `apps/web/i18n/pl.json`
+
+## FIX per finding
+
+- PF-R06-01 → edycja podpisanej specyfikacji mutowała podpisany subject → lifecycle tworzy nową rewizję `in_review`, archiwizuje starą i zachowuje append-only receipt.
+- PF-R06-14 → loader pomijał `e_sign_log`, a modal używał cache → reopen odświeża dane i pokazuje postęp, wymagane podpisy oraz aktualne/historyczne receipty.
+
+## MIGRATION
+
+none
+
+## TEST ADDED
+
+`apps/web/app/[locale]/(app)/(modules)/technical/factory-specs/actions/__tests__/factory-spec-lifecycle.unit.test.ts`
+
+## UNCERTAINTIES
+
+- Testów nie uruchomiono zgodnie z poleceniem.
+- Review powinien sprawdzić istniejące dane podpisane i edytowane przed wdrożeniem tej zmiany.

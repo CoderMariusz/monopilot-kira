@@ -1,0 +1,85 @@
+- main [ref=f112e206]:
+  - navigation "Breadcrumb" [ref=f112e207]:
+    - link "Technical" [ref=f112e208] [cursor=pointer]:
+      - /url: /en/technical
+    - text: /
+    - link "WIP library" [ref=f112e209] [cursor=pointer]:
+      - /url: /en/technical/wip-library
+    - text: / NIGHT-R05-L2-1020
+  - generic [ref=f112e210]:
+    - generic [ref=f112e212]:
+      - generic [ref=f112e213]:
+        - generic [ref=f112e214]: Name
+        - textbox "Name" [disabled] [ref=f112e216]: NIGHT-R05-L2-1020
+      - generic [ref=f112e217]:
+        - generic [ref=f112e218]: Base UoM
+        - combobox "Base UoM" [disabled] [ref=f112e220]:
+          - generic [ref=f112e221]: kg
+          - generic [ref=f112e222]: ⌄
+      - generic [ref=f112e223]:
+        - generic [ref=f112e224]: Description
+        - textbox "Description" [disabled] [ref=f112e226]
+      - generic [ref=f112e227]:
+        - generic [ref=f112e228]: Yield %
+        - spinbutton "Yield %" [disabled] [ref=f112e230]: "87.500"
+      - generic [ref=f112e231]:
+        - generic [ref=f112e232]: Reusable in formulations
+        - switch "Reusable in formulations" [disabled] [ref=f112e233]
+      - generic [ref=f112e235]:
+        - generic [ref=f112e236]: Status
+        - generic [ref=f112e237]: archived
+      - generic [ref=f112e238]:
+        - generic [ref=f112e239]: Version
+        - generic [ref=f112e240]: v3
+      - generic [ref=f112e241]:
+        - generic [ref=f112e242]: Item code
+        - generic [ref=f112e243]: WIP-20260717-0012
+    - generic [ref=f112e244]:
+      - generic [ref=f112e245]:
+        - heading "Composition" [level=2] [ref=f112e246]
+        - paragraph [ref=f112e247]: Raw materials per 1 output unit of this WIP.
+      - table "Composition" [ref=f112e248]:
+        - rowgroup [ref=f112e249]:
+          - row [ref=f112e250]:
+            - columnheader "Item" [ref=f112e251]
+            - columnheader "Qty / output unit" [ref=f112e252]
+            - columnheader "UoM" [ref=f112e253]
+            - columnheader "Actions" [ref=f112e254]
+        - rowgroup [ref=f112e255]:
+          - row [ref=f112e256]:
+            - cell "WIP-20260714-0011WIP-019" [ref=f112e257]
+            - cell [ref=f112e258]:
+              - spinbutton "Qty / output unit" [disabled] [ref=f112e260]: "0.690000"
+            - cell [ref=f112e261]:
+              - combobox "UoM" [disabled] [ref=f112e263]:
+                - generic [ref=f112e264]: kg
+                - generic [ref=f112e265]: ⌄
+            - cell [ref=f112e266]
+          - row [ref=f112e267]:
+            - cell "ING-FLOURWheat Flour" [ref=f112e268]
+            - cell [ref=f112e269]:
+              - spinbutton "Qty / output unit" [disabled] [ref=f112e271]: "0.310000"
+            - cell [ref=f112e272]:
+              - combobox "UoM" [disabled] [ref=f112e274]:
+                - generic [ref=f112e275]: kg
+                - generic [ref=f112e276]: ⌄
+            - cell [ref=f112e277]
+    - generic [ref=f112e278]:
+      - generic [ref=f112e280]:
+        - heading "Process chain" [level=2] [ref=f112e281]
+        - paragraph [ref=f112e282]: Ordered manufacturing operations with duration, cost, throughput, and staffing.
+      - list [ref=f112e283]:
+        - listitem [ref=f112e284]:
+          - generic [ref=f112e285]:
+            - generic [ref=f112e286]: Mixing
+            - generic [ref=f112e287]:
+              - generic [ref=f112e288]: "Duration (h): 1.25"
+              - generic [ref=f112e289]: "Additional cost: 3.3333"
+          - generic [ref=f112e290]:
+            - generic [ref=f112e291]: "Roles:"
+            - generic [ref=f112e292]: packer ×3
+    - generic [ref=f112e293]:
+      - generic [ref=f112e294]:
+        - heading "Where used" [level=2] [ref=f112e295]
+        - paragraph [ref=f112e296]: NPD projects referencing this definition and their accepted version.
+      - generic [ref=f112e297]: Not referenced by any project.

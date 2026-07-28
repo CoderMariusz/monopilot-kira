@@ -1,0 +1,16 @@
+- row [ref=f9e539]:
+  - cell [ref=f9e540]:
+    - link "LP-1784311327088-47QJ" [ref=f9e541] [cursor=pointer]:
+      - /url: /en/warehouse/license-plates/49f1cb07-e72f-4c25-89d2-969ecfcc74d6
+  - cell "Wheat Flour ING-FLOUR" [ref=f9e542]:
+    - generic [ref=f9e543]:
+      - generic [ref=f9e544]: Wheat Flour
+      - generic [ref=f9e545]: ING-FLOUR
+  - cell "0.000000 kg" [ref=f9e546]
+  - cell "NIGHT-R10-BATCH-174328" [ref=f9e547]
+  - cell "2027-07-18" [ref=f9e548]
+  - cell "returned" [ref=f9e549]
+  - cell "released" [ref=f9e551]
+  - cell "— · BAKERY" [ref=f9e553]:
+    - text: —
+    - generic [ref=f9e554]: · BAKERY

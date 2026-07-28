@@ -1,0 +1,22 @@
+url: https://monopilot-kira.vercel.app/en/pipeline/e60aa78f-f093-48dc-baf3-50e312af783b/gate?modal=advanceGate
+captured_at: 2026-07-17T08:59:14+01:00
+run: 04
+project: NPD-021
+state:
+  current_gate: "G3 Development"
+  approval_history:
+    rejected_records: 1
+    approved_esigned_records: 1
+    approved_signature_verification: "Valid — Signature verified"
+    certificate_id_visible_value: ""
+post_approval_behavior:
+  success_copy: "The project stays at its current stage — use Advance stage to move on."
+  gate_page_cta_after_approval: "Request approval"
+  header_advance_transition_from: "G3 Development"
+  header_advance_transition_to: "G3 Development"
+  header_advance_button: "Advance to G3: Development"
+expected:
+  - "Per NPD PRD §17.6, successful approveProjectGate advances G3 to G4."
+  - "If approval and advancement are intentionally separated, the post-approval transition must target G4 exactly once."
+observation: "The G3 approval was accepted with only 1/11 checklist items complete and before packaging, costing, trial, sensory and pilot evidence existed. The subsequent operational-stage modal displayed the same gate on both sides (G3→G3), even though its successful writes moved through later G3 stages."
+candidate_severity: P1

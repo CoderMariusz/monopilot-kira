@@ -1,0 +1,45 @@
+- generic [ref=f12e1]:
+  - generic [ref=f12e3]:
+    - main [ref=f12e4]:
+      - region "Welcome back" [ref=f12e5]:
+        - generic [ref=f12e7]:
+          - generic [ref=f12e8]:
+            - generic [ref=f12e9]: M
+            - generic [ref=f12e10]: MonoPilot
+          - heading "Welcome back" [level=1] [ref=f12e11]
+          - paragraph [ref=f12e12]: Sign in to your MES workspace
+          - status [ref=f12e13]: Enter your credentials to continue securely.
+          - generic [ref=f12e14]:
+            - generic [ref=f12e15]:
+              - generic [ref=f12e16]: Work email
+              - textbox "Work email" [active] [ref=f12e18]:
+                - /placeholder: you@company.com
+            - generic [ref=f12e19]:
+              - generic [ref=f12e20]: Password
+              - textbox "Password" [ref=f12e22]:
+                - /placeholder: ••••••••
+            - generic [ref=f12e23]:
+              - generic [ref=f12e24] [cursor=pointer]:
+                - checkbox "Remember me for 30 days" [checked] [ref=f12e25]
+                - text: Remember me for 30 days
+              - link "Forgot password?" [ref=f12e26] [cursor=pointer]:
+                - /url: /en/login/forgot-password
+            - button "Sign in" [ref=f12e27] [cursor=pointer]
+          - generic [ref=f12e28]: or
+          - button "SSO sign-in coming soon" [disabled] [ref=f12e32]
+          - generic [ref=f12e33]:
+            - text: Do not have an account?
+            - link "Contact your admin" [ref=f12e34] [cursor=pointer]:
+              - /url: mailto:admin@monopilot.app
+    - contentinfo [ref=f12e35]:
+      - text: © 2026 MonoPilot MES·
+      - link "Privacy" [ref=f12e36] [cursor=pointer]:
+        - /url: "#privacy"
+      - text: ·
+      - link "Terms" [ref=f12e37] [cursor=pointer]:
+        - /url: "#terms"
+      - text: ·
+      - link "Status" [ref=f12e38] [cursor=pointer]:
+        - /url: "#status"
+      - text: ·v3.1.0
+  - alert [ref=f12e39]

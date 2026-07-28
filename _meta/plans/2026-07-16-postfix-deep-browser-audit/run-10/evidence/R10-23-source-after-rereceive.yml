@@ -1,0 +1,124 @@
+- generic [ref=f18e122]:
+  - generic [ref=f18e123]:
+    - generic [ref=f18e124]:
+      - generic [ref=f18e125]:
+        - link "← Back to license plates" [ref=f18e126] [cursor=pointer]:
+          - /url: /en/warehouse/license-plates
+        - heading "LP-1784310651421-D2PF Wheat Flour" [level=1] [ref=f18e127]:
+          - generic [ref=f18e128]: LP-1784310651421-D2PF
+          - generic [ref=f18e129]: Wheat Flour
+        - paragraph [ref=f18e130]: 13.875000 kg · Batch NIGHT-R10-BATCH-174328 · Expiry 2027-07-18
+      - generic [ref=f18e131]:
+        - generic [ref=f18e132]: Available
+        - generic [ref=f18e133]: Released
+    - generic [ref=f18e134]:
+      - generic [ref=f18e135]:
+        - heading "Identity" [level=2] [ref=f18e136]
+        - generic [ref=f18e137]:
+          - generic [ref=f18e138]: Product
+          - generic [ref=f18e139]:
+            - text: ING-FLOUR
+            - generic [ref=f18e140]: — Wheat Flour
+        - generic [ref=f18e141]:
+          - generic [ref=f18e142]: Quantity
+          - generic [ref=f18e143]: 13.875000 kg
+        - generic [ref=f18e145]:
+          - generic [ref=f18e146]: Available
+          - generic [ref=f18e147]: 13.875000 kg
+        - generic [ref=f18e149]:
+          - generic [ref=f18e150]: Batch
+          - generic [ref=f18e151]: NIGHT-R10-BATCH-174328
+        - generic [ref=f18e152]:
+          - generic [ref=f18e153]: Supplier batch
+          - generic [ref=f18e154]: —
+        - generic [ref=f18e155]:
+          - generic [ref=f18e156]: Expiry date
+          - generic [ref=f18e157]: 2027-07-18
+        - generic [ref=f18e158]:
+          - generic [ref=f18e159]: Best before
+          - generic [ref=f18e160]: 2027-07-18
+        - generic [ref=f18e161]:
+          - generic [ref=f18e162]: Location
+          - generic [ref=f18e163]:
+            - text: RECV
+            - generic [ref=f18e164]: — Receiving Bay
+        - generic [ref=f18e165]:
+          - generic [ref=f18e166]: Warehouse
+          - generic [ref=f18e167]:
+            - text: WH1
+            - generic [ref=f18e168]: — Main Warehouse
+        - generic [ref=f18e169]:
+          - generic [ref=f18e170]: Source
+          - generic [ref=f18e171]: grn
+        - generic [ref=f18e172]:
+          - generic [ref=f18e173]: Parent LP
+          - generic [ref=f18e174]: —
+        - generic [ref=f18e175]:
+          - button "Split" [ref=f18e176]
+          - button "Merge" [ref=f18e177]
+          - button "Change QA status" [disabled] [ref=f18e178]
+          - button "Reserve" [ref=f18e179]
+          - button "Move" [ref=f18e180]
+          - button "Block" [ref=f18e181]
+          - button "Destroy / scrap" [ref=f18e182]
+          - button "Edit metadata…" [ref=f18e183]
+        - paragraph [ref=f18e184]: Available actions are determined by the LP state machine. Split, Merge, and Destroy are live.
+      - generic [ref=f18e185]:
+        - tablist "Identity" [ref=f18e186]:
+          - tab "Overview" [selected] [ref=f18e187]
+          - tab "State history" [ref=f18e188]
+          - tab "Reservations" [ref=f18e189]
+          - tab "Movements" [ref=f18e190]
+          - tab "Genealogy" [ref=f18e191]
+          - tab "Labels" [ref=f18e192]
+          - tab "Raw" [ref=f18e193]
+        - generic [ref=f18e194]:
+          - heading "Identity snapshot" [level=3] [ref=f18e195]
+          - generic [ref=f18e196]:
+            - term [ref=f18e197]: Product
+            - definition [ref=f18e198]: ING-FLOUR — Wheat Flour
+            - term [ref=f18e199]: Quantity
+            - definition [ref=f18e200]: 13.875000 kg
+            - term [ref=f18e201]: Reserved
+            - definition [ref=f18e202]: 0.000000 kg
+            - term [ref=f18e203]: Available
+            - definition [ref=f18e204]: 13.875000 kg
+            - term [ref=f18e205]: Batch
+            - definition [ref=f18e206]: NIGHT-R10-BATCH-174328
+            - term [ref=f18e207]: Expiry date
+            - definition [ref=f18e208]: 2027-07-18
+            - term [ref=f18e209]: Location
+            - definition [ref=f18e210]: RECV
+            - term [ref=f18e211]: Warehouse
+            - definition [ref=f18e212]: WH1
+            - term [ref=f18e213]: Source
+            - definition [ref=f18e214]: grn
+            - term [ref=f18e215]: Parent LP
+            - definition [ref=f18e216]: —
+  - group [ref=f18e217]:
+    - generic [ref=f18e219] [cursor=pointer]:
+      - generic [ref=f18e220]:
+        - heading "History" [level=2] [ref=f18e221]
+        - paragraph [ref=f18e222]: Read-only audit trail for this document.
+      - generic [ref=f18e223]: ▾
+    - list "History" [ref=f18e226]:
+      - listitem [ref=f18e227]:
+        - generic [ref=f18e228]:
+          - generic [ref=f18e229]:
+            - generic [ref=f18e230]: Status change
+            - generic [ref=f18e231]: lp_state.transition
+          - generic [ref=f18e232]:
+            - time [ref=f18e233]: 17 Jul 2026, 18:52
+            - text: · Admin
+          - group [ref=f18e234]:
+            - generic "Details" [ref=f18e235] [cursor=pointer]
+      - listitem [ref=f18e236]:
+        - generic [ref=f18e237]:
+          - generic [ref=f18e238]:
+            - generic [ref=f18e239]: Status change
+            - generic [ref=f18e240]: lp_state.transition
+          - generic [ref=f18e241]:
+            - time [ref=f18e242]: 17 Jul 2026, 18:50
+            - text: · Admin
+          - group [ref=f18e243]:
+            - generic "Details" [ref=f18e244] [cursor=pointer]

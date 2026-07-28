@@ -1,0 +1,42 @@
+- generic [ref=f121e418]:
+  - generic [ref=f121e419]:
+    - generic [ref=f121e420]:
+      - heading "Cost preview · v1" [level=3] [ref=f121e421]
+      - paragraph [ref=f121e422]: Cost = Σ (setup/60 + run·volume/3600) × rate. NUMERIC-exact.
+    - generic [ref=f121e423]:
+      - generic [ref=f121e424]:
+        - generic [ref=f121e425]: Volume (units)
+        - textbox "Volume (units)" [ref=f121e426]: "123.456"
+      - button "Compute cost" [ref=f121e427] [cursor=pointer]
+  - table "Cost preview operations v1" [ref=f121e429]:
+    - rowgroup [ref=f121e430]:
+      - row [ref=f121e431]:
+        - columnheader "Op" [ref=f121e432]
+        - columnheader "Operation" [ref=f121e433]
+        - columnheader "Setup cost" [ref=f121e434]
+        - columnheader "Run cost" [ref=f121e435]
+        - columnheader "Op cost" [ref=f121e436]
+    - rowgroup [ref=f121e437]:
+      - row [ref=f121e438]:
+        - cell "1" [ref=f121e439]
+        - cell "R06 Cook Phase Decimal" [ref=f121e440]
+        - cell "4.69" [ref=f121e441]
+        - cell "3.67" [ref=f121e442]
+        - cell "8.37" [ref=f121e443]
+      - row [ref=f121e444]:
+        - cell "2" [ref=f121e445]
+        - cell "R06 Pack Phase Decimal" [ref=f121e446]
+        - cell "6.09" [ref=f121e447]
+        - cell "13.73" [ref=f121e448]
+        - cell "19.82" [ref=f121e449]
+  - generic [ref=f121e450]:
+    - strong [ref=f121e451]: Total routing cost @ 123.456 units
+    - strong [ref=f121e452]: "28.19"
+  - generic [ref=f121e453]:
+    - strong [ref=f121e454]: Resource utilization (cost share)
+    - generic [ref=f121e456]:
+      - generic [ref=f121e457]: 1. R06 Cook Phase Decimal
+      - generic [ref=f121e458]: 30%
+    - generic [ref=f121e462]:
+      - generic [ref=f121e463]: 2. R06 Pack Phase Decimal
+      - generic [ref=f121e464]: 70%

@@ -1,0 +1,95 @@
+- dialog [ref=f122e864]:
+  - generic [ref=f122e865]:
+    - generic [ref=f122e866]:
+      - heading "Approve FactorySpec + BOM bundle" [level=2] [ref=f122e867]
+      - paragraph [ref=f122e868]: NIGHT-R06-FG-1138 NIGHT R06 Revision Test 1138 · paired Technical release
+    - button "Cancel" [ref=f122e869] [cursor=pointer]: ✕
+  - generic [ref=f122e870]:
+    - status [ref=f122e871]: D365 integration is disabled. Local Technical approval still unlocks factory use — D365 sync is informational only.
+    - generic [ref=f122e872]:
+      - generic [ref=f122e873]:
+        - generic [ref=f122e874]:
+          - strong [ref=f122e875]: factory_spec
+          - generic [ref=f122e876]: In review
+        - generic [ref=f122e877]:
+          - generic [ref=f122e878]:
+            - term [ref=f122e879]: Spec id
+            - definition [ref=f122e880]: FS-NIGHT-R06-1138 v2
+          - generic [ref=f122e881]:
+            - term [ref=f122e882]: Owner
+            - definition [ref=f122e883]: admin@monopilot.test
+          - generic [ref=f122e884]:
+            - term [ref=f122e885]: Last edit
+            - definition [ref=f122e886]: 2026-07-17 12:16
+      - generic [ref=f122e887]:
+        - generic [ref=f122e888]:
+          - strong [ref=f122e889]: shared BOM
+          - generic [ref=f122e890]: Active
+        - generic [ref=f122e891]:
+          - generic [ref=f122e892]:
+            - term [ref=f122e893]: BOM id
+            - definition [ref=f122e894]: cb7f445b
+          - generic [ref=f122e895]:
+            - term [ref=f122e896]: Version
+            - definition [ref=f122e897]: v3
+          - generic [ref=f122e898]:
+            - term [ref=f122e899]: Cloned from
+            - definition [ref=f122e900]: v2
+    - generic [ref=f122e901]:
+      - generic [ref=f122e903]:
+        - strong [ref=f122e904]: Release flow
+        - paragraph [ref=f122e905]: Pair a matching shared BOM, then submit the draft for Technical review.
+      - generic [ref=f122e906]:
+        - generic [ref=f122e907]:
+          - generic [ref=f122e908]: Linked BOM
+          - combobox "Linked BOM" [ref=f122e910] [cursor=pointer]:
+            - generic [ref=f122e911]: v3 · Active
+            - generic [ref=f122e912]: ⌄
+          - text: Only shared BOM headers whose product_id matches this FG item are listed.
+        - button "Link BOM" [disabled] [ref=f122e914]
+    - generic [ref=f122e915]:
+      - strong [ref=f122e916]: Blockers & preflight
+      - generic [ref=f122e918]:
+        - generic [ref=f122e919]: info
+        - generic [ref=f122e920]: Release guardD365 integration is disabled — local Technical approval still unlocks factory use.
+    - generic [ref=f122e921]:
+      - strong [ref=f122e922]: Approval / rejection history
+      - generic [ref=f122e923]:
+        - generic [ref=f122e924]:
+          - generic [ref=f122e925]: 2026-07-17 12:16
+          - generic [ref=f122e926]: admin@monopilot.test
+          - generic [ref=f122e927]: factory_spec.bom_linked
+        - generic [ref=f122e928]:
+          - generic [ref=f122e929]: 2026-07-17 12:14
+          - generic [ref=f122e930]: admin@monopilot.test
+          - generic [ref=f122e931]: factory_spec.submitted_for_review
+        - generic [ref=f122e932]:
+          - generic [ref=f122e933]: 2026-07-17 12:10
+          - generic [ref=f122e934]: admin@monopilot.test
+          - generic [ref=f122e935]: factory_spec.version_saved
+    - group [ref=f122e936]:
+      - generic [ref=f122e937]:
+        - radio "Approve bundle" [checked] [ref=f122e938]
+        - generic [ref=f122e939]:
+          - text: Approve bundle
+          - generic [ref=f122e940]: Releases the FactorySpec + BOM bundle to factory use. Local Technical release — D365 sync is optional/informational.
+      - generic [ref=f122e941]:
+        - radio "Reject bundle" [ref=f122e942]
+        - generic [ref=f122e943]:
+          - text: Reject bundle
+          - generic [ref=f122e944]: Both artifacts return to draft; the author is notified with the reason below.
+    - generic [ref=f122e945]:
+      - generic [ref=f122e946]: Approval reason
+      - textbox "Approval reason" [ref=f122e947]: RUN06 attempt duplicate approval by same signer to verify distinct-approver gate
+      - text: Audit-logged with your e-signature.
+    - generic [ref=f122e948]:
+      - generic [ref=f122e949]: E-sign PIN or account password
+      - textbox "E-sign PIN or account password" [active] [ref=f122e950]
+      - generic [ref=f122e951]:
+        - text: Verified server-side and never stored (CFR 21 Part 11). Your account password is accepted only while you have no e-sign PIN enrolled.
+        - link "No PIN? Set it in Settings →" [ref=f122e952] [cursor=pointer]:
+          - /url: /account/pin
+    - alert [ref=f122e956]: This approver has already signed this bundle; a distinct second approver is required
+    - generic [ref=f122e953]:
+      - button "Cancel" [ref=f122e954] [cursor=pointer]
+      - button "Approve bundle" [disabled] [ref=f122e955]

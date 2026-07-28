@@ -1,0 +1,10 @@
+- generic [active] [ref=f113e1]:
+  - alert [ref=f113e2]
+  - main [ref=f113e3]:
+    - generic [ref=f113e4]:
+      - generic [ref=f113e5]:
+        - generic [ref=f113e6]: 🧭
+        - generic [ref=f113e7]: Page not found
+        - generic [ref=f113e8]: The page you are looking for does not exist or may have moved. Check the address or head back to your dashboard.
+      - link "Back to dashboard" [ref=f113e10] [cursor=pointer]:
+        - /url: /en/dashboard

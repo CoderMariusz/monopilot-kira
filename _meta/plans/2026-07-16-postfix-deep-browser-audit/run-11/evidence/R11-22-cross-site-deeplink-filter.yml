@@ -1,0 +1,99 @@
+- generic [active] [ref=f8e1]:
+  - generic [ref=f8e2]:
+    - banner [ref=f8e4]:
+      - generic "MonoPilot MES" [ref=f8e5]
+      - searchbox "Search settings…" [ref=f8e7]
+      - generic [ref=f8e8]:
+        - button "Switch organization (platform admin)" [ref=f8e10] [cursor=pointer]:
+          - generic [ref=f8e11]: A2
+          - generic [ref=f8e12]: "000000000000"
+          - generic [ref=f8e13]: Apex 22
+          - generic [ref=f8e14]: ▼
+        - generic "Filters work orders, license plates and OEE only — other screens stay org-wide" [ref=f8e15]:
+          - generic [ref=f8e16]: Site
+          - combobox "Site" [ref=f8e17] [cursor=pointer]:
+            - option "All sites"
+            - option "tester1" [selected]
+            - option "CODEX-R14 SITE"
+            - option "Main Factory"
+            - option "makery"
+            - option "SOL-R02 Site 0539 Edited"
+            - option "warehouse 1"
+        - button "Notifications" [ref=f8e19]
+        - button "Open user menu for Apex Admin" [ref=f8e24]: AA
+    - navigation "Primary" [ref=f8e25]:
+      - generic [ref=f8e26]:
+        - generic [ref=f8e27]:
+          - heading "Core" [level=2] [ref=f8e28]
+          - generic [ref=f8e29]:
+            - link "Dashboard" [ref=f8e30] [cursor=pointer]:
+              - /url: /en/dashboard
+            - link "Settings" [ref=f8e34] [cursor=pointer]:
+              - /url: /en/settings
+        - generic [ref=f8e38]:
+          - heading "Operations" [level=2] [ref=f8e39]
+          - generic [ref=f8e40]:
+            - link "Planning" [ref=f8e41] [cursor=pointer]:
+              - /url: /en/planning
+            - link "Freight" [ref=f8e45] [cursor=pointer]:
+              - /url: /en/planning/carriers
+            - link "Scheduler" [ref=f8e49] [cursor=pointer]:
+              - /url: /en/scheduler
+            - link "Production" [ref=f8e53] [cursor=pointer]:
+              - /url: /en/production
+            - link "Yard" [ref=f8e57] [cursor=pointer]:
+              - /url: /en/yard
+            - link "Warehouse" [ref=f8e61] [cursor=pointer]:
+              - /url: /en/warehouse
+            - link "Scanner" [ref=f8e65] [cursor=pointer]:
+              - /url: /en/scanner/home
+        - generic [ref=f8e69]:
+          - heading "QA & Shipping" [level=2] [ref=f8e70]
+          - generic [ref=f8e71]:
+            - link "Quality" [ref=f8e72] [cursor=pointer]:
+              - /url: /en/quality
+            - link "Shipping" [ref=f8e76] [cursor=pointer]:
+              - /url: /en/shipping
+        - generic [ref=f8e80]:
+          - heading "Premium" [level=2] [ref=f8e81]
+          - generic [ref=f8e82]:
+            - link "Technical" [ref=f8e83] [cursor=pointer]:
+              - /url: /en/technical
+            - link "NPD" [ref=f8e87] [cursor=pointer]:
+              - /url: /en/pipeline
+            - link "Finance" [ref=f8e91] [cursor=pointer]:
+              - /url: /en/finance
+            - link "OEE" [ref=f8e95] [cursor=pointer]:
+              - /url: /en/oee
+            - link "Maintenance" [ref=f8e99] [cursor=pointer]:
+              - /url: /en/maintenance
+        - generic [ref=f8e103]:
+          - heading "Analytics & Network" [level=2] [ref=f8e104]
+          - generic [ref=f8e105]:
+            - link "Reporting" [ref=f8e106] [cursor=pointer]:
+              - /url: /en/reporting
+            - link "Multi-Site" [ref=f8e110] [cursor=pointer]:
+              - /url: /en/multi-site
+    - main [ref=f8e114]:
+      - main [ref=f8e115]:
+        - generic [ref=f8e117]:
+          - navigation "Breadcrumb" [ref=f8e118]:
+            - list [ref=f8e119]
+          - heading "Work order" [level=1] [ref=f8e129]
+        - generic [ref=f8e130]:
+          - generic [ref=f8e131]:
+            - generic [ref=f8e132]: WO-202607-0030-W1
+            - generic [ref=f8e133]: Cancelled
+            - generic [ref=f8e134]: normal
+          - generic [ref=f8e135]:
+            - generic [ref=f8e136]
+            - generic [ref=f8e139]
+            - generic [ref=f8e142]
+            - generic [ref=f8e145]
+            - generic [ref=f8e148]
+            - generic [ref=f8e151]
+            - generic [ref=f8e154]
+          - generic [ref=f8e157]:
+            - tablist [ref=f8e158]
+            - tabpanel "Overview" [ref=f8e166]
+  - alert [ref=f8e205]

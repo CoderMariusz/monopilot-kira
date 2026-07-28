@@ -1,0 +1,227 @@
+- generic [ref=f125e1]:
+  - generic [ref=f125e2]:
+    - banner [ref=f125e4]:
+      - generic "MonoPilot MES" [ref=f125e5]
+      - searchbox "Search settings…" [ref=f125e7]
+      - generic [ref=f125e8]:
+        - button "Switch organization (platform admin)" [ref=f125e10] [cursor=pointer]:
+          - generic [ref=f125e11]: A2
+          - generic [ref=f125e12]: "000000000000"
+          - generic [ref=f125e13]: Apex 22
+          - generic [ref=f125e14]: ▼
+        - generic "Filters work orders, license plates and OEE only — other screens stay org-wide" [ref=f125e15]:
+          - generic [ref=f125e16]: Site
+          - combobox "Site" [ref=f125e17] [cursor=pointer]:
+            - option "All sites"
+            - option "tester1"
+            - option "CODEX-R14 SITE"
+            - option "Main Factory" [selected]
+            - option "makery"
+            - option "SOL-R02 Site 0539 Edited"
+            - option "warehouse 1"
+        - button "Notifications" [ref=f125e19]
+        - button "Open user menu for Apex Admin" [ref=f125e24]: AA
+    - navigation "Primary" [ref=f125e25]:
+      - generic [ref=f125e26]:
+        - generic [ref=f125e27]:
+          - heading "Core" [level=2] [ref=f125e28]
+          - generic [ref=f125e29]:
+            - link "Dashboard" [ref=f125e30] [cursor=pointer]:
+              - /url: /en/dashboard
+              - generic [ref=f125e31]: ◆
+            - link "Settings" [ref=f125e34] [cursor=pointer]:
+              - /url: /en/settings
+              - generic [ref=f125e35]: ⚙
+        - generic [ref=f125e38]:
+          - heading "Operations" [level=2] [ref=f125e39]
+          - generic [ref=f125e40]:
+            - link "Planning" [ref=f125e41] [cursor=pointer]:
+              - /url: /en/planning
+              - generic [ref=f125e42]: ▤
+            - link "Freight" [ref=f125e45] [cursor=pointer]:
+              - /url: /en/planning/carriers
+              - generic [ref=f125e46]: F
+            - link "Scheduler" [ref=f125e49] [cursor=pointer]:
+              - /url: /en/scheduler
+              - generic [ref=f125e50]: ⧗
+            - link "Production" [ref=f125e53] [cursor=pointer]:
+              - /url: /en/production
+              - generic [ref=f125e54]: ⚒
+            - link "Yard" [ref=f125e57] [cursor=pointer]:
+              - /url: /en/yard
+              - generic [ref=f125e58]: "Y"
+            - link "Warehouse" [ref=f125e61] [cursor=pointer]:
+              - /url: /en/warehouse
+              - generic [ref=f125e62]: ▥
+            - link "Scanner" [ref=f125e65] [cursor=pointer]:
+              - /url: /en/scanner/home
+              - generic [ref=f125e66]: 📱
+        - generic [ref=f125e69]:
+          - heading "QA & Shipping" [level=2] [ref=f125e70]
+          - generic [ref=f125e71]:
+            - link "Quality" [ref=f125e72] [cursor=pointer]:
+              - /url: /en/quality
+              - generic [ref=f125e73]: ✓
+            - link "Shipping" [ref=f125e76] [cursor=pointer]:
+              - /url: /en/shipping
+              - generic [ref=f125e77]: →
+        - generic [ref=f125e80]:
+          - heading "Premium" [level=2] [ref=f125e81]
+          - generic [ref=f125e82]:
+            - link "Technical" [ref=f125e83] [cursor=pointer]:
+              - /url: /en/technical
+              - generic [ref=f125e84]: ▦
+            - link "NPD" [ref=f125e87] [cursor=pointer]:
+              - /url: /en/pipeline
+              - generic [ref=f125e88]: ★
+            - link "Finance" [ref=f125e91] [cursor=pointer]:
+              - /url: /en/finance
+              - generic [ref=f125e92]: $
+            - link "OEE" [ref=f125e95] [cursor=pointer]:
+              - /url: /en/oee
+              - generic [ref=f125e96]: ◉
+            - link "Maintenance" [ref=f125e99] [cursor=pointer]:
+              - /url: /en/maintenance
+              - generic [ref=f125e100]: 🔧
+        - generic [ref=f125e103]:
+          - heading "Analytics & Network" [level=2] [ref=f125e104]
+          - generic [ref=f125e105]:
+            - link "Reporting" [ref=f125e106] [cursor=pointer]:
+              - /url: /en/reporting
+              - generic [ref=f125e107]: ▧
+            - link "Multi-Site" [ref=f125e110] [cursor=pointer]:
+              - /url: /en/multi-site
+              - generic [ref=f125e111]: ❖
+    - main [ref=f125e114]:
+      - generic [ref=f125e115]:
+        - navigation "Technical" [ref=f125e116]:
+          - generic [ref=f125e117]:
+            - generic [ref=f125e118]:
+              - heading "Overview" [level=2] [ref=f125e119]
+              - link "Dashboard" [ref=f125e121] [cursor=pointer]:
+                - /url: /en/technical
+                - generic [ref=f125e122]: ◇
+            - generic [ref=f125e124]:
+              - heading "Products" [level=2] [ref=f125e125]
+              - generic [ref=f125e126]:
+                - link "Products" [ref=f125e127] [cursor=pointer]:
+                  - /url: /en/technical/items
+                  - generic [ref=f125e128]: ◈
+                - link "Materials" [ref=f125e130] [cursor=pointer]:
+                  - /url: /en/technical/materials
+                  - generic [ref=f125e131]: ⬢
+                - link "BOMs & recipes" [ref=f125e133] [cursor=pointer]:
+                  - /url: /en/technical/bom
+                  - generic [ref=f125e134]: ▦
+                - link "Product specifications" [ref=f125e136] [cursor=pointer]:
+                  - /url: /en/technical/factory-specs
+                  - generic [ref=f125e137]: ☰
+                - link "Nutrition panel" [ref=f125e139] [cursor=pointer]:
+                  - /url: /en/technical/nutrition
+                  - generic [ref=f125e140]: ♥
+                - link "Allergen matrix" [ref=f125e142] [cursor=pointer]:
+                  - /url: /en/technical/allergens-config
+                  - generic [ref=f125e143]: "!"
+                - link "Shelf life" [ref=f125e145] [cursor=pointer]:
+                  - /url: /en/technical/shelf-life
+                  - generic [ref=f125e146]: ⧗
+            - generic [ref=f125e148]:
+              - heading "Cost & trace" [level=2] [ref=f125e149]
+              - generic [ref=f125e150]:
+                - link "Recipe costing" [ref=f125e151] [cursor=pointer]:
+                  - /url: /en/technical/cost
+                  - generic [ref=f125e152]: $
+                - link "Cost history" [ref=f125e154] [cursor=pointer]:
+                  - /url: /en/technical/cost/history
+                  - generic [ref=f125e155]: ∿
+                - link "Traceability search" [ref=f125e157] [cursor=pointer]:
+                  - /url: /en/technical/traceability
+                  - generic [ref=f125e158]: ⌕
+                - link "Where-used" [ref=f125e160] [cursor=pointer]:
+                  - /url: /en/technical/where-used
+                  - generic [ref=f125e161]: ↤
+                - link "Portfolio cost" [ref=f125e163] [cursor=pointer]:
+                  - /url: /en/technical/cost/portfolio
+                  - generic [ref=f125e164]: ▣
+            - generic [ref=f125e166]:
+              - heading "Process" [level=2] [ref=f125e167]
+              - generic [ref=f125e168]:
+                - link "Routings" [ref=f125e169] [cursor=pointer]:
+                  - /url: /en/technical/routings
+                  - generic [ref=f125e170]: →
+                - link "WIP library" [ref=f125e172] [cursor=pointer]:
+                  - /url: /en/technical/wip-library
+                  - generic [ref=f125e173]: ⚗
+                - link "Tooling" [ref=f125e175] [cursor=pointer]:
+                  - /url: /en/technical/tooling
+                  - generic [ref=f125e176]: ⚙
+            - generic [ref=f125e178]:
+              - heading "Compliance" [level=2] [ref=f125e179]
+              - generic [ref=f125e180]:
+                - link "Allergen cascade" [ref=f125e181] [cursor=pointer]:
+                  - /url: /en/technical/allergens/cascade
+                  - generic [ref=f125e182]: ⇣
+                - link "Process additions" [ref=f125e184] [cursor=pointer]:
+                  - /url: /en/technical/allergens/process-additions
+                  - generic [ref=f125e185]: ⊕
+                - link "Contamination risk" [ref=f125e187] [cursor=pointer]:
+                  - /url: /en/technical/allergens/contamination-risk
+                  - generic [ref=f125e188]: ▦
+                - link "Sensory" [ref=f125e190] [cursor=pointer]:
+                  - /url: /en/technical/sensory
+                  - generic [ref=f125e191]: ◐
+                - link "Lab results" [ref=f125e193] [cursor=pointer]:
+                  - /url: /en/technical/lab-results
+                  - generic [ref=f125e194]: 🧪
+                - link "Compliance" [ref=f125e196] [cursor=pointer]:
+                  - /url: /en/technical/compliance
+                  - generic [ref=f125e197]: ✅
+                - link "Change control (ECO)" [ref=f125e199] [cursor=pointer]:
+                  - /url: /en/technical/eco
+                  - generic [ref=f125e200]: Δ
+                - link "Revision history" [ref=f125e202] [cursor=pointer]:
+                  - /url: /en/technical/revisions
+                  - generic [ref=f125e203]: ↺
+        - main [ref=f125e205]:
+          - main [ref=f125e206]:
+            - navigation "Breadcrumb" [ref=f125e207]:
+              - link "BOMs & recipes" [ref=f125e208] [cursor=pointer]:
+                - /url: /technical/bom
+              - text: / NIGHT-R06-FG-1138
+            - generic [ref=f125e209]:
+              - generic [ref=f125e210]:
+                - generic [ref=f125e211]:
+                  - heading "NIGHT R06 Revision Test 1138" [level=1] [ref=f125e212]
+                  - generic [ref=f125e213]: Active
+                  - generic [ref=f125e214]: v3
+                - paragraph [ref=f125e215]:
+                  - text: "Yield:"
+                  - generic [ref=f125e216]: 100%
+              - generic [ref=f125e218]:
+                - button "Add component" [ref=f125e219] [cursor=pointer]
+                - button "Save version" [ref=f125e220] [cursor=pointer]
+                - button "Delete version" [ref=f125e221] [cursor=pointer]
+            - generic [ref=f125e222]:
+              - tablist "Components" [ref=f125e223]:
+                - tab "Components 2" [ref=f125e224] [cursor=pointer]:
+                  - generic [ref=f125e225]: Components
+                  - generic [ref=f125e226]: "2"
+                - tab "Co-products 0" [ref=f125e227] [cursor=pointer]:
+                  - generic [ref=f125e228]: Co-products
+                  - generic [ref=f125e229]: "0"
+                - tab "Snapshots 0" [active] [selected] [ref=f125e230] [cursor=pointer]:
+                  - generic [ref=f125e231]: Snapshots
+                  - generic [ref=f125e232]: "0"
+                - tab "Versions 4" [ref=f125e233] [cursor=pointer]:
+                  - generic [ref=f125e234]: Versions
+                  - generic [ref=f125e235]: "4"
+                - tab "Approval" [ref=f125e236] [cursor=pointer]
+                - tab "Where-used 0" [ref=f125e238] [cursor=pointer]:
+                  - generic [ref=f125e239]: Where-used
+                  - generic [ref=f125e240]: "0"
+                - tab "Recipe sheet" [ref=f125e241] [cursor=pointer]
+              - tabpanel "Snapshots 0" [ref=f125e284]:
+                - generic [ref=f125e286]:
+                  - generic [ref=f125e287]: 📸
+                  - generic [ref=f125e288]: No work-order snapshots have been taken for this version yet.
+  - alert [ref=f125e283]

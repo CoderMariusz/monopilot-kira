@@ -1,0 +1,18 @@
+- row [ref=f36e1068]:
+  - cell [ref=f36e1069]:
+    - link "NIGHT-R03-0806-RM" [ref=f36e1070] [cursor=pointer]:
+      - /url: /technical/items/NIGHT-R03-0806-RM
+  - cell "NIGHT-R03 Raw Material 0806" [ref=f36e1071]
+  - cell "Raw material" [ref=f36e1072]
+  - cell "kg" [ref=f36e1074]
+  - cell "—" [ref=f36e1075]
+  - cell "—" [ref=f36e1076]
+  - cell "—" [ref=f36e1077]
+  - cell "2026-07-17" [ref=f36e1078]
+  - cell "● Active" [ref=f36e1079]
+  - cell [ref=f36e1081]:
+    - generic [ref=f36e1082]:
+      - link "Allergens" [ref=f36e1083] [cursor=pointer]:
+        - /url: /technical/items/NIGHT-R03-0806-RM
+      - button "Edit" [ref=f36e1084]
+      - button "Deactivate" [ref=f36e1085]

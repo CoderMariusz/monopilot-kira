@@ -1,0 +1,77 @@
+- main [ref=f102e309]:
+  - navigation "Breadcrumb" [ref=f102e310]:
+    - link "Technical" [ref=f102e311] [cursor=pointer]:
+      - /url: /en/technical
+    - text: /
+    - link "WIP library" [ref=f102e312] [cursor=pointer]:
+      - /url: /en/technical/wip-library
+    - text: / NIGHT-R05-CYCLE-1106
+  - generic [ref=f102e313]:
+    - generic [ref=f102e315]:
+      - generic [ref=f102e316]:
+        - generic [ref=f102e317]: Name
+        - textbox "Name" [ref=f102e319]: NIGHT-R05-CYCLE-1106
+      - generic [ref=f102e320]:
+        - generic [ref=f102e321]: Base UoM
+        - combobox "Base UoM" [ref=f102e323] [cursor=pointer]:
+          - generic [ref=f102e324]: kg
+          - generic [ref=f102e325]: ⌄
+      - generic [ref=f102e326]:
+        - generic [ref=f102e327]: Description
+        - textbox "Description" [ref=f102e329]
+      - generic [ref=f102e330]:
+        - generic [ref=f102e331]: Yield %
+        - spinbutton "Yield %" [ref=f102e333]: "100.000"
+      - generic [ref=f102e334]:
+        - generic [ref=f102e335]: Reusable in formulations
+        - switch "Reusable in formulations" [ref=f102e336] [cursor=pointer]
+      - generic [ref=f102e338]:
+        - generic [ref=f102e339]: Status
+        - generic [ref=f102e340]: draft
+      - generic [ref=f102e341]:
+        - generic [ref=f102e342]: Version
+        - generic [ref=f102e343]: v2
+      - generic [ref=f102e344]:
+        - generic [ref=f102e345]: Item code
+        - generic [ref=f102e346]: WIP-20260717-0013
+    - generic [ref=f102e347]:
+      - generic [ref=f102e348]:
+        - heading "Composition" [level=2] [ref=f102e349]
+        - paragraph [ref=f102e350]: Raw materials per 1 output unit of this WIP.
+      - table "Composition" [ref=f102e396]:
+        - rowgroup [ref=f102e397]:
+          - row [ref=f102e398]:
+            - columnheader "Item" [ref=f102e399]
+            - columnheader "Qty / output unit" [ref=f102e400]
+            - columnheader "UoM" [ref=f102e401]
+            - columnheader "Actions" [ref=f102e402]
+        - rowgroup [ref=f102e403]:
+          - row [ref=f102e416]:
+            - cell "WIP-20260717-0013NIGHT-R05-CYCLE-1106" [ref=f102e405]
+            - cell [ref=f102e417]:
+              - spinbutton "Qty / output unit" [ref=f102e408]: "1"
+            - cell [ref=f102e409]:
+              - combobox "UoM" [ref=f102e411] [cursor=pointer]:
+                - generic [ref=f102e412]: kg
+                - generic [ref=f102e413]: ⌄
+            - cell [ref=f102e414]:
+              - button "Remove" [ref=f102e415] [cursor=pointer]
+      - button "+ Add ingredient" [ref=f102e354] [cursor=pointer]
+    - generic [ref=f102e355]:
+      - generic [ref=f102e356]:
+        - generic [ref=f102e357]:
+          - heading "Process chain" [level=2] [ref=f102e358]
+          - paragraph [ref=f102e359]: Ordered manufacturing operations with duration, cost, throughput, and staffing.
+        - button "+ Add process" [ref=f102e361] [cursor=pointer]
+      - generic [ref=f102e362]:
+        - paragraph [ref=f102e363]: No processes yet
+        - paragraph [ref=f102e364]: Add operations from your manufacturing operations master.
+    - generic [ref=f102e365]:
+      - generic [ref=f102e366]:
+        - heading "Where used" [level=2] [ref=f102e367]
+        - paragraph [ref=f102e368]: NPD projects referencing this definition and their accepted version.
+      - generic [ref=f102e369]: Not referenced by any project.
+    - generic [ref=f102e370]:
+      - button "Save" [ref=f102e371] [cursor=pointer]
+      - generic [ref=f102e418]: Saved
+      - button "Archive" [ref=f102e372] [cursor=pointer]

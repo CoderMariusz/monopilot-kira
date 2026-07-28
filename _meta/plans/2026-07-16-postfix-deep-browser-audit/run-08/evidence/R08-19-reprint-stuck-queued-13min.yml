@@ -1,0 +1,33 @@
+- region [ref=f17e126]:
+  - heading "Print history" [level=2] [ref=f17e127]
+  - table "Print history" [ref=f17e128]:
+    - rowgroup [ref=f17e129]:
+      - row [ref=f17e130]:
+        - columnheader "Entity" [ref=f17e131]
+        - columnheader "Status" [ref=f17e132]
+        - columnheader "Copies" [ref=f17e133]
+        - columnheader "Printer" [ref=f17e134]
+        - columnheader "Created" [ref=f17e135]
+        - columnheader "Output" [ref=f17e136]
+        - columnheader "Actions" [ref=f17e137]
+    - rowgroup [ref=f17e138]:
+      - row [ref=f17e139]:
+        - cell "LP-7A6E5C1FE645" [ref=f17e140]
+        - cell "Queued" [ref=f17e141]
+        - cell "1" [ref=f17e143]
+        - cell "Direct PDF" [ref=f17e144]
+        - cell "2026-07-17 14:13" [ref=f17e145]
+        - cell "—" [ref=f17e146]
+        - cell [ref=f17e147]:
+          - button "Reprint LP-7A6E5C1FE645" [ref=f17e148] [cursor=pointer]: Reprint
+      - row [ref=f17e149]:
+        - cell "LP-7A6E5C1FE645" [ref=f17e150]
+        - cell "Sent" [ref=f17e151]
+        - cell "1" [ref=f17e153]
+        - cell "Direct PDF" [ref=f17e154]
+        - cell "2026-07-17 14:12" [ref=f17e155]
+        - cell [ref=f17e156]:
+          - link "Download" [ref=f17e157] [cursor=pointer]:
+            - /url: data:text/plain;charset=utf-8,…
+        - cell [ref=f17e158]:
+          - button "Reprint LP-7A6E5C1FE645" [ref=f17e159] [cursor=pointer]: Reprint

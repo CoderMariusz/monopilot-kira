@@ -1,0 +1,891 @@
+- generic [active] [ref=f7e1]:
+  - generic [ref=f7e2]:
+    - banner [ref=f7e4]:
+      - generic "MonoPilot MES" [ref=f7e5]
+      - searchbox "Search settings…" [ref=f7e7]
+      - generic [ref=f7e8]:
+        - button "Switch organization (platform admin)" [ref=f7e10] [cursor=pointer]:
+          - generic [ref=f7e11]: A2
+          - generic [ref=f7e12]: "000000000000"
+          - generic [ref=f7e13]: Apex 22
+          - generic [ref=f7e14]: ▼
+        - generic "Filters work orders, license plates and OEE only — other screens stay org-wide" [ref=f7e15]:
+          - generic [ref=f7e16]: Site
+          - combobox "Site" [ref=f7e17] [cursor=pointer]:
+            - option "All sites" [selected]
+            - option "tester1"
+            - option "CODEX-R14 SITE"
+            - option "Main Factory"
+            - option "makery"
+            - option "SOL-R02 Site 0539 Edited"
+            - option "warehouse 1"
+        - button "Notifications" [ref=f7e19]
+        - button "Open user menu for Apex Admin" [ref=f7e24]: AA
+    - navigation "Primary" [ref=f7e25]:
+      - generic [ref=f7e26]:
+        - generic [ref=f7e27]:
+          - heading "Core" [level=2] [ref=f7e28]
+          - generic [ref=f7e29]:
+            - link "Dashboard" [ref=f7e30] [cursor=pointer]:
+              - /url: /en/dashboard
+              - generic [ref=f7e31]: ◆
+            - link "Settings" [ref=f7e34] [cursor=pointer]:
+              - /url: /en/settings
+              - generic [ref=f7e35]: ⚙
+        - generic [ref=f7e38]:
+          - heading "Operations" [level=2] [ref=f7e39]
+          - generic [ref=f7e40]:
+            - link "Planning" [ref=f7e41] [cursor=pointer]:
+              - /url: /en/planning
+              - generic [ref=f7e42]: ▤
+            - link "Freight" [ref=f7e45] [cursor=pointer]:
+              - /url: /en/planning/carriers
+              - generic [ref=f7e46]: F
+            - link "Scheduler" [ref=f7e49] [cursor=pointer]:
+              - /url: /en/scheduler
+              - generic [ref=f7e50]: ⧗
+            - link "Production" [ref=f7e53] [cursor=pointer]:
+              - /url: /en/production
+              - generic [ref=f7e54]: ⚒
+            - link "Yard" [ref=f7e57] [cursor=pointer]:
+              - /url: /en/yard
+              - generic [ref=f7e58]: "Y"
+            - link "Warehouse" [ref=f7e61] [cursor=pointer]:
+              - /url: /en/warehouse
+              - generic [ref=f7e62]: ▥
+            - link "Scanner" [ref=f7e65] [cursor=pointer]:
+              - /url: /en/scanner/home
+              - generic [ref=f7e66]: 📱
+        - generic [ref=f7e69]:
+          - heading "QA & Shipping" [level=2] [ref=f7e70]
+          - generic [ref=f7e71]:
+            - link "Quality" [ref=f7e72] [cursor=pointer]:
+              - /url: /en/quality
+              - generic [ref=f7e73]: ✓
+            - link "Shipping" [ref=f7e76] [cursor=pointer]:
+              - /url: /en/shipping
+              - generic [ref=f7e77]: →
+        - generic [ref=f7e80]:
+          - heading "Premium" [level=2] [ref=f7e81]
+          - generic [ref=f7e82]:
+            - link "Technical" [ref=f7e83] [cursor=pointer]:
+              - /url: /en/technical
+              - generic [ref=f7e84]: ▦
+            - link "NPD" [ref=f7e87] [cursor=pointer]:
+              - /url: /en/pipeline
+              - generic [ref=f7e88]: ★
+            - link "Finance" [ref=f7e91] [cursor=pointer]:
+              - /url: /en/finance
+              - generic [ref=f7e92]: $
+            - link "OEE" [ref=f7e95] [cursor=pointer]:
+              - /url: /en/oee
+              - generic [ref=f7e96]: ◉
+            - link "Maintenance" [ref=f7e99] [cursor=pointer]:
+              - /url: /en/maintenance
+              - generic [ref=f7e100]: 🔧
+        - generic [ref=f7e103]:
+          - heading "Analytics & Network" [level=2] [ref=f7e104]
+          - generic [ref=f7e105]:
+            - link "Reporting" [ref=f7e106] [cursor=pointer]:
+              - /url: /en/reporting
+              - generic [ref=f7e107]: ▧
+            - link "Multi-Site" [ref=f7e110] [cursor=pointer]:
+              - /url: /en/multi-site
+              - generic [ref=f7e111]: ❖
+    - main [ref=f7e114]:
+      - generic [ref=f7e145]:
+        - navigation "Settings" [ref=f7e146]:
+          - generic [ref=f7e147]:
+            - generic [ref=f7e148]:
+              - heading "Organization" [level=2] [ref=f7e149]
+              - generic [ref=f7e150]:
+                - link "Company profile" [ref=f7e151] [cursor=pointer]:
+                  - /url: /en/settings/company
+                  - generic [ref=f7e152]: ◆
+                - link "Compliance profile" [ref=f7e154] [cursor=pointer]:
+                  - /url: /en/settings/compliance
+                  - generic [ref=f7e155]: ✓
+                - link "Sites & lines" [ref=f7e157] [cursor=pointer]:
+                  - /url: /en/settings/sites
+                  - generic [ref=f7e158]: ▤
+                - link "Production lines" [ref=f7e160] [cursor=pointer]:
+                  - /url: /en/settings/infra/lines
+                  - generic [ref=f7e161]: ≣
+                - link "Warehouses" [ref=f7e163] [cursor=pointer]:
+                  - /url: /en/settings/infra/warehouses
+                  - generic [ref=f7e164]: ▥
+                - link "Locations" [ref=f7e166] [cursor=pointer]:
+                  - /url: /en/settings/infra/locations
+                  - generic [ref=f7e167]: ⌖
+                - link "Printers" [ref=f7e169] [cursor=pointer]:
+                  - /url: /en/settings/infra/printers
+                  - generic [ref=f7e170]: 🖨
+                - link "Dock doors" [ref=f7e172] [cursor=pointer]:
+                  - /url: /en/settings/infra/docks
+                  - generic [ref=f7e173]: ⚓
+                - link "Shifts & calendar" [ref=f7e175] [cursor=pointer]:
+                  - /url: /en/settings/shifts
+                  - generic [ref=f7e176]: ⧗
+                - link "Labor rates" [ref=f7e178] [cursor=pointer]:
+                  - /url: /en/settings/labor-rates
+                  - generic [ref=f7e179]: 💰
+            - generic [ref=f7e181]:
+              - heading "Data" [level=2] [ref=f7e182]
+              - generic [ref=f7e183]:
+                - link "NPD fields" [ref=f7e184] [cursor=pointer]:
+                  - /url: /en/settings/npd-fields
+                  - generic [ref=f7e185]: ▦
+                - link "Approval requirements" [ref=f7e187] [cursor=pointer]:
+                  - /url: /en/settings/npd-approval
+                  - generic [ref=f7e188]: ✔
+                - link "Gate checklists" [ref=f7e190] [cursor=pointer]:
+                  - /url: /en/settings/npd-checklist
+                  - generic [ref=f7e191]: ☑
+                - link "Cost parameters" [ref=f7e193] [cursor=pointer]:
+                  - /url: /en/settings/npd-cost-params
+                  - generic [ref=f7e194]: £
+                - link "BOMs & recipes" [ref=f7e196] [cursor=pointer]:
+                  - /url: /en/settings/boms
+                  - generic [ref=f7e197]: ⛓
+                - link "Processes" [ref=f7e199] [cursor=pointer]:
+                  - /url: /en/settings/process-defaults
+                  - generic [ref=f7e200]: ⟶
+                - link "└ Manufacturing operations" [ref=f7e203] [cursor=pointer]:
+                  - /url: /en/settings/reference/manufacturing-operations
+                  - generic [ref=f7e204]: ⚒
+                - link "Product categories" [ref=f7e207] [cursor=pointer]:
+                  - /url: /en/settings/reference/product-categories
+                  - generic [ref=f7e208]: 🏷
+                - link "Suppliers & customers" [ref=f7e211] [cursor=pointer]:
+                  - /url: /en/settings/partners
+                  - generic [ref=f7e212]: ↔
+                - link "Customer prices" [ref=f7e214] [cursor=pointer]:
+                  - /url: /en/settings/customer-prices
+                  - generic [ref=f7e215]: £
+                - link "Units & conversions" [ref=f7e217] [cursor=pointer]:
+                  - /url: /en/settings/units
+                  - generic [ref=f7e218]: ⚖
+                - link "Temperature ranges" [ref=f7e220] [cursor=pointer]:
+                  - /url: /en/settings/quality/temp-ranges
+                  - generic [ref=f7e221]: ❄
+                - link "Import / Export" [ref=f7e223] [cursor=pointer]:
+                  - /url: /en/settings/import-export
+                  - generic [ref=f7e224]: ⇅
+            - generic [ref=f7e227]:
+              - heading "Access" [level=2] [ref=f7e228]
+              - generic [ref=f7e229]:
+                - link "Users & roles" [ref=f7e230] [cursor=pointer]:
+                  - /url: /en/settings/users
+                  - generic [ref=f7e231]: ◉
+                - link "Security" [ref=f7e233] [cursor=pointer]:
+                  - /url: /en/settings/security
+                  - generic [ref=f7e234]: 🔒
+                - link "Audit logs" [ref=f7e236] [cursor=pointer]:
+                  - /url: /en/settings/audit
+                  - generic [ref=f7e237]: ◷
+            - generic [ref=f7e240]:
+              - heading "Sign-off" [level=2] [ref=f7e241]
+              - generic [ref=f7e242]:
+                - link "Sign-off policies" [ref=f7e243] [cursor=pointer]:
+                  - /url: /en/settings/signoff
+                  - generic [ref=f7e244]: ✍
+                - link "Authorization policies" [ref=f7e246] [cursor=pointer]:
+                  - /url: /en/settings/authorization
+                  - generic [ref=f7e247]: 🛡
+                - link "Sign-off & PINs" [ref=f7e249] [cursor=pointer]:
+                  - /url: /en/settings/scanner-auth
+                  - generic [ref=f7e250]: 🔐
+            - generic [ref=f7e252]:
+              - heading "Operations" [level=2] [ref=f7e253]
+              - generic [ref=f7e254]:
+                - link "Scanner devices" [ref=f7e255] [cursor=pointer]:
+                  - /url: /en/settings/devices
+                  - generic [ref=f7e256]: 📱
+                - link "Notifications" [ref=f7e258] [cursor=pointer]:
+                  - /url: /en/settings/notifications
+                  - generic [ref=f7e259]: ◔
+                - link "Feature flags" [ref=f7e261] [cursor=pointer]:
+                  - /url: /en/settings/features
+                  - generic [ref=f7e262]: ◨
+            - generic [ref=f7e264]:
+              - heading "Integrations" [level=2] [ref=f7e265]
+              - link "Integrations" [ref=f7e267] [cursor=pointer]:
+                - /url: /en/settings/integrations
+                - generic [ref=f7e268]: ⇄
+            - generic [ref=f7e270]:
+              - heading "Document templates" [level=2] [ref=f7e271]
+              - generic [ref=f7e272]:
+                - link "Label templates" [ref=f7e273] [cursor=pointer]:
+                  - /url: /en/settings/labels
+                  - generic [ref=f7e274]: ▭
+                - link "Document numbering" [ref=f7e277] [cursor=pointer]:
+                  - /url: /en/settings/documents
+                  - generic [ref=f7e278]: №
+            - generic [ref=f7e280]:
+              - heading "Onboarding" [level=2] [ref=f7e281]
+              - link "Onboarding wizard" [ref=f7e283] [cursor=pointer]:
+                - /url: /en/settings/onboarding
+                - generic [ref=f7e284]: ✦
+            - generic [ref=f7e287]:
+              - heading "Admin" [level=2] [ref=f7e288]
+              - generic [ref=f7e289]:
+                - link "D365 connection" [ref=f7e290] [cursor=pointer]:
+                  - /url: /en/settings/integrations/d365
+                  - generic [ref=f7e291]: ⇆
+                - link "D365 field mapping" [ref=f7e293] [cursor=pointer]:
+                  - /url: /en/settings/integrations/d365/mapping
+                  - generic [ref=f7e294]: ↔
+                - link "D365 cost import" [ref=f7e296] [cursor=pointer]:
+                  - /url: /en/settings/integrations/d365/cost-import
+                  - generic [ref=f7e297]: ⇣
+                - link "D365 DLQ (shipping)" [ref=f7e299] [cursor=pointer]:
+                  - /url: /en/settings/d365-dlq
+                  - generic [ref=f7e300]: "!"
+                - link "Rules registry" [ref=f7e302] [cursor=pointer]:
+                  - /url: /en/settings/rules
+                  - generic [ref=f7e303]: ✦
+                - link "Feature flags (L)" [ref=f7e305] [cursor=pointer]:
+                  - /url: /en/settings/flags
+                  - generic [ref=f7e306]: ◨
+                - link "Schema browser" [ref=f7e308] [cursor=pointer]:
+                  - /url: /en/settings/schema
+                  - generic [ref=f7e309]: ▦
+                - link "└ Column wizard" [ref=f7e311] [cursor=pointer]:
+                  - /url: /en/settings/schema/new
+                  - generic [ref=f7e312]: ✎
+                - link "└ Migrations queue" [ref=f7e314] [cursor=pointer]:
+                  - /url: /en/settings/schema/migrations
+                  - generic [ref=f7e315]: ⇣
+                - link "Tenant variations" [ref=f7e318] [cursor=pointer]:
+                  - /url: /en/settings/tenant
+                  - generic [ref=f7e319]: ❖
+                - link "Reference data" [ref=f7e322] [cursor=pointer]:
+                  - /url: /en/settings/reference
+                  - generic [ref=f7e323]: ⚙
+                - link "Email templates" [ref=f7e325] [cursor=pointer]:
+                  - /url: /en/settings/email
+                  - generic [ref=f7e326]: ✉
+                - link "Email variables" [ref=f7e328] [cursor=pointer]:
+                  - /url: /en/settings/email/variables
+                  - generic [ref=f7e329]: §
+                - link "Shipping override reasons" [ref=f7e331] [cursor=pointer]:
+                  - /url: /en/settings/ship-override-reasons
+                  - generic [ref=f7e332]: ≡
+            - generic [ref=f7e334]:
+              - heading "My account" [level=2] [ref=f7e335]
+              - generic [ref=f7e336]:
+                - link "My profile" [ref=f7e337] [cursor=pointer]:
+                  - /url: /en/account/profile
+                  - generic [ref=f7e338]: ◯
+                - link "Notifications" [ref=f7e340] [cursor=pointer]:
+                  - /url: /en/account/notifications
+                  - generic [ref=f7e341]: ◔
+                - link "E-sign & scanner PIN" [ref=f7e343] [cursor=pointer]:
+                  - /url: /en/account/pin
+                  - generic [ref=f7e344]: ✱
+        - main [ref=f7e346]:
+          - main [ref=f7e511]:
+            - generic [ref=f7e512]:
+              - generic [ref=f7e513]:
+                - heading "Audit logs" [level=1] [ref=f7e514]
+                - paragraph [ref=f7e515]: Full audit trail of all settings mutations. Partitioned monthly, retained 7 years. Org-scoped to your tenant only.
+              - button "Export filtered results" [ref=f7e516] [cursor=pointer]
+            - alert [ref=f7e517]:
+              - text: Showing entries for
+              - strong [ref=f7e518]: Apex 22
+              - text: (your org). Cross-tenant viewing requires
+              - code [ref=f7e519]: impersonate.tenant
+              - text: — not granted to your role.
+            - region "Audit filters" [ref=f7e520]:
+              - generic [ref=f7e521]:
+                - generic [ref=f7e522]:
+                  - generic [ref=f7e523]: RANGE
+                  - button "Today" [ref=f7e524] [cursor=pointer]
+                  - button "Last 7d" [ref=f7e525] [cursor=pointer]
+                  - button "Last 30d" [ref=f7e526] [cursor=pointer]
+                  - button "Last 90d" [ref=f7e527] [cursor=pointer]
+                  - button "Custom" [ref=f7e528] [cursor=pointer]
+                  - textbox "From date" [ref=f7e530]: 2026-07-10
+                  - generic [ref=f7e531]: to
+                  - textbox "To date" [ref=f7e533]: 2026-07-17
+                  - generic [ref=f7e534]: ~1 partition will be scanned
+                - generic [ref=f7e535]:
+                  - combobox "User" [ref=f7e537] [cursor=pointer]:
+                    - generic [ref=f7e538]: All users
+                    - generic [ref=f7e539]: ⌄
+                  - combobox "Action" [ref=f7e541] [cursor=pointer]:
+                    - generic [ref=f7e542]: All actions
+                    - generic [ref=f7e543]: ⌄
+                  - textbox "Table contains" [ref=f7e545]:
+                    - /placeholder: Table contains…
+                  - textbox "Search field values" [ref=f7e547]:
+                    - /placeholder: Search field values…
+                  - button "Reset" [ref=f7e548] [cursor=pointer]
+                  - generic [ref=f7e549]: 50 of 50 entries
+            - generic [ref=f7e550]:
+              - text: EXPLAIN verified — partition-aware scan.
+              - generic [ref=f7e551]: "Limit (cost=34.98..35.10 rows=50 width=24) -> Sort (cost=34.98..35.18 rows=82 width=24) Sort Key: al.occurred_at DESC -> Index Scan using audit_log_2026_07_org_id_occurred_at_idx on audit_log_2026_07 al (cost=0.14..32.37 rows=82 width=24) Index Cond: ((occurred_at >= '2026-07-10 00:00:00+00'::timestamp with time zone) AND (occurred_at <= '2026-07-17 23:59:59.999+00'::timestamp with time zone)) Filter: (org_id = app.current_org_id())"
+            - region "Activity (50 entries)" [ref=f7e552]:
+              - heading "Activity (50 entries)" [level=2] [ref=f7e553]
+              - generic [ref=f7e554]:
+                - table "Settings audit log" [ref=f7e555]:
+                  - rowgroup [ref=f7e556]:
+                    - row [ref=f7e557]:
+                      - columnheader "Expand row" [ref=f7e558]
+                      - columnheader "Timestamp" [ref=f7e559]
+                      - columnheader "User" [ref=f7e560]
+                      - columnheader "Action" [ref=f7e561]
+                      - columnheader "Table" [ref=f7e562]
+                      - columnheader "Record ID" [ref=f7e563]
+                      - columnheader "Changed fields" [ref=f7e564]
+                      - columnheader "IP" [ref=f7e565]
+                  - rowgroup [ref=f7e566]:
+                    - row [ref=f7e567] [cursor=pointer]:
+                      - cell [ref=f7e568]: ▸
+                      - cell "2026-07-17 06:03" [ref=f7e569]
+                      - cell "Admin admin@monopilot.test" [ref=f7e570]:
+                        - generic [ref=f7e572]
+                      - cell "update" [ref=f7e575]
+                      - cell "users" [ref=f7e577]
+                      - cell "1092774a-c30a-4269-b89d-1f8cd39c8f06" [ref=f7e578]
+                      - cell "actor_user_id org_id role_id +1 more" [ref=f7e579]:
+                        - generic [ref=f7e580]
+                      - cell "—" [ref=f7e585]
+                    - row [ref=f7e586] [cursor=pointer]:
+                      - cell [ref=f7e587]: ▸
+                      - cell "2026-07-17 06:02" [ref=f7e588]
+                      - cell "Admin admin@monopilot.test" [ref=f7e589]:
+                        - generic [ref=f7e591]
+                      - cell "update" [ref=f7e594]
+                      - cell "users" [ref=f7e596]
+                      - cell "1092774a-c30a-4269-b89d-1f8cd39c8f06" [ref=f7e597]
+                      - cell "actor_user_id org_id role_id +1 more" [ref=f7e598]:
+                        - generic [ref=f7e599]
+                      - cell "—" [ref=f7e604]
+                    - row [ref=f7e605] [cursor=pointer]:
+                      - cell [ref=f7e606]: ▸
+                      - cell "2026-07-17 06:02" [ref=f7e607]
+                      - cell "Admin admin@monopilot.test" [ref=f7e608]:
+                        - generic [ref=f7e610]
+                      - cell "update" [ref=f7e613]
+                      - cell "users" [ref=f7e615]
+                      - cell "1092774a-c30a-4269-b89d-1f8cd39c8f06" [ref=f7e616]
+                      - cell "actor_user_id org_id site_ids +1 more" [ref=f7e617]:
+                        - generic [ref=f7e618]
+                      - cell "—" [ref=f7e623]
+                    - row [ref=f7e624] [cursor=pointer]:
+                      - cell [ref=f7e625]: ▸
+                      - cell "2026-07-17 06:00" [ref=f7e626]
+                      - cell "Admin admin@monopilot.test" [ref=f7e627]:
+                        - generic [ref=f7e629]
+                      - cell "update" [ref=f7e632]
+                      - cell "users" [ref=f7e634]
+                      - cell "1092774a-c30a-4269-b89d-1f8cd39c8f06" [ref=f7e635]
+                      - cell "email expires_at invited_by +4 more" [ref=f7e636]:
+                        - generic [ref=f7e637]
+                      - cell "—" [ref=f7e642]
+                    - row [ref=f7e643] [cursor=pointer]:
+                      - cell [ref=f7e644]: ▸
+                      - cell "2026-07-17 05:58" [ref=f7e645]
+                      - cell "Admin admin@monopilot.test" [ref=f7e646]:
+                        - generic [ref=f7e648]
+                      - cell "update" [ref=f7e651]
+                      - cell "users" [ref=f7e653]
+                      - cell "1092774a-c30a-4269-b89d-1f8cd39c8f06" [ref=f7e654]
+                      - cell "email expires_at invited_by +4 more" [ref=f7e655]:
+                        - generic [ref=f7e656]
+                      - cell "—" [ref=f7e661]
+                    - row [ref=f7e662] [cursor=pointer]:
+                      - cell [ref=f7e663]: ▸
+                      - cell "2026-07-17 02:09" [ref=f7e664]
+                      - cell "System" [ref=f7e665]
+                      - cell "update" [ref=f7e669]
+                      - cell "reference.dept_columns" [ref=f7e671]
+                      - cell "*" [ref=f7e672]
+                      - cell "diff items org_id" [ref=f7e673]:
+                        - generic [ref=f7e674]
+                      - cell "—" [ref=f7e678]
+                    - row [ref=f7e679] [cursor=pointer]:
+                      - cell [ref=f7e680]: ▸
+                      - cell "2026-07-16 02:17" [ref=f7e681]
+                      - cell "System" [ref=f7e682]
+                      - cell "update" [ref=f7e686]
+                      - cell "reference.dept_columns" [ref=f7e688]
+                      - cell "*" [ref=f7e689]
+                      - cell "diff items org_id" [ref=f7e690]:
+                        - generic [ref=f7e691]
+                      - cell "—" [ref=f7e695]
+                    - row [ref=f7e696] [cursor=pointer]:
+                      - cell [ref=f7e697]: ▸
+                      - cell "2026-07-15 23:21" [ref=f7e698]
+                      - cell "Admin admin@monopilot.test" [ref=f7e699]:
+                        - generic [ref=f7e701]
+                      - cell "update" [ref=f7e704]
+                      - cell "e_sign" [ref=f7e706]
+                      - cell "bc93bfc2-47ff-4de1-b92e-6ce7fec23ec0" [ref=f7e707]
+                      - cell "intent nonce reason +3 more" [ref=f7e708]:
+                        - generic [ref=f7e709]
+                      - cell "—" [ref=f7e714]
+                    - row [ref=f7e715] [cursor=pointer]:
+                      - cell [ref=f7e716]: ▸
+                      - cell "2026-07-15 22:59" [ref=f7e717]
+                      - cell "Admin admin@monopilot.test" [ref=f7e718]:
+                        - generic [ref=f7e720]
+                      - cell "update" [ref=f7e723]
+                      - cell "e_sign" [ref=f7e725]
+                      - cell "67919527-8db0-46b6-83ad-d9ac6436cff5" [ref=f7e726]
+                      - cell "intent nonce reason +3 more" [ref=f7e727]:
+                        - generic [ref=f7e728]
+                      - cell "—" [ref=f7e733]
+                    - row [ref=f7e734] [cursor=pointer]:
+                      - cell [ref=f7e735]: ▸
+                      - cell "2026-07-15 22:53" [ref=f7e736]
+                      - cell "Admin admin@monopilot.test" [ref=f7e737]:
+                        - generic [ref=f7e739]
+                      - cell "update" [ref=f7e742]
+                      - cell "license_plate" [ref=f7e744]
+                      - cell "b07cfbe9-21cf-4e44-b5af-cc926b6be381" [ref=f7e745]
+                      - cell "expiry_date lp_id note +2 more" [ref=f7e746]:
+                        - generic [ref=f7e747]
+                      - cell "—" [ref=f7e752]
+                    - row [ref=f7e753] [cursor=pointer]:
+                      - cell [ref=f7e754]: ▸
+                      - cell "2026-07-15 22:52" [ref=f7e755]
+                      - cell "Admin admin@monopilot.test" [ref=f7e756]:
+                        - generic [ref=f7e758]
+                      - cell "update" [ref=f7e761]
+                      - cell "e_sign" [ref=f7e763]
+                      - cell "0bd76a7a-8610-4e9b-baf3-353eca9366f9" [ref=f7e764]
+                      - cell "intent nonce reason +3 more" [ref=f7e765]:
+                        - generic [ref=f7e766]
+                      - cell "—" [ref=f7e771]
+                    - row [ref=f7e772] [cursor=pointer]:
+                      - cell [ref=f7e773]: ▸
+                      - cell "2026-07-15 22:43" [ref=f7e774]
+                      - cell "Admin admin@monopilot.test" [ref=f7e775]:
+                        - generic [ref=f7e777]
+                      - cell "update" [ref=f7e780]
+                      - cell "customer_address" [ref=f7e782]
+                      - cell "95796144-311b-4c31-a1eb-3f0f467b5bac" [ref=f7e783]
+                      - cell "address_type customer_id is_default" [ref=f7e784]:
+                        - generic [ref=f7e785]
+                      - cell "—" [ref=f7e789]
+                    - row [ref=f7e790] [cursor=pointer]:
+                      - cell [ref=f7e791]: ▸
+                      - cell "2026-07-15 22:42" [ref=f7e792]
+                      - cell "Admin admin@monopilot.test" [ref=f7e793]:
+                        - generic [ref=f7e795]
+                      - cell "update" [ref=f7e798]
+                      - cell "customer" [ref=f7e800]
+                      - cell "d6fba909-2602-4117-9579-7964b4dc0cda" [ref=f7e801]
+                      - cell "category code is_active +1 more" [ref=f7e802]:
+                        - generic [ref=f7e803]
+                      - cell "—" [ref=f7e808]
+                    - row [ref=f7e809] [cursor=pointer]:
+                      - cell [ref=f7e810]: ▸
+                      - cell "2026-07-15 22:21" [ref=f7e811]
+                      - cell "Admin admin@monopilot.test" [ref=f7e812]:
+                        - generic [ref=f7e814]
+                      - cell "update" [ref=f7e817]
+                      - cell "e_sign" [ref=f7e819]
+                      - cell "87b58c96-7c9b-4106-b760-1642adcdf11e" [ref=f7e820]
+                      - cell "intent nonce reason +3 more" [ref=f7e821]:
+                        - generic [ref=f7e822]
+                      - cell "—" [ref=f7e827]
+                    - row [ref=f7e828] [cursor=pointer]:
+                      - cell [ref=f7e829]: ▸
+                      - cell "2026-07-15 22:06" [ref=f7e830]
+                      - cell "Admin admin@monopilot.test" [ref=f7e831]:
+                        - generic [ref=f7e833]
+                      - cell "update" [ref=f7e836]
+                      - cell "e_sign" [ref=f7e838]
+                      - cell "70c5b9f5-8c27-4a56-9f5e-881ff0396f20" [ref=f7e839]
+                      - cell "intent nonce reason +3 more" [ref=f7e840]:
+                        - generic [ref=f7e841]
+                      - cell "—" [ref=f7e846]
+                    - row [ref=f7e847] [cursor=pointer]:
+                      - cell [ref=f7e848]: ▸
+                      - cell "2026-07-15 22:04" [ref=f7e849]
+                      - cell "Admin admin@monopilot.test" [ref=f7e850]:
+                        - generic [ref=f7e852]
+                      - cell "update" [ref=f7e855]
+                      - cell "license_plate" [ref=f7e857]
+                      - cell "88853e6e-4ed3-4675-a97f-2394a2ecdb1c" [ref=f7e858]
+                      - cell "batch_number lp_id note +2 more" [ref=f7e859]:
+                        - generic [ref=f7e860]
+                      - cell "—" [ref=f7e865]
+                    - row [ref=f7e866] [cursor=pointer]:
+                      - cell [ref=f7e867]: ▸
+                      - cell "2026-07-15 22:02" [ref=f7e868]
+                      - cell "Admin admin@monopilot.test" [ref=f7e869]:
+                        - generic [ref=f7e871]
+                      - cell "update" [ref=f7e874]
+                      - cell "license_plate" [ref=f7e876]
+                      - cell "88853e6e-4ed3-4675-a97f-2394a2ecdb1c" [ref=f7e877]
+                      - cell "batch_number lp_id note +2 more" [ref=f7e878]:
+                        - generic [ref=f7e879]
+                      - cell "—" [ref=f7e884]
+                    - row [ref=f7e885] [cursor=pointer]:
+                      - cell [ref=f7e886]: ▸
+                      - cell "2026-07-15 22:02" [ref=f7e887]
+                      - cell "Admin admin@monopilot.test" [ref=f7e888]:
+                        - generic [ref=f7e890]
+                      - cell "update" [ref=f7e893]
+                      - cell "e_sign" [ref=f7e895]
+                      - cell "1916c6fc-4817-43d5-8955-6087db72e436" [ref=f7e896]
+                      - cell "intent nonce reason +3 more" [ref=f7e897]:
+                        - generic [ref=f7e898]
+                      - cell "—" [ref=f7e903]
+                    - row [ref=f7e904] [cursor=pointer]:
+                      - cell [ref=f7e905]: ▸
+                      - cell "2026-07-15 21:54" [ref=f7e906]
+                      - cell "Admin admin@monopilot.test" [ref=f7e907]:
+                        - generic [ref=f7e909]
+                      - cell "update" [ref=f7e912]
+                      - cell "purchase_order" [ref=f7e914]
+                      - cell "095cc166-4161-40ff-a28c-4df931140779" [ref=f7e915]
+                      - cell "status" [ref=f7e916]
+                      - cell "—" [ref=f7e919]
+                    - row [ref=f7e920] [cursor=pointer]:
+                      - cell [ref=f7e921]: ▸
+                      - cell "2026-07-15 21:54" [ref=f7e922]
+                      - cell "Admin admin@monopilot.test" [ref=f7e923]:
+                        - generic [ref=f7e925]
+                      - cell "update" [ref=f7e928]
+                      - cell "purchase_order" [ref=f7e930]
+                      - cell "095cc166-4161-40ff-a28c-4df931140779" [ref=f7e931]
+                      - cell "status" [ref=f7e932]
+                      - cell "—" [ref=f7e935]
+                    - row [ref=f7e936] [cursor=pointer]:
+                      - cell [ref=f7e937]: ▸
+                      - cell "2026-07-15 21:53" [ref=f7e938]
+                      - cell "Admin admin@monopilot.test" [ref=f7e939]:
+                        - generic [ref=f7e941]
+                      - cell "update" [ref=f7e944]
+                      - cell "purchase_order" [ref=f7e946]
+                      - cell "095cc166-4161-40ff-a28c-4df931140779" [ref=f7e947]
+                      - cell "destinationWarehouseId lineCount poNumber +1 more" [ref=f7e948]:
+                        - generic [ref=f7e949]
+                      - cell "—" [ref=f7e954]
+                    - row [ref=f7e955] [cursor=pointer]:
+                      - cell [ref=f7e956]: ▸
+                      - cell "2026-07-15 21:01" [ref=f7e957]
+                      - cell "Admin admin@monopilot.test" [ref=f7e958]:
+                        - generic [ref=f7e960]
+                      - cell "update" [ref=f7e963]
+                      - cell "work_order" [ref=f7e965]
+                      - cell "a0000001-0000-4000-8000-000000000001" [ref=f7e966]
+                      - cell "overriddenByUserId overrideReasonCode transactionId" [ref=f7e967]:
+                        - generic [ref=f7e968]
+                      - cell "—" [ref=f7e972]
+                    - row [ref=f7e973] [cursor=pointer]:
+                      - cell [ref=f7e974]: ▸
+                      - cell "2026-07-15 21:01" [ref=f7e975]
+                      - cell "Admin admin@monopilot.test" [ref=f7e976]:
+                        - generic [ref=f7e978]
+                      - cell "update" [ref=f7e981]
+                      - cell "e_sign" [ref=f7e983]
+                      - cell "d870cbcf-d118-45df-bce2-ae01650d6cbc" [ref=f7e984]
+                      - cell "intent nonce reason +3 more" [ref=f7e985]:
+                        - generic [ref=f7e986]
+                      - cell "—" [ref=f7e991]
+                    - row [ref=f7e992] [cursor=pointer]:
+                      - cell [ref=f7e993]: ▸
+                      - cell "2026-07-15 21:00" [ref=f7e994]
+                      - cell "Admin admin@monopilot.test" [ref=f7e995]:
+                        - generic [ref=f7e997]
+                      - cell "update" [ref=f7e1000]
+                      - cell "wo_waste_log" [ref=f7e1002]
+                      - cell "9221027a-e677-4636-bd82-46a299d5da18" [ref=f7e1003]
+                      - cell "correction_id correction_of_id note +4 more" [ref=f7e1004]:
+                        - generic [ref=f7e1005]
+                      - cell "—" [ref=f7e1010]
+                    - row [ref=f7e1011] [cursor=pointer]:
+                      - cell [ref=f7e1012]: ▸
+                      - cell "2026-07-15 20:58" [ref=f7e1013]
+                      - cell "Admin admin@monopilot.test" [ref=f7e1014]:
+                        - generic [ref=f7e1016]
+                      - cell "update" [ref=f7e1019]
+                      - cell "wo_outputs" [ref=f7e1021]
+                      - cell "a0620eca-8cd0-43d7-a72b-c6dbead29be1" [ref=f7e1022]
+                      - cell "correction_id correction_of_id lp_id +7 more" [ref=f7e1023]:
+                        - generic [ref=f7e1024]
+                      - cell "—" [ref=f7e1029]
+                    - row [ref=f7e1030] [cursor=pointer]:
+                      - cell [ref=f7e1031]: ▸
+                      - cell "2026-07-15 20:58" [ref=f7e1032]
+                      - cell "Admin admin@monopilot.test" [ref=f7e1033]:
+                        - generic [ref=f7e1035]
+                      - cell "update" [ref=f7e1038]
+                      - cell "e_sign" [ref=f7e1040]
+                      - cell "79769396-ff79-450c-821a-3028480f1379" [ref=f7e1041]
+                      - cell "intent nonce reason +3 more" [ref=f7e1042]:
+                        - generic [ref=f7e1043]
+                      - cell "—" [ref=f7e1048]
+                    - row [ref=f7e1049] [cursor=pointer]:
+                      - cell [ref=f7e1050]: ▸
+                      - cell "2026-07-15 20:41" [ref=f7e1051]
+                      - cell "Admin admin@monopilot.test" [ref=f7e1052]:
+                        - generic [ref=f7e1054]
+                      - cell "update" [ref=f7e1057]
+                      - cell "wo_material_consumption" [ref=f7e1059]
+                      - cell "733670e2-2532-4044-b8a5-533fd769364c" [ref=f7e1060]
+                      - cell "component_id consumption_id correction_id +9 more" [ref=f7e1061]:
+                        - generic [ref=f7e1062]
+                      - cell "—" [ref=f7e1067]
+                    - row [ref=f7e1068] [cursor=pointer]:
+                      - cell [ref=f7e1069]: ▸
+                      - cell "2026-07-15 20:41" [ref=f7e1070]
+                      - cell "Admin admin@monopilot.test" [ref=f7e1071]:
+                        - generic [ref=f7e1073]
+                      - cell "update" [ref=f7e1076]
+                      - cell "e_sign" [ref=f7e1078]
+                      - cell "155f634a-34de-4d3f-b143-938bbe33d3f3" [ref=f7e1079]
+                      - cell "intent nonce reason +3 more" [ref=f7e1080]:
+                        - generic [ref=f7e1081]
+                      - cell "—" [ref=f7e1086]
+                    - row [ref=f7e1087] [cursor=pointer]:
+                      - cell [ref=f7e1088]: ▸
+                      - cell "2026-07-15 20:39" [ref=f7e1089]
+                      - cell "Admin admin@monopilot.test" [ref=f7e1090]:
+                        - generic [ref=f7e1092]
+                      - cell "update" [ref=f7e1095]
+                      - cell "wo_material_consumption" [ref=f7e1097]
+                      - cell "db13e653-eb8d-4c40-b773-9ee13119fcec" [ref=f7e1098]
+                      - cell "component_id consumption_id correction_id +9 more" [ref=f7e1099]:
+                        - generic [ref=f7e1100]
+                      - cell "—" [ref=f7e1105]
+                    - row [ref=f7e1106] [cursor=pointer]:
+                      - cell [ref=f7e1107]: ▸
+                      - cell "2026-07-15 20:39" [ref=f7e1108]
+                      - cell "Admin admin@monopilot.test" [ref=f7e1109]:
+                        - generic [ref=f7e1111]
+                      - cell "update" [ref=f7e1114]
+                      - cell "e_sign" [ref=f7e1116]
+                      - cell "bd40f590-efd7-4e94-afc6-dc0cd5c385d6" [ref=f7e1117]
+                      - cell "intent nonce reason +3 more" [ref=f7e1118]:
+                        - generic [ref=f7e1119]
+                      - cell "—" [ref=f7e1124]
+                    - row [ref=f7e1125] [cursor=pointer]:
+                      - cell [ref=f7e1126]: ▸
+                      - cell "2026-07-15 20:36" [ref=f7e1127]
+                      - cell "Admin admin@monopilot.test" [ref=f7e1128]:
+                        - generic [ref=f7e1130]
+                      - cell "update" [ref=f7e1133]
+                      - cell "wo_material_consumption" [ref=f7e1135]
+                      - cell "264b5663-fd57-47f6-96ea-73cda946e36a" [ref=f7e1136]
+                      - cell "component_id consumption_id correction_id +9 more" [ref=f7e1137]:
+                        - generic [ref=f7e1138]
+                      - cell "—" [ref=f7e1143]
+                    - row [ref=f7e1144] [cursor=pointer]:
+                      - cell [ref=f7e1145]: ▸
+                      - cell "2026-07-15 20:36" [ref=f7e1146]
+                      - cell "Admin admin@monopilot.test" [ref=f7e1147]:
+                        - generic [ref=f7e1149]
+                      - cell "update" [ref=f7e1152]
+                      - cell "e_sign" [ref=f7e1154]
+                      - cell "086a2b52-5a6c-4d88-b352-aaedc98735f8" [ref=f7e1155]
+                      - cell "intent nonce reason +3 more" [ref=f7e1156]:
+                        - generic [ref=f7e1157]
+                      - cell "—" [ref=f7e1162]
+                    - row [ref=f7e1163] [cursor=pointer]:
+                      - cell [ref=f7e1164]: ▸
+                      - cell "2026-07-15 19:29" [ref=f7e1165]
+                      - cell "Admin admin@monopilot.test" [ref=f7e1166]:
+                        - generic [ref=f7e1168]
+                      - cell "update" [ref=f7e1171]
+                      - cell "work_order" [ref=f7e1173]
+                      - cell "d94f9b00-dedb-4d3b-be75-05314ca4e122" [ref=f7e1174]
+                      - cell "id planned_quantity product_id +3 more" [ref=f7e1175]:
+                        - generic [ref=f7e1176]
+                      - cell "—" [ref=f7e1181]
+                    - row [ref=f7e1182] [cursor=pointer]:
+                      - cell [ref=f7e1183]: ▸
+                      - cell "2026-07-15 16:14" [ref=f7e1184]
+                      - cell "Admin admin@monopilot.test" [ref=f7e1185]:
+                        - generic [ref=f7e1187]
+                      - cell "update" [ref=f7e1190]
+                      - cell "item" [ref=f7e1192]
+                      - cell "193c8845-5f49-4ad6-92fa-5bfb0bfd9abd" [ref=f7e1193]
+                      - cell "notes reason status" [ref=f7e1194]:
+                        - generic [ref=f7e1195]
+                      - cell "—" [ref=f7e1199]
+                    - row [ref=f7e1200] [cursor=pointer]:
+                      - cell [ref=f7e1201]: ▸
+                      - cell "2026-07-15 16:13" [ref=f7e1202]
+                      - cell "Admin admin@monopilot.test" [ref=f7e1203]:
+                        - generic [ref=f7e1205]
+                      - cell "update" [ref=f7e1208]
+                      - cell "reorder_threshold" [ref=f7e1210]
+                      - cell "9e258a6f-f8d0-4b33-9faa-740459df38f4" [ref=f7e1211]
+                      - cell "itemId" [ref=f7e1212]
+                      - cell "—" [ref=f7e1215]
+                    - row [ref=f7e1216] [cursor=pointer]:
+                      - cell [ref=f7e1217]: ▸
+                      - cell "2026-07-15 16:13" [ref=f7e1218]
+                      - cell "Admin admin@monopilot.test" [ref=f7e1219]:
+                        - generic [ref=f7e1221]
+                      - cell "update" [ref=f7e1224]
+                      - cell "transfer_order" [ref=f7e1226]
+                      - cell "5d383039-1fb6-44c5-80f8-d179c6cf5e79" [ref=f7e1227]
+                      - cell "restored status" [ref=f7e1228]:
+                        - generic [ref=f7e1229]
+                      - cell "—" [ref=f7e1232]
+                    - row [ref=f7e1233] [cursor=pointer]:
+                      - cell [ref=f7e1234]: ▸
+                      - cell "2026-07-15 16:12" [ref=f7e1235]
+                      - cell "Admin admin@monopilot.test" [ref=f7e1236]:
+                        - generic [ref=f7e1238]
+                      - cell "update" [ref=f7e1241]
+                      - cell "transfer_order" [ref=f7e1243]
+                      - cell "5d383039-1fb6-44c5-80f8-d179c6cf5e79" [ref=f7e1244]
+                      - cell "correction_action dest_lp_id dest_lp_quantity +9 more" [ref=f7e1245]:
+                        - generic [ref=f7e1246]
+                      - cell "—" [ref=f7e1251]
+                    - row [ref=f7e1252] [cursor=pointer]:
+                      - cell [ref=f7e1253]: ▸
+                      - cell "2026-07-15 16:12" [ref=f7e1254]
+                      - cell "Admin admin@monopilot.test" [ref=f7e1255]:
+                        - generic [ref=f7e1257]
+                      - cell "update" [ref=f7e1260]
+                      - cell "e_sign" [ref=f7e1262]
+                      - cell "7e59c6b4-6298-4235-acab-1c1eafc64571" [ref=f7e1263]
+                      - cell "intent nonce reason +3 more" [ref=f7e1264]:
+                        - generic [ref=f7e1265]
+                      - cell "—" [ref=f7e1270]
+                    - row [ref=f7e1271] [cursor=pointer]:
+                      - cell [ref=f7e1272]: ▸
+                      - cell "2026-07-15 16:11" [ref=f7e1273]
+                      - cell "Admin admin@monopilot.test" [ref=f7e1274]:
+                        - generic [ref=f7e1276]
+                      - cell "update" [ref=f7e1279]
+                      - cell "transfer_order" [ref=f7e1281]
+                      - cell "5d383039-1fb6-44c5-80f8-d179c6cf5e79" [ref=f7e1282]
+                      - cell "correction_action dest_lp_id dest_lp_quantity +9 more" [ref=f7e1283]:
+                        - generic [ref=f7e1284]
+                      - cell "—" [ref=f7e1289]
+                    - row [ref=f7e1290] [cursor=pointer]:
+                      - cell [ref=f7e1291]: ▸
+                      - cell "2026-07-15 16:11" [ref=f7e1292]
+                      - cell "Admin admin@monopilot.test" [ref=f7e1293]:
+                        - generic [ref=f7e1295]
+                      - cell "update" [ref=f7e1298]
+                      - cell "e_sign" [ref=f7e1300]
+                      - cell "981193c3-2080-42f8-b491-1ee2e667ab15" [ref=f7e1301]
+                      - cell "intent nonce reason +3 more" [ref=f7e1302]:
+                        - generic [ref=f7e1303]
+                      - cell "—" [ref=f7e1308]
+                    - row [ref=f7e1309] [cursor=pointer]:
+                      - cell [ref=f7e1310]: ▸
+                      - cell "2026-07-15 16:08" [ref=f7e1311]
+                      - cell "Admin admin@monopilot.test" [ref=f7e1312]:
+                        - generic [ref=f7e1314]
+                      - cell "update" [ref=f7e1317]
+                      - cell "transfer_order" [ref=f7e1319]
+                      - cell "5d383039-1fb6-44c5-80f8-d179c6cf5e79" [ref=f7e1320]
+                      - cell "destLps status" [ref=f7e1321]:
+                        - generic [ref=f7e1322]
+                      - cell "—" [ref=f7e1325]
+                    - row [ref=f7e1326] [cursor=pointer]:
+                      - cell [ref=f7e1327]: ▸
+                      - cell "2026-07-15 16:07" [ref=f7e1328]
+                      - cell "Admin admin@monopilot.test" [ref=f7e1329]:
+                        - generic [ref=f7e1331]
+                      - cell "update" [ref=f7e1334]
+                      - cell "transfer_order" [ref=f7e1336]
+                      - cell "5d383039-1fb6-44c5-80f8-d179c6cf5e79" [ref=f7e1337]
+                      - cell "picks status" [ref=f7e1338]:
+                        - generic [ref=f7e1339]
+                      - cell "—" [ref=f7e1342]
+                    - row [ref=f7e1343] [cursor=pointer]:
+                      - cell [ref=f7e1344]: ▸
+                      - cell "2026-07-15 16:06" [ref=f7e1345]
+                      - cell "Admin admin@monopilot.test" [ref=f7e1346]:
+                        - generic [ref=f7e1348]
+                      - cell "update" [ref=f7e1351]
+                      - cell "e_sign" [ref=f7e1353]
+                      - cell "f2c43b83-0700-40eb-8ed2-dcaef31a5271" [ref=f7e1354]
+                      - cell "intent nonce reason +3 more" [ref=f7e1355]:
+                        - generic [ref=f7e1356]
+                      - cell "—" [ref=f7e1361]
+                    - row [ref=f7e1362] [cursor=pointer]:
+                      - cell [ref=f7e1363]: ▸
+                      - cell "2026-07-15 16:03" [ref=f7e1364]
+                      - cell "Admin admin@monopilot.test" [ref=f7e1365]:
+                        - generic [ref=f7e1367]
+                      - cell "update" [ref=f7e1370]
+                      - cell "transfer_order" [ref=f7e1372]
+                      - cell "5d383039-1fb6-44c5-80f8-d179c6cf5e79" [ref=f7e1373]
+                      - cell "notes scheduledDate" [ref=f7e1374]:
+                        - generic [ref=f7e1375]
+                      - cell "—" [ref=f7e1378]
+                    - row [ref=f7e1379] [cursor=pointer]:
+                      - cell [ref=f7e1380]: ▸
+                      - cell "2026-07-15 16:02" [ref=f7e1381]
+                      - cell "Admin admin@monopilot.test" [ref=f7e1382]:
+                        - generic [ref=f7e1384]
+                      - cell "update" [ref=f7e1387]
+                      - cell "transfer_order" [ref=f7e1389]
+                      - cell "5d383039-1fb6-44c5-80f8-d179c6cf5e79" [ref=f7e1390]
+                      - cell "lineCount status toNumber" [ref=f7e1391]:
+                        - generic [ref=f7e1392]
+                      - cell "—" [ref=f7e1396]
+                    - row [ref=f7e1397] [cursor=pointer]:
+                      - cell [ref=f7e1398]: ▸
+                      - cell "2026-07-15 15:59" [ref=f7e1399]
+                      - cell "Admin admin@monopilot.test" [ref=f7e1400]:
+                        - generic [ref=f7e1402]
+                      - cell "update" [ref=f7e1405]
+                      - cell "reorder_threshold" [ref=f7e1407]
+                      - cell "9e258a6f-f8d0-4b33-9faa-740459df38f4" [ref=f7e1408]
+                      - cell "itemId minQty preferredSupplierId +1 more" [ref=f7e1409]:
+                        - generic [ref=f7e1410]
+                      - cell "—" [ref=f7e1415]
+                    - row [ref=f7e1416] [cursor=pointer]:
+                      - cell [ref=f7e1417]: ▸
+                      - cell "2026-07-15 15:58" [ref=f7e1418]
+                      - cell "Admin admin@monopilot.test" [ref=f7e1419]:
+                        - generic [ref=f7e1421]
+                      - cell "update" [ref=f7e1424]
+                      - cell "reorder_threshold" [ref=f7e1426]
+                      - cell "9e258a6f-f8d0-4b33-9faa-740459df38f4" [ref=f7e1427]
+                      - cell "itemId minQty preferredSupplierId +1 more" [ref=f7e1428]:
+                        - generic [ref=f7e1429]
+                      - cell "—" [ref=f7e1434]
+                    - row [ref=f7e1435] [cursor=pointer]:
+                      - cell [ref=f7e1436]: ▸
+                      - cell "2026-07-15 15:58" [ref=f7e1437]
+                      - cell "Admin admin@monopilot.test" [ref=f7e1438]:
+                        - generic [ref=f7e1440]
+                      - cell "update" [ref=f7e1443]
+                      - cell "item" [ref=f7e1445]
+                      - cell "193c8845-5f49-4ad6-92fa-5bfb0bfd9abd" [ref=f7e1446]
+                      - cell "itemCode itemType listPriceGbp +3 more" [ref=f7e1447]:
+                        - generic [ref=f7e1448]
+                      - cell "—" [ref=f7e1453]
+                    - row [ref=f7e1454] [cursor=pointer]:
+                      - cell [ref=f7e1455]: ▸
+                      - cell "2026-07-15 14:45" [ref=f7e1456]
+                      - cell "Admin admin@monopilot.test" [ref=f7e1457]:
+                        - generic [ref=f7e1459]
+                      - cell "update" [ref=f7e1462]
+                      - cell "item" [ref=f7e1464]
+                      - cell "d295c875-d894-4a1c-b3e7-9c41bee3d960" [ref=f7e1465]
+                      - cell "lifecycleStatus" [ref=f7e1466]
+                      - cell "—" [ref=f7e1469]
+                    - row [ref=f7e1470] [cursor=pointer]:
+                      - cell [ref=f7e1471]: ▸
+                      - cell "2026-07-15 14:44" [ref=f7e1472]
+                      - cell "Admin admin@monopilot.test" [ref=f7e1473]:
+                        - generic [ref=f7e1475]
+                      - cell "update" [ref=f7e1478]
+                      - cell "item" [ref=f7e1480]
+                      - cell "37b6315e-bc85-489d-afb9-b2f376066dee" [ref=f7e1481]
+                      - cell "lifecycleStatus" [ref=f7e1482]
+                      - cell "—" [ref=f7e1485]
+                - generic [ref=f7e1486]:
+                  - generic [ref=f7e1487]: Page 1 of 7 · 50 rows per page
+                  - generic [ref=f7e1488]:
+                    - button "← Prev" [disabled] [ref=f7e1489]
+                    - button "Next →" [ref=f7e1490] [cursor=pointer]
+  - alert [ref=f7e144]

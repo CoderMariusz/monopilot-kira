@@ -1,0 +1,44 @@
+## FILES TOUCHED
+
+- `apps/web/app/(npd)/pipeline/_actions/_lib/gate-helpers.ts`
+- `apps/web/app/(npd)/pipeline/_actions/__tests__/gate-approval-readiness.pg.test.ts`
+
+## FIX
+
+### F1 — formalne G4 sprawdza operational criteria (C1–C7)
+
+W `getBlockers` rozszerzono warunek wywołania `getLaunchComplianceBlockers` o przejście `approval → handoff` (obok istniejącego `handoff → launched`):
+
+```590:597:apps/web/app/(npd)/pipeline/_actions/_lib/gate-helpers.ts
+  const requiresG4OperationalEvidence =
+    (project.current_stage === 'approval' && targetStage === 'handoff') ||
+    (project.current_stage === 'handoff' && targetStage === 'launched');
+
+  if (requiresG4OperationalEvidence) {
+    blockers.push(...await getLaunchComplianceBlockers(ctx, project));
+  }
+```
+
+`approveProjectGate` już woła `evaluateStageGate(..., { mode: 'formal_approve', approveGateCode: 'G4' })` **przed** `signEvent`, więc niespełnione kryteria operacyjne zwracają `HARD_BLOCKED` / `BLOCKERS_PRESENT` bez `gate_approvals` i bez e-sign. Logika nie jest duplikowana — reużyta `getLaunchComplianceBlockers`. Ścieżka advisory (`costing_nutrition → trial`, soft gate + override) pozostaje bez zmian i nadal wymaga `npd.gate.approve`.
+
+### F2 — test unauthorized advisory override
+
+Dodano przypadek z aktorem mającym **wyłącznie** `npd.gate.advance` (osobna rola/użytkownik), próbującym advisory override na `costing_nutrition → trial` → oczekiwane `FORBIDDEN` (403), brak audytu override, brak zmiany stage.
+
+## MIGRATION
+
+None.
+
+## TEST
+
+W `gate-approval-readiness.pg.test.ts` (real-DB `.pg.test.ts`):
+
+1. **`rejects G4 formal approval when operational criteria are unmet`** — projekt `approval/G4` z `product_code`, bez compliance docs → `BLOCKERS_PRESENT` + `LAUNCH_COMPLIANCE_BLOCKED`, zero `gate_approvals`, zero e-sign, stage pozostaje `approval`.
+2. **`rejects advisory override from an actor with only npd.gate.advance`** — soft-gate override bez uprawnienia approve → `FORBIDDEN`, brak audytu, stage bez zmian.
+
+Istniejący test hard-block (required checklist + override) pozostaje — dowodzi, że required=hard; nowy test dowodzi ograniczenia advisory override do approvera.
+
+## UNCERTAINTIES
+
+- `gate-actions.integration.test.ts` ma projekty G4 (`approveProjectId`, `handoffProjectId`) **bez** `product_code`/compliance — po tym fixie mogą wymagać uzupełnienia fixture'ów (poza zakresem tego zadania; orchestrator to wyłapie).
+- Test advisory override zakłada, że w DB testowej `costing_nutrition → trial` trafia w `SOFT_GATE_BLOCKED` (brak cost/nutrition), a nie w required-fields hard-block — zgodnie z istniejącym wzorcem z `gate-actions.integration.test.ts`.

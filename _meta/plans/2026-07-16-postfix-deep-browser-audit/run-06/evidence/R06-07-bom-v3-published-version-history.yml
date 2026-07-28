@@ -1,0 +1,50 @@
+- generic [ref=f119e223]:
+  - tablist "Components" [ref=f119e224]:
+    - tab "Components 2" [ref=f119e463] [cursor=pointer]:
+      - generic [ref=f119e226]: Components
+      - generic [ref=f119e227]: "2"
+    - tab "Co-products 0" [ref=f119e228] [cursor=pointer]:
+      - generic [ref=f119e229]: Co-products
+      - generic [ref=f119e230]: "0"
+    - tab "Snapshots 0" [ref=f119e231] [cursor=pointer]:
+      - generic [ref=f119e232]: Snapshots
+      - generic [ref=f119e233]: "0"
+    - tab "Versions 3" [active] [selected] [ref=f119e464] [cursor=pointer]:
+      - generic [ref=f119e235]: Versions
+      - generic [ref=f119e236]: "3"
+    - tab "Approval" [ref=f119e237] [cursor=pointer]
+    - tab "Where-used 0" [ref=f119e239] [cursor=pointer]:
+      - generic [ref=f119e240]: Where-used
+      - generic [ref=f119e241]: "0"
+    - tab "Recipe sheet" [ref=f119e242] [cursor=pointer]
+  - tabpanel "Versions 3" [ref=f119e493]:
+    - table "Versions" [ref=f119e495]:
+      - rowgroup [ref=f119e496]:
+        - row [ref=f119e497]:
+          - columnheader "Version" [ref=f119e498]
+          - columnheader "Status" [ref=f119e499]
+          - columnheader "Effective from" [ref=f119e500]
+          - columnheader "Approved by" [ref=f119e501]
+      - rowgroup [ref=f119e502]:
+        - row [ref=f119e503]:
+          - cell "v3 Current" [ref=f119e504]:
+            - link "v3" [ref=f119e505] [cursor=pointer]:
+              - /url: /technical/bom/NIGHT-R06-FG-1138?v=3
+            - generic [ref=f119e506]: Current
+          - cell "Active" [ref=f119e507]
+          - cell "2026-07-17" [ref=f119e509]
+          - cell "Admin" [ref=f119e510]
+        - row [ref=f119e511]:
+          - cell [ref=f119e512]:
+            - link "v2" [ref=f119e513] [cursor=pointer]:
+              - /url: /technical/bom/NIGHT-R06-FG-1138?v=2
+          - cell "Superseded" [ref=f119e514]
+          - cell "2026-07-17" [ref=f119e516]
+          - cell "Admin" [ref=f119e517]
+        - row [ref=f119e518]:
+          - cell [ref=f119e519]:
+            - link "v1" [ref=f119e520] [cursor=pointer]:
+              - /url: /technical/bom/NIGHT-R06-FG-1138?v=1
+          - cell "Archived" [ref=f119e521]
+          - cell "2026-07-17" [ref=f119e523]
+          - cell "—" [ref=f119e524]

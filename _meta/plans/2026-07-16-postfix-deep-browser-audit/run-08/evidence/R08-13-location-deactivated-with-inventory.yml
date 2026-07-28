@@ -1,0 +1,57 @@
+- region "Selected location" [ref=f10e430]:
+  - generic [ref=f10e431]:
+    - generic [ref=f10e432]:
+      - generic [ref=f10e433]:
+        - heading "NIGHT-R08-1400 — NIGHT-R08-1400 Audit Bin" [level=2] [ref=f10e486]
+        - paragraph [ref=f10e435]: NIGHT-R08-1400
+      - generic [ref=f10e436]:
+        - generic [ref=f10e437]: storage
+        - generic [ref=f10e438]: ○ Inactive
+        - button "Edit" [ref=f10e439] [cursor=pointer]
+        - button "+ Child" [ref=f10e440] [cursor=pointer]
+        - button "Delete" [ref=f10e441] [cursor=pointer]
+    - generic [ref=f10e442]:
+      - generic [ref=f10e443]:
+        - generic [ref=f10e444]: Warehouse
+        - generic [ref=f10e445]: WH1 — Main Warehouse
+      - generic [ref=f10e446]:
+        - generic [ref=f10e447]: Site
+        - generic [ref=f10e448]: SITE1 — Main Factory
+      - generic [ref=f10e449]:
+        - generic [ref=f10e450]: LPs here
+        - generic [ref=f10e451]: "1"
+      - generic [ref=f10e452]:
+        - generic [ref=f10e453]: Parent
+        - generic [ref=f10e454]: —
+      - generic [ref=f10e455]:
+        - generic [ref=f10e456]: Depth level
+        - generic [ref=f10e457]: L1
+      - generic [ref=f10e458]:
+        - generic [ref=f10e459]: Barcode
+        - generic [ref=f10e460]: No barcode
+  - generic [ref=f10e461]:
+    - generic [ref=f10e462]:
+      - heading "Bin occupancy" [level=3] [ref=f10e463]
+      - generic [ref=f10e464]: Green < 40% · Amber 40–80% · Red > 80% full
+    - status [ref=f10e465]:
+      - generic [ref=f10e466]: ▦
+      - generic [ref=f10e467]: No bins in this zone
+      - generic [ref=f10e468]: Add bins as children of this zone to start tracking occupancy.
+  - generic [ref=f10e469]:
+    - generic [ref=f10e470]:
+      - heading "LPs at this location (0)" [level=3] [ref=f10e471]
+      - link "Open full LP list →" [ref=f10e472] [cursor=pointer]:
+        - /url: /en/warehouse/license-plates
+    - table "LPs at this location" [ref=f10e473]:
+      - rowgroup [ref=f10e474]:
+        - row [ref=f10e475]:
+          - columnheader "LP" [ref=f10e476]
+          - columnheader "Product" [ref=f10e477]
+          - columnheader "Qty" [ref=f10e478]
+          - columnheader "Batch" [ref=f10e479]
+          - columnheader "Expiry" [ref=f10e480]
+          - columnheader "Status" [ref=f10e481]
+          - columnheader "QA" [ref=f10e482]
+      - rowgroup [ref=f10e483]:
+        - row [ref=f10e484]:
+          - cell "No LPs at this location." [ref=f10e485]

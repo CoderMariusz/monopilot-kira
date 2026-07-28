@@ -1,0 +1,372 @@
+- generic [active] [ref=f8e1]:
+  - generic [ref=f8e2]:
+    - banner [ref=f8e4]:
+      - generic "MonoPilot MES" [ref=f8e5]
+      - searchbox "Search settings…" [ref=f8e7]
+      - generic [ref=f8e8]:
+        - button "Switch organization (platform admin)" [ref=f8e10] [cursor=pointer]:
+          - generic [ref=f8e11]: A2
+          - generic [ref=f8e12]: "000000000000"
+          - generic [ref=f8e13]: Apex 22
+          - generic [ref=f8e14]: ▼
+        - generic "Filters work orders, license plates and OEE only — other screens stay org-wide" [ref=f8e15]:
+          - generic [ref=f8e16]: Site
+          - combobox "Site" [ref=f8e17] [cursor=pointer]:
+            - option "All sites" [selected]
+            - option "tester1"
+            - option "CODEX-R14 SITE"
+            - option "Main Factory"
+            - option "makery"
+            - option "SOL-R02 Site 0539 Edited"
+            - option "warehouse 1"
+        - button "Notifications" [ref=f8e19]
+        - button "Open user menu for Apex Admin" [ref=f8e24]: AA
+    - navigation "Primary" [ref=f8e25]:
+      - generic [ref=f8e26]:
+        - generic [ref=f8e27]:
+          - heading "Core" [level=2] [ref=f8e28]
+          - generic [ref=f8e29]:
+            - link "Dashboard" [ref=f8e30] [cursor=pointer]:
+              - /url: /en/dashboard
+              - generic [ref=f8e31]: ◆
+            - link "Settings" [ref=f8e34] [cursor=pointer]:
+              - /url: /en/settings
+              - generic [ref=f8e35]: ⚙
+        - generic [ref=f8e38]:
+          - heading "Operations" [level=2] [ref=f8e39]
+          - generic [ref=f8e40]:
+            - link "Planning" [ref=f8e41] [cursor=pointer]:
+              - /url: /en/planning
+              - generic [ref=f8e42]: ▤
+            - link "Freight" [ref=f8e45] [cursor=pointer]:
+              - /url: /en/planning/carriers
+              - generic [ref=f8e46]: F
+            - link "Scheduler" [ref=f8e49] [cursor=pointer]:
+              - /url: /en/scheduler
+              - generic [ref=f8e50]: ⧗
+            - link "Production" [ref=f8e53] [cursor=pointer]:
+              - /url: /en/production
+              - generic [ref=f8e54]: ⚒
+            - link "Yard" [ref=f8e57] [cursor=pointer]:
+              - /url: /en/yard
+              - generic [ref=f8e58]: "Y"
+            - link "Warehouse" [ref=f8e61] [cursor=pointer]:
+              - /url: /en/warehouse
+              - generic [ref=f8e62]: ▥
+            - link "Scanner" [ref=f8e65] [cursor=pointer]:
+              - /url: /en/scanner/home
+              - generic [ref=f8e66]: 📱
+        - generic [ref=f8e69]:
+          - heading "QA & Shipping" [level=2] [ref=f8e70]
+          - generic [ref=f8e71]:
+            - link "Quality" [ref=f8e72] [cursor=pointer]:
+              - /url: /en/quality
+              - generic [ref=f8e73]: ✓
+            - link "Shipping" [ref=f8e76] [cursor=pointer]:
+              - /url: /en/shipping
+              - generic [ref=f8e77]: →
+        - generic [ref=f8e80]:
+          - heading "Premium" [level=2] [ref=f8e81]
+          - generic [ref=f8e82]:
+            - link "Technical" [ref=f8e83] [cursor=pointer]:
+              - /url: /en/technical
+              - generic [ref=f8e84]: ▦
+            - link "NPD" [ref=f8e87] [cursor=pointer]:
+              - /url: /en/pipeline
+              - generic [ref=f8e88]: ★
+            - link "Finance" [ref=f8e91] [cursor=pointer]:
+              - /url: /en/finance
+              - generic [ref=f8e92]: $
+            - link "OEE" [ref=f8e95] [cursor=pointer]:
+              - /url: /en/oee
+              - generic [ref=f8e96]: ◉
+            - link "Maintenance" [ref=f8e99] [cursor=pointer]:
+              - /url: /en/maintenance
+              - generic [ref=f8e100]: 🔧
+        - generic [ref=f8e103]:
+          - heading "Analytics & Network" [level=2] [ref=f8e104]
+          - generic [ref=f8e105]:
+            - link "Reporting" [ref=f8e106] [cursor=pointer]:
+              - /url: /en/reporting
+              - generic [ref=f8e107]: ▧
+            - link "Multi-Site" [ref=f8e110] [cursor=pointer]:
+              - /url: /en/multi-site
+              - generic [ref=f8e111]: ❖
+    - main [ref=f8e114]:
+      - generic [ref=f8e145]:
+        - navigation "Settings" [ref=f8e146]:
+          - generic [ref=f8e147]:
+            - generic [ref=f8e148]:
+              - heading "Organization" [level=2] [ref=f8e149]
+              - generic [ref=f8e150]:
+                - link "Company profile" [ref=f8e151] [cursor=pointer]:
+                  - /url: /en/settings/company
+                  - generic [ref=f8e152]: ◆
+                - link "Compliance profile" [ref=f8e154] [cursor=pointer]:
+                  - /url: /en/settings/compliance
+                  - generic [ref=f8e155]: ✓
+                - link "Sites & lines" [ref=f8e157] [cursor=pointer]:
+                  - /url: /en/settings/sites
+                  - generic [ref=f8e158]: ▤
+                - link "Production lines" [ref=f8e160] [cursor=pointer]:
+                  - /url: /en/settings/infra/lines
+                  - generic [ref=f8e161]: ≣
+                - link "Warehouses" [ref=f8e163] [cursor=pointer]:
+                  - /url: /en/settings/infra/warehouses
+                  - generic [ref=f8e164]: ▥
+                - link "Locations" [ref=f8e166] [cursor=pointer]:
+                  - /url: /en/settings/infra/locations
+                  - generic [ref=f8e167]: ⌖
+                - link "Printers" [ref=f8e169] [cursor=pointer]:
+                  - /url: /en/settings/infra/printers
+                  - generic [ref=f8e170]: 🖨
+                - link "Dock doors" [ref=f8e172] [cursor=pointer]:
+                  - /url: /en/settings/infra/docks
+                  - generic [ref=f8e173]: ⚓
+                - link "Shifts & calendar" [ref=f8e175] [cursor=pointer]:
+                  - /url: /en/settings/shifts
+                  - generic [ref=f8e176]: ⧗
+                - link "Labor rates" [ref=f8e178] [cursor=pointer]:
+                  - /url: /en/settings/labor-rates
+                  - generic [ref=f8e179]: 💰
+            - generic [ref=f8e181]:
+              - heading "Data" [level=2] [ref=f8e182]
+              - generic [ref=f8e183]:
+                - link "NPD fields" [ref=f8e184] [cursor=pointer]:
+                  - /url: /en/settings/npd-fields
+                  - generic [ref=f8e185]: ▦
+                - link "Approval requirements" [ref=f8e187] [cursor=pointer]:
+                  - /url: /en/settings/npd-approval
+                  - generic [ref=f8e188]: ✔
+                - link "Gate checklists" [ref=f8e190] [cursor=pointer]:
+                  - /url: /en/settings/npd-checklist
+                  - generic [ref=f8e191]: ☑
+                - link "Cost parameters" [ref=f8e193] [cursor=pointer]:
+                  - /url: /en/settings/npd-cost-params
+                  - generic [ref=f8e194]: £
+                - link "BOMs & recipes" [ref=f8e196] [cursor=pointer]:
+                  - /url: /en/settings/boms
+                  - generic [ref=f8e197]: ⛓
+                - link "Processes" [ref=f8e199] [cursor=pointer]:
+                  - /url: /en/settings/process-defaults
+                  - generic [ref=f8e200]: ⟶
+                - link "└ Manufacturing operations" [ref=f8e203] [cursor=pointer]:
+                  - /url: /en/settings/reference/manufacturing-operations
+                  - generic [ref=f8e204]: ⚒
+                - link "Product categories" [ref=f8e207] [cursor=pointer]:
+                  - /url: /en/settings/reference/product-categories
+                  - generic [ref=f8e208]: 🏷
+                - link "Suppliers & customers" [ref=f8e211] [cursor=pointer]:
+                  - /url: /en/settings/partners
+                  - generic [ref=f8e212]: ↔
+                - link "Customer prices" [ref=f8e214] [cursor=pointer]:
+                  - /url: /en/settings/customer-prices
+                  - generic [ref=f8e215]: £
+                - link "Units & conversions" [ref=f8e217] [cursor=pointer]:
+                  - /url: /en/settings/units
+                  - generic [ref=f8e218]: ⚖
+                - link "Temperature ranges" [ref=f8e220] [cursor=pointer]:
+                  - /url: /en/settings/quality/temp-ranges
+                  - generic [ref=f8e221]: ❄
+                - link "Import / Export" [ref=f8e223] [cursor=pointer]:
+                  - /url: /en/settings/import-export
+                  - generic [ref=f8e224]: ⇅
+            - generic [ref=f8e227]:
+              - heading "Access" [level=2] [ref=f8e228]
+              - generic [ref=f8e229]:
+                - link "Users & roles" [ref=f8e230] [cursor=pointer]:
+                  - /url: /en/settings/users
+                  - generic [ref=f8e231]: ◉
+                - link "Security" [ref=f8e233] [cursor=pointer]:
+                  - /url: /en/settings/security
+                  - generic [ref=f8e234]: 🔒
+                - link "Audit logs" [ref=f8e236] [cursor=pointer]:
+                  - /url: /en/settings/audit
+                  - generic [ref=f8e237]: ◷
+            - generic [ref=f8e240]:
+              - heading "Sign-off" [level=2] [ref=f8e241]
+              - generic [ref=f8e242]:
+                - link "Sign-off policies" [ref=f8e243] [cursor=pointer]:
+                  - /url: /en/settings/signoff
+                  - generic [ref=f8e244]: ✍
+                - link "Authorization policies" [ref=f8e246] [cursor=pointer]:
+                  - /url: /en/settings/authorization
+                  - generic [ref=f8e247]: 🛡
+                - link "Sign-off & PINs" [ref=f8e249] [cursor=pointer]:
+                  - /url: /en/settings/scanner-auth
+                  - generic [ref=f8e250]: 🔐
+            - generic [ref=f8e252]:
+              - heading "Operations" [level=2] [ref=f8e253]
+              - generic [ref=f8e254]:
+                - link "Scanner devices" [ref=f8e255] [cursor=pointer]:
+                  - /url: /en/settings/devices
+                  - generic [ref=f8e256]: 📱
+                - link "Notifications" [ref=f8e258] [cursor=pointer]:
+                  - /url: /en/settings/notifications
+                  - generic [ref=f8e259]: ◔
+                - link "Feature flags" [ref=f8e261] [cursor=pointer]:
+                  - /url: /en/settings/features
+                  - generic [ref=f8e262]: ◨
+            - generic [ref=f8e264]:
+              - heading "Integrations" [level=2] [ref=f8e265]
+              - link "Integrations" [ref=f8e267] [cursor=pointer]:
+                - /url: /en/settings/integrations
+                - generic [ref=f8e268]: ⇄
+            - generic [ref=f8e270]:
+              - heading "Document templates" [level=2] [ref=f8e271]
+              - generic [ref=f8e272]:
+                - link "Label templates" [ref=f8e273] [cursor=pointer]:
+                  - /url: /en/settings/labels
+                  - generic [ref=f8e274]: ▭
+                - link "Document numbering" [ref=f8e277] [cursor=pointer]:
+                  - /url: /en/settings/documents
+                  - generic [ref=f8e278]: №
+            - generic [ref=f8e280]:
+              - heading "Onboarding" [level=2] [ref=f8e281]
+              - link "Onboarding wizard" [ref=f8e283] [cursor=pointer]:
+                - /url: /en/settings/onboarding
+                - generic [ref=f8e284]: ✦
+            - generic [ref=f8e287]:
+              - heading "Admin" [level=2] [ref=f8e288]
+              - generic [ref=f8e289]:
+                - link "D365 connection" [ref=f8e290] [cursor=pointer]:
+                  - /url: /en/settings/integrations/d365
+                  - generic [ref=f8e291]: ⇆
+                - link "D365 field mapping" [ref=f8e293] [cursor=pointer]:
+                  - /url: /en/settings/integrations/d365/mapping
+                  - generic [ref=f8e294]: ↔
+                - link "D365 cost import" [ref=f8e296] [cursor=pointer]:
+                  - /url: /en/settings/integrations/d365/cost-import
+                  - generic [ref=f8e297]: ⇣
+                - link "D365 DLQ (shipping)" [ref=f8e299] [cursor=pointer]:
+                  - /url: /en/settings/d365-dlq
+                  - generic [ref=f8e300]: "!"
+                - link "Rules registry" [ref=f8e302] [cursor=pointer]:
+                  - /url: /en/settings/rules
+                  - generic [ref=f8e303]: ✦
+                - link "Feature flags (L)" [ref=f8e305] [cursor=pointer]:
+                  - /url: /en/settings/flags
+                  - generic [ref=f8e306]: ◨
+                - link "Schema browser" [ref=f8e308] [cursor=pointer]:
+                  - /url: /en/settings/schema
+                  - generic [ref=f8e309]: ▦
+                - link "└ Column wizard" [ref=f8e311] [cursor=pointer]:
+                  - /url: /en/settings/schema/new
+                  - generic [ref=f8e312]: ✎
+                - link "└ Migrations queue" [ref=f8e314] [cursor=pointer]:
+                  - /url: /en/settings/schema/migrations
+                  - generic [ref=f8e315]: ⇣
+                - link "Tenant variations" [ref=f8e318] [cursor=pointer]:
+                  - /url: /en/settings/tenant
+                  - generic [ref=f8e319]: ❖
+                - link "Reference data" [ref=f8e322] [cursor=pointer]:
+                  - /url: /en/settings/reference
+                  - generic [ref=f8e323]: ⚙
+                - link "Email templates" [ref=f8e325] [cursor=pointer]:
+                  - /url: /en/settings/email
+                  - generic [ref=f8e326]: ✉
+                - link "Email variables" [ref=f8e328] [cursor=pointer]:
+                  - /url: /en/settings/email/variables
+                  - generic [ref=f8e329]: §
+                - link "Shipping override reasons" [ref=f8e331] [cursor=pointer]:
+                  - /url: /en/settings/ship-override-reasons
+                  - generic [ref=f8e332]: ≡
+            - generic [ref=f8e334]:
+              - heading "My account" [level=2] [ref=f8e335]
+              - generic [ref=f8e336]:
+                - link "My profile" [ref=f8e337] [cursor=pointer]:
+                  - /url: /en/account/profile
+                  - generic [ref=f8e338]: ◯
+                - link "Notifications" [ref=f8e340] [cursor=pointer]:
+                  - /url: /en/account/notifications
+                  - generic [ref=f8e341]: ◔
+                - link "E-sign & scanner PIN" [ref=f8e343] [cursor=pointer]:
+                  - /url: /en/account/pin
+                  - generic [ref=f8e344]: ✱
+        - main [ref=f8e346]:
+          - main [ref=f8e348]:
+            - generic [ref=f8e349]:
+              - generic [ref=f8e350]:
+                - heading "Authorization Policies" [level=1] [ref=f8e351]
+                - paragraph [ref=f8e352]: Control who can request released product/BOM edits and technical approval gates.
+              - link "View audit log →" [ref=f8e353] [cursor=pointer]:
+                - /url: /en/settings/audit?action=authorization_policy_update
+            - generic [ref=f8e354]: Authorized edits always create a new BOM/product-spec version; in-place mutation is never allowed. Factory-use approval remains locked until Technical signs off.
+            - generic [ref=f8e355]:
+              - region "NPD post-release edit authorization" [ref=f8e356]:
+                - generic [ref=f8e357]:
+                  - generic [ref=f8e358]:
+                    - heading "NPD post-release edit authorization" [level=2] [ref=f8e359]
+                    - generic [ref=f8e360]: Authorizes released product/BOM edit requests after NPD release.
+                  - generic [ref=f8e361]: Enabled
+                - generic [ref=f8e362]:
+                  - generic [ref=f8e363]:
+                    - generic [ref=f8e364]:
+                      - generic [ref=f8e365]: Request permission
+                      - generic [ref=f8e366]: Fixed permission string used by workflows.
+                    - code [ref=f8e367]: npd.released_product_edit.request
+                  - generic [ref=f8e368]:
+                    - generic [ref=f8e369]:
+                      - generic [ref=f8e370]: Authorize permission
+                      - generic [ref=f8e371]: Fixed permission string required to approve a request.
+                    - code [ref=f8e372]: npd.released_product_edit.authorize
+                  - generic [ref=f8e373]:
+                    - generic [ref=f8e374]:
+                      - generic [ref=f8e375]: Authorized roles
+                      - generic [ref=f8e376]: Roles selected by T-126 policy data.
+                    - generic: owner
+                  - generic [ref=f8e377]:
+                    - generic [ref=f8e378]:
+                      - generic [ref=f8e379]: Minimum authorizers
+                      - generic [ref=f8e380]: T-126 validates blockers and segregation of duties on save.
+                    - spinbutton "Minimum authorizers" [ref=f8e382]: "1"
+                  - generic [ref=f8e383]:
+                    - generic [ref=f8e384]: Invariant flags
+                    - generic:
+                      - generic:
+                        - generic
+                        - generic
+                        - generic: Version 2
+              - region "Technical product-spec approval gate" [ref=f8e390]:
+                - generic [ref=f8e391]:
+                  - generic [ref=f8e392]:
+                    - heading "Technical product-spec approval gate" [level=2] [ref=f8e393]
+                    - generic [ref=f8e394]: Blocks production/factory use until Technical approval is recorded.
+                  - generic [ref=f8e395]: Enabled
+                - generic [ref=f8e396]:
+                  - generic [ref=f8e397]:
+                    - generic [ref=f8e398]:
+                      - generic [ref=f8e399]: Approval permission
+                      - generic [ref=f8e400]: Fixed permission string used by the Technical gate.
+                    - code [ref=f8e401]: technical.product_spec.approve
+                  - generic [ref=f8e402]:
+                    - generic [ref=f8e403]:
+                      - generic [ref=f8e404]: Gate rule code
+                      - generic [ref=f8e405]: Immutable rule binding from V-SET-44.
+                    - code [ref=f8e406]: technical_product_spec_approval_gate_v1
+                  - generic [ref=f8e407]:
+                    - generic [ref=f8e408]:
+                      - generic [ref=f8e409]: Approver roles
+                      - generic [ref=f8e410]: Roles selected by the authorization policy row.
+                    - generic: Quality Lead
+                  - generic [ref=f8e411]:
+                    - generic [ref=f8e412]: Approval thresholds
+                    - generic:
+                      - generic:
+                        - generic
+                        - generic
+                        - generic: Version 2
+                  - generic [ref=f8e419]:
+                    - generic [ref=f8e420]: Factory-use lock
+                    - generic:
+                      - generic:
+                        - checkbox "Block factory-use until approved" [checked] [disabled] [ref=f8e422]
+                        - generic [ref=f8e423]: Block factory-use until approved
+            - region "Save authorization policies" [ref=f8e424]:
+              - generic [ref=f8e425]: Audit reason
+              - textbox "Audit reason" [ref=f8e427]:
+                - /placeholder: Describe why these authorization settings are changing
+              - generic [ref=f8e428]:
+                - button "Discard" [ref=f8e429] [cursor=pointer]
+                - button "Save policies" [ref=f8e430] [cursor=pointer]
+  - alert [ref=f8e144]

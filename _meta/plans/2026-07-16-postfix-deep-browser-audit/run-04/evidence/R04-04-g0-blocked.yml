@@ -1,0 +1,17 @@
+url: https://monopilot-kira.vercel.app/en/pipeline/e60aa78f-f093-48dc-baf3-50e312af783b/formulation?modal=advanceGate
+captured_at: 2026-07-17T08:40:57+01:00
+run: 04
+transition: "G0 Idea -> G1 Feasibility"
+checklist:
+  required_complete: 0
+  required_total: 3
+  optional_incomplete: 1
+  required_blockers:
+    - Initial feasibility check
+    - Product concept documented
+    - Market opportunity identified
+result:
+  advance_button: disabled
+  notes_field: disabled
+  message: "3 required checklist items must be completed before advancing."
+verdict: pass

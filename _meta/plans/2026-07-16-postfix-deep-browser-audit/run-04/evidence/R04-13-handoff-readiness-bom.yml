@@ -1,0 +1,26 @@
+url: https://monopilot-kira.vercel.app/en/pipeline/e60aa78f-f093-48dc-baf3-50e312af783b/handoff
+run: 04
+project: NPD-021
+controlled_checklist_probe:
+  all_six_manually_checked: true
+  displayed_status: "Ready to promote. All gates pass."
+  claims_that_could_be_checked_without_evidence:
+    - Nutrition label approved by regulatory
+    - Packaging artwork finalized
+    - Pilot production successful
+    - Training material prepared
+    - First production order scheduled
+  visible_release_gates:
+    active_shared_bom_with_lines: "Not met"
+    factory_spec_approved: "Not met"
+  destination_bom_values: "all —"
+  release_to_factory_button: disabled
+generate_bom:
+  visible_result: "generic failure"
+  server_action_result: '{"ok":false,"error":"persistence_failed"}'
+launch_header_probe:
+  client_status: "No blockers — ready to advance!"
+  required_items: "0 of 0"
+  server_result: "Launch blocked — complete approval criteria: Compliance documents."
+cleanup: "Five false checklist flags were unchecked; Recipe locked remained checked; hard navigation confirmed persistence."
+

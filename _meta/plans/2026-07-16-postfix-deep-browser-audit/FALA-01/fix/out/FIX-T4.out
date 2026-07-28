@@ -1,0 +1,22 @@
+## FILES TOUCHED
+
+- `factory-spec-lifecycle.ts`
+- `factory-spec-lifecycle.unit.test.ts`
+- `bundle-data.unit.test.ts`
+
+## FIX
+
+- F1: podpisany `in_review` jest blokowany w `saveFactorySpecVersion` przed jakimkolwiek zapisem; edycja musi przejść przez `updateFactorySpec`.
+- F2: dodano test blokady oraz test rozróżnienia receiptów `current`/`historical`.
+
+## MIGRATION
+
+Brak.
+
+## TEST
+
+Nie uruchamiano zgodnie z poleceniem.
+
+## UNCERTAINTIES
+
+Brak. Wybrano dozwoloną politykę blokady zamiast duplikowania flow rewizji.

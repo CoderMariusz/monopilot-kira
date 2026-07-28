@@ -1,0 +1,211 @@
+- generic [active] [ref=f4e1]:
+  - generic [ref=f4e2]:
+    - banner [ref=f4e4]:
+      - generic "MonoPilot MES" [ref=f4e5]
+      - searchbox "Search settings…" [ref=f4e7]
+      - generic [ref=f4e8]:
+        - button "Switch organization (platform admin)" [ref=f4e10] [cursor=pointer]:
+          - generic [ref=f4e11]: A2
+          - generic [ref=f4e12]: "000000000000"
+          - generic [ref=f4e13]: Apex 22
+          - generic [ref=f4e14]: ▼
+        - generic "Filters work orders, license plates and OEE only — other screens stay org-wide" [ref=f4e15]:
+          - generic [ref=f4e16]: Site
+          - combobox "Site" [ref=f4e17] [cursor=pointer]:
+            - option "All sites"
+            - option "tester1"
+            - option "CODEX-R14 SITE"
+            - option "Main Factory" [selected]
+            - option "makery"
+            - option "SOL-R02 Site 0539 Edited"
+            - option "warehouse 1"
+        - button "Notifications" [ref=f4e19]
+        - button "Open user menu for Apex Admin" [ref=f4e24]: AA
+    - navigation "Primary" [ref=f4e25]:
+      - generic [ref=f4e26]:
+        - generic [ref=f4e27]:
+          - heading "Core" [level=2] [ref=f4e28]
+          - generic [ref=f4e29]:
+            - link "Dashboard" [ref=f4e30] [cursor=pointer]:
+              - /url: /en/dashboard
+              - generic [ref=f4e31]: ◆
+            - link "Settings" [ref=f4e34] [cursor=pointer]:
+              - /url: /en/settings
+              - generic [ref=f4e35]: ⚙
+        - generic [ref=f4e38]:
+          - heading "Operations" [level=2] [ref=f4e39]
+          - generic [ref=f4e40]:
+            - link "Planning" [ref=f4e41] [cursor=pointer]:
+              - /url: /en/planning
+              - generic [ref=f4e42]: ▤
+            - link "Freight" [ref=f4e45] [cursor=pointer]:
+              - /url: /en/planning/carriers
+              - generic [ref=f4e46]: F
+            - link "Scheduler" [ref=f4e49] [cursor=pointer]:
+              - /url: /en/scheduler
+              - generic [ref=f4e50]: ⧗
+            - link "Production" [ref=f4e53] [cursor=pointer]:
+              - /url: /en/production
+              - generic [ref=f4e54]: ⚒
+            - link "Yard" [ref=f4e57] [cursor=pointer]:
+              - /url: /en/yard
+              - generic [ref=f4e58]: "Y"
+            - link "Warehouse" [ref=f4e61] [cursor=pointer]:
+              - /url: /en/warehouse
+              - generic [ref=f4e62]: ▥
+            - link "Scanner" [ref=f4e65] [cursor=pointer]:
+              - /url: /en/scanner/home
+              - generic [ref=f4e66]: 📱
+        - generic [ref=f4e69]:
+          - heading "QA & Shipping" [level=2] [ref=f4e70]
+          - generic [ref=f4e71]:
+            - link "Quality" [ref=f4e72] [cursor=pointer]:
+              - /url: /en/quality
+              - generic [ref=f4e73]: ✓
+            - link "Shipping" [ref=f4e76] [cursor=pointer]:
+              - /url: /en/shipping
+              - generic [ref=f4e77]: →
+        - generic [ref=f4e80]:
+          - heading "Premium" [level=2] [ref=f4e81]
+          - generic [ref=f4e82]:
+            - link "Technical" [ref=f4e83] [cursor=pointer]:
+              - /url: /en/technical
+              - generic [ref=f4e84]: ▦
+            - link "NPD" [ref=f4e87] [cursor=pointer]:
+              - /url: /en/pipeline
+              - generic [ref=f4e88]: ★
+            - link "Finance" [ref=f4e91] [cursor=pointer]:
+              - /url: /en/finance
+              - generic [ref=f4e92]: $
+            - link "OEE" [ref=f4e95] [cursor=pointer]:
+              - /url: /en/oee
+              - generic [ref=f4e96]: ◉
+            - link "Maintenance" [ref=f4e99] [cursor=pointer]:
+              - /url: /en/maintenance
+              - generic [ref=f4e100]: 🔧
+        - generic [ref=f4e103]:
+          - heading "Analytics & Network" [level=2] [ref=f4e104]
+          - generic [ref=f4e105]:
+            - link "Reporting" [ref=f4e106] [cursor=pointer]:
+              - /url: /en/reporting
+              - generic [ref=f4e107]: ▧
+            - link "Multi-Site" [ref=f4e110] [cursor=pointer]:
+              - /url: /en/multi-site
+              - generic [ref=f4e111]: ❖
+    - main [ref=f4e114]:
+      - main [ref=f4e720]:
+        - generic [ref=f4e721]:
+          - generic [ref=f4e722]:
+            - generic [ref=f4e723]:
+              - generic [ref=f4e724]:
+                - link "← Back to license plates" [ref=f4e725] [cursor=pointer]:
+                  - /url: /en/warehouse/license-plates
+                - heading "LP-1784310651421-D2PF Wheat Flour" [level=1] [ref=f4e726]:
+                  - generic [ref=f4e727]: LP-1784310651421-D2PF
+                  - generic [ref=f4e728]: Wheat Flour
+                - paragraph [ref=f4e729]: 20.000000 kg · Batch NIGHT-R10-BATCH-174328 · Expiry 2027-07-18
+              - generic [ref=f4e730]:
+                - generic [ref=f4e731]: Received
+                - generic [ref=f4e732]: Pending QA
+            - generic [ref=f4e733]:
+              - generic [ref=f4e734]:
+                - heading "Identity" [level=2] [ref=f4e735]
+                - generic [ref=f4e736]:
+                  - generic [ref=f4e737]: Product
+                  - generic [ref=f4e738]:
+                    - text: ING-FLOUR
+                    - generic [ref=f4e739]: — Wheat Flour
+                - generic [ref=f4e740]:
+                  - generic [ref=f4e741]: Quantity
+                  - generic [ref=f4e742]: 20.000000 kg
+                - generic [ref=f4e744]:
+                  - generic [ref=f4e745]: Available
+                  - generic [ref=f4e746]: 20.000000 kg
+                - generic [ref=f4e748]:
+                  - generic [ref=f4e749]: Batch
+                  - generic [ref=f4e750]: NIGHT-R10-BATCH-174328
+                - generic [ref=f4e751]:
+                  - generic [ref=f4e752]: Supplier batch
+                  - generic [ref=f4e753]: —
+                - generic [ref=f4e754]:
+                  - generic [ref=f4e755]: Expiry date
+                  - generic [ref=f4e756]: 2027-07-18
+                - generic [ref=f4e757]:
+                  - generic [ref=f4e758]: Best before
+                  - generic [ref=f4e759]: 2027-07-18
+                - generic [ref=f4e760]:
+                  - generic [ref=f4e761]: Location
+                  - generic [ref=f4e762]:
+                    - text: RECV
+                    - generic [ref=f4e763]: — Receiving Bay
+                - generic [ref=f4e764]:
+                  - generic [ref=f4e765]: Warehouse
+                  - generic [ref=f4e766]:
+                    - text: WH1
+                    - generic [ref=f4e767]: — Main Warehouse
+                - generic [ref=f4e768]:
+                  - generic [ref=f4e769]: Source
+                  - generic [ref=f4e770]: grn
+                - generic [ref=f4e771]:
+                  - generic [ref=f4e772]: Parent LP
+                  - generic [ref=f4e773]: —
+                - generic [ref=f4e774]:
+                  - button "Split" [ref=f4e775]
+                  - button "Merge" [ref=f4e776]
+                  - button "Change QA status" [ref=f4e777]
+                  - button "Reserve" [disabled] [ref=f4e778]
+                  - button "Move" [ref=f4e779]
+                  - button "Block" [ref=f4e780]
+                  - button "Destroy / scrap" [ref=f4e781]
+                  - button "Edit metadata…" [ref=f4e782]
+                - paragraph [ref=f4e783]: Available actions are determined by the LP state machine. Split, Merge, and Destroy are live.
+              - generic [ref=f4e784]:
+                - tablist "Identity" [ref=f4e785]:
+                  - tab "Overview" [selected] [ref=f4e786]
+                  - tab "State history" [ref=f4e787]
+                  - tab "Reservations" [ref=f4e788]
+                  - tab "Movements" [ref=f4e789]
+                  - tab "Genealogy" [ref=f4e790]
+                  - tab "Labels" [ref=f4e791]
+                  - tab "Raw" [ref=f4e792]
+                - generic [ref=f4e793]:
+                  - heading "Identity snapshot" [level=3] [ref=f4e794]
+                  - generic [ref=f4e795]:
+                    - term [ref=f4e796]: Product
+                    - definition [ref=f4e797]: ING-FLOUR — Wheat Flour
+                    - term [ref=f4e798]: Quantity
+                    - definition [ref=f4e799]: 20.000000 kg
+                    - term [ref=f4e800]: Reserved
+                    - definition [ref=f4e801]: 0.000000 kg
+                    - term [ref=f4e802]: Available
+                    - definition [ref=f4e803]: 20.000000 kg
+                    - term [ref=f4e804]: Batch
+                    - definition [ref=f4e805]: NIGHT-R10-BATCH-174328
+                    - term [ref=f4e806]: Expiry date
+                    - definition [ref=f4e807]: 2027-07-18
+                    - term [ref=f4e808]: Location
+                    - definition [ref=f4e809]: RECV
+                    - term [ref=f4e810]: Warehouse
+                    - definition [ref=f4e811]: WH1
+                    - term [ref=f4e812]: Source
+                    - definition [ref=f4e813]: grn
+                    - term [ref=f4e814]: Parent LP
+                    - definition [ref=f4e815]: —
+          - group [ref=f4e816]:
+            - generic [ref=f4e818] [cursor=pointer]:
+              - generic [ref=f4e819]:
+                - heading "History" [level=2] [ref=f4e820]
+                - paragraph [ref=f4e821]: Read-only audit trail for this document.
+              - generic [ref=f4e822]: ▾
+            - list "History" [ref=f4e825]:
+              - listitem [ref=f4e826]:
+                - generic [ref=f4e827]:
+                  - generic [ref=f4e828]:
+                    - generic [ref=f4e829]: Status change
+                    - generic [ref=f4e830]: lp_state.transition
+                  - generic [ref=f4e831]:
+                    - time [ref=f4e832]: 17 Jul 2026, 18:50
+                    - text: · Admin
+                  - group [ref=f4e833]:
+                    - generic "Details" [ref=f4e834] [cursor=pointer]
+  - alert [ref=f4e132]

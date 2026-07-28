@@ -1,0 +1,107 @@
+# RE-REVIEW — FIX-T1 + FIX-T4 (iteracja 2)
+
+---
+
+## FIX-T1 — `invite.ts` (P0 cross-site)
+
+**VERDICT: NEEDS-FIX** — ścieżka **nowego** invite jest domknięta; resend ma lukę tożsamości i jedną ścieżkę bez rollbacku.
+
+### 1. B1 — identity (`authUserId`)
+
+| Element | Status | Dowód |
+|--------|--------|-------|
+| `mintInviteLink` zwraca `authUserId` | ✅ | `invite.ts:385-390` |
+| INSERT z `id = authUserId` | ✅ | `invite.ts:245-250` |
+| `user_sites` na `authUserId` | ✅ | `invite.ts:261-265` |
+| Guard `invitedUserId === authUserId` (nowy user) | ✅ | `invite.ts:256-258` |
+| Brak ścieżki z losowym `id` | ✅ | jawny `$1::uuid` w INSERT |
+| **Resend spójny z auth** | ⚠️ | `authUserId` pobierany (`invite.ts:197`), ale **nigdy nieużywany** na resend; scope/token idą po `existing.id` (`invite.ts:214-224`) **bez** `existing.id === authUserId` |
+
+**Resend:** dla userów utworzonych po fixie (id = auth UUID) — OK, o ile Supabase zwraca ten sam `user.id`. Dla legacy wierszy z rozjechanym id — resend **nie naprawia** i **nie wykrywa** mismatchu. To luka defense-in-depth, nie regresja nowej ścieżki.
+
+### 2. B2 — rollback przy fail scope-write
+
+| Element | Status | Dowód |
+|--------|--------|-------|
+| Scope fail → `throw` | ✅ | `invite.ts:222-224`, `263-265` |
+| Inner catch → `InvitePersistenceError` | ✅ | `invite.ts:279-280` |
+| Propagacja poza `withOrgContext` | ✅ | `with-org-context.ts:359-365` → `ROLLBACK` |
+| Zewnętrzny catch mapuje tylko `InvitePersistenceError` | ✅ | `invite.ts:285-289` — inne błędy `rethrow` |
+| Nowy user nie utrwalony przy fail scope | ✅ | throw + rollback; test `invite.behavior.test.ts:366-388` |
+
+**Uwagi:**
+- Inner `catch` (`invite.ts:279`) **połyka typ** wszystkich błędów z bloku persist → zawsze `persistence_failed` (akceptowalne dla rollbacku, utrudnia diagnozę).
+- Resend: fail UPDATE invite (`invite.ts:216-217`) to **`return { persistence_failed }`**, nie `throw` → txn commituje się pusto, ale `mintInviteLink` już poszedł (`invite.ts:192`) — potencjalny drift auth token vs DB. Pre-existing, nie wprowadzone przez scope-fix.
+
+### 3. B3 — `resolveInviteSiteId` cast
+
+| Element | Status | Dowód |
+|--------|--------|-------|
+| Nazwa NIE rzutowana na uuid | ✅ | `$1 = UUID ? site : null`, `$2::text` — `invite.ts:316-321` |
+| UUID / name / site_code | ✅ | trzy gałęzie OR w SQL |
+| `limit 2` + ambiguity → `invalid_input` | ✅ | `invite.ts:320-325` |
+| Test „Warsaw Plant" | ✅ | `invite.behavior.test.ts:279-280` → `[null, 'Warsaw Plant']` |
+
+Brak testów dla UUID i `site_code` w fake client — logika SQL poprawna, coverage częściowy.
+
+### 4. B4 — deny-default
+
+| Element | Status | Dowód |
+|--------|--------|-------|
+| Rola bez site → `invalid_input` | ✅ | `invite.ts:184-190` |
+| `ALL_SITE_AUTHORITY_ROLE_SLUGS` z `role-grant-guards` | ✅ | import `invite.ts:4`, lista `role-grant-guards.ts:17-23` |
+| `effectiveRoleSlug = existing?.role_slug ?? role.slug` | ✅ | `invite.ts:184` |
+| Lista zgodna z mig 383 | ✅ | slugi 1:1 z `383-user-site-visibility-rls.sql:33` |
+| Legalni admini org-wide | ✅ | test resend bez site + slug `org.access.admin` — `invite.behavior.test.ts:418-461` |
+
+**Caveat (by design):** tylko `slug`, nie `code` — zgodne z RLS, ale rola admin z `code` a `slug = null` dostanie `invalid_input` bez site. Brak testu **nowego** invite admina bez site.
+
+### 5. Testy B1–B4
+
+| Test | Ocena |
+|------|-------|
+| Warsaw Plant `[null, 'Warsaw Plant']` | ✅ failowałby przy `$1::uuid` na nazwie |
+| B1 identity (`AUTH_USER_ID`) | ✅ |
+| B2 rollback scope | ✅ z symulacją commit/rollback |
+| B4 viewer bez site | ✅ |
+| B4 admin resend bez site | ✅ |
+| Brakuje | resend `authUserId === existing.id`, resend rollback scope, UUID/site_code |
+
+---
+
+## FIX-T4 — `factory-spec-lifecycle.ts`
+
+**VERDICT: SOLID**
+
+| Kryterium | Status | Dowód |
+|-----------|--------|-------|
+| Blokada signed `in_review` **przed** jakimkolwiek zapisem | ✅ | guard `invite.ts:377-383` **przed** `pg_advisory_xact_lock` (`385`), INSERT (`402`), archive (`425`) |
+| Brak okna archive/draft mimo podpisu | ✅ | early `return invalid_state` |
+| `updateFactorySpec` (ścieżka revision) nietknięty | ✅ | `invite.ts:149-216` bez zmian semantyki |
+| Czytelny błąd | ✅ | `'Signed in-review specifications must be edited to create a new in-review revision'` |
+| Test regresji | ✅ | `factory-spec-lifecycle.unit.test.ts:194-232` — brak lock/insert/archive |
+
+---
+
+## Pozostałe BLOCKERY
+
+**Brak BLOCKERów deployowych** dla FIX-T4.
+
+Dla FIX-T1 jeden element poniżej progu BLOCKER, ale wymaga follow-up:
+
+| Severity | Plik:linia | Claim | Sugestia |
+|----------|------------|-------|----------|
+| **NEEDS-FIX** | `invite.ts:197,214-224` | Resend nie weryfikuje `authUserId === existing.id`; `authUserId` martwy na tej ścieżce | Po `mintInviteLink`: jeśli `existing.id !== authUserId` → `throw InvitePersistenceError` (lub dedykowany error) |
+| **NEEDS-FIX** | `invite.ts:216-217` | Fail UPDATE resend → `return` zamiast `throw` → brak rollback semantics + auth już zmintowany | `throw new InvitePersistenceError()` jak przy scope fail |
+| **LOW** | `invite.ts:279-280` | Wszystkie błędy persist → ten sam `persistence_failed` | Opcjonalnie logować `cause` przed wrap |
+
+---
+
+## Podsumowanie deploy
+
+| Fix | Verdict | Deploy? |
+|-----|---------|---------|
+| **FIX-T1** | **NEEDS-FIX** | Tak dla P0 forward-path (nowy invite + scope + cast + deny-default). Resend identity guard — follow-up, nie blokuje jeśli nie ma legacy mismatchów |
+| **FIX-T4** | **SOLID** | **Gotowe** |
+
+**Rekomendacja:** deploy obu fixów akceptowalny; otwórz ticket na resend `authUserId` guard + ujednolicenie throw na fail UPDATE resend.

@@ -1,0 +1,7 @@
+- dialog [ref=f28e401]:
+  - generic [ref=f28e402]:
+    - heading "Delete dock door" [level=2] [ref=f28e403]
+    - paragraph [ref=f28e404]: Delete NIGHT R02 Dock 1 Edited? This cannot be undone.
+    - generic [ref=f28e405]:
+      - button "Cancel" [active] [ref=f28e406] [cursor=pointer]
+      - button "Delete" [ref=f28e407] [cursor=pointer]

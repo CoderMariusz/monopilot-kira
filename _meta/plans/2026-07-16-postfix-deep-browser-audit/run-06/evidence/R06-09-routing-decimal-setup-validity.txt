@@ -1,0 +1,18 @@
+[
+  {
+    "id": "op-setup-0",
+    "value": "12.345",
+    "valid": false,
+    "stepMismatch": true,
+    "message": "Please enter a valid value. The two nearest valid values are 12 and 13.",
+    "step": null
+  },
+  {
+    "id": "op-setup-1",
+    "value": "7.891",
+    "valid": false,
+    "stepMismatch": true,
+    "message": "Please enter a valid value. The two nearest valid values are 7 and 8.",
+    "step": null
+  }
+]

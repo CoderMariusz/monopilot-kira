@@ -1,0 +1,203 @@
+- generic [active] [ref=f5e1]:
+  - generic [ref=f5e2]:
+    - banner [ref=f5e4]:
+      - generic "MonoPilot MES" [ref=f5e5]
+      - searchbox "Search settings…" [ref=f5e7]
+      - generic [ref=f5e8]:
+        - button "Switch organization (platform admin)" [ref=f5e10] [cursor=pointer]:
+          - generic [ref=f5e11]: A2
+          - generic [ref=f5e12]: "000000000000"
+          - generic [ref=f5e13]: Apex 22
+          - generic [ref=f5e14]: ▼
+        - generic "Filters work orders, license plates and OEE only — other screens stay org-wide" [ref=f5e15]:
+          - generic [ref=f5e16]: Site
+          - combobox "Site" [ref=f5e17] [cursor=pointer]:
+            - option "All sites"
+            - option "tester1"
+            - option "CODEX-R14 SITE"
+            - option "Main Factory" [selected]
+            - option "makery"
+            - option "SOL-R02 Site 0539 Edited"
+            - option "warehouse 1"
+        - button "Notifications" [ref=f5e19]
+        - button "Open user menu for Apex Admin" [ref=f5e24]: AA
+    - navigation "Primary" [ref=f5e25]:
+      - generic [ref=f5e26]:
+        - generic [ref=f5e27]:
+          - heading "Core" [level=2] [ref=f5e28]
+          - generic [ref=f5e29]:
+            - link "Dashboard" [ref=f5e30] [cursor=pointer]:
+              - /url: /en/dashboard
+              - generic [ref=f5e31]: ◆
+            - link "Settings" [ref=f5e34] [cursor=pointer]:
+              - /url: /en/settings
+              - generic [ref=f5e35]: ⚙
+        - generic [ref=f5e38]:
+          - heading "Operations" [level=2] [ref=f5e39]
+          - generic [ref=f5e40]:
+            - link "Planning" [ref=f5e41] [cursor=pointer]:
+              - /url: /en/planning
+              - generic [ref=f5e42]: ▤
+            - link "Freight" [ref=f5e45] [cursor=pointer]:
+              - /url: /en/planning/carriers
+              - generic [ref=f5e46]: F
+            - link "Scheduler" [ref=f5e49] [cursor=pointer]:
+              - /url: /en/scheduler
+              - generic [ref=f5e50]: ⧗
+            - link "Production" [ref=f5e53] [cursor=pointer]:
+              - /url: /en/production
+              - generic [ref=f5e54]: ⚒
+            - link "Yard" [ref=f5e57] [cursor=pointer]:
+              - /url: /en/yard
+              - generic [ref=f5e58]: "Y"
+            - link "Warehouse" [ref=f5e61] [cursor=pointer]:
+              - /url: /en/warehouse
+              - generic [ref=f5e62]: ▥
+            - link "Scanner" [ref=f5e65] [cursor=pointer]:
+              - /url: /en/scanner/home
+              - generic [ref=f5e66]: 📱
+        - generic [ref=f5e69]:
+          - heading "QA & Shipping" [level=2] [ref=f5e70]
+          - generic [ref=f5e71]:
+            - link "Quality" [ref=f5e72] [cursor=pointer]:
+              - /url: /en/quality
+              - generic [ref=f5e73]: ✓
+            - link "Shipping" [ref=f5e76] [cursor=pointer]:
+              - /url: /en/shipping
+              - generic [ref=f5e77]: →
+        - generic [ref=f5e80]:
+          - heading "Premium" [level=2] [ref=f5e81]
+          - generic [ref=f5e82]:
+            - link "Technical" [ref=f5e83] [cursor=pointer]:
+              - /url: /en/technical
+              - generic [ref=f5e84]: ▦
+            - link "NPD" [ref=f5e87] [cursor=pointer]:
+              - /url: /en/pipeline
+              - generic [ref=f5e88]: ★
+            - link "Finance" [ref=f5e91] [cursor=pointer]:
+              - /url: /en/finance
+              - generic [ref=f5e92]: $
+            - link "OEE" [ref=f5e95] [cursor=pointer]:
+              - /url: /en/oee
+              - generic [ref=f5e96]: ◉
+            - link "Maintenance" [ref=f5e99] [cursor=pointer]:
+              - /url: /en/maintenance
+              - generic [ref=f5e100]: 🔧
+        - generic [ref=f5e103]:
+          - heading "Analytics & Network" [level=2] [ref=f5e104]
+          - generic [ref=f5e105]:
+            - link "Reporting" [ref=f5e106] [cursor=pointer]:
+              - /url: /en/reporting
+              - generic [ref=f5e107]: ▧
+            - link "Multi-Site" [ref=f5e110] [cursor=pointer]:
+              - /url: /en/multi-site
+              - generic [ref=f5e111]: ❖
+    - main [ref=f5e114]:
+      - main [ref=f5e368]:
+        - generic [ref=f5e370]:
+          - navigation "Breadcrumb" [ref=f5e371]:
+            - list [ref=f5e372]:
+              - listitem [ref=f5e373]:
+                - link "Planning" [ref=f5e374] [cursor=pointer]:
+                  - /url: /en/planning
+              - listitem [ref=f5e375]:
+                - generic [ref=f5e376]: /
+                - link "Transfer orders" [ref=f5e377] [cursor=pointer]:
+                  - /url: /en/planning/transfer-orders
+              - listitem [ref=f5e378]:
+                - generic [ref=f5e379]: /
+                - generic [ref=f5e380]: Detail
+          - heading "Transfer order" [level=1] [ref=f5e382]
+        - generic [ref=f5e383]:
+          - generic [ref=f5e384]:
+            - generic [ref=f5e385]:
+              - generic [ref=f5e386]:
+                - generic [ref=f5e387]:
+                  - generic [ref=f5e388]: NIGHT-R10-TO-174328
+                  - generic [ref=f5e389]: WH1 — Main Warehouse → BAKERY — Bakery
+                  - generic [ref=f5e390]: Draft
+                - paragraph [ref=f5e391]: "Scheduled date: Jul 19, 2026 · 2 to lines"
+              - generic [ref=f5e392]:
+                - button "Edit order" [ref=f5e393] [cursor=pointer]
+                - generic [ref=f5e394]:
+                  - button "Ship" [ref=f5e395] [cursor=pointer]
+                  - button "Cancel" [ref=f5e396] [cursor=pointer]
+            - generic [ref=f5e397]:
+              - generic [ref=f5e398]:
+                - generic [ref=f5e399]:
+                  - generic [ref=f5e400]: TO lines · 2
+                  - button "+ Add line" [ref=f5e401]
+                - table [ref=f5e402]:
+                  - rowgroup [ref=f5e403]:
+                    - row [ref=f5e404]:
+                      - columnheader "#" [ref=f5e405]
+                      - columnheader "Product" [ref=f5e406]
+                      - columnheader "Qty" [ref=f5e407]
+                      - columnheader "UoM" [ref=f5e408]
+                      - columnheader [ref=f5e409]
+                  - rowgroup [ref=f5e410]:
+                    - row [ref=f5e411]:
+                      - cell "1" [ref=f5e412]
+                      - cell "Wheat Flour ING-FLOUR" [ref=f5e413]:
+                        - generic [ref=f5e414]: Wheat Flour
+                        - generic [ref=f5e415]: ING-FLOUR
+                      - cell "6.125000" [ref=f5e416]
+                      - cell "kg" [ref=f5e417]
+                      - cell [ref=f5e418]:
+                        - button "Edit" [ref=f5e419]
+                        - button "Delete" [ref=f5e420]
+                    - row [ref=f5e421]:
+                      - cell "2" [ref=f5e422]
+                      - cell "Wheat Flour ING-FLOUR" [ref=f5e423]:
+                        - generic [ref=f5e424]: Wheat Flour
+                        - generic [ref=f5e425]: ING-FLOUR
+                      - cell "3875.000000" [ref=f5e426]
+                      - cell "g" [ref=f5e427]
+                      - cell [ref=f5e428]:
+                        - button "Edit" [ref=f5e429]
+                        - button "Delete" [ref=f5e430]
+              - generic [ref=f5e431]:
+                - heading "TO summary" [level=3] [ref=f5e432]
+                - generic [ref=f5e433]:
+                  - generic [ref=f5e434]:
+                    - term [ref=f5e435]: TO number
+                    - definition [ref=f5e436]: NIGHT-R10-TO-174328
+                  - generic [ref=f5e437]:
+                    - term [ref=f5e438]: From
+                    - definition [ref=f5e439]: WH1 — Main Warehouse
+                  - generic [ref=f5e440]:
+                    - term [ref=f5e441]: To
+                    - definition [ref=f5e442]: BAKERY — Bakery
+                  - generic [ref=f5e443]:
+                    - term [ref=f5e444]: Status
+                    - definition [ref=f5e445]: Draft
+                  - generic [ref=f5e446]:
+                    - term [ref=f5e447]: Scheduled date
+                    - definition [ref=f5e448]: Jul 19, 2026
+                  - generic [ref=f5e449]:
+                    - term [ref=f5e450]: Created
+                    - definition [ref=f5e451]: Jul 17, 2026, 05:56 PM
+                  - generic [ref=f5e452]:
+                    - term [ref=f5e453]: Updated
+                    - definition [ref=f5e454]: Jul 17, 2026, 05:56 PM
+                  - generic [ref=f5e455]:
+                    - term [ref=f5e456]: Notes
+                    - definition [ref=f5e457]: NIGHT-R10-20260717T174328Z duplicate-line conservation
+          - group [ref=f5e458]:
+            - generic [ref=f5e460] [cursor=pointer]:
+              - generic [ref=f5e461]:
+                - heading "History" [level=2] [ref=f5e462]
+                - paragraph [ref=f5e463]: Read-only audit trail for this document.
+              - generic [ref=f5e464]: ▾
+            - list "History" [ref=f5e467]:
+              - listitem [ref=f5e468]:
+                - generic [ref=f5e469]:
+                  - generic [ref=f5e470]:
+                    - generic [ref=f5e471]: Audit event
+                    - generic [ref=f5e472]: planning.transfer_order.created
+                  - generic [ref=f5e473]:
+                    - time [ref=f5e474]: 17 Jul 2026, 18:56
+                    - text: · Admin
+                  - group [ref=f5e475]:
+                    - generic "Details" [ref=f5e476] [cursor=pointer]
+  - alert [ref=f5e179]

@@ -1,0 +1,167 @@
+- generic [ref=f4e1]:
+  - generic [ref=f4e2]:
+    - banner [ref=f4e4]:
+      - generic "MonoPilot MES" [ref=f4e5]
+      - searchbox "Search settings…" [ref=f4e7]
+      - generic [ref=f4e8]:
+        - button "Switch organization (platform admin)" [ref=f4e10] [cursor=pointer]:
+          - generic [ref=f4e11]: A2
+          - generic [ref=f4e12]: "000000000000"
+          - generic [ref=f4e13]: Apex 22
+          - generic [ref=f4e14]: ▼
+        - generic "Filters work orders, license plates and OEE only — other screens stay org-wide" [ref=f4e15]:
+          - generic [ref=f4e16]: Site
+          - combobox "Site" [ref=f4e17] [cursor=pointer]:
+            - option "All sites"
+            - option "tester1"
+            - option "CODEX-R14 SITE"
+            - option "Main Factory" [selected]
+            - option "makery"
+            - option "SOL-R02 Site 0539 Edited"
+            - option "warehouse 1"
+        - button "Notifications" [ref=f4e19]
+        - button "Open user menu for Apex Admin" [ref=f4e24]: AA
+    - navigation "Primary" [ref=f4e25]:
+      - generic [ref=f4e26]:
+        - generic [ref=f4e27]:
+          - heading "Core" [level=2] [ref=f4e28]
+          - generic [ref=f4e29]:
+            - link "Dashboard" [ref=f4e30] [cursor=pointer]:
+              - /url: /en/dashboard
+              - generic [ref=f4e31]: ◆
+            - link "Settings" [ref=f4e34] [cursor=pointer]:
+              - /url: /en/settings
+              - generic [ref=f4e35]: ⚙
+        - generic [ref=f4e38]:
+          - heading "Operations" [level=2] [ref=f4e39]
+          - generic [ref=f4e40]:
+            - link "Planning" [ref=f4e41] [cursor=pointer]:
+              - /url: /en/planning
+              - generic [ref=f4e42]: ▤
+            - link "Freight" [ref=f4e45] [cursor=pointer]:
+              - /url: /en/planning/carriers
+              - generic [ref=f4e46]: F
+            - link "Scheduler" [ref=f4e49] [cursor=pointer]:
+              - /url: /en/scheduler
+              - generic [ref=f4e50]: ⧗
+            - link "Production" [ref=f4e53] [cursor=pointer]:
+              - /url: /en/production
+              - generic [ref=f4e54]: ⚒
+            - link "Yard" [ref=f4e57] [cursor=pointer]:
+              - /url: /en/yard
+              - generic [ref=f4e58]: "Y"
+            - link "Warehouse" [ref=f4e61] [cursor=pointer]:
+              - /url: /en/warehouse
+              - generic [ref=f4e62]: ▥
+            - link "Scanner" [ref=f4e65] [cursor=pointer]:
+              - /url: /en/scanner/home
+              - generic [ref=f4e66]: 📱
+        - generic [ref=f4e69]:
+          - heading "QA & Shipping" [level=2] [ref=f4e70]
+          - generic [ref=f4e71]:
+            - link "Quality" [ref=f4e72] [cursor=pointer]:
+              - /url: /en/quality
+              - generic [ref=f4e73]: ✓
+            - link "Shipping" [ref=f4e76] [cursor=pointer]:
+              - /url: /en/shipping
+              - generic [ref=f4e77]: →
+        - generic [ref=f4e80]:
+          - heading "Premium" [level=2] [ref=f4e81]
+          - generic [ref=f4e82]:
+            - link "Technical" [ref=f4e83] [cursor=pointer]:
+              - /url: /en/technical
+              - generic [ref=f4e84]: ▦
+            - link "NPD" [ref=f4e87] [cursor=pointer]:
+              - /url: /en/pipeline
+              - generic [ref=f4e88]: ★
+            - link "Finance" [ref=f4e91] [cursor=pointer]:
+              - /url: /en/finance
+              - generic [ref=f4e92]: $
+            - link "OEE" [ref=f4e95] [cursor=pointer]:
+              - /url: /en/oee
+              - generic [ref=f4e96]: ◉
+            - link "Maintenance" [ref=f4e99] [cursor=pointer]:
+              - /url: /en/maintenance
+              - generic [ref=f4e100]: 🔧
+        - generic [ref=f4e103]:
+          - heading "Analytics & Network" [level=2] [ref=f4e104]
+          - generic [ref=f4e105]:
+            - link "Reporting" [ref=f4e106] [cursor=pointer]:
+              - /url: /en/reporting
+              - generic [ref=f4e107]: ▧
+            - link "Multi-Site" [ref=f4e110] [cursor=pointer]:
+              - /url: /en/multi-site
+              - generic [ref=f4e111]: ❖
+    - main [ref=f4e114]:
+      - main [ref=f4e115]:
+        - generic [ref=f4e117]:
+          - navigation "Breadcrumb" [ref=f4e118]:
+            - list [ref=f4e119]:
+              - listitem [ref=f4e120]:
+                - link "Planning" [ref=f4e121] [cursor=pointer]:
+                  - /url: /en/planning
+              - listitem [ref=f4e122]:
+                - generic [ref=f4e123]: /
+                - link "Work orders" [ref=f4e124] [cursor=pointer]:
+                  - /url: /en/planning/work-orders
+              - listitem [ref=f4e125]:
+                - generic [ref=f4e126]: /
+                - generic [ref=f4e127]: Detail
+          - heading "Work order" [level=1] [ref=f4e129]
+        - generic [ref=f4e130]:
+          - generic [ref=f4e131]:
+            - generic [ref=f4e132]: WO-202607-0030
+            - generic [ref=f4e133]: Draft
+            - generic [ref=f4e134]: normal
+            - generic [ref=f4e135]:
+              - button "Release" [ref=f4e136] [cursor=pointer]
+              - button "Edit" [ref=f4e137] [cursor=pointer]
+              - button "Cancel chain" [ref=f4e138] [cursor=pointer]
+          - generic [ref=f4e139]:
+            - generic [ref=f4e140]:
+              - term [ref=f4e141]: Product
+              - definition [ref=f4e142]: FG0014
+            - generic [ref=f4e143]:
+              - term [ref=f4e144]: Qty
+              - definition [ref=f4e145]: 14.875 kg
+            - generic [ref=f4e146]:
+              - term [ref=f4e147]: Scheduled start
+              - definition [ref=f4e148]: Jul 26, 2026, 12:00 AM
+            - generic [ref=f4e149]:
+              - term [ref=f4e150]: Scheduled end
+              - definition [ref=f4e151]: —
+            - generic [ref=f4e152]:
+              - term [ref=f4e153]: Line
+              - definition [ref=f4e154]: LINE1 — Packing Line 1
+            - generic [ref=f4e155]:
+              - term [ref=f4e156]: Priority
+              - definition [ref=f4e157]: normal
+            - generic [ref=f4e158]:
+              - term [ref=f4e159]: Source
+              - definition [ref=f4e160]: manual
+          - generic [ref=f4e161]:
+            - tablist [ref=f4e162]:
+              - tab "Overview" [ref=f4e163]
+              - tab "Outputs 1" [ref=f4e164]
+              - tab "Dependencies 1" [active] [selected] [ref=f4e165]
+              - tab "Reservations" [ref=f4e166]
+              - tab "Sequencing" [ref=f4e167]
+              - tab "State history 2" [ref=f4e168]
+              - tab "D365 sync" [ref=f4e169]
+            - tabpanel "Dependencies 1" [ref=f4e222]:
+              - generic [ref=f4e223]:
+                - heading "Dependencies" [level=3] [ref=f4e224]
+                - table [ref=f4e225]:
+                  - rowgroup [ref=f4e226]:
+                    - row [ref=f4e227]:
+                      - columnheader "Direction" [ref=f4e228]
+                      - columnheader "Work order" [ref=f4e229]
+                      - columnheader "Required qty" [ref=f4e230]
+                      - columnheader "Material link" [ref=f4e231]
+                  - rowgroup [ref=f4e232]:
+                    - row [ref=f4e233]:
+                      - cell "upstream" [ref=f4e234]
+                      - cell "2c4dea11" [ref=f4e236]
+                      - cell "12.495" [ref=f4e237]
+                      - cell "cdb2d435-52c5-42ac-a439-45ff2e04f45b" [ref=f4e238]
+  - alert [ref=f4e221]

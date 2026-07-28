@@ -1,0 +1,16 @@
+Total messages: 1 (Errors: 1, Warnings: 0)
+Returning 8 messages for level "warning"
+
+[ERROR] Failed to load resource: the server responded with a status of 404 () @ https://monopilot-kira.vercel.app/favicon.ico:0
+[ERROR] Failed to load resource: the server responded with a status of 401 () @ https://monopilot-kira.vercel.app/en/account/pin:0
+[ERROR] Error: An error occurred in the Server Components render. The specific message is omitted in production builds to avoid leaking sensitive details. A digest property is included on this error instance which may provide additional details about the nature of the error. @ https://monopilot-kira.vercel.app/_next/static/chunks/3zwcazv_dbgvy.js:31
+[ERROR] [app/error] uncaught render error: Error: An error occurred in the Server Components render. The specific message is omitted in production builds to avoid leaking sensitive details. A digest property is included on this error instance which may provide additional details about the nature of the error. @ https://monopilot-kira.vercel.app/_next/static/chunks/3-gvp--s22ycv.js:1
+[ERROR] Error: An error occurred in the Server Components render. The specific message is omitted in production builds to avoid leaking sensitive details. A digest property is included on this error instance which may provide additional details about the nature of the error. @ https://monopilot-kira.vercel.app/_next/static/chunks/3zwcazv_dbgvy.js:31
+[ERROR] [app/error] uncaught render error: Error: An error occurred in the Server Components render. The specific message is omitted in production builds to avoid leaking sensitive details. A digest property is included on this error instance which may provide additional details about the nature of the error. @ https://monopilot-kira.vercel.app/_next/static/chunks/3-gvp--s22ycv.js:1
+[ERROR] `DialogContent` requires a `DialogTitle` for the component to be accessible for screen reader users.
+
+If you want to hide the `DialogTitle`, you can wrap it with our VisuallyHidden component.
+
+For more information, see https://radix-ui.com/primitives/docs/components/dialog @ https://monopilot-kira.vercel.app/_next/static/chunks/234b6vipi3o5z.js:5
+Error: An unexpected response was received from the server.
+    at I (https://monopilot-kira.vercel.app/_next/static/chunks/0uhab5f3ew69l.js:3:743)

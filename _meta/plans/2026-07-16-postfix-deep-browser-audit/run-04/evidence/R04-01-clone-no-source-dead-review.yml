@@ -1,0 +1,50 @@
+- generic [ref=f56e468]:
+  - navigation "breadcrumb" [ref=f56e469]:
+    - link "NPD" [ref=f56e470] [cursor=pointer]:
+      - /url: /en/pipeline
+    - text: / New project
+  - heading "Create NPD project" [level=1] [ref=f56e471]
+  - list "Create NPD project" [ref=f56e473]:
+    - listitem [ref=f56e474]:
+      - generic [ref=f56e475]: ✓
+      - generic [ref=f56e476]: Basics
+    - listitem [ref=f56e478]:
+      - generic [ref=f56e479]: ✓
+      - generic [ref=f56e480]: Brief
+    - listitem [ref=f56e482]:
+      - generic [ref=f56e483]: ✓
+      - generic [ref=f56e484]: Starting point
+    - listitem [ref=f56e486]:
+      - generic [ref=f56e487]: "4"
+      - generic [ref=f56e488]: Review
+  - generic [ref=f56e590]:
+    - generic [ref=f56e591]: Review & create
+    - generic [ref=f56e592]: Ready to create the project. A new project ID will be assigned, a first recipe draft generated, and your brief saved.
+    - table [ref=f56e593]:
+      - rowgroup [ref=f56e594]:
+        - row [ref=f56e595]:
+          - cell "Project name" [ref=f56e596]
+          - cell "NIGHT R04 NPD 0837" [ref=f56e597]
+        - row [ref=f56e598]:
+          - cell "Category" [ref=f56e599]
+          - cell "Bread · Loaf" [ref=f56e600]
+        - row [ref=f56e601]:
+          - cell "Target launch" [ref=f56e602]
+          - cell "2026-08-31" [ref=f56e603]
+        - row [ref=f56e604]:
+          - cell "Target price" [ref=f56e605]
+          - cell "£2.50" [ref=f56e606]
+        - row [ref=f56e607]:
+          - cell "Channel / volume" [ref=f56e608]
+          - cell "Retail · 1000 packs/wk" [ref=f56e609]
+        - row [ref=f56e610]:
+          - cell "Claims" [ref=f56e611]
+          - cell "NIGHT-R04 high protein audit claim" [ref=f56e612]
+        - row [ref=f56e613]:
+          - cell "Starting point" [ref=f56e614]
+          - cell "Clone of an existing project" [ref=f56e615]
+  - generic [ref=f56e535]:
+    - button "Cancel" [ref=f56e536] [cursor=pointer]
+    - generic [ref=f56e537]:
+      - button "← Back" [ref=f56e564] [cursor=pointer]
+      - button "✓ Create project & open recipe" [disabled] [ref=f56e616]

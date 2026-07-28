@@ -1,0 +1,37 @@
+- generic [ref=f121e213]:
+  - generic [ref=f121e214]:
+    - generic [ref=f121e215]:
+      - generic [ref=f121e216]: Item
+      - combobox "Item" [ref=f121e218] [cursor=pointer]:
+        - generic [ref=f121e219]: NIGHT-R06-FG-1138 · NIGHT R06 Revision Test 1138
+        - generic [ref=f121e220]: ⌄
+    - button "+ New routing" [ref=f121e221] [cursor=pointer]
+  - table "Routing versions" [ref=f121e397]:
+    - rowgroup [ref=f121e398]:
+      - row [ref=f121e399]:
+        - columnheader "Version" [ref=f121e400]
+        - columnheader "Operations" [ref=f121e401]
+        - columnheader "Status" [ref=f121e402]
+        - columnheader "Effective from" [ref=f121e403]
+        - columnheader "Effective to" [ref=f121e404]
+        - columnheader "Actions" [ref=f121e405]
+    - rowgroup [ref=f121e406]:
+      - row [ref=f121e407]:
+        - cell "v1" [ref=f121e408]
+        - cell "2" [ref=f121e409]
+        - cell "○ Draft" [ref=f121e410]
+        - cell "2026-07-17" [ref=f121e412]
+        - cell "—" [ref=f121e413]
+        - cell [ref=f121e414]:
+          - generic [ref=f121e415]:
+            - button "Edit" [ref=f121e416]
+            - button "Approve" [ref=f121e417]
+  - generic [ref=f121e419]:
+    - generic [ref=f121e420]:
+      - heading "Cost preview · v1" [level=3] [ref=f121e421]
+      - paragraph [ref=f121e422]: Cost = Σ (setup/60 + run·volume/3600) × rate. NUMERIC-exact.
+    - generic [ref=f121e423]:
+      - generic [ref=f121e424]:
+        - generic [ref=f121e425]: Volume (units)
+        - textbox "Volume (units)" [ref=f121e426]: "100"
+      - button "Compute cost" [ref=f121e427] [cursor=pointer]

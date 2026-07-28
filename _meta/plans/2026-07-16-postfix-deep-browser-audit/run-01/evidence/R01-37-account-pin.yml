@@ -1,0 +1,125 @@
+- generic [active] [ref=f11e1]:
+  - generic [ref=f11e2]:
+    - banner [ref=f11e4]:
+      - generic "MonoPilot MES" [ref=f11e5]
+      - searchbox "Search settings…" [ref=f11e7]
+      - generic [ref=f11e8]:
+        - button "Switch organization (platform admin)" [ref=f11e10] [cursor=pointer]:
+          - generic [ref=f11e11]: A2
+          - generic [ref=f11e12]: "000000000000"
+          - generic [ref=f11e13]: Apex 22
+          - generic [ref=f11e14]: ▼
+        - generic "Filters work orders, license plates and OEE only — other screens stay org-wide" [ref=f11e15]:
+          - generic [ref=f11e16]: Site
+          - combobox "Site" [ref=f11e17] [cursor=pointer]:
+            - option "All sites" [selected]
+            - option "tester1"
+            - option "CODEX-R14 SITE"
+            - option "Main Factory"
+            - option "makery"
+            - option "SOL-R02 Site 0539 Edited"
+            - option "warehouse 1"
+        - button "Notifications" [ref=f11e19]
+        - button "Open user menu for Apex Admin" [ref=f11e24]: AA
+    - navigation "Primary" [ref=f11e25]:
+      - generic [ref=f11e26]:
+        - generic [ref=f11e27]:
+          - heading "Core" [level=2] [ref=f11e28]
+          - generic [ref=f11e29]:
+            - link "Dashboard" [ref=f11e30] [cursor=pointer]:
+              - /url: /en/dashboard
+              - generic [ref=f11e31]: ◆
+            - link "Settings" [ref=f11e34] [cursor=pointer]:
+              - /url: /en/settings
+              - generic [ref=f11e35]: ⚙
+        - generic [ref=f11e38]:
+          - heading "Operations" [level=2] [ref=f11e39]
+          - generic [ref=f11e40]:
+            - link "Planning" [ref=f11e41] [cursor=pointer]:
+              - /url: /en/planning
+              - generic [ref=f11e42]: ▤
+            - link "Freight" [ref=f11e45] [cursor=pointer]:
+              - /url: /en/planning/carriers
+              - generic [ref=f11e46]: F
+            - link "Scheduler" [ref=f11e49] [cursor=pointer]:
+              - /url: /en/scheduler
+              - generic [ref=f11e50]: ⧗
+            - link "Production" [ref=f11e53] [cursor=pointer]:
+              - /url: /en/production
+              - generic [ref=f11e54]: ⚒
+            - link "Yard" [ref=f11e57] [cursor=pointer]:
+              - /url: /en/yard
+              - generic [ref=f11e58]: "Y"
+            - link "Warehouse" [ref=f11e61] [cursor=pointer]:
+              - /url: /en/warehouse
+              - generic [ref=f11e62]: ▥
+            - link "Scanner" [ref=f11e65] [cursor=pointer]:
+              - /url: /en/scanner/home
+              - generic [ref=f11e66]: 📱
+        - generic [ref=f11e69]:
+          - heading "QA & Shipping" [level=2] [ref=f11e70]
+          - generic [ref=f11e71]:
+            - link "Quality" [ref=f11e72] [cursor=pointer]:
+              - /url: /en/quality
+              - generic [ref=f11e73]: ✓
+            - link "Shipping" [ref=f11e76] [cursor=pointer]:
+              - /url: /en/shipping
+              - generic [ref=f11e77]: →
+        - generic [ref=f11e80]:
+          - heading "Premium" [level=2] [ref=f11e81]
+          - generic [ref=f11e82]:
+            - link "Technical" [ref=f11e83] [cursor=pointer]:
+              - /url: /en/technical
+              - generic [ref=f11e84]: ▦
+            - link "NPD" [ref=f11e87] [cursor=pointer]:
+              - /url: /en/pipeline
+              - generic [ref=f11e88]: ★
+            - link "Finance" [ref=f11e91] [cursor=pointer]:
+              - /url: /en/finance
+              - generic [ref=f11e92]: $
+            - link "OEE" [ref=f11e95] [cursor=pointer]:
+              - /url: /en/oee
+              - generic [ref=f11e96]: ◉
+            - link "Maintenance" [ref=f11e99] [cursor=pointer]:
+              - /url: /en/maintenance
+              - generic [ref=f11e100]: 🔧
+        - generic [ref=f11e103]:
+          - heading "Analytics & Network" [level=2] [ref=f11e104]
+          - generic [ref=f11e105]:
+            - link "Reporting" [ref=f11e106] [cursor=pointer]:
+              - /url: /en/reporting
+              - generic [ref=f11e107]: ▧
+            - link "Multi-Site" [ref=f11e110] [cursor=pointer]:
+              - /url: /en/multi-site
+              - generic [ref=f11e111]: ❖
+    - main [ref=f11e114]:
+      - main [ref=f11e115]:
+        - generic [ref=f11e116]:
+          - heading "E-sign & scanner PIN" [level=1] [ref=f11e117]
+          - paragraph [ref=f11e118]: Manage the PIN used for scanner login and electronic signatures.
+        - region "PIN status" [ref=f11e119]:
+          - heading "PIN status" [level=2] [ref=f11e120]
+          - generic [ref=f11e121]: PIN is set
+          - paragraph [ref=f11e122]: "Failed attempts in the current window: 1"
+          - paragraph [ref=f11e123]: "One shared PIN: this same PIN is used for BOTH scanner login and e-signatures (CFR 21 Part 11). Changing it here changes it everywhere. It is stored only as a hash and never displayed."
+        - generic [ref=f11e124]:
+          - heading "Change PIN" [level=2] [ref=f11e125]
+          - generic [ref=f11e126]:
+            - group "Authorize with" [ref=f11e127]:
+              - generic [ref=f11e129]:
+                - radio "Account password" [checked] [ref=f11e130]
+                - text: Account password
+              - generic [ref=f11e131]:
+                - radio "Current PIN" [ref=f11e132]
+                - text: Current PIN
+            - generic [ref=f11e133]:
+              - text: Current account password
+              - textbox "Current account password" [ref=f11e134]
+            - generic [ref=f11e135]:
+              - text: New PIN (4–6 digits)
+              - textbox "New PIN (4–6 digits)" [ref=f11e136]
+            - generic [ref=f11e137]:
+              - text: Repeat new PIN
+              - textbox "Repeat new PIN" [ref=f11e138]
+            - button "Save PIN" [disabled] [ref=f11e140]
+  - alert [ref=f11e141]

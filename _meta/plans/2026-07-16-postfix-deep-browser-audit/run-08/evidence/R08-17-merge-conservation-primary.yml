@@ -1,0 +1,94 @@
+- generic [ref=f15e123]:
+  - generic [ref=f15e124]:
+    - generic [ref=f15e125]:
+      - link "← Back to license plates" [ref=f15e126] [cursor=pointer]:
+        - /url: /en/warehouse/license-plates
+      - heading "LP-7A6E5C1FE645 Butter" [level=1] [ref=f15e127]:
+        - generic [ref=f15e128]: LP-7A6E5C1FE645
+        - generic [ref=f15e129]: Butter
+      - paragraph [ref=f15e130]: 12.345000 kg · Batch NIGHT-R08-SB-1400 · Expiry 2026-07-24
+    - generic [ref=f15e131]:
+      - generic [ref=f15e132]: Available
+      - generic [ref=f15e133]: Released
+  - generic [ref=f15e134]:
+    - generic [ref=f15e135]:
+      - heading "Identity" [level=2] [ref=f15e136]
+      - generic [ref=f15e137]:
+        - generic [ref=f15e138]: Product
+        - generic [ref=f15e139]:
+          - text: RM-BUTTER
+          - generic [ref=f15e140]: — Butter
+      - generic [ref=f15e141]:
+        - generic [ref=f15e142]: Quantity
+        - generic [ref=f15e143]: 12.345000 kg
+      - generic [ref=f15e145]:
+        - generic [ref=f15e146]: Available
+        - generic [ref=f15e147]: 12.345000 kg
+      - generic [ref=f15e149]:
+        - generic [ref=f15e150]: Batch
+        - generic [ref=f15e151]: NIGHT-R08-SB-1400
+      - generic [ref=f15e152]:
+        - generic [ref=f15e153]: Supplier batch
+        - generic [ref=f15e154]: —
+      - generic [ref=f15e155]:
+        - generic [ref=f15e156]: Expiry date
+        - generic [ref=f15e157]: 2026-07-24
+      - generic [ref=f15e158]:
+        - generic [ref=f15e159]: Location
+        - generic [ref=f15e160]:
+          - text: RECV
+          - generic [ref=f15e161]: — Receiving Bay
+      - generic [ref=f15e162]:
+        - generic [ref=f15e163]: Warehouse
+        - generic [ref=f15e164]:
+          - text: WH1
+          - generic [ref=f15e165]: — Main Warehouse
+      - generic [ref=f15e166]:
+        - generic [ref=f15e167]: Source
+        - generic [ref=f15e168]: split
+      - generic [ref=f15e169]:
+        - generic [ref=f15e170]: Parent LP
+        - link "LP-1784297297223-HFWI" [ref=f15e172] [cursor=pointer]:
+          - /url: /en/warehouse/license-plates/0d838aa9-a350-4fa9-b3df-1286f9cd48a8
+      - generic [ref=f15e173]:
+        - button "Split" [ref=f15e174]
+        - button "Merge" [active] [ref=f15e175]
+        - button "Change QA status" [disabled] [ref=f15e176]
+        - button "Reserve" [ref=f15e177]
+        - button "Move" [ref=f15e178]
+        - button "Block" [ref=f15e179]
+        - button "Destroy / scrap" [ref=f15e180]
+        - button "Edit metadata…" [ref=f15e181]
+      - paragraph [ref=f15e182]: Available actions are determined by the LP state machine. Split, Merge, and Destroy are live.
+    - generic [ref=f15e183]:
+      - tablist "Identity" [ref=f15e184]:
+        - tab "Overview" [selected] [ref=f15e185]
+        - tab "State history" [ref=f15e186]
+        - tab "Reservations" [ref=f15e187]
+        - tab "Movements" [ref=f15e188]
+        - tab "Genealogy" [ref=f15e189]
+        - tab "Labels" [ref=f15e190]
+        - tab "Raw" [ref=f15e191]
+      - generic [ref=f15e192]:
+        - heading "Identity snapshot" [level=3] [ref=f15e193]
+        - generic [ref=f15e194]:
+          - term [ref=f15e195]: Product
+          - definition [ref=f15e196]: RM-BUTTER — Butter
+          - term [ref=f15e197]: Quantity
+          - definition [ref=f15e198]: 12.345000 kg
+          - term [ref=f15e199]: Reserved
+          - definition [ref=f15e200]: 0.000000 kg
+          - term [ref=f15e201]: Available
+          - definition [ref=f15e202]: 12.345000 kg
+          - term [ref=f15e203]: Batch
+          - definition [ref=f15e204]: NIGHT-R08-SB-1400
+          - term [ref=f15e205]: Expiry date
+          - definition [ref=f15e206]: 2026-07-24
+          - term [ref=f15e207]: Location
+          - definition [ref=f15e208]: RECV
+          - term [ref=f15e209]: Warehouse
+          - definition [ref=f15e210]: WH1
+          - term [ref=f15e211]: Source
+          - definition [ref=f15e212]: split
+          - term [ref=f15e213]: Parent LP
+          - definition [ref=f15e214]: LP-1784297297223-HFWI

@@ -1,0 +1,54 @@
+- generic [ref=f14e191]:
+  - generic [ref=f14e192]:
+    - link "← Holds" [ref=f14e193] [cursor=pointer]:
+      - /url: /en/quality/holds
+    - heading "HLD-00001025" [level=1] [ref=f14e194]
+    - generic [ref=f14e195]: Released
+    - generic [ref=f14e196]: High
+  - note [ref=f14e297]:
+    - generic [ref=f14e298]: 🔒
+    - generic [ref=f14e299]: "This hold was released on 2026-07-17 by Admin. Disposition: release_as_is. Record is immutable (21 CFR Part 11)."
+  - generic [ref=f14e197]:
+    - generic [ref=f14e198]:
+      - generic [ref=f14e199]:
+        - heading "Hold context" [level=2] [ref=f14e200]
+        - generic [ref=f14e201]:
+          - term [ref=f14e202]: Reference
+          - definition [ref=f14e203]:
+            - generic [ref=f14e204]: LP
+            - generic [ref=f14e205]: LP-7A6E5C1FE645 / RM-BUTTER
+          - term [ref=f14e206]: Reason
+          - definition [ref=f14e207]: NIGHT-R08-1400 temporary lifecycle hold
+          - term [ref=f14e208]: Priority
+          - definition [ref=f14e209]: High
+          - term [ref=f14e210]: Disposition
+          - definition [ref=f14e211]: release_as_is
+          - term [ref=f14e212]: Created
+          - definition [ref=f14e213]: 2026-07-17 14:23
+          - term [ref=f14e214]: Est. release
+          - definition [ref=f14e215]: 2026-07-17
+      - tablist "Hold context" [ref=f14e216]:
+        - tab "Held items 1" [selected] [ref=f14e217]:
+          - text: Held items
+          - generic [ref=f14e218]: "1"
+        - tab "Linked NCRs 0" [ref=f14e219]:
+          - text: Linked NCRs
+          - generic [ref=f14e220]: "0"
+      - table "Held items" [ref=f14e222]:
+        - rowgroup [ref=f14e223]:
+          - row [ref=f14e224]:
+            - columnheader "LP" [ref=f14e225]
+            - columnheader "Qty held (kg)" [ref=f14e226]
+            - columnheader "Qty released (kg)" [ref=f14e227]
+            - columnheader "Status" [ref=f14e228]
+        - rowgroup [ref=f14e229]:
+          - row [ref=f14e300]:
+            - cell [ref=f14e231]:
+              - link "LP-7A6E5C1FE645" [ref=f14e232] [cursor=pointer]:
+                - /url: /en/warehouse/license-plates/7a6e5c1f-e645-4fd3-a4b7-997443344dcb
+            - cell "2.345" [ref=f14e233]
+            - cell "2.345" [ref=f14e301]
+            - cell "released" [ref=f14e302]
+    - complementary [ref=f14e237]:
+      - heading "Actions" [level=2] [ref=f14e239]
+      - generic [ref=f14e241]: Critical holds require segregation of duties — the releaser must differ from the creator (V-QA-HOLD-006).

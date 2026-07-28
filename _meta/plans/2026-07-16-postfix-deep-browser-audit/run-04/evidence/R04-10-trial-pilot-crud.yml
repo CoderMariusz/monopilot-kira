@@ -1,0 +1,29 @@
+run: 04
+project: NPD-021
+trial:
+  number: R04-T01
+  persisted_batch_kg: "12.345"
+  persisted_yield_pct: "52.35"
+  manual_expected_output_kg: "12.345 * 0.5235 = 6.4626075"
+  line_booking: "2026-08-01 · BAKE · 10:00–11:30"
+  invalid_yield_101_result: "Could not save"
+  actions_after_g4_approval:
+    - Edit
+    - Re-book
+  missing_actions:
+    - Delete or void trial
+    - Cancel or unbook line time
+pilot:
+  persisted_batch_kg: "25.555"
+  persisted_expected_yield_pct: "92.75"
+  persisted_duration_h: "3.25"
+  invalid_yield_100_01_result: "Could not save"
+  material_scaling:
+    ingredient: ING-FLOUR
+    recipe_share: "100%"
+    required_kg: "25.555"
+    available_kg: "0"
+    shortage_kg: "25.555"
+  create_wo_result: "ING-FLOUR: SUPPLIER_SPEC_NOT_ACTIVE"
+  cleanup: "Pilot plan deleted through visible UI and absence verified."
+

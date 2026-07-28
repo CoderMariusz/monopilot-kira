@@ -1,0 +1,65 @@
+- table [ref=f95e737]:
+  - rowgroup [ref=f95e738]:
+    - row [ref=f95e739]:
+      - columnheader "Ingredient" [ref=f95e740]
+      - columnheader "Qty / pack (kg)" [ref=f95e741]
+      - columnheader "£ / kg" [ref=f95e742]
+      - columnheader "Contrib." [ref=f95e743]
+      - columnheader "Allergen" [ref=f95e744]
+      - columnheader "Delete ingredient" [ref=f95e745]
+  - rowgroup [ref=f95e747]:
+    - row [ref=f95e1016]:
+      - cell "Toggle sub-recipe for NIGHT-R05-L2-1020 WIP Ingredient Open item in Technical NIGHT-R05-L2-1020(NIGHT-R05-L2-1020)" [ref=f95e943]:
+        - generic [ref=f95e944]:
+          - button "Toggle sub-recipe for NIGHT-R05-L2-1020" [expanded] [active] [ref=f95e945] [cursor=pointer]:
+            - generic [ref=f95e946]: ⌄
+          - generic [ref=f95e947]: WIP
+          - generic "Ingredient" [ref=f95e948]: WIP-20260717-0012
+          - link "Open item in Technical" [ref=f95e949] [cursor=pointer]:
+            - /url: /technical/items/WIP-20260717-0012
+            - text: ↗
+        - generic [ref=f95e950]:
+          - text: NIGHT-R05-L2-1020
+          - generic [ref=f95e951]: (NIGHT-R05-L2-1020)
+      - cell [ref=f95e1017]:
+        - textbox "Qty / pack (kg)" [ref=f95e954]: "0.823456"
+      - cell [ref=f95e955]:
+        - textbox "£ / kg" [ref=f95e957]
+      - cell "—" [ref=f95e958]
+      - cell "—" [ref=f95e959]
+      - cell [ref=f95e960]:
+        - button "Delete ingredient" [ref=f95e961] [cursor=pointer]:
+          - generic [ref=f95e962]: ✕
+    - row [ref=f95e1105]:
+      - cell "No sub-recipe" [ref=f95e1106]
+    - row [ref=f95e1092]:
+      - cell "Toggle sub-recipe for Caster Sugar Ingredient Open item in Technical Pick item Caster Sugar Substitute Pick substitute Pick substitute" [ref=f95e1084]:
+        - generic [ref=f95e1043]:
+          - button "Toggle sub-recipe for Caster Sugar" [ref=f95e1085] [cursor=pointer]:
+            - generic [ref=f95e1086]: ›
+          - generic "Ingredient" [ref=f95e1087]: ING-SUGAR
+          - link "Open item in Technical" [ref=f95e1088] [cursor=pointer]:
+            - /url: /technical/items/ING-SUGAR
+            - text: ↗
+          - button "Pick item" [ref=f95e1046] [cursor=pointer]
+        - generic [ref=f95e1089]: Caster Sugar
+        - generic [ref=f95e1047]:
+          - generic [ref=f95e1048]: Substitute
+          - generic [ref=f95e1049]: Pick substitute
+          - button "Pick substitute" [ref=f95e1051] [cursor=pointer]
+      - cell [ref=f95e1093]:
+        - textbox "Qty / pack (kg)" [ref=f95e1054]: "0.176544"
+      - cell [ref=f95e1090]:
+        - textbox "£ / kg" [ref=f95e1057]: "0.8000"
+      - cell "0.141 £" [ref=f95e1094]
+      - cell "—" [ref=f95e1059]
+      - cell [ref=f95e1060]:
+        - button "Delete ingredient" [ref=f95e1061] [cursor=pointer]:
+          - generic [ref=f95e1062]: ✕
+    - row [ref=f95e1095]:
+      - cell "Total" [ref=f95e749]
+      - cell "1.000 kg" [ref=f95e1096]
+      - cell "—" [ref=f95e751]
+      - cell "0.1412 £" [ref=f95e1097]
+      - cell [ref=f95e753]
+      - cell [ref=f95e754]

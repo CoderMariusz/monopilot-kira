@@ -1,0 +1,14 @@
+- row [ref=f123e954]:
+  - cell [ref=f123e955]:
+    - link "WO-202607-0027" [ref=f123e956] [cursor=pointer]:
+      - /url: /en/planning/work-orders/c70237ec-3020-4cd6-8abd-6ded8de46819
+  - cell "NIGHT-R06-FG-1138" [ref=f123e957]
+  - cell "Draft" [ref=f123e958]
+  - cell "12.345 kg" [ref=f123e960]
+  - cell "Jul 23, 2026" [ref=f123e961]
+  - cell "LINE02" [ref=f123e962]
+  - cell "BOM" [ref=f123e963]
+  - cell [ref=f123e965]:
+    - generic [ref=f123e966]:
+      - button "Release" [ref=f123e967] [cursor=pointer]
+      - button "Delete draft" [ref=f123e968] [cursor=pointer]

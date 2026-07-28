@@ -1,0 +1,394 @@
+- generic [active] [ref=f26e1]:
+  - generic [ref=f26e2]:
+    - banner [ref=f26e4]:
+      - generic "MonoPilot MES" [ref=f26e5]
+      - searchbox "Search settings…" [ref=f26e7]
+      - generic [ref=f26e8]:
+        - button "Switch organization (platform admin)" [ref=f26e10] [cursor=pointer]:
+          - generic [ref=f26e11]: A2
+          - generic [ref=f26e12]: "000000000000"
+          - generic [ref=f26e13]: Apex 22
+          - generic [ref=f26e14]: ▼
+        - generic "Filters work orders, license plates and OEE only — other screens stay org-wide" [ref=f26e15]:
+          - generic [ref=f26e16]: Site
+          - combobox "Site" [ref=f26e17] [cursor=pointer]:
+            - option "All sites" [selected]
+            - option "tester1"
+            - option "CODEX-R14 SITE"
+            - option "Main Factory"
+            - option "makery"
+            - option "NIGHT-R02 Site 0731 Edited"
+            - option "SOL-R02 Site 0539 Edited"
+            - option "warehouse 1"
+        - button "Notifications" [ref=f26e19]
+        - button "Open user menu for Apex Admin" [ref=f26e24]: AA
+    - navigation "Primary" [ref=f26e25]:
+      - generic [ref=f26e26]:
+        - generic [ref=f26e27]:
+          - heading "Core" [level=2] [ref=f26e28]
+          - generic [ref=f26e29]:
+            - link "Dashboard" [ref=f26e30] [cursor=pointer]:
+              - /url: /en/dashboard
+              - generic [ref=f26e31]: ◆
+            - link "Settings" [ref=f26e34] [cursor=pointer]:
+              - /url: /en/settings
+              - generic [ref=f26e35]: ⚙
+        - generic [ref=f26e38]:
+          - heading "Operations" [level=2] [ref=f26e39]
+          - generic [ref=f26e40]:
+            - link "Planning" [ref=f26e41] [cursor=pointer]:
+              - /url: /en/planning
+              - generic [ref=f26e42]: ▤
+            - link "Freight" [ref=f26e45] [cursor=pointer]:
+              - /url: /en/planning/carriers
+              - generic [ref=f26e46]: F
+            - link "Scheduler" [ref=f26e49] [cursor=pointer]:
+              - /url: /en/scheduler
+              - generic [ref=f26e50]: ⧗
+            - link "Production" [ref=f26e53] [cursor=pointer]:
+              - /url: /en/production
+              - generic [ref=f26e54]: ⚒
+            - link "Yard" [ref=f26e57] [cursor=pointer]:
+              - /url: /en/yard
+              - generic [ref=f26e58]: "Y"
+            - link "Warehouse" [ref=f26e61] [cursor=pointer]:
+              - /url: /en/warehouse
+              - generic [ref=f26e62]: ▥
+            - link "Scanner" [ref=f26e65] [cursor=pointer]:
+              - /url: /en/scanner/home
+              - generic [ref=f26e66]: 📱
+        - generic [ref=f26e69]:
+          - heading "QA & Shipping" [level=2] [ref=f26e70]
+          - generic [ref=f26e71]:
+            - link "Quality" [ref=f26e72] [cursor=pointer]:
+              - /url: /en/quality
+              - generic [ref=f26e73]: ✓
+            - link "Shipping" [ref=f26e76] [cursor=pointer]:
+              - /url: /en/shipping
+              - generic [ref=f26e77]: →
+        - generic [ref=f26e80]:
+          - heading "Premium" [level=2] [ref=f26e81]
+          - generic [ref=f26e82]:
+            - link "Technical" [ref=f26e83] [cursor=pointer]:
+              - /url: /en/technical
+              - generic [ref=f26e84]: ▦
+            - link "NPD" [ref=f26e87] [cursor=pointer]:
+              - /url: /en/pipeline
+              - generic [ref=f26e88]: ★
+            - link "Finance" [ref=f26e91] [cursor=pointer]:
+              - /url: /en/finance
+              - generic [ref=f26e92]: $
+            - link "OEE" [ref=f26e95] [cursor=pointer]:
+              - /url: /en/oee
+              - generic [ref=f26e96]: ◉
+            - link "Maintenance" [ref=f26e99] [cursor=pointer]:
+              - /url: /en/maintenance
+              - generic [ref=f26e100]: 🔧
+        - generic [ref=f26e103]:
+          - heading "Analytics & Network" [level=2] [ref=f26e104]
+          - generic [ref=f26e105]:
+            - link "Reporting" [ref=f26e106] [cursor=pointer]:
+              - /url: /en/reporting
+              - generic [ref=f26e107]: ▧
+            - link "Multi-Site" [ref=f26e110] [cursor=pointer]:
+              - /url: /en/multi-site
+              - generic [ref=f26e111]: ❖
+    - main [ref=f26e114]:
+      - generic [ref=f26e145]:
+        - navigation "Settings" [ref=f26e146]:
+          - generic [ref=f26e147]:
+            - generic [ref=f26e148]:
+              - heading "Organization" [level=2] [ref=f26e149]
+              - generic [ref=f26e150]:
+                - link "Company profile" [ref=f26e151] [cursor=pointer]:
+                  - /url: /en/settings/company
+                  - generic [ref=f26e152]: ◆
+                - link "Compliance profile" [ref=f26e154] [cursor=pointer]:
+                  - /url: /en/settings/compliance
+                  - generic [ref=f26e155]: ✓
+                - link "Sites & lines" [ref=f26e157] [cursor=pointer]:
+                  - /url: /en/settings/sites
+                  - generic [ref=f26e158]: ▤
+                - link "Production lines" [ref=f26e160] [cursor=pointer]:
+                  - /url: /en/settings/infra/lines
+                  - generic [ref=f26e161]: ≣
+                - link "Warehouses" [ref=f26e163] [cursor=pointer]:
+                  - /url: /en/settings/infra/warehouses
+                  - generic [ref=f26e164]: ▥
+                - link "Locations" [ref=f26e166] [cursor=pointer]:
+                  - /url: /en/settings/infra/locations
+                  - generic [ref=f26e167]: ⌖
+                - link "Printers" [ref=f26e169] [cursor=pointer]:
+                  - /url: /en/settings/infra/printers
+                  - generic [ref=f26e170]: 🖨
+                - link "Dock doors" [ref=f26e172] [cursor=pointer]:
+                  - /url: /en/settings/infra/docks
+                  - generic [ref=f26e173]: ⚓
+                - link "Shifts & calendar" [ref=f26e175] [cursor=pointer]:
+                  - /url: /en/settings/shifts
+                  - generic [ref=f26e176]: ⧗
+                - link "Labor rates" [ref=f26e178] [cursor=pointer]:
+                  - /url: /en/settings/labor-rates
+                  - generic [ref=f26e179]: 💰
+            - generic [ref=f26e181]:
+              - heading "Data" [level=2] [ref=f26e182]
+              - generic [ref=f26e183]:
+                - link "NPD fields" [ref=f26e184] [cursor=pointer]:
+                  - /url: /en/settings/npd-fields
+                  - generic [ref=f26e185]: ▦
+                - link "Approval requirements" [ref=f26e187] [cursor=pointer]:
+                  - /url: /en/settings/npd-approval
+                  - generic [ref=f26e188]: ✔
+                - link "Gate checklists" [ref=f26e190] [cursor=pointer]:
+                  - /url: /en/settings/npd-checklist
+                  - generic [ref=f26e191]: ☑
+                - link "Cost parameters" [ref=f26e193] [cursor=pointer]:
+                  - /url: /en/settings/npd-cost-params
+                  - generic [ref=f26e194]: £
+                - link "BOMs & recipes" [ref=f26e196] [cursor=pointer]:
+                  - /url: /en/settings/boms
+                  - generic [ref=f26e197]: ⛓
+                - link "Processes" [ref=f26e199] [cursor=pointer]:
+                  - /url: /en/settings/process-defaults
+                  - generic [ref=f26e200]: ⟶
+                - link "└ Manufacturing operations" [ref=f26e203] [cursor=pointer]:
+                  - /url: /en/settings/reference/manufacturing-operations
+                  - generic [ref=f26e204]: ⚒
+                - link "Product categories" [ref=f26e207] [cursor=pointer]:
+                  - /url: /en/settings/reference/product-categories
+                  - generic [ref=f26e208]: 🏷
+                - link "Suppliers & customers" [ref=f26e211] [cursor=pointer]:
+                  - /url: /en/settings/partners
+                  - generic [ref=f26e212]: ↔
+                - link "Customer prices" [ref=f26e214] [cursor=pointer]:
+                  - /url: /en/settings/customer-prices
+                  - generic [ref=f26e215]: £
+                - link "Units & conversions" [ref=f26e217] [cursor=pointer]:
+                  - /url: /en/settings/units
+                  - generic [ref=f26e218]: ⚖
+                - link "Temperature ranges" [ref=f26e220] [cursor=pointer]:
+                  - /url: /en/settings/quality/temp-ranges
+                  - generic [ref=f26e221]: ❄
+                - link "Import / Export" [ref=f26e223] [cursor=pointer]:
+                  - /url: /en/settings/import-export
+                  - generic [ref=f26e224]: ⇅
+            - generic [ref=f26e227]:
+              - heading "Access" [level=2] [ref=f26e228]
+              - generic [ref=f26e229]:
+                - link "Users & roles" [ref=f26e230] [cursor=pointer]:
+                  - /url: /en/settings/users
+                  - generic [ref=f26e231]: ◉
+                - link "Security" [ref=f26e233] [cursor=pointer]:
+                  - /url: /en/settings/security
+                  - generic [ref=f26e234]: 🔒
+                - link "Audit logs" [ref=f26e236] [cursor=pointer]:
+                  - /url: /en/settings/audit
+                  - generic [ref=f26e237]: ◷
+            - generic [ref=f26e240]:
+              - heading "Sign-off" [level=2] [ref=f26e241]
+              - generic [ref=f26e242]:
+                - link "Sign-off policies" [ref=f26e243] [cursor=pointer]:
+                  - /url: /en/settings/signoff
+                  - generic [ref=f26e244]: ✍
+                - link "Authorization policies" [ref=f26e246] [cursor=pointer]:
+                  - /url: /en/settings/authorization
+                  - generic [ref=f26e247]: 🛡
+                - link "Sign-off & PINs" [ref=f26e249] [cursor=pointer]:
+                  - /url: /en/settings/scanner-auth
+                  - generic [ref=f26e250]: 🔐
+            - generic [ref=f26e252]:
+              - heading "Operations" [level=2] [ref=f26e253]
+              - generic [ref=f26e254]:
+                - link "Scanner devices" [ref=f26e255] [cursor=pointer]:
+                  - /url: /en/settings/devices
+                  - generic [ref=f26e256]: 📱
+                - link "Notifications" [ref=f26e258] [cursor=pointer]:
+                  - /url: /en/settings/notifications
+                  - generic [ref=f26e259]: ◔
+                - link "Feature flags" [ref=f26e261] [cursor=pointer]:
+                  - /url: /en/settings/features
+                  - generic [ref=f26e262]: ◨
+            - generic [ref=f26e264]:
+              - heading "Integrations" [level=2] [ref=f26e265]
+              - link "Integrations" [ref=f26e267] [cursor=pointer]:
+                - /url: /en/settings/integrations
+                - generic [ref=f26e268]: ⇄
+            - generic [ref=f26e270]:
+              - heading "Document templates" [level=2] [ref=f26e271]
+              - generic [ref=f26e272]:
+                - link "Label templates" [ref=f26e273] [cursor=pointer]:
+                  - /url: /en/settings/labels
+                  - generic [ref=f26e274]: ▭
+                - link "Document numbering" [ref=f26e277] [cursor=pointer]:
+                  - /url: /en/settings/documents
+                  - generic [ref=f26e278]: №
+            - generic [ref=f26e280]:
+              - heading "Onboarding" [level=2] [ref=f26e281]
+              - link "Onboarding wizard" [ref=f26e283] [cursor=pointer]:
+                - /url: /en/settings/onboarding
+                - generic [ref=f26e284]: ✦
+            - generic [ref=f26e287]:
+              - heading "Admin" [level=2] [ref=f26e288]
+              - generic [ref=f26e289]:
+                - link "D365 connection" [ref=f26e290] [cursor=pointer]:
+                  - /url: /en/settings/integrations/d365
+                  - generic [ref=f26e291]: ⇆
+                - link "D365 field mapping" [ref=f26e293] [cursor=pointer]:
+                  - /url: /en/settings/integrations/d365/mapping
+                  - generic [ref=f26e294]: ↔
+                - link "D365 cost import" [ref=f26e296] [cursor=pointer]:
+                  - /url: /en/settings/integrations/d365/cost-import
+                  - generic [ref=f26e297]: ⇣
+                - link "D365 DLQ (shipping)" [ref=f26e299] [cursor=pointer]:
+                  - /url: /en/settings/d365-dlq
+                  - generic [ref=f26e300]: "!"
+                - link "Rules registry" [ref=f26e302] [cursor=pointer]:
+                  - /url: /en/settings/rules
+                  - generic [ref=f26e303]: ✦
+                - link "Feature flags (L)" [ref=f26e305] [cursor=pointer]:
+                  - /url: /en/settings/flags
+                  - generic [ref=f26e306]: ◨
+                - link "Schema browser" [ref=f26e308] [cursor=pointer]:
+                  - /url: /en/settings/schema
+                  - generic [ref=f26e309]: ▦
+                - link "└ Column wizard" [ref=f26e311] [cursor=pointer]:
+                  - /url: /en/settings/schema/new
+                  - generic [ref=f26e312]: ✎
+                - link "└ Migrations queue" [ref=f26e314] [cursor=pointer]:
+                  - /url: /en/settings/schema/migrations
+                  - generic [ref=f26e315]: ⇣
+                - link "Tenant variations" [ref=f26e318] [cursor=pointer]:
+                  - /url: /en/settings/tenant
+                  - generic [ref=f26e319]: ❖
+                - link "Reference data" [ref=f26e322] [cursor=pointer]:
+                  - /url: /en/settings/reference
+                  - generic [ref=f26e323]: ⚙
+                - link "Email templates" [ref=f26e325] [cursor=pointer]:
+                  - /url: /en/settings/email
+                  - generic [ref=f26e326]: ✉
+                - link "Email variables" [ref=f26e328] [cursor=pointer]:
+                  - /url: /en/settings/email/variables
+                  - generic [ref=f26e329]: §
+                - link "Shipping override reasons" [ref=f26e331] [cursor=pointer]:
+                  - /url: /en/settings/ship-override-reasons
+                  - generic [ref=f26e332]: ≡
+            - generic [ref=f26e334]:
+              - heading "My account" [level=2] [ref=f26e335]
+              - generic [ref=f26e336]:
+                - link "My profile" [ref=f26e337] [cursor=pointer]:
+                  - /url: /en/account/profile
+                  - generic [ref=f26e338]: ◯
+                - link "Notifications" [ref=f26e340] [cursor=pointer]:
+                  - /url: /en/account/notifications
+                  - generic [ref=f26e341]: ◔
+                - link "E-sign & scanner PIN" [ref=f26e343] [cursor=pointer]:
+                  - /url: /en/account/pin
+                  - generic [ref=f26e344]: ✱
+        - main [ref=f26e346]:
+          - main "Sites & production lines" [ref=f26e347]:
+            - generic [ref=f26e348]:
+              - generic [ref=f26e349]:
+                - generic [ref=f26e350]: Sites & production lines
+                - generic [ref=f26e351]: Factories, lines, and work centers where production happens.
+              - button "+ Add site" [ref=f26e353] [cursor=pointer]
+            - generic [ref=f26e354]:
+              - generic [ref=f26e355]:
+                - generic [ref=f26e356]: Sites (7)
+                - generic [ref=f26e359]:
+                  - generic [ref=f26e361]: GB
+                  - button "tester1 (2 of 7)" [ref=f26e362] [cursor=pointer]:
+                    - generic: tester1
+                  - button "CODEX-R14 SITE (3 of 7)" [ref=f26e364] [cursor=pointer]:
+                    - generic: CODEX-R14 SITE
+                  - button "Main Factory (4 of 7)" [ref=f26e366] [cursor=pointer]:
+                    - generic: Main Factory
+                  - button "makery (1 of 7)" [ref=f26e368] [cursor=pointer]:
+                    - generic: makery
+                  - button "NIGHT-R02 Site 0731 Edited (5 of 7)" [pressed] [ref=f26e510] [cursor=pointer]:
+                    - generic: NIGHT-R02 Site 0731 Edited
+                  - button "SOL-R02 Site 0539 Edited (7 of 7)" [ref=f26e372] [cursor=pointer]:
+                    - generic: SOL-R02 Site 0539 Edited
+                  - button "warehouse 1 (6 of 7)" [ref=f26e374] [cursor=pointer]:
+                    - generic: warehouse 1
+                - list [ref=f26e376]:
+                  - listitem [ref=f26e377]:
+                    - button "tester1 Primary 2 lines · 0 workers" [ref=f26e378] [cursor=pointer]:
+                      - generic [ref=f26e379]:
+                        - text: tester1
+                        - generic [ref=f26e380]: Primary
+                      - generic [ref=f26e381]: 2 lines · 0 workers
+                  - listitem [ref=f26e382]:
+                    - button "CODEX-R14 SITE 1 lines · 0 workers" [ref=f26e383] [cursor=pointer]:
+                      - generic [ref=f26e384]: CODEX-R14 SITE
+                      - generic [ref=f26e385]: 1 lines · 0 workers
+                  - listitem [ref=f26e386]:
+                    - button "Main Factory 3 lines · 0 workers" [ref=f26e387] [cursor=pointer]:
+                      - generic [ref=f26e388]: Main Factory
+                      - generic [ref=f26e389]: 3 lines · 0 workers
+                  - listitem [ref=f26e390]:
+                    - button "makery 3 lines · 0 workers" [ref=f26e391] [cursor=pointer]:
+                      - generic [ref=f26e392]: makery
+                      - generic [ref=f26e393]: 3 lines · 0 workers
+                  - listitem [ref=f26e394]:
+                    - button "NIGHT-R02 Site 0731 Edited 1 lines · 0 workers" [pressed] [ref=f26e511] [cursor=pointer]:
+                      - generic [ref=f26e396]: NIGHT-R02 Site 0731 Edited
+                      - generic [ref=f26e397]: 1 lines · 0 workers
+                  - listitem [ref=f26e398]:
+                    - button "SOL-R02 Site 0539 Edited 1 lines · 0 workers" [ref=f26e399] [cursor=pointer]:
+                      - generic [ref=f26e400]: SOL-R02 Site 0539 Edited
+                      - generic [ref=f26e401]: 1 lines · 0 workers
+                  - listitem [ref=f26e402]:
+                    - button "warehouse 1 2 lines · 0 workers" [ref=f26e403] [cursor=pointer]:
+                      - generic [ref=f26e404]: warehouse 1
+                      - generic [ref=f26e405]: 2 lines · 0 workers
+              - generic [ref=f26e406]:
+                - generic [ref=f26e407]:
+                  - generic [ref=f26e408]:
+                    - generic [ref=f26e409]: NIGHT-R02 Site 0731 Edited
+                    - generic [ref=f26e411]:
+                      - button "Rename site" [ref=f26e412] [cursor=pointer]
+                      - button "Delete site" [ref=f26e413] [cursor=pointer]
+                      - button "+ Add line" [ref=f26e414] [cursor=pointer]
+                  - table [ref=f26e480]:
+                    - rowgroup [ref=f26e481]:
+                      - row [ref=f26e482]:
+                        - columnheader "Line" [ref=f26e483]
+                        - columnheader "Type" [ref=f26e484]
+                        - columnheader "Workers" [ref=f26e485]
+                        - columnheader "Status" [ref=f26e486]
+                        - columnheader [ref=f26e487]
+                    - rowgroup [ref=f26e488]:
+                      - row [ref=f26e489]:
+                        - cell "N17R02L1NIGHT R02 Line 1 Edited" [ref=f26e490]
+                        - cell "production" [ref=f26e491]
+                        - cell "0" [ref=f26e492]
+                        - cell "● Active" [ref=f26e493]
+                        - cell [ref=f26e495]:
+                          - button "Edit NIGHT R02 Line 1 Edited" [ref=f26e496] [cursor=pointer]: Edit
+                - region "Site settings" [ref=f26e441]:
+                  - generic [ref=f26e442]:
+                    - generic [ref=f26e443]: Site settings
+                    - button "Edit" [ref=f26e445] [cursor=pointer]
+                  - generic [ref=f26e446]:
+                    - generic [ref=f26e447]:
+                      - generic [ref=f26e448]:
+                        - generic [ref=f26e449]: Primary site
+                        - generic [ref=f26e450]: Used as default for new products and orders.
+                      - generic [ref=f26e452] [cursor=pointer]:
+                        - checkbox "Primary site" [disabled]
+                    - generic [ref=f26e454]:
+                      - generic [ref=f26e455]: Timezone
+                      - generic [ref=f26e457]: Europe/London
+                    - generic [ref=f26e459]:
+                      - generic [ref=f26e460]: Country
+                      - generic [ref=f26e462]: GB
+                    - generic [ref=f26e464]:
+                      - generic [ref=f26e465]: Legal entity
+                      - generic [ref=f26e467]: Apex 22
+                    - generic [ref=f26e469]:
+                      - generic [ref=f26e470]: Operating hours
+                      - generic [ref=f26e472]: Mon-Fri 06:00-22:00
+                    - generic [ref=f26e474]:
+                      - generic [ref=f26e475]: HACCP certification
+                      - generic [ref=f26e477]: Not certified
+  - alert [ref=f26e144]

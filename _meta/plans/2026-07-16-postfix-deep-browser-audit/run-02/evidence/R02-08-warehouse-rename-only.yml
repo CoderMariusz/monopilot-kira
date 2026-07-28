@@ -1,0 +1,10 @@
+- dialog [ref=f17e600]:
+  - generic [ref=f17e601]:
+    - heading "Rename warehouse" [level=2] [ref=f17e602]
+    - generic [ref=f17e603]:
+      - generic [ref=f17e604]:
+        - text: Name
+        - textbox "Name" [ref=f17e606]: NIGHT R02 Warehouse
+      - generic [ref=f17e607]:
+        - button "Cancel" [ref=f17e608] [cursor=pointer]
+        - button "Rename warehouse" [ref=f17e609] [cursor=pointer]

@@ -1,0 +1,18 @@
+captured_at: 2026-07-17T10:12:55+01:00
+run: 04
+deleted_project:
+  id: e60aa78f-f093-48dc-baf3-50e312af783b
+  code: NPD-021
+  direct_gate_url_after_delete: "Page not found"
+linked_fg_after_delete:
+  code: FG-021
+  status: Blocked
+  verdict: "C027 active-FG orphan fix passes: the child was archived, not left Active."
+technical_sensory_after_delete:
+  subject: e60aa78f-f093-48dc-baf3-50e312af783b
+  subject_type: Project
+  status: Pass
+  display_name: e60aa78f-f093-48dc-baf3-50e312af783b
+  available_action: Edit
+  delete_or_void_action: absent
+observation: "The cross-module sensory row survives as an editable raw-UUID orphan after its NPD parent is deleted."

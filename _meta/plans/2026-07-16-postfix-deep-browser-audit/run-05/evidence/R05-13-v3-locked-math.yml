@@ -1,0 +1,300 @@
+- main "FG-023 · v1 locked" [ref=f109e216]:
+  - generic [ref=f109e217]:
+    - generic [ref=f109e218]:
+      - generic [ref=f109e219]:
+        - generic [ref=f109e220]: Recipe
+        - generic [ref=f109e221]: FG-023 · v1 locked
+      - generic [ref=f109e222]:
+        - generic [ref=f109e223]: Batch size (g)
+        - textbox "Batch size (g)" [disabled] [ref=f109e225]: "1000.000"
+        - paragraph [ref=f109e226]: Batch size = pack weight; ingredients must total this.
+      - generic [ref=f109e227]:
+        - generic [ref=f109e228]: Target price
+        - textbox "Target price" [disabled] [ref=f109e230]: "3.50"
+      - generic [ref=f109e231]:
+        - generic [ref=f109e232]: Version
+        - combobox "Version" [disabled] [ref=f109e234]:
+          - generic [ref=f109e235]: v1
+          - generic [ref=f109e236]: ⌄
+    - generic [ref=f109e237]:
+      - button "Add version" [ref=f109e238] [cursor=pointer]
+      - button "Compare versions" [ref=f109e239] [cursor=pointer]
+      - button "Lock recipe" [disabled] [ref=f109e240]
+      - button "Unlock recipe" [ref=f109e241] [cursor=pointer]
+      - button "Save draft" [disabled] [ref=f109e242]
+      - button "Submit for trial →" [disabled] [ref=f109e243]
+  - alert [ref=f109e244]: This version is locked and cannot be edited.
+  - generic [ref=f109e245]:
+    - generic [ref=f109e246]:
+      - generic [ref=f109e247]:
+        - generic [ref=f109e248]:
+          - heading "Ingredients" [level=3] [ref=f109e249]
+          - paragraph [ref=f109e250]: Edit any % or cost — nutrition, allergens, and margin recalculate live.
+        - generic [ref=f109e251]:
+          - button "Add ingredient" [disabled] [ref=f109e252]: + Add ingredient
+          - button "Add WIP" [disabled] [ref=f109e254]
+      - generic [ref=f109e255]:
+        - table [ref=f109e256]:
+          - rowgroup [ref=f109e257]:
+            - row [ref=f109e258]:
+              - columnheader "Ingredient" [ref=f109e259]
+              - columnheader "Qty / pack (kg)" [ref=f109e260]
+              - columnheader "£ / kg" [ref=f109e261]
+              - columnheader "Contrib." [ref=f109e262]
+              - columnheader "Allergen" [ref=f109e263]
+              - columnheader "Delete ingredient" [ref=f109e264]
+          - rowgroup [ref=f109e266]:
+            - row [ref=f109e267]:
+              - cell "Toggle sub-recipe for Caster Sugar Ingredient Open item in Technical Pick item Caster Sugar Substitute Pick substitute Pick substitute" [ref=f109e268]:
+                - generic [ref=f109e269]:
+                  - button "Toggle sub-recipe for Caster Sugar" [ref=f109e270] [cursor=pointer]:
+                    - generic [ref=f109e271]: ›
+                  - generic "Ingredient" [ref=f109e272]: ING-SUGAR
+                  - link "Open item in Technical" [ref=f109e273] [cursor=pointer]:
+                    - /url: /technical/items/ING-SUGAR
+                    - text: ↗
+                  - button "Pick item" [disabled] [ref=f109e275]
+                - generic [ref=f109e276]: Caster Sugar
+                - generic [ref=f109e277]:
+                  - generic [ref=f109e278]: Substitute
+                  - generic [ref=f109e279]: Pick substitute
+                  - button "Pick substitute" [disabled] [ref=f109e281]
+              - cell [ref=f109e282]:
+                - textbox "Qty / pack (kg)" [disabled] [ref=f109e284]: "0.176544"
+              - cell [ref=f109e285]:
+                - textbox "£ / kg" [disabled] [ref=f109e287]: "0.8000"
+              - cell "0.141 £" [ref=f109e288]
+              - cell "—" [ref=f109e289]
+              - cell [ref=f109e290]:
+                - button "Delete ingredient" [disabled] [ref=f109e291]:
+                  - generic [ref=f109e292]: ✕
+            - row [ref=f109e293]:
+              - cell "Toggle sub-recipe for NIGHT-R05-L2-1020 WIP Ingredient Open item in Technical NIGHT-R05-L2-1020(NIGHT-R05-L2-1020)" [ref=f109e294]:
+                - generic [ref=f109e295]:
+                  - button "Toggle sub-recipe for NIGHT-R05-L2-1020" [ref=f109e296] [cursor=pointer]:
+                    - generic [ref=f109e297]: ›
+                  - generic [ref=f109e298]: WIP
+                  - generic "Ingredient" [ref=f109e299]: WIP-20260717-0012
+                  - link "Open item in Technical" [ref=f109e300] [cursor=pointer]:
+                    - /url: /technical/items/WIP-20260717-0012
+                    - text: ↗
+                - generic [ref=f109e301]:
+                  - text: NIGHT-R05-L2-1020
+                  - generic [ref=f109e302]: (NIGHT-R05-L2-1020)
+              - cell [ref=f109e303]:
+                - textbox "Qty / pack (kg)" [disabled] [ref=f109e305]: "0.823456"
+              - cell [ref=f109e306]:
+                - textbox "£ / kg" [disabled] [ref=f109e308]: "150.04370000000000000000"
+              - cell "123.554 £" [ref=f109e309]
+              - cell "gluten milk" [ref=f109e310]:
+                - generic [ref=f109e311]:
+                  - generic [ref=f109e312]: gluten
+                  - generic [ref=f109e313]: milk
+              - cell [ref=f109e314]:
+                - button "Delete ingredient" [disabled] [ref=f109e315]:
+                  - generic [ref=f109e316]: ✕
+            - row [ref=f109e317]:
+              - cell "Total" [ref=f109e318]
+              - cell "1.000 kg" [ref=f109e319]
+              - cell "—" [ref=f109e320]
+              - cell "123.6956 £" [ref=f109e321]
+              - cell [ref=f109e322]
+              - cell [ref=f109e323]
+        - generic [ref=f109e324]:
+          - generic [ref=f109e325]: Composition
+          - img "Ingredient composition" [ref=f109e326]:
+            - 'img "Caster Sugar: 17.654%" [ref=f109e327]'
+            - 'img "NIGHT-R05-L2-1020: 82.346%" [ref=f109e328]'
+          - list [ref=f109e329]:
+            - listitem [ref=f109e330]:
+              - generic [ref=f109e332]: Caster Sugar 17.654%
+            - listitem [ref=f109e333]:
+              - generic [ref=f109e335]: NIGHT-R05-L2-1020 82.346%
+    - complementary "Live calculations" [ref=f109e336]:
+      - paragraph [ref=f109e337]: Cost, nutrition and allergen panels appear here.
+      - generic [ref=f109e338]:
+        - generic [ref=f109e339]:
+          - heading "Nutrition per 100g · live" [level=3] [ref=f109e340]
+          - button "Export label" [disabled] [ref=f109e341]
+        - generic [ref=f109e342]:
+          - generic [ref=f109e343]:
+            - generic [ref=f109e344]: Energy
+            - 'progressbar "Energy: Within target" [ref=f109e345]'
+            - generic [ref=f109e347]:
+              - generic [ref=f109e348]: ✓
+              - generic [ref=f109e349]: 778.96 kJ
+              - generic [ref=f109e350]: Within target
+          - generic [ref=f109e351]:
+            - generic [ref=f109e352]: Fat
+            - 'progressbar "Fat: Within target" [ref=f109e353]'
+            - generic [ref=f109e355]:
+              - generic [ref=f109e356]: ✓
+              - generic [ref=f109e357]: 9.21 g
+              - generic [ref=f109e358]: Within target
+          - generic [ref=f109e359]:
+            - generic [ref=f109e360]: Saturates
+            - 'progressbar "Saturates: Over target" [ref=f109e361]'
+            - generic [ref=f109e363]:
+              - generic [ref=f109e364]: "!"
+              - generic [ref=f109e365]: 5.80 g
+              - generic [ref=f109e366]: Over target
+          - generic [ref=f109e367]:
+            - generic [ref=f109e368]: Carbs
+            - 'progressbar "Carbs: Within target" [ref=f109e369]'
+            - generic [ref=f109e371]:
+              - generic [ref=f109e372]: ✓
+              - generic [ref=f109e373]: 42.92 g
+              - generic [ref=f109e374]: Within target
+          - generic [ref=f109e375]:
+            - generic [ref=f109e376]: Sugars
+            - 'progressbar "Sugars: Over target" [ref=f109e377]'
+            - generic [ref=f109e379]:
+              - generic [ref=f109e380]: "!"
+              - generic [ref=f109e381]: 23.33 g
+              - generic [ref=f109e382]: Over target
+          - generic [ref=f109e383]:
+            - generic [ref=f109e384]: Protein
+            - 'progressbar "Protein: Within target" [ref=f109e385]'
+            - generic [ref=f109e387]:
+              - generic [ref=f109e388]: ✓
+              - generic [ref=f109e389]: 0.76 g
+              - generic [ref=f109e390]: Within target
+          - generic [ref=f109e391]:
+            - generic [ref=f109e392]: Salt
+            - 'progressbar "Salt: Within target" [ref=f109e393]'
+            - generic [ref=f109e394]:
+              - generic [ref=f109e395]: ✓
+              - generic [ref=f109e396]: 0.00 g
+              - generic [ref=f109e397]: Within target
+        - generic [ref=f109e398]: "Targets: Protein ≥ 10g · Salt ≤ 1.5g · Fat ≤ 17.5g per 100g"
+      - region [ref=f109e399]:
+        - heading "Cost & margin · live" [level=3] [ref=f109e401]:
+          - text: Cost & margin
+          - generic [ref=f109e402]: · live
+        - generic [ref=f109e403]:
+          - generic [ref=f109e404]:
+            - generic [ref=f109e405]:
+              - generic [ref=f109e406]: Raw material
+              - generic [ref=f109e407]: £123.70 / kg
+            - generic [ref=f109e408]:
+              - generic [ref=f109e409]: After yield (93.75%)
+              - generic [ref=f109e410]: £131.94 / kg
+            - generic [ref=f109e411]:
+              - generic [ref=f109e412]: Processing (0%) — estimate until processes are chosen
+              - generic [ref=f109e413]: £0.00 / kg
+            - generic [ref=f109e414]:
+              - generic [ref=f109e415]: Total cost / kg
+              - generic [ref=f109e416]: £131.94
+          - generic [ref=f109e417]:
+            - generic [ref=f109e418]:
+              - generic [ref=f109e419]: Target price (per pack)
+              - textbox "Target price (per pack)" [ref=f109e421]: "3.50"
+            - generic [ref=f109e422]:
+              - generic [ref=f109e423]: Expected yield %
+              - spinbutton "Expected yield %" [ref=f109e425]: "93.75"
+            - generic [ref=f109e426]:
+              - generic [ref=f109e427]: Processing %
+              - spinbutton "Processing %" [ref=f109e429]: "0"
+          - generic [ref=f109e430]:
+            - generic [ref=f109e431]:
+              - generic [ref=f109e432]: Revenue / kg (at target price)
+              - generic [ref=f109e433]: £3.50
+            - generic [ref=f109e434]:
+              - generic [ref=f109e435]: Margin / kg
+              - generic [ref=f109e436]: "-£128.44"
+            - generic [ref=f109e437]:
+              - generic [ref=f109e438]: Margin %
+              - generic [ref=f109e439]: "-3669.8%"
+      - generic [ref=f109e440]:
+        - generic [ref=f109e441]:
+          - heading "Allergens" [level=3] [ref=f109e442]
+          - paragraph [ref=f109e443]: EU 14 mandatory allergens · presence from formulation
+        - generic [ref=f109e444]:
+          - list [ref=f109e445]:
+            - listitem [ref=f109e446]:
+              - generic "Celery — Absent" [ref=f109e447]:
+                - generic [ref=f109e448]:
+                  - img [ref=f109e449]: ○
+                  - generic [ref=f109e450]: Celery
+                - text: Absent
+            - listitem [ref=f109e451]:
+              - generic "Cereals containing gluten — Present" [ref=f109e452]:
+                - generic [ref=f109e453]:
+                  - img [ref=f109e454]: ●
+                  - generic [ref=f109e455]: Cereals containing gluten
+                - text: Present
+            - listitem [ref=f109e456]:
+              - generic "Crustaceans — Absent" [ref=f109e457]:
+                - generic [ref=f109e458]:
+                  - img [ref=f109e459]: ○
+                  - generic [ref=f109e460]: Crustaceans
+                - text: Absent
+            - listitem [ref=f109e461]:
+              - generic "Eggs — Absent" [ref=f109e462]:
+                - generic [ref=f109e463]:
+                  - img [ref=f109e464]: ○
+                  - generic [ref=f109e465]: Eggs
+                - text: Absent
+            - listitem [ref=f109e466]:
+              - generic "Fish — Absent" [ref=f109e467]:
+                - generic [ref=f109e468]:
+                  - img [ref=f109e469]: ○
+                  - generic [ref=f109e470]: Fish
+                - text: Absent
+            - listitem [ref=f109e471]:
+              - generic "Lupin — Absent" [ref=f109e472]:
+                - generic [ref=f109e473]:
+                  - img [ref=f109e474]: ○
+                  - generic [ref=f109e475]: Lupin
+                - text: Absent
+            - listitem [ref=f109e476]:
+              - generic "Milk — Present" [ref=f109e477]:
+                - generic [ref=f109e478]:
+                  - img [ref=f109e479]: ●
+                  - generic [ref=f109e480]: Milk
+                - text: Present
+            - listitem [ref=f109e481]:
+              - generic "Molluscs — Absent" [ref=f109e482]:
+                - generic [ref=f109e483]:
+                  - img [ref=f109e484]: ○
+                  - generic [ref=f109e485]: Molluscs
+                - text: Absent
+            - listitem [ref=f109e486]:
+              - generic "Mustard — Absent" [ref=f109e487]:
+                - generic [ref=f109e488]:
+                  - img [ref=f109e489]: ○
+                  - generic [ref=f109e490]: Mustard
+                - text: Absent
+            - listitem [ref=f109e491]:
+              - generic "Nuts — Absent" [ref=f109e492]:
+                - generic [ref=f109e493]:
+                  - img [ref=f109e494]: ○
+                  - generic [ref=f109e495]: Nuts
+                - text: Absent
+            - listitem [ref=f109e496]:
+              - generic "Peanuts — Absent" [ref=f109e497]:
+                - generic [ref=f109e498]:
+                  - img [ref=f109e499]: ○
+                  - generic [ref=f109e500]: Peanuts
+                - text: Absent
+            - listitem [ref=f109e501]:
+              - generic "Sesame seeds — Absent" [ref=f109e502]:
+                - generic [ref=f109e503]:
+                  - img [ref=f109e504]: ○
+                  - generic [ref=f109e505]: Sesame seeds
+                - text: Absent
+            - listitem [ref=f109e506]:
+              - generic "Soybeans — Absent" [ref=f109e507]:
+                - generic [ref=f109e508]:
+                  - img [ref=f109e509]: ○
+                  - generic [ref=f109e510]: Soybeans
+                - text: Absent
+            - listitem [ref=f109e511]:
+              - generic "Sulphur dioxide and sulphites — Absent" [ref=f109e512]:
+                - generic [ref=f109e513]:
+                  - img [ref=f109e514]: ○
+                  - generic [ref=f109e515]: Sulphur dioxide and sulphites
+                - text: Absent
+          - alert [ref=f109e516]:
+            - strong [ref=f109e517]: "2 allergen(s) detected:"
+            - text: Cereals containing gluten, Milk. Must be declared on label.

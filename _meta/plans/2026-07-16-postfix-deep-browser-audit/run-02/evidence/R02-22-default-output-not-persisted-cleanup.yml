@@ -1,0 +1,10 @@
+- row [ref=f34e443]:
+  - cell [ref=f34e444]:
+    - checkbox "Select NIGHT R02 Line 1 Edited" [ref=f34e445]
+  - cell "NIGHT R02 Line 1 Edited N17R02L1" [ref=f34e446]:
+    - generic [ref=f34e447]: NIGHT R02 Line 1 Edited
+    - generic [ref=f34e448]: N17R02L1
+  - cell "—" [ref=f34e449]
+  - cell "Inactive" [ref=f34e450]
+  - cell [ref=f34e452]:
+    - button "Edit NIGHT R02 Line 1 Edited" [ref=f34e453] [cursor=pointer]: Edit

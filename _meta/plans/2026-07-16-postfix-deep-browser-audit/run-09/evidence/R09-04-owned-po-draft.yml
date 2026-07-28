@@ -1,0 +1,290 @@
+- generic [ref=e1]:
+  - alert [ref=e39]
+  - generic [ref=e40]:
+    - banner [ref=e42]:
+      - generic "MonoPilot MES" [ref=e43]
+      - searchbox "Search settings…" [ref=e45]
+      - generic [ref=e46]:
+        - button "Switch organization (platform admin)" [ref=e48] [cursor=pointer]:
+          - generic [ref=e49]: A2
+          - generic [ref=e50]: "000000000000"
+          - generic [ref=e51]: Apex 22
+          - generic [ref=e52]: ▼
+        - generic "Filters work orders, license plates and OEE only — other screens stay org-wide" [ref=e53]:
+          - generic [ref=e54]: Site
+          - combobox "Site" [ref=e55] [cursor=pointer]:
+            - option "All sites"
+            - option "tester1"
+            - option "CODEX-R14 SITE"
+            - option "Main Factory" [selected]
+            - option "makery"
+            - option "SOL-R02 Site 0539 Edited"
+            - option "warehouse 1"
+        - button "Notifications" [ref=e57]
+        - button "Open user menu for Apex Admin" [ref=e62]: AA
+    - navigation "Primary" [ref=e63]:
+      - generic [ref=e64]:
+        - generic [ref=e65]:
+          - heading "Core" [level=2] [ref=e66]
+          - generic [ref=e67]:
+            - link "Dashboard" [ref=e68] [cursor=pointer]:
+              - /url: /en/dashboard
+              - generic [ref=e69]: ◆
+            - link "Settings" [ref=e72] [cursor=pointer]:
+              - /url: /en/settings
+              - generic [ref=e73]: ⚙
+        - generic [ref=e76]:
+          - heading "Operations" [level=2] [ref=e77]
+          - generic [ref=e78]:
+            - link "Planning" [ref=e79] [cursor=pointer]:
+              - /url: /en/planning
+              - generic [ref=e80]: ▤
+            - link "Freight" [ref=e83] [cursor=pointer]:
+              - /url: /en/planning/carriers
+              - generic [ref=e84]: F
+            - link "Scheduler" [ref=e87] [cursor=pointer]:
+              - /url: /en/scheduler
+              - generic [ref=e88]: ⧗
+            - link "Production" [ref=e91] [cursor=pointer]:
+              - /url: /en/production
+              - generic [ref=e92]: ⚒
+            - link "Yard" [ref=e95] [cursor=pointer]:
+              - /url: /en/yard
+              - generic [ref=e96]: "Y"
+            - link "Warehouse" [ref=e99] [cursor=pointer]:
+              - /url: /en/warehouse
+              - generic [ref=e100]: ▥
+            - link "Scanner" [ref=e103] [cursor=pointer]:
+              - /url: /en/scanner/home
+              - generic [ref=e104]: 📱
+        - generic [ref=e107]:
+          - heading "QA & Shipping" [level=2] [ref=e108]
+          - generic [ref=e109]:
+            - link "Quality" [ref=e110] [cursor=pointer]:
+              - /url: /en/quality
+              - generic [ref=e111]: ✓
+            - link "Shipping" [ref=e114] [cursor=pointer]:
+              - /url: /en/shipping
+              - generic [ref=e115]: →
+        - generic [ref=e118]:
+          - heading "Premium" [level=2] [ref=e119]
+          - generic [ref=e120]:
+            - link "Technical" [ref=e121] [cursor=pointer]:
+              - /url: /en/technical
+              - generic [ref=e122]: ▦
+            - link "NPD" [ref=e125] [cursor=pointer]:
+              - /url: /en/pipeline
+              - generic [ref=e126]: ★
+            - link "Finance" [ref=e129] [cursor=pointer]:
+              - /url: /en/finance
+              - generic [ref=e130]: $
+            - link "OEE" [ref=e133] [cursor=pointer]:
+              - /url: /en/oee
+              - generic [ref=e134]: ◉
+            - link "Maintenance" [ref=e137] [cursor=pointer]:
+              - /url: /en/maintenance
+              - generic [ref=e138]: 🔧
+        - generic [ref=e141]:
+          - heading "Analytics & Network" [level=2] [ref=e142]
+          - generic [ref=e143]:
+            - link "Reporting" [ref=e144] [cursor=pointer]:
+              - /url: /en/reporting
+              - generic [ref=e145]: ▧
+            - link "Multi-Site" [ref=e148] [cursor=pointer]:
+              - /url: /en/multi-site
+              - generic [ref=e149]: ❖
+    - main [ref=e152]:
+      - main [ref=e4357]:
+        - generic [ref=e4359]:
+          - navigation "Breadcrumb" [ref=e4360]:
+            - list [ref=e4361]:
+              - listitem [ref=e4362]:
+                - generic [ref=e4363]: Planning
+              - listitem [ref=e4364]:
+                - generic [ref=e4365]: /
+                - generic [ref=e4366]: Purchase orders
+          - generic [ref=e4367]:
+            - heading "Purchase orders" [level=1] [ref=e4368]
+            - paragraph [ref=e4369]: Supplier purchase orders, line items and receiving status.
+        - generic [ref=e4370]:
+          - generic [ref=e4371]:
+            - searchbox "Search PO number or supplier…" [ref=e4373]
+            - generic [ref=e4374]:
+              - link "Import" [ref=e4375] [cursor=pointer]:
+                - /url: /en/planning/import?source=po
+              - link "Import POs" [ref=e4376] [cursor=pointer]:
+                - /url: /en/planning/purchase-orders/import
+              - button "Export" [ref=e4377] [cursor=pointer]
+              - button "+ Create PO" [active] [ref=e4378] [cursor=pointer]
+          - tablist "All" [ref=e4379]:
+            - tab "All10" [selected] [ref=e4654]
+            - tab "Draft4" [ref=e4655]
+            - tab "Sent0" [ref=e4382]
+            - tab "Confirmed0" [ref=e4383]
+            - tab "Partially received1" [ref=e4384]
+            - tab "Received3" [ref=e4385]
+            - tab "Cancelled2" [ref=e4386]
+            - tab "Archive0" [ref=e4387] [cursor=pointer]
+          - generic [ref=e4388]:
+            - combobox "Supplier" [ref=e4391] [cursor=pointer]:
+              - generic [ref=e4392]: All suppliers
+              - generic [ref=e4393]: ⌄
+            - button "Clear all filters" [ref=e4394]
+            - generic [ref=e4395]: 10 rows
+          - generic [ref=e4396]:
+            - table [ref=e4397]:
+              - rowgroup [ref=e4398]:
+                - row [ref=e4399]:
+                  - columnheader "PO number" [ref=e4400]
+                  - columnheader "Supplier" [ref=e4401]
+                  - columnheader "Expected delivery" [ref=e4402]
+                  - columnheader "Lines" [ref=e4403]
+                  - columnheader "Status" [ref=e4404]
+                  - columnheader "Currency" [ref=e4405]
+                  - columnheader "Actions" [ref=e4406]
+              - rowgroup [ref=e4407]:
+                - row [ref=e4408]:
+                  - cell [ref=e4409]:
+                    - link "PO-202607-0023" [ref=e4410] [cursor=pointer]:
+                      - /url: /en/planning/purchase-orders/a18033c8-b16a-4a5b-9e7e-d5d59b717eca
+                  - cell "maet sup MEAT" [ref=e4411]:
+                    - generic [ref=e4412]: maet sup
+                    - generic [ref=e4413]: MEAT
+                  - cell "Jul 12, 2026" [ref=e4414]
+                  - cell "1" [ref=e4415]
+                  - cell "Draft" [ref=e4416]
+                  - cell "GBP" [ref=e4418]
+                  - cell [ref=e4419]:
+                    - link "View" [ref=e4420] [cursor=pointer]:
+                      - /url: /en/planning/purchase-orders/a18033c8-b16a-4a5b-9e7e-d5d59b717eca
+                - row [ref=e4421]:
+                  - cell [ref=e4422]:
+                    - link "SOL-R17-20260715T214921Z-PO" [ref=e4423] [cursor=pointer]:
+                      - /url: /en/planning/purchase-orders/095cc166-4161-40ff-a28c-4df931140779
+                  - cell "E2E Active Supplier E2E-A-SUP-ACTIVE" [ref=e4424]:
+                    - generic [ref=e4425]: E2E Active Supplier
+                    - generic [ref=e4426]: E2E-A-SUP-ACTIVE
+                  - cell "Jul 16, 2026" [ref=e4427]
+                  - cell "1" [ref=e4428]
+                  - cell "Received" [ref=e4429]
+                  - cell "GBP" [ref=e4431]
+                  - cell [ref=e4432]:
+                    - link "View" [ref=e4433] [cursor=pointer]:
+                      - /url: /en/planning/purchase-orders/095cc166-4161-40ff-a28c-4df931140779
+                - row [ref=e4434]:
+                  - cell [ref=e4435]:
+                    - link "NIGHT-R08-PO-1400" [ref=e4436] [cursor=pointer]:
+                      - /url: /en/planning/purchase-orders/8e8ca83a-f79e-49aa-b905-0ace9472151d
+                  - cell "Web Foods Ltd. WEB" [ref=e4437]:
+                    - generic [ref=e4438]: Web Foods Ltd.
+                    - generic [ref=e4439]: WEB
+                  - cell "Jul 20, 2026" [ref=e4440]
+                  - cell "1" [ref=e4441]
+                  - cell "Received" [ref=e4442]
+                  - cell "GBP" [ref=e4444]
+                  - cell [ref=e4445]:
+                    - link "View" [ref=e4446] [cursor=pointer]:
+                      - /url: /en/planning/purchase-orders/8e8ca83a-f79e-49aa-b905-0ace9472151d
+                - row [ref=e4656]:
+                  - cell [ref=e4657]:
+                    - link "PO-R09-144638" [ref=e4658] [cursor=pointer]:
+                      - /url: /en/planning/purchase-orders/9cb0d358-1b0a-45b5-8a60-728517a78f21
+                  - cell "NIGHT-R09-20260717T144638Z Supplier SUP-R09-144638" [ref=e4659]:
+                    - generic [ref=e4660]: NIGHT-R09-20260717T144638Z Supplier
+                    - generic [ref=e4661]: SUP-R09-144638
+                  - cell "Jul 20, 2026" [ref=e4662]
+                  - cell "1" [ref=e4663]
+                  - cell "Draft" [ref=e4664]
+                  - cell "GBP" [ref=e4666]
+                  - cell [ref=e4667]:
+                    - link "View" [ref=e4668] [cursor=pointer]:
+                      - /url: /en/planning/purchase-orders/9cb0d358-1b0a-45b5-8a60-728517a78f21
+                - row [ref=e4447]:
+                  - cell [ref=e4448]:
+                    - link "SOL-R09-PO-142011" [ref=e4449] [cursor=pointer]:
+                      - /url: /en/planning/purchase-orders/3a5903ec-411b-45d7-8f69-1f24e2c4e460
+                  - cell "SOL-R09-20260715T142011Z Supplier SOL-R09-142011" [ref=e4450]:
+                    - generic [ref=e4451]: SOL-R09-20260715T142011Z Supplier
+                    - generic [ref=e4452]: SOL-R09-142011
+                  - cell "Jul 23, 2026" [ref=e4453]
+                  - cell "2" [ref=e4454]
+                  - cell "Received" [ref=e4455]
+                  - cell "GBP" [ref=e4457]
+                  - cell [ref=e4458]:
+                    - link "View" [ref=e4459] [cursor=pointer]:
+                      - /url: /en/planning/purchase-orders/3a5903ec-411b-45d7-8f69-1f24e2c4e460
+                - row [ref=e4460]:
+                  - cell [ref=e4461]:
+                    - link "SOL-R09-GUARD-142011" [ref=e4462] [cursor=pointer]:
+                      - /url: /en/planning/purchase-orders/71db188f-41d3-48f0-b3a8-de85ddf5aac8
+                  - cell "SOL-R09-20260715T142011Z Supplier SOL-R09-142011" [ref=e4463]:
+                    - generic [ref=e4464]: SOL-R09-20260715T142011Z Supplier
+                    - generic [ref=e4465]: SOL-R09-142011
+                  - cell "Jul 24, 2026" [ref=e4466]
+                  - cell "1" [ref=e4467]
+                  - cell "Cancelled" [ref=e4468]
+                  - cell "GBP" [ref=e4470]
+                  - cell [ref=e4471]:
+                    - link "View" [ref=e4472] [cursor=pointer]:
+                      - /url: /en/planning/purchase-orders/71db188f-41d3-48f0-b3a8-de85ddf5aac8
+                - row [ref=e4473]:
+                  - cell [ref=e4474]:
+                    - link "NIGHT-R07-PO-1300" [ref=e4475] [cursor=pointer]:
+                      - /url: /en/planning/purchase-orders/7969df57-e7c0-4aad-b551-5b84cf7ac9d7
+                  - cell "Web Foods Ltd. WEB" [ref=e4476]:
+                    - generic [ref=e4477]: Web Foods Ltd.
+                    - generic [ref=e4478]: WEB
+                  - cell "Jul 26, 2026" [ref=e4479]
+                  - cell "3" [ref=e4480]
+                  - cell "Partially received" [ref=e4481]
+                  - cell "GBP" [ref=e4483]
+                  - cell [ref=e4484]:
+                    - link "View" [ref=e4485] [cursor=pointer]:
+                      - /url: /en/planning/purchase-orders/7969df57-e7c0-4aad-b551-5b84cf7ac9d7
+                - row [ref=e4486]:
+                  - cell [ref=e4487]:
+                    - link "NIGHT-R07-PO-DEL-1300" [ref=e4488] [cursor=pointer]:
+                      - /url: /en/planning/purchase-orders/71694ad9-b326-458b-82e5-14fe3a9eb231
+                  - cell "Web Foods Ltd. WEB" [ref=e4489]:
+                    - generic [ref=e4490]: Web Foods Ltd.
+                    - generic [ref=e4491]: WEB
+                  - cell "Jul 27, 2026" [ref=e4492]
+                  - cell "1" [ref=e4493]
+                  - cell "Cancelled" [ref=e4494]
+                  - cell "GBP" [ref=e4496]
+                  - cell [ref=e4497]:
+                    - link "View" [ref=e4498] [cursor=pointer]:
+                      - /url: /en/planning/purchase-orders/71694ad9-b326-458b-82e5-14fe3a9eb231
+                - row [ref=e4499]:
+                  - cell [ref=e4500]:
+                    - link "PO-202607-0018" [ref=e4501] [cursor=pointer]:
+                      - /url: /en/planning/purchase-orders/676de7f4-39e9-4cd8-bf66-7c22e551b87b
+                  - cell "Web Foods Ltd. WEB" [ref=e4502]:
+                    - generic [ref=e4503]: Web Foods Ltd.
+                    - generic [ref=e4504]: WEB
+                  - cell "—" [ref=e4505]
+                  - cell "1" [ref=e4506]
+                  - cell "Draft" [ref=e4507]
+                  - cell "GBP" [ref=e4509]
+                  - cell [ref=e4510]:
+                    - link "View" [ref=e4511] [cursor=pointer]:
+                      - /url: /en/planning/purchase-orders/676de7f4-39e9-4cd8-bf66-7c22e551b87b
+                - row [ref=e4512]:
+                  - cell [ref=e4513]:
+                    - link "PO-202607-0019" [ref=e4514] [cursor=pointer]:
+                      - /url: /en/planning/purchase-orders/4d9995c6-0030-48bc-8af6-cd4081668a60
+                  - cell "Web Foods Ltd. WEB" [ref=e4515]:
+                    - generic [ref=e4516]: Web Foods Ltd.
+                    - generic [ref=e4517]: WEB
+                  - cell "—" [ref=e4518]
+                  - cell "1" [ref=e4519]
+                  - cell "Draft" [ref=e4520]
+                  - cell "GBP" [ref=e4522]
+                  - cell [ref=e4523]:
+                    - link "View" [ref=e4524] [cursor=pointer]:
+                      - /url: /en/planning/purchase-orders/4d9995c6-0030-48bc-8af6-cd4081668a60
+            - generic [ref=e4525]:
+              - generic [ref=e4526]: Showing 10 of 10
+              - generic [ref=e4527]:
+                - generic [ref=e4528]: Previous
+                - generic [ref=e4529]: Next

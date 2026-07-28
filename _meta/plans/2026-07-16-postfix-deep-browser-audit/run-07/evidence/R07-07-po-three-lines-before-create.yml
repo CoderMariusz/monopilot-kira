@@ -1,0 +1,104 @@
+- dialog [ref=f3e290]:
+  - generic [ref=f3e291]:
+    - heading "Create purchase order" [level=2] [ref=f3e292]
+    - button "Close" [ref=f3e293] [cursor=pointer]: ✕
+  - generic [ref=f3e295]:
+    - generic [ref=f3e303]:
+      - generic [ref=f3e304]:
+        - generic [ref=f3e305]: PO number
+        - textbox "PO number Leave empty to auto-number (format in Settings → Documents)." [ref=f3e307]:
+          - /placeholder: Auto (e.g. PO-202606-0007)
+          - text: NIGHT-R07-PO-1300
+        - generic [ref=f3e308]: Leave empty to auto-number (format in Settings → Documents).
+      - generic [ref=f3e309]:
+        - generic [ref=f3e310]: Supplier
+        - combobox "Supplier" [ref=f3e312] [cursor=pointer]:
+          - generic [ref=f3e374]: WEB — Web Foods Ltd.
+          - generic [ref=f3e313]: ⌄
+      - generic [ref=f3e314]:
+        - generic [ref=f3e315]: Destination warehouse
+        - combobox "Destination warehouse" [ref=f3e317] [cursor=pointer]:
+          - generic [ref=f3e318]: WH1 — Main Warehouse
+          - generic [ref=f3e319]: ⌄
+      - generic [ref=f3e320]:
+        - generic [ref=f3e321]: Expected delivery
+        - textbox "Expected delivery" [ref=f3e323]: 2026-07-25
+      - generic [ref=f3e324]:
+        - generic [ref=f3e325]: Currency
+        - textbox "Currency" [ref=f3e327]: GBP
+    - generic [ref=f3e328]:
+      - generic [ref=f3e329]:
+        - generic [ref=f3e330]: Lines
+        - button "+ Add line" [ref=f3e331] [cursor=pointer]
+      - table [ref=f3e333]:
+        - rowgroup [ref=f3e334]:
+          - row [ref=f3e335]:
+            - columnheader "Item" [ref=f3e336]
+            - columnheader "Qty" [ref=f3e337]
+            - columnheader "UoM" [ref=f3e338]
+            - columnheader "Unit price" [ref=f3e339]
+            - columnheader "Tax %" [ref=f3e340]
+            - columnheader [ref=f3e341]
+        - rowgroup [ref=f3e342]:
+          - row [ref=f3e428]:
+            - cell "RM-BUTTER Butter ✕" [ref=f3e416]:
+              - generic [ref=f3e417]:
+                - generic [ref=f3e418]: RM-BUTTER
+                - generic [ref=f3e419]: Butter
+                - button "✕" [ref=f3e420] [cursor=pointer]
+            - cell [ref=f3e425]:
+              - textbox "0" [ref=f3e349]: "12.3456"
+            - cell [ref=f3e350]:
+              - combobox "UoM" [ref=f3e352] [cursor=pointer]:
+                - generic [ref=f3e421]: kg
+                - generic [ref=f3e353]: ⌄
+            - cell [ref=f3e426]:
+              - textbox "0.00" [ref=f3e356]: "3.4567"
+            - cell [ref=f3e427]:
+              - textbox "0" [ref=f3e359]: "20"
+            - cell [ref=f3e429]:
+              - button "Remove line" [ref=f3e430] [cursor=pointer]: ✕
+          - row [ref=f3e483]:
+            - cell "RM-BUTTER Butter ✕" [ref=f3e462]:
+              - generic [ref=f3e463]:
+                - generic [ref=f3e464]: RM-BUTTER
+                - generic [ref=f3e465]: Butter
+                - button "✕" [ref=f3e466] [cursor=pointer]
+            - cell [ref=f3e484]:
+              - textbox "0" [ref=f3e437]: "789.123"
+            - cell [ref=f3e438]:
+              - combobox "UoM" [ref=f3e440] [cursor=pointer]:
+                - generic [ref=f3e467]: g — Gram
+                - generic [ref=f3e441]: ⌄
+            - cell [ref=f3e485]:
+              - textbox "0.00" [ref=f3e444]: "0.005432"
+            - cell [ref=f3e486]:
+              - textbox "0" [ref=f3e447]: "5.5"
+            - cell [ref=f3e448]:
+              - button "Remove line" [ref=f3e449] [cursor=pointer]: ✕
+          - row [ref=f3e526]:
+            - cell "PM-BOX Cardboard Box ✕" [ref=f3e518]:
+              - generic [ref=f3e519]:
+                - generic [ref=f3e520]: PM-BOX
+                - generic [ref=f3e521]: Cardboard Box
+                - button "✕" [ref=f3e522] [cursor=pointer]
+            - cell [ref=f3e527]:
+              - textbox "0" [ref=f3e493]: "77"
+            - cell [ref=f3e494]:
+              - combobox "UoM" [ref=f3e496] [cursor=pointer]:
+                - generic [ref=f3e523]: pcs — Each
+                - generic [ref=f3e497]: ⌄
+            - cell [ref=f3e528]:
+              - textbox "0.00" [ref=f3e500]: "0.1234"
+            - cell [ref=f3e501]:
+              - textbox "0" [active] [ref=f3e503]
+            - cell [ref=f3e504]:
+              - button "Remove line" [ref=f3e505] [cursor=pointer]: ✕
+    - generic [ref=f3e361]:
+      - generic [ref=f3e362]: Notes
+      - textbox "Notes" [ref=f3e364]:
+        - /placeholder: Optional notes for this purchase order
+        - text: NIGHT-R07 mixed UoM repeated item decimal commercial arithmetic
+  - generic [ref=f3e365]:
+    - button "Cancel" [ref=f3e366] [cursor=pointer]
+    - button "Create PO" [ref=f3e367] [cursor=pointer]

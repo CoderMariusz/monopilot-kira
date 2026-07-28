@@ -1,0 +1,39 @@
+Run 07 exact commercial arithmetic
+
+Final persisted line inputs
+1. 12.3456 kg * 3.4567 GBP/kg, tax 20%
+   net   = 42.67503552
+   tax   = 8.535007104
+   gross = 51.210042624
+
+2. 789.125 g * 0.0199 GBP/g, tax 5.5%
+   net   = 15.7035875
+   tax   = 0.8636973125
+   gross = 16.5672848125
+
+3. 77.5 pcs * 0.1234 GBP/pcs, tax 0%
+   net   = 9.5635
+   tax   = 0
+   gross = 9.5635
+
+Exact totals
+net   = 67.94212302
+tax   = 9.3987044165
+gross = 77.3408274365
+
+UI totals (four-decimal presentation)
+net   = 67.9421 GBP
+tax   = 9.3987 GBP
+gross = 77.3408 GBP
+
+Conservation probe for line 1
+ordered              = 12.345600 kg
+first receipt        = 2.346000 kg
+second receipt       = 9.999000 kg
+received aggregate   = 12.345000 kg
+outstanding          = 0.000600 kg
+check                = 12.345000 + 0.000600 = 12.345600
+
+The desktop receipt form accepts at most three decimals. It proposes 0.001 for
+the final 0.000600 kg, which exceeds the order, while the exact 0.0006 input is
+rejected by client validation. Therefore the line cannot reach fully received.

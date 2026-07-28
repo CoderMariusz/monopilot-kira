@@ -1,0 +1,190 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e4]:
+      - generic "MonoPilot MES" [ref=e5]
+      - searchbox "Search settings…" [ref=e7]
+      - generic [ref=e8]:
+        - button "Switch organization (platform admin)" [ref=e10] [cursor=pointer]:
+          - generic [ref=e11]: A2
+          - generic [ref=e12]: "000000000000"
+          - generic [ref=e13]: Apex 22
+          - generic [ref=e14]: ▼
+        - generic "Filters work orders, license plates and OEE only — other screens stay org-wide" [ref=e15]:
+          - generic [ref=e16]: Site
+          - combobox "Site" [ref=e17] [cursor=pointer]:
+            - option "All sites" [selected]
+            - option "tester1"
+            - option "CODEX-R14 SITE"
+            - option "Main Factory"
+            - option "makery"
+            - option "SOL-R02 Site 0539 Edited"
+            - option "warehouse 1"
+        - button "Notifications" [ref=e19]
+        - button "Open user menu for Apex Admin" [ref=e24]: AA
+    - navigation "Primary" [ref=e25]:
+      - generic [ref=e26]:
+        - generic [ref=e27]:
+          - heading "Core" [level=2] [ref=e28]
+          - generic [ref=e29]:
+            - link "Dashboard" [ref=e30] [cursor=pointer]:
+              - /url: /en/dashboard
+              - generic [ref=e31]: ◆
+            - link "Settings" [ref=e34] [cursor=pointer]:
+              - /url: /en/settings
+              - generic [ref=e35]: ⚙
+        - generic [ref=e38]:
+          - heading "Operations" [level=2] [ref=e39]
+          - generic [ref=e40]:
+            - link "Planning" [ref=e41] [cursor=pointer]:
+              - /url: /en/planning
+              - generic [ref=e42]: ▤
+            - link "Freight" [ref=e45] [cursor=pointer]:
+              - /url: /en/planning/carriers
+              - generic [ref=e46]: F
+            - link "Scheduler" [ref=e49] [cursor=pointer]:
+              - /url: /en/scheduler
+              - generic [ref=e50]: ⧗
+            - link "Production" [ref=e53] [cursor=pointer]:
+              - /url: /en/production
+              - generic [ref=e54]: ⚒
+            - link "Yard" [ref=e57] [cursor=pointer]:
+              - /url: /en/yard
+              - generic [ref=e58]: "Y"
+            - link "Warehouse" [ref=e61] [cursor=pointer]:
+              - /url: /en/warehouse
+              - generic [ref=e62]: ▥
+            - link "Scanner" [ref=e65] [cursor=pointer]:
+              - /url: /en/scanner/home
+              - generic [ref=e66]: 📱
+        - generic [ref=e69]:
+          - heading "QA & Shipping" [level=2] [ref=e70]
+          - generic [ref=e71]:
+            - link "Quality" [ref=e72] [cursor=pointer]:
+              - /url: /en/quality
+              - generic [ref=e73]: ✓
+            - link "Shipping" [ref=e76] [cursor=pointer]:
+              - /url: /en/shipping
+              - generic [ref=e77]: →
+        - generic [ref=e80]:
+          - heading "Premium" [level=2] [ref=e81]
+          - generic [ref=e82]:
+            - link "Technical" [ref=e83] [cursor=pointer]:
+              - /url: /en/technical
+              - generic [ref=e84]: ▦
+            - link "NPD" [ref=e87] [cursor=pointer]:
+              - /url: /en/pipeline
+              - generic [ref=e88]: ★
+            - link "Finance" [ref=e91] [cursor=pointer]:
+              - /url: /en/finance
+              - generic [ref=e92]: $
+            - link "OEE" [ref=e95] [cursor=pointer]:
+              - /url: /en/oee
+              - generic [ref=e96]: ◉
+            - link "Maintenance" [ref=e99] [cursor=pointer]:
+              - /url: /en/maintenance
+              - generic [ref=e100]: 🔧
+        - generic [ref=e103]:
+          - heading "Analytics & Network" [level=2] [ref=e104]
+          - generic [ref=e105]:
+            - link "Reporting" [ref=e106] [cursor=pointer]:
+              - /url: /en/reporting
+              - generic [ref=e107]: ▧
+            - link "Multi-Site" [ref=e110] [cursor=pointer]:
+              - /url: /en/multi-site
+              - generic [ref=e111]: ❖
+    - main [ref=e114]:
+      - region [ref=e145]:
+        - generic [ref=e146]:
+          - heading "Warehouse" [level=1] [ref=e147]
+          - generic [ref=e149]:
+            - generic [ref=e150]:
+              - link "Active LPs 21 Available, reserved, allocated & on-hold" [ref=e151] [cursor=pointer]:
+                - /url: /en/warehouse/license-plates
+                - generic [ref=e152]: Active LPs
+                - generic [ref=e153]: "21"
+                - generic [ref=e154]: Available, reserved, allocated & on-hold
+              - link "Unique SKUs 0 Distinct products in active LPs" [ref=e155] [cursor=pointer]:
+                - /url: /en/warehouse/inventory
+                - generic [ref=e156]: Unique SKUs
+                - generic [ref=e157]: "0"
+                - generic [ref=e158]: Distinct products in active LPs
+              - link "Expiring ≤ 7d 1 Red threshold · review before picking" [ref=e159] [cursor=pointer]:
+                - /url: /en/warehouse/expiry
+                - generic [ref=e160]: Expiring ≤ 7d
+                - generic [ref=e161]: "1"
+                - generic [ref=e162]: Red threshold · review before picking
+              - link "Expiring ≤ 30d 10 Amber threshold · FEFO priority" [ref=e163] [cursor=pointer]:
+                - /url: /en/warehouse/expiry
+                - generic [ref=e164]: Expiring ≤ 30d
+                - generic [ref=e165]: "10"
+                - generic [ref=e166]: Amber threshold · FEFO priority
+              - link "QC hold 8 PENDING + HOLD + QUARANTINED" [ref=e167] [cursor=pointer]:
+                - /url: /en/warehouse/license-plates
+                - generic [ref=e168]: QC hold
+                - generic [ref=e169]: "8"
+                - generic [ref=e170]: PENDING + HOLD + QUARANTINED
+              - link "Blocked LPs 0 Operations prevented" [ref=e171] [cursor=pointer]:
+                - /url: /en/warehouse/license-plates
+                - generic [ref=e172]: Blocked LPs
+                - generic [ref=e173]: "0"
+                - generic [ref=e174]: Operations prevented
+            - paragraph [ref=e175]: "Inventory-value KPI omitted: no valuation/costing field is exposed by the warehouse read actions (would require a costing join not yet available)."
+            - paragraph [ref=e176]: "FEFO override-rate KPI omitted: no FEFO-override telemetry source is exposed by the warehouse read actions."
+            - generic [ref=e177]:
+              - generic [ref=e178]:
+                - heading "Expiry summary" [level=2] [ref=e179]
+                - link "Open expiry dashboard →" [ref=e180] [cursor=pointer]:
+                  - /url: /en/warehouse/expiry
+              - generic [ref=e181]:
+                - link "1 LP(s) expiring ≤ 7 days Red tier · Review before picking" [ref=e182] [cursor=pointer]:
+                  - /url: /en/warehouse/expiry
+                - link "10 LP(s) expiring ≤ 30 days Amber tier · FEFO priority" [ref=e186] [cursor=pointer]:
+                  - /url: /en/warehouse/expiry
+              - generic [ref=e190]:
+                - paragraph [ref=e191]: Top 5 soonest-expiring
+                - table "Top 5 soonest-expiring" [ref=e192]
+          - navigation "Warehouse areas" [ref=e272]:
+            - list [ref=e273]:
+              - listitem [ref=e274]:
+                - link "Inbound schedule Open POs / TOs and what arrives today." [ref=e275] [cursor=pointer]:
+                  - /url: /en/warehouse/inbound
+              - listitem [ref=e278]:
+                - link "License plates Inventory by LP — receipt to consumption." [ref=e279] [cursor=pointer]:
+                  - /url: /en/warehouse/license-plates
+              - listitem [ref=e282]:
+                - link "Goods receipts GRNs against purchase orders." [ref=e283] [cursor=pointer]:
+                  - /url: /en/warehouse/grns
+              - listitem [ref=e286]:
+                - link "Inventory Stock on hand by item, location, batch." [ref=e287] [cursor=pointer]:
+                  - /url: /en/warehouse/inventory
+              - listitem [ref=e290]:
+                - link "Movements Stock moves and transfers." [ref=e291] [cursor=pointer]:
+                  - /url: /en/warehouse/movements
+              - listitem [ref=e294]:
+                - link "Reservations LPs allocated to work orders." [ref=e295] [cursor=pointer]:
+                  - /url: /en/warehouse/reservations
+              - listitem [ref=e298]:
+                - link "Locations Warehouse zones and bins." [ref=e299] [cursor=pointer]:
+                  - /url: /en/warehouse/locations
+              - listitem [ref=e302]:
+                - link "Expiry FEFO red / amber expiry dashboard." [ref=e303] [cursor=pointer]:
+                  - /url: /en/warehouse/expiry
+              - listitem [ref=e306]:
+                - link "Stock counts Cycle counts, variance review, and apply." [ref=e307] [cursor=pointer]:
+                  - /url: /en/warehouse/counts
+              - listitem [ref=e310]:
+                - link "Stock adjustments Direct on-hand corrections — found stock, damage, write-offs." [ref=e311] [cursor=pointer]:
+                  - /url: /en/warehouse/adjustments/new
+              - listitem [ref=e314]:
+                - link "Print history Label print jobs — status, copies, and reprint." [ref=e315] [cursor=pointer]:
+                  - /url: /en/warehouse/print-history
+              - listitem [ref=e318]:
+                - link "Yard Dock appointments, gate in/out, and the weighbridge." [ref=e319] [cursor=pointer]:
+                  - /url: /en/yard
+              - listitem [ref=e322]:
+                - link "Scanner Open the mobile scanner — receive, consume, output." [ref=e323] [cursor=pointer]:
+                  - /url: /en/scanner/home
+              - listitem [ref=e326]:
+                - link "Stock adjustments" [ref=e327] [cursor=pointer]:
+                  - /url: /en/warehouse/adjustments
+  - alert [ref=e144]

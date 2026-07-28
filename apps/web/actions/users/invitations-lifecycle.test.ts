@@ -567,7 +567,10 @@ describe('invitation audit SQL contract', () => {
 
     expect(normalized).toMatch(/al\.resource_id\s*=\s*u\.id::text/i);
     expect(normalized).toMatch(/order by al\.resource_id,\s*al\.occurred_at asc/i);
-    expect(normalized).toMatch(/al\.resource_type\s*=\s*'user_invitation'/i);
+    // Both writers must be covered: inviteUser (invite.ts) stamps 'users' on the CREATION
+    // row while resend/revoke use 'user_invitation'. Pinning a single value made the reader
+    // match zero rows, so attribution silently fell through to Unknown — proven on production.
+    expect(normalized).toMatch(/al\.resource_type\s+in\s*\(\s*'user_invitation',\s*'users'\s*\)/i);
     expect(normalized).not.toMatch(/al\.created_at/i);
     expect(normalized).not.toMatch(/al\.resource_id\s*=\s*u\.id(?!\s*::text)/i);
   });

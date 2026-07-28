@@ -1,0 +1,67 @@
+- main [ref=f108e219]:
+  - generic [ref=f108e220]:
+    - navigation "breadcrumb" [ref=f108e441]: NPD / Pilot production
+    - heading "Pilot production" [level=1] [ref=f108e442]
+  - note [ref=f108e443]:
+    - strong [ref=f108e444]: "Scheduled pilot:"
+    - text: "2026-07-20 · MIXING — MIXING (bakery) · 12.345 kg batch · Supervisor: Unassigned"
+  - generic [ref=f108e227]:
+    - generic [ref=f108e228]:
+      - heading "Pilot work order" [level=3] [ref=f108e229]
+      - button "Create pilot WO" [ref=f108e230] [cursor=pointer]
+    - generic [ref=f108e231]:
+      - alert [ref=f108e498]:
+        - generic [ref=f108e499]: "ING-SUGAR: SUPPLIER_SPEC_NOT_ACTIVE"
+      - paragraph [ref=f108e232]: Create pilot WO
+  - generic [ref=f108e445]:
+    - generic [ref=f108e446]:
+      - heading "Pilot run plan" [level=3] [ref=f108e447]
+      - generic [ref=f108e448]:
+        - button "Edit plan" [ref=f108e449] [cursor=pointer]
+        - button "Delete plan" [ref=f108e450] [cursor=pointer]
+    - generic [ref=f108e452]:
+      - generic [ref=f108e453]:
+        - generic [ref=f108e454]: Line
+        - generic [ref=f108e455]: MIXING — MIXING (bakery)
+      - generic [ref=f108e456]:
+        - generic [ref=f108e457]: Batch size
+        - generic [ref=f108e458]: 12.345 kg
+      - generic [ref=f108e459]:
+        - generic [ref=f108e460]: Expected yield
+        - generic [ref=f108e461]: 87.65 %
+      - generic [ref=f108e462]:
+        - generic [ref=f108e463]: Duration
+        - generic [ref=f108e464]: 2.75 h
+  - generic [ref=f108e465]:
+    - heading "Material reservation" [level=3] [ref=f108e467]
+    - generic [ref=f108e468]:
+      - table [ref=f108e469]:
+        - rowgroup [ref=f108e470]:
+          - row [ref=f108e471]:
+            - columnheader "Ingredient" [ref=f108e472]
+            - columnheader "Required" [ref=f108e473]
+            - columnheader "Available" [ref=f108e474]
+            - columnheader "Reserved" [ref=f108e475]
+            - columnheader "Status" [ref=f108e476]
+        - rowgroup [ref=f108e477]:
+          - row [ref=f108e478]:
+            - cell "Caster Sugar ING-SUGAR" [ref=f108e479]:
+              - text: Caster Sugar
+              - generic [ref=f108e480]: ING-SUGAR
+            - cell "2.1794 kg" [ref=f108e481]
+            - cell "0 kg" [ref=f108e482]
+            - cell "0 kg" [ref=f108e483]
+            - cell "⚠ Short 2.1794 kg" [ref=f108e484]
+          - row [ref=f108e486]:
+            - cell "NIGHT-R05-L2-1020 WIP-20260717-0012" [ref=f108e487]:
+              - text: NIGHT-R05-L2-1020
+              - generic [ref=f108e488]: WIP-20260717-0012
+            - cell "10.1656 kg" [ref=f108e489]
+            - cell "0 kg" [ref=f108e490]
+            - cell "0 kg" [ref=f108e491]
+            - cell "⚠ Short 10.1656 kg" [ref=f108e492]
+      - alert [ref=f108e494]: Materials short by 12.345 kg. Raise a PO or reduce the batch size.
+  - generic [ref=f108e495]:
+    - heading "Pilot checklist" [level=3] [ref=f108e497]
+    - generic:
+      - list

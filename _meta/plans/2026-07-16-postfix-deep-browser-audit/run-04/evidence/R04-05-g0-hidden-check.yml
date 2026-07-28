@@ -1,0 +1,18 @@
+url: https://monopilot-kira.vercel.app/en/pipeline/e60aa78f-f093-48dc-baf3-50e312af783b/gate
+captured_at: 2026-07-17T08:43:23+01:00
+run: 04
+transition: "G0 Idea -> G1 Feasibility"
+visible_gate_state:
+  required_complete: 3
+  required_total: 3
+  status: "No blockers — ready to advance"
+  advance_button: enabled
+server_transition_result:
+  status: blocked
+  message: "Required stage checks are incomplete. Add an override note to continue."
+  hidden_blocker: "Core: Runs per week (estimate)"
+wizard_input:
+  runs_per_week: 2
+  validation: "Wizard accepted a whole number >= 1 and summarized the brief before creation."
+observation: "The gate checklist claims all required items are complete, but the transition exposes a separate hidden required check for a field already supplied in the creation wizard."
+candidate_severity: P1

@@ -1,0 +1,16 @@
+run: 04
+project_id: e60aa78f-f093-48dc-baf3-50e312af783b
+technical_surface:
+  banner: "Read-only. Sensory is a reported read model"
+  write_controls:
+    - "+ Record evaluation"
+    - "Edit"
+evaluation:
+  scores: ["8", "7", "9", "6", "7", "7"]
+  displayed_overall: "7.33"
+  manual_average: "(8+7+9+6+7+7)/6 = 7.333333..."
+  vs_benchmark: ["+1", "0", "+2", "-1", "0", "+1"]
+  manual_mean_delta: "(+1+0+2-1+0+1)/6 = +0.5"
+  displayed_verdict: "Below benchmark (7.3)"
+observation: "The numeric average is correct, but the verdict declares below benchmark because any negative attribute makes the whole panel negative; the badge interpolates the overall score rather than the benchmark delta."
+

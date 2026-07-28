@@ -1,0 +1,49 @@
+- region "Selected location" [ref=f18e343]:
+  - generic [ref=f18e410]:
+    - generic [ref=f18e411]:
+      - generic [ref=f18e412]:
+        - heading "R02-BIN1 — NIGHT R02 Bin 1 Edited" [level=2] [ref=f18e536]
+        - paragraph [ref=f18e414]: R02-ZONE › R02-BIN1
+      - generic [ref=f18e415]:
+        - generic [ref=f18e416]: storage
+        - generic [ref=f18e417]: ○ Inactive
+        - button "Edit" [ref=f18e418] [cursor=pointer]
+        - button "+ Child" [ref=f18e419] [cursor=pointer]
+        - button "Delete" [ref=f18e420] [cursor=pointer]
+    - generic [ref=f18e421]:
+      - generic [ref=f18e422]:
+        - generic [ref=f18e423]: Warehouse
+        - generic [ref=f18e424]: N17R02WH — NIGHT R02 Warehouse Edited
+      - generic [ref=f18e425]:
+        - generic [ref=f18e426]: Site
+        - generic [ref=f18e427]: N17R02 — NIGHT-R02 Site 0731
+      - generic [ref=f18e428]:
+        - generic [ref=f18e429]: LPs here
+        - generic [ref=f18e430]: "0"
+      - generic [ref=f18e431]:
+        - generic [ref=f18e432]: Parent
+        - generic [ref=f18e433]: R02-ZONE
+      - generic [ref=f18e434]:
+        - generic [ref=f18e435]: Depth level
+        - generic [ref=f18e436]: L2
+      - generic [ref=f18e437]:
+        - generic [ref=f18e438]: Barcode
+        - generic [ref=f18e439]: No barcode
+  - generic [ref=f18e344]:
+    - generic [ref=f18e345]:
+      - heading "LPs at this location (0)" [level=3] [ref=f18e346]
+      - link "Open full LP list →" [ref=f18e347] [cursor=pointer]:
+        - /url: /en/warehouse/license-plates
+    - table "LPs at this location" [ref=f18e348]:
+      - rowgroup [ref=f18e349]:
+        - row [ref=f18e350]:
+          - columnheader "LP" [ref=f18e351]
+          - columnheader "Product" [ref=f18e352]
+          - columnheader "Qty" [ref=f18e353]
+          - columnheader "Batch" [ref=f18e354]
+          - columnheader "Expiry" [ref=f18e355]
+          - columnheader "Status" [ref=f18e356]
+          - columnheader "QA" [ref=f18e357]
+      - rowgroup [ref=f18e358]:
+        - row [ref=f18e359]:
+          - cell "No LPs at this location." [ref=f18e360]

@@ -1,0 +1,166 @@
+- generic [ref=f5e1]:
+  - generic [ref=f5e2]:
+    - banner [ref=f5e4]:
+      - generic "MonoPilot MES" [ref=f5e5]
+      - searchbox "Search settings…" [ref=f5e7]
+      - generic [ref=f5e8]:
+        - button "Switch organization (platform admin)" [ref=f5e10] [cursor=pointer]:
+          - generic [ref=f5e11]: A2
+          - generic [ref=f5e12]: "000000000000"
+          - generic [ref=f5e13]: Apex 22
+          - generic [ref=f5e14]: ▼
+        - generic "Filters work orders, license plates and OEE only — other screens stay org-wide" [ref=f5e15]:
+          - generic [ref=f5e16]: Site
+          - combobox "Site" [ref=f5e17] [cursor=pointer]:
+            - option "All sites"
+            - option "tester1"
+            - option "CODEX-R14 SITE"
+            - option "Main Factory" [selected]
+            - option "makery"
+            - option "SOL-R02 Site 0539 Edited"
+            - option "warehouse 1"
+        - button "Notifications" [ref=f5e19]
+        - button "Open user menu for Apex Admin" [ref=f5e24]: AA
+    - navigation "Primary" [ref=f5e25]:
+      - generic [ref=f5e26]:
+        - generic [ref=f5e27]:
+          - heading "Core" [level=2] [ref=f5e28]
+          - generic [ref=f5e29]:
+            - link "Dashboard" [ref=f5e30] [cursor=pointer]:
+              - /url: /en/dashboard
+              - generic [ref=f5e31]: ◆
+            - link "Settings" [ref=f5e34] [cursor=pointer]:
+              - /url: /en/settings
+              - generic [ref=f5e35]: ⚙
+        - generic [ref=f5e38]:
+          - heading "Operations" [level=2] [ref=f5e39]
+          - generic [ref=f5e40]:
+            - link "Planning" [ref=f5e41] [cursor=pointer]:
+              - /url: /en/planning
+              - generic [ref=f5e42]: ▤
+            - link "Freight" [ref=f5e45] [cursor=pointer]:
+              - /url: /en/planning/carriers
+              - generic [ref=f5e46]: F
+            - link "Scheduler" [ref=f5e49] [cursor=pointer]:
+              - /url: /en/scheduler
+              - generic [ref=f5e50]: ⧗
+            - link "Production" [ref=f5e53] [cursor=pointer]:
+              - /url: /en/production
+              - generic [ref=f5e54]: ⚒
+            - link "Yard" [ref=f5e57] [cursor=pointer]:
+              - /url: /en/yard
+              - generic [ref=f5e58]: "Y"
+            - link "Warehouse" [ref=f5e61] [cursor=pointer]:
+              - /url: /en/warehouse
+              - generic [ref=f5e62]: ▥
+            - link "Scanner" [ref=f5e65] [cursor=pointer]:
+              - /url: /en/scanner/home
+              - generic [ref=f5e66]: 📱
+        - generic [ref=f5e69]:
+          - heading "QA & Shipping" [level=2] [ref=f5e70]
+          - generic [ref=f5e71]:
+            - link "Quality" [ref=f5e72] [cursor=pointer]:
+              - /url: /en/quality
+              - generic [ref=f5e73]: ✓
+            - link "Shipping" [ref=f5e76] [cursor=pointer]:
+              - /url: /en/shipping
+              - generic [ref=f5e77]: →
+        - generic [ref=f5e80]:
+          - heading "Premium" [level=2] [ref=f5e81]
+          - generic [ref=f5e82]:
+            - link "Technical" [ref=f5e83] [cursor=pointer]:
+              - /url: /en/technical
+              - generic [ref=f5e84]: ▦
+            - link "NPD" [ref=f5e87] [cursor=pointer]:
+              - /url: /en/pipeline
+              - generic [ref=f5e88]: ★
+            - link "Finance" [ref=f5e91] [cursor=pointer]:
+              - /url: /en/finance
+              - generic [ref=f5e92]: $
+            - link "OEE" [ref=f5e95] [cursor=pointer]:
+              - /url: /en/oee
+              - generic [ref=f5e96]: ◉
+            - link "Maintenance" [ref=f5e99] [cursor=pointer]:
+              - /url: /en/maintenance
+              - generic [ref=f5e100]: 🔧
+        - generic [ref=f5e103]:
+          - heading "Analytics & Network" [level=2] [ref=f5e104]
+          - generic [ref=f5e105]:
+            - link "Reporting" [ref=f5e106] [cursor=pointer]:
+              - /url: /en/reporting
+              - generic [ref=f5e107]: ▧
+            - link "Multi-Site" [ref=f5e110] [cursor=pointer]:
+              - /url: /en/multi-site
+              - generic [ref=f5e111]: ❖
+    - main [ref=f5e114]:
+      - main [ref=f5e115]:
+        - generic [ref=f5e117]:
+          - navigation "Breadcrumb" [ref=f5e118]:
+            - list [ref=f5e119]:
+              - listitem [ref=f5e120]:
+                - generic [ref=f5e121]: Planning
+              - listitem [ref=f5e122]:
+                - generic [ref=f5e123]: /
+                - generic [ref=f5e124]: Transfer orders
+          - generic [ref=f5e125]:
+            - heading "Transfer orders" [level=1] [ref=f5e126]
+            - paragraph [ref=f5e127]: Inter-warehouse transfers
+        - generic [ref=f5e128]:
+          - generic [ref=f5e129]:
+            - searchbox "Search TO number…" [ref=f5e131]
+            - generic [ref=f5e132]:
+              - link "Import TOs" [ref=f5e133] [cursor=pointer]:
+                - /url: /en/planning/transfer-orders/import
+              - button "+ Create TO" [active] [ref=f5e134] [cursor=pointer]
+          - tablist "All" [ref=f5e135]:
+            - tab "All3" [selected] [ref=f5e356]
+            - tab "Draft1" [ref=f5e357]
+            - tab "In transit0" [ref=f5e138]
+            - tab "Received0" [ref=f5e139]
+            - tab "Cancelled2" [ref=f5e140]
+            - tab "Archive0" [ref=f5e141] [cursor=pointer]
+            - generic [ref=f5e142]: 3 rows
+          - generic [ref=f5e143]:
+            - table [ref=f5e144]:
+              - rowgroup [ref=f5e145]:
+                - row [ref=f5e146]:
+                  - columnheader "TO number" [ref=f5e147]
+                  - columnheader "From" [ref=f5e148]
+                  - columnheader "To" [ref=f5e149]
+                  - columnheader "Scheduled" [ref=f5e150]
+                  - columnheader "Status" [ref=f5e151]
+                  - columnheader "Lines" [ref=f5e152]
+              - rowgroup [ref=f5e153]:
+                - row [ref=f5e154]:
+                  - cell [ref=f5e155]:
+                    - link "SOL-R10-20260715-1600-TO" [ref=f5e156] [cursor=pointer]:
+                      - /url: /en/planning/transfer-orders/5d383039-1fb6-44c5-80f8-d179c6cf5e79
+                  - cell "PRODUCTION" [ref=f5e157]
+                  - cell "WH1" [ref=f5e158]
+                  - cell "Jul 17, 2026" [ref=f5e159]
+                  - cell "Cancelled" [ref=f5e160]
+                  - cell "2 lines" [ref=f5e162]
+                - row [ref=f5e358]:
+                  - cell [ref=f5e359]:
+                    - link "NIGHT-R10-TO-174328" [ref=f5e360] [cursor=pointer]:
+                      - /url: /en/planning/transfer-orders/ec7c74d4-a68b-4c2d-b532-cc746dd36f38
+                  - cell "WH1" [ref=f5e361]
+                  - cell "BAKERY" [ref=f5e362]
+                  - cell "Jul 19, 2026" [ref=f5e363]
+                  - cell "Draft" [ref=f5e364]
+                  - cell "2 lines" [ref=f5e366]
+                - row [ref=f5e164]:
+                  - cell [ref=f5e165]:
+                    - link "CODEX-R15-TO-20260714" [ref=f5e166] [cursor=pointer]:
+                      - /url: /en/planning/transfer-orders/111b8b04-eae0-479d-b5dc-59e53dc346b5
+                  - cell "PRODUCTION" [ref=f5e167]
+                  - cell "BAKERY" [ref=f5e168]
+                  - cell "Jul 21, 2026" [ref=f5e169]
+                  - cell "Cancelled" [ref=f5e170]
+                  - cell "1 lines" [ref=f5e172]
+            - generic [ref=f5e174]:
+              - generic [ref=f5e175]: Showing 3 of 3
+              - generic [ref=f5e176]:
+                - generic [ref=f5e177]: Previous
+                - generic [ref=f5e178]: Next
+  - alert [ref=f5e179]

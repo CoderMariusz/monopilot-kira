@@ -1,0 +1,92 @@
+- generic [ref=f13e123]:
+  - generic [ref=f13e124]:
+    - generic [ref=f13e125]:
+      - link "← Back to license plates" [ref=f13e126] [cursor=pointer]:
+        - /url: /en/warehouse/license-plates
+      - heading "LP-7A6E5C1FE645 Butter" [level=1] [ref=f13e127]:
+        - generic [ref=f13e128]: LP-7A6E5C1FE645
+        - generic [ref=f13e129]: Butter
+      - paragraph [ref=f13e130]: 2.345000 kg · Batch NIGHT-R08-SB-1400 · Expiry 2026-07-24
+    - generic [ref=f13e131]: On hold
+  - generic [ref=f13e134]:
+    - generic [ref=f13e135]:
+      - heading "Identity" [level=2] [ref=f13e136]
+      - generic [ref=f13e137]:
+        - generic [ref=f13e138]: Product
+        - generic [ref=f13e139]:
+          - text: RM-BUTTER
+          - generic [ref=f13e140]: — Butter
+      - generic [ref=f13e141]:
+        - generic [ref=f13e142]: Quantity
+        - generic [ref=f13e143]: 2.345000 kg
+      - generic [ref=f13e145]:
+        - generic [ref=f13e146]: Available
+        - generic [ref=f13e147]: 2.345000 kg
+      - generic [ref=f13e149]:
+        - generic [ref=f13e150]: Batch
+        - generic [ref=f13e151]: NIGHT-R08-SB-1400
+      - generic [ref=f13e152]:
+        - generic [ref=f13e153]: Supplier batch
+        - generic [ref=f13e154]: —
+      - generic [ref=f13e155]:
+        - generic [ref=f13e156]: Expiry date
+        - generic [ref=f13e157]: 2026-07-24
+      - generic [ref=f13e158]:
+        - generic [ref=f13e159]: Location
+        - generic [ref=f13e160]:
+          - text: RECV
+          - generic [ref=f13e161]: — Receiving Bay
+      - generic [ref=f13e162]:
+        - generic [ref=f13e163]: Warehouse
+        - generic [ref=f13e164]:
+          - text: WH1
+          - generic [ref=f13e165]: — Main Warehouse
+      - generic [ref=f13e166]:
+        - generic [ref=f13e167]: Source
+        - generic [ref=f13e168]: split
+      - generic [ref=f13e169]:
+        - generic [ref=f13e170]: Parent LP
+        - link "LP-1784297297223-HFWI" [ref=f13e172] [cursor=pointer]:
+          - /url: /en/warehouse/license-plates/0d838aa9-a350-4fa9-b3df-1286f9cd48a8
+      - generic [ref=f13e173]:
+        - button "Split" [disabled] [ref=f13e174]
+        - button "Merge" [disabled] [ref=f13e175]
+        - button "Change QA status" [disabled] [ref=f13e176]
+        - button "Reserve" [disabled] [ref=f13e177]
+        - button "Move" [ref=f13e178]
+        - button "Unblock" [ref=f13e248]
+        - button "Destroy / scrap" [ref=f13e180]
+        - button "Edit metadata…" [ref=f13e181]
+      - paragraph [ref=f13e182]: Available actions are determined by the LP state machine. Split, Merge, and Destroy are live.
+    - generic [ref=f13e183]:
+      - tablist "Identity" [ref=f13e184]:
+        - tab "Overview" [selected] [ref=f13e185]
+        - tab "State history" [ref=f13e186]
+        - tab "Reservations" [ref=f13e187]
+        - tab "Movements" [ref=f13e188]
+        - tab "Genealogy" [ref=f13e189]
+        - tab "Labels" [ref=f13e190]
+        - tab "Raw" [ref=f13e191]
+      - generic [ref=f13e192]:
+        - heading "Identity snapshot" [level=3] [ref=f13e193]
+        - generic [ref=f13e194]:
+          - term [ref=f13e195]: Product
+          - definition [ref=f13e196]: RM-BUTTER — Butter
+          - term [ref=f13e197]: Quantity
+          - definition [ref=f13e198]: 2.345000 kg
+          - term [ref=f13e199]: Reserved
+          - definition [ref=f13e200]: 0.000000 kg
+          - term [ref=f13e201]: Available
+          - definition [ref=f13e202]: 2.345000 kg
+          - term [ref=f13e203]: Batch
+          - definition [ref=f13e204]: NIGHT-R08-SB-1400
+          - term [ref=f13e205]: Expiry date
+          - definition [ref=f13e206]: 2026-07-24
+          - term [ref=f13e207]: Location
+          - definition [ref=f13e208]: RECV
+          - term [ref=f13e209]: Warehouse
+          - definition [ref=f13e210]: WH1
+          - term [ref=f13e211]: Source
+          - definition [ref=f13e212]: split
+          - term [ref=f13e213]: Parent LP
+          - definition [ref=f13e214]: LP-1784297297223-HFWI

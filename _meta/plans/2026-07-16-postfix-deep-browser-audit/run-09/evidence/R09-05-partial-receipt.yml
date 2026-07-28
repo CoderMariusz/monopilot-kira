@@ -1,0 +1,265 @@
+- generic:
+  - alert
+  - generic:
+    - generic:
+      - banner:
+        - generic: MonoPilot MES
+        - generic:
+          - searchbox
+        - generic:
+          - generic:
+            - button:
+              - generic: A2
+              - generic: "000000000000"
+              - generic: Apex 22
+              - generic: ▼
+          - generic:
+            - generic: Site
+            - combobox
+          - generic:
+            - button
+          - generic:
+            - button: AA
+    - navigation:
+      - generic:
+        - generic:
+          - heading [level=2]: Core
+          - generic:
+            - link:
+              - /url: /en/dashboard
+              - generic: ◆
+              - generic: Dashboard
+            - link:
+              - /url: /en/settings
+              - generic: ⚙
+              - generic: Settings
+        - generic:
+          - heading [level=2]: Operations
+          - generic:
+            - link:
+              - /url: /en/planning
+              - generic: ▤
+              - generic: Planning
+            - link:
+              - /url: /en/planning/carriers
+              - generic: F
+              - generic: Freight
+            - link:
+              - /url: /en/scheduler
+              - generic: ⧗
+              - generic: Scheduler
+            - link:
+              - /url: /en/production
+              - generic: ⚒
+              - generic: Production
+            - link:
+              - /url: /en/yard
+              - generic: "Y"
+              - generic: Yard
+            - link:
+              - /url: /en/warehouse
+              - generic: ▥
+              - generic: Warehouse
+            - link:
+              - /url: /en/scanner/home
+              - generic: 📱
+              - generic: Scanner
+        - generic:
+          - heading [level=2]: QA & Shipping
+          - generic:
+            - link:
+              - /url: /en/quality
+              - generic: ✓
+              - generic: Quality
+            - link:
+              - /url: /en/shipping
+              - generic: →
+              - generic: Shipping
+        - generic:
+          - heading [level=2]: Premium
+          - generic:
+            - link:
+              - /url: /en/technical
+              - generic: ▦
+              - generic: Technical
+            - link:
+              - /url: /en/pipeline
+              - generic: ★
+              - generic: NPD
+            - link:
+              - /url: /en/finance
+              - generic: $
+              - generic: Finance
+            - link:
+              - /url: /en/oee
+              - generic: ◉
+              - generic: OEE
+            - link:
+              - /url: /en/maintenance
+              - generic: 🔧
+              - generic: Maintenance
+        - generic:
+          - heading [level=2]: Analytics & Network
+          - generic:
+            - link:
+              - /url: /en/reporting
+              - generic: ▧
+              - generic: Reporting
+            - link:
+              - /url: /en/multi-site
+              - generic: ❖
+              - generic: Multi-Site
+    - main:
+      - main:
+        - generic:
+          - generic:
+            - navigation:
+              - list:
+                - listitem:
+                  - link:
+                    - /url: /en/planning
+                    - text: Planning
+                - listitem:
+                  - generic: /
+                  - link:
+                    - /url: /en/planning/purchase-orders
+                    - text: Purchase orders
+                - listitem:
+                  - generic: /
+                  - generic: Detail
+            - generic:
+              - heading [level=1]: Purchase order
+        - generic:
+          - generic:
+            - generic:
+              - generic: PO-R09-144638
+              - generic: NIGHT-R09-20260717T144638Z Supplier
+              - generic: Partially received
+            - generic:
+              - generic:
+                - generic:
+                  - generic: PO lines · 1
+                  - table:
+                    - rowgroup:
+                      - row:
+                        - columnheader: "#"
+                        - columnheader: Item
+                        - columnheader: Qty
+                        - columnheader: UoM
+                        - columnheader: Unit price
+                        - columnheader: Tax %
+                        - columnheader: Line total
+                        - columnheader: Received
+                        - columnheader
+                    - rowgroup:
+                      - row:
+                        - cell: "1"
+                        - cell
+                        - cell: "12.375000"
+                        - cell: kg
+                        - cell: 1.23 GBP
+                        - cell: 5.5000%
+                        - cell: 16.1171 GBP
+                        - cell
+                        - cell
+                - generic:
+                  - generic: Notes
+                  - generic: NIGHT-R09-20260717T144638Z MRP open supply
+              - generic:
+                - generic:
+                  - generic: PO summary
+                  - generic:
+                    - generic:
+                      - term: Supplier
+                      - definition: NIGHT-R09-20260717T144638Z Supplier
+                    - generic:
+                      - term: Status
+                      - definition:
+                        - generic: Partially received
+                    - generic:
+                      - term: Expected delivery
+                      - definition: Jul 20, 2026
+                    - generic:
+                      - term: Currency
+                      - definition: GBP
+                    - generic:
+                      - term: Destination warehouse
+                      - definition: Main Warehouse
+                    - generic:
+                      - term: Created
+                      - definition: Jul 17, 2026
+                    - generic:
+                      - generic:
+                        - term: Receipt progress
+                        - definition: 0 / 1 lines
+                    - generic:
+                      - term: Net
+                      - definition: 15.2769 GBP
+                    - generic:
+                      - term: Tax
+                      - definition: 0.8402 GBP
+                    - generic:
+                      - term: Total (gross)
+                      - definition: 16.1171 GBP
+                - generic:
+                  - generic: Related goods receipts
+                  - list:
+                    - listitem:
+                      - link:
+                        - /url: /en/warehouse/grns/bf9767cf-7900-4057-894c-1f52dae9623b
+                        - text: GRN-20260717-0003
+                      - text: draft
+                - generic:
+                  - generic: Status
+                  - generic:
+                    - button: Cancel PO
+          - group:
+            - generic:
+              - generic:
+                - generic:
+                  - heading [level=2]: History
+                  - paragraph: Read-only audit trail for this document.
+                - generic: ▾
+            - generic:
+              - generic:
+                - list:
+                  - listitem:
+                    - generic:
+                      - generic:
+                        - generic: Audit event
+                        - generic: planning.purchase_order.status_changed
+                      - generic:
+                        - time: 17 Jul 2026, 16:03
+                        - text: · Admin
+                      - group:
+                        - generic: Details
+                  - listitem:
+                    - generic:
+                      - generic:
+                        - generic: Audit event
+                        - generic: planning.purchase_order.status_changed
+                      - generic:
+                        - time: 17 Jul 2026, 16:02
+                        - text: · Admin
+                      - group:
+                        - generic: Details
+                  - listitem:
+                    - generic:
+                      - generic:
+                        - generic: Audit event
+                        - generic: planning.purchase_order.created
+                      - generic:
+                        - time: 17 Jul 2026, 16:02
+                        - text: · Admin
+                      - group:
+                        - generic: Details
+  - dialog [active] [ref=e4819]:
+    - generic [ref=e4820]:
+      - heading "Receive PO line" [level=2] [ref=e4821]
+      - button "Close" [ref=e4822] [cursor=pointer]: ✕
+    - generic [ref=e4824]:
+      - generic [ref=e4825]:
+        - text: RM-R09-144638 NIGHT-R09-20260717T144638Z Raw Material
+        - generic [ref=e4826]: Ordered 12.375000 kg
+      - status [ref=e4850]: Received 7.125 kg — GRN GRN-20260717-0003, LP LP-1784300629425-8DKW.
+    - button "Cancel" [ref=e4848] [cursor=pointer]

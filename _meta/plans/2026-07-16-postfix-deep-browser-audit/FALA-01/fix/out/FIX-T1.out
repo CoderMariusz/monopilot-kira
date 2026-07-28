@@ -1,0 +1,23 @@
+## FILES TOUCHED
+
+- [invite.ts](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/actions/users/invite.ts)
+- [invite.behavior.test.ts](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/actions/users/invite.behavior.test.ts)
+
+## FIX per blocker
+
+- B1 → `public.users.id` i `user_sites.user_id` używają UUID z Supabase Auth.
+- B2 → błędy po zapisie propagują się przez `withOrgContext`; mapowanie następuje po rollbacku.
+- B3 → nazwa site trafia wyłącznie do parametru tekstowego; UUID ma osobny nullable parametr.
+- B4 → brak site odrzucany dla ról site-restricted; wyjątek oparty na kanonicznych slugach all-site.
+
+## MIGRATION
+
+Brak.
+
+## TEST
+
+Dodano regresje B1–B4 oraz poprawiono mock „Warsaw Plant”. Testów/build/lint/git nie uruchamiano zgodnie z poleceniem.
+
+## UNCERTAINTIES
+
+Istniejące invite’y z `public.users.id ≠ auth.users.id` pozostają bez zmian; wymagają osobnej, kontrolowanej rekonsyliacji danych.

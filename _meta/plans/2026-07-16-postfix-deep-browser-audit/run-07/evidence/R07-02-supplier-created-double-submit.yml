@@ -1,0 +1,208 @@
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - banner [ref=f1e4]:
+      - generic "MonoPilot MES" [ref=f1e5]
+      - searchbox "Search settings…" [ref=f1e7]
+      - generic [ref=f1e8]:
+        - button "Switch organization (platform admin)" [ref=f1e10] [cursor=pointer]:
+          - generic [ref=f1e11]: A2
+          - generic [ref=f1e12]: "000000000000"
+          - generic [ref=f1e13]: Apex 22
+          - generic [ref=f1e14]: ▼
+        - generic "Filters work orders, license plates and OEE only — other screens stay org-wide" [ref=f1e15]:
+          - generic [ref=f1e16]: Site
+          - combobox "Site" [ref=f1e17] [cursor=pointer]:
+            - option "All sites" [selected]
+            - option "tester1"
+            - option "CODEX-R14 SITE"
+            - option "Main Factory"
+            - option "makery"
+            - option "SOL-R02 Site 0539 Edited"
+            - option "warehouse 1"
+        - button "Notifications" [ref=f1e19]
+        - button "Open user menu for Apex Admin" [ref=f1e24]: AA
+    - navigation "Primary" [ref=f1e25]:
+      - generic [ref=f1e26]:
+        - generic [ref=f1e27]:
+          - heading "Core" [level=2] [ref=f1e28]
+          - generic [ref=f1e29]:
+            - link "Dashboard" [ref=f1e30] [cursor=pointer]:
+              - /url: /en/dashboard
+              - generic [ref=f1e31]: ◆
+            - link "Settings" [ref=f1e34] [cursor=pointer]:
+              - /url: /en/settings
+              - generic [ref=f1e35]: ⚙
+        - generic [ref=f1e38]:
+          - heading "Operations" [level=2] [ref=f1e39]
+          - generic [ref=f1e40]:
+            - link "Planning" [ref=f1e41] [cursor=pointer]:
+              - /url: /en/planning
+              - generic [ref=f1e42]: ▤
+            - link "Freight" [ref=f1e45] [cursor=pointer]:
+              - /url: /en/planning/carriers
+              - generic [ref=f1e46]: F
+            - link "Scheduler" [ref=f1e49] [cursor=pointer]:
+              - /url: /en/scheduler
+              - generic [ref=f1e50]: ⧗
+            - link "Production" [ref=f1e53] [cursor=pointer]:
+              - /url: /en/production
+              - generic [ref=f1e54]: ⚒
+            - link "Yard" [ref=f1e57] [cursor=pointer]:
+              - /url: /en/yard
+              - generic [ref=f1e58]: "Y"
+            - link "Warehouse" [ref=f1e61] [cursor=pointer]:
+              - /url: /en/warehouse
+              - generic [ref=f1e62]: ▥
+            - link "Scanner" [ref=f1e65] [cursor=pointer]:
+              - /url: /en/scanner/home
+              - generic [ref=f1e66]: 📱
+        - generic [ref=f1e69]:
+          - heading "QA & Shipping" [level=2] [ref=f1e70]
+          - generic [ref=f1e71]:
+            - link "Quality" [ref=f1e72] [cursor=pointer]:
+              - /url: /en/quality
+              - generic [ref=f1e73]: ✓
+            - link "Shipping" [ref=f1e76] [cursor=pointer]:
+              - /url: /en/shipping
+              - generic [ref=f1e77]: →
+        - generic [ref=f1e80]:
+          - heading "Premium" [level=2] [ref=f1e81]
+          - generic [ref=f1e82]:
+            - link "Technical" [ref=f1e83] [cursor=pointer]:
+              - /url: /en/technical
+              - generic [ref=f1e84]: ▦
+            - link "NPD" [ref=f1e87] [cursor=pointer]:
+              - /url: /en/pipeline
+              - generic [ref=f1e88]: ★
+            - link "Finance" [ref=f1e91] [cursor=pointer]:
+              - /url: /en/finance
+              - generic [ref=f1e92]: $
+            - link "OEE" [ref=f1e95] [cursor=pointer]:
+              - /url: /en/oee
+              - generic [ref=f1e96]: ◉
+            - link "Maintenance" [ref=f1e99] [cursor=pointer]:
+              - /url: /en/maintenance
+              - generic [ref=f1e100]: 🔧
+        - generic [ref=f1e103]:
+          - heading "Analytics & Network" [level=2] [ref=f1e104]
+          - generic [ref=f1e105]:
+            - link "Reporting" [ref=f1e106] [cursor=pointer]:
+              - /url: /en/reporting
+              - generic [ref=f1e107]: ▧
+            - link "Multi-Site" [ref=f1e110] [cursor=pointer]:
+              - /url: /en/multi-site
+              - generic [ref=f1e111]: ❖
+    - main [ref=f1e114]:
+      - main [ref=f1e145]:
+        - generic [ref=f1e147]:
+          - navigation "Breadcrumb" [ref=f1e148]:
+            - list [ref=f1e149]:
+              - listitem [ref=f1e150]:
+                - link "Planning" [ref=f1e151] [cursor=pointer]:
+                  - /url: /en/planning
+              - listitem [ref=f1e152]:
+                - generic [ref=f1e153]: /
+                - generic [ref=f1e154]: Suppliers
+          - generic [ref=f1e155]:
+            - heading "Supplier master" [level=1] [ref=f1e156]
+            - paragraph [ref=f1e157]: Soft-delete only — suppliers move between Active / Inactive / Blocked, history is preserved.
+        - generic [ref=f1e158]:
+          - generic [ref=f1e159]:
+            - generic [ref=f1e160]:
+              - generic [ref=f1e161]: Active suppliers
+              - generic [ref=f1e162]: "5"
+              - generic [ref=f1e163]: Available on purchase orders
+            - generic [ref=f1e164]:
+              - generic [ref=f1e165]: Inactive
+              - generic [ref=f1e166]: "2"
+              - generic [ref=f1e167]: Soft-deleted — kept for history
+            - generic [ref=f1e168]:
+              - generic [ref=f1e169]: Blocked
+              - generic [ref=f1e170]: "1"
+              - generic [ref=f1e171]: Cannot be used on new POs
+            - generic [ref=f1e172]:
+              - generic [ref=f1e173]: Avg lead time
+              - generic [ref=f1e174]: 5.8d
+              - generic [ref=f1e175]: Across active suppliers
+          - generic [ref=f1e176]:
+            - searchbox "Search supplier name or code…" [ref=f1e178]
+            - button "+ New supplier" [active] [ref=f1e179] [cursor=pointer]
+          - tablist "All" [ref=f1e180]:
+            - tab "All8" [ref=f1e301]
+            - tab "Active5" [selected] [ref=f1e302]
+            - tab "Inactive2" [ref=f1e183]
+            - tab "Blocked1" [ref=f1e184]
+            - generic [ref=f1e185]: 5 rows
+          - table [ref=f1e187]:
+            - rowgroup [ref=f1e188]:
+              - row [ref=f1e189]:
+                - columnheader "Code" [ref=f1e190]
+                - columnheader "Name" [ref=f1e191]
+                - columnheader "Contact" [ref=f1e192]
+                - columnheader "Currency" [ref=f1e193]
+                - columnheader "Lead time" [ref=f1e194]
+                - columnheader "Status" [ref=f1e195]
+                - columnheader "Actions" [ref=f1e196]
+            - rowgroup [ref=f1e197]:
+              - row [ref=f1e198]:
+                - cell "E2E-A-SUP-ACTIVE" [ref=f1e199]:
+                  - link "E2E-A-SUP-ACTIVE" [ref=f1e200] [cursor=pointer]:
+                    - /url: /en/planning/suppliers/a0000005-0000-4000-8000-000000000008
+                - cell "E2E Active Supplier" [ref=f1e201]
+                - cell "—" [ref=f1e202]
+                - cell "GBP" [ref=f1e203]
+                - cell "5d" [ref=f1e204]
+                - cell "Active" [ref=f1e205]
+                - cell "View" [ref=f1e207]:
+                  - link "View" [ref=f1e208] [cursor=pointer]:
+                    - /url: /en/planning/suppliers/a0000005-0000-4000-8000-000000000008
+              - row [ref=f1e209]:
+                - cell "LABEL" [ref=f1e210]:
+                  - link "LABEL" [ref=f1e211] [cursor=pointer]:
+                    - /url: /en/planning/suppliers/b08791b9-b980-4e92-b191-e93ec23d1bc8
+                - cell "labe" [ref=f1e212]
+                - cell "—" [ref=f1e213]
+                - cell "GBP" [ref=f1e214]
+                - cell "7d" [ref=f1e215]
+                - cell "Active" [ref=f1e216]
+                - cell "View" [ref=f1e218]:
+                  - link "View" [ref=f1e219] [cursor=pointer]:
+                    - /url: /en/planning/suppliers/b08791b9-b980-4e92-b191-e93ec23d1bc8
+              - row [ref=f1e220]:
+                - cell "MEAT" [ref=f1e221]:
+                  - link "MEAT" [ref=f1e222] [cursor=pointer]:
+                    - /url: /en/planning/suppliers/58761d8d-0adc-4ab5-ba41-718e3d2328cb
+                - cell "maet sup" [ref=f1e223]
+                - cell "—" [ref=f1e224]
+                - cell "GBP" [ref=f1e225]
+                - cell "7d" [ref=f1e226]
+                - cell "Active" [ref=f1e227]
+                - cell "View" [ref=f1e229]:
+                  - link "View" [ref=f1e230] [cursor=pointer]:
+                    - /url: /en/planning/suppliers/58761d8d-0adc-4ab5-ba41-718e3d2328cb
+              - row [ref=f1e303]:
+                - cell "NIGHT-R07-SUP-1300" [ref=f1e304]:
+                  - link "NIGHT-R07-SUP-1300" [ref=f1e305] [cursor=pointer]:
+                    - /url: /en/planning/suppliers/7654ba3e-e141-41a0-89e1-07f78ca127a4
+                - cell "NIGHT R07 Decimal Supplier 1300" [ref=f1e306]
+                - cell "night-r07@example.test" [ref=f1e307]
+                - cell "GBP" [ref=f1e308]
+                - cell "3d" [ref=f1e309]
+                - cell "Active" [ref=f1e310]
+                - cell "View" [ref=f1e312]:
+                  - link "View" [ref=f1e313] [cursor=pointer]:
+                    - /url: /en/planning/suppliers/7654ba3e-e141-41a0-89e1-07f78ca127a4
+              - row [ref=f1e231]:
+                - cell "WEB" [ref=f1e232]:
+                  - link "WEB" [ref=f1e233] [cursor=pointer]:
+                    - /url: /en/planning/suppliers/6b20e90f-5544-4bce-b858-a088245da088
+                - cell "Web Foods Ltd." [ref=f1e234]
+                - cell "orders@webfoods.example" [ref=f1e235]
+                - cell "GBP" [ref=f1e236]
+                - cell "7d" [ref=f1e237]
+                - cell "Active" [ref=f1e238]
+                - cell "View" [ref=f1e240]:
+                  - link "View" [ref=f1e241] [cursor=pointer]:
+                    - /url: /en/planning/suppliers/6b20e90f-5544-4bce-b858-a088245da088
+          - generic [ref=f1e242]: Showing 5 of 8
+  - alert [ref=f1e144]

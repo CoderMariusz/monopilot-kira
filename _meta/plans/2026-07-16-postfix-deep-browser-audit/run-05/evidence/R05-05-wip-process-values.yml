@@ -1,0 +1,11 @@
+- listitem [ref=f99e291]:
+  - generic [ref=f99e292]:
+    - generic [ref=f99e293]: Mixing
+    - generic [ref=f99e294]:
+      - generic [ref=f99e295]: "Duration (h): 1.25"
+      - generic [ref=f99e296]: "Additional cost: 3.3333"
+      - button "Edit" [active] [ref=f99e297] [cursor=pointer]
+      - button "Remove" [ref=f99e298] [cursor=pointer]
+  - generic [ref=f99e299]:
+    - generic [ref=f99e300]: "Roles:"
+    - generic [ref=f99e301]: packer ×3

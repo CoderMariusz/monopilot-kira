@@ -1,0 +1,459 @@
+- generic [active] [ref=e1]:
+  - alert [ref=e39]
+  - generic [ref=e40]:
+    - banner [ref=e42]:
+      - generic "MonoPilot MES" [ref=e43]
+      - searchbox "Search settings…" [ref=e45]
+      - generic [ref=e46]:
+        - button "Switch organization (platform admin)" [ref=e48] [cursor=pointer]:
+          - generic [ref=e49]: A2
+          - generic [ref=e50]: "000000000000"
+          - generic [ref=e51]: Apex 22
+          - generic [ref=e52]: ▼
+        - generic "Filters work orders, license plates and OEE only — other screens stay org-wide" [ref=e53]:
+          - generic [ref=e54]: Site
+          - combobox "Site" [ref=e55] [cursor=pointer]:
+            - option "All sites"
+            - option "tester1"
+            - option "CODEX-R14 SITE"
+            - option "Main Factory" [selected]
+            - option "makery"
+            - option "SOL-R02 Site 0539 Edited"
+            - option "warehouse 1"
+        - button "Notifications" [ref=e57]
+        - button "Open user menu for Apex Admin" [ref=e62]: AA
+    - navigation "Primary" [ref=e63]:
+      - generic [ref=e64]:
+        - generic [ref=e65]:
+          - heading "Core" [level=2] [ref=e66]
+          - generic [ref=e67]:
+            - link "Dashboard" [ref=e68] [cursor=pointer]:
+              - /url: /en/dashboard
+              - generic [ref=e69]: ◆
+            - link "Settings" [ref=e72] [cursor=pointer]:
+              - /url: /en/settings
+              - generic [ref=e73]: ⚙
+        - generic [ref=e76]:
+          - heading "Operations" [level=2] [ref=e77]
+          - generic [ref=e78]:
+            - link "Planning" [ref=e79] [cursor=pointer]:
+              - /url: /en/planning
+              - generic [ref=e80]: ▤
+            - link "Freight" [ref=e83] [cursor=pointer]:
+              - /url: /en/planning/carriers
+              - generic [ref=e84]: F
+            - link "Scheduler" [ref=e87] [cursor=pointer]:
+              - /url: /en/scheduler
+              - generic [ref=e88]: ⧗
+            - link "Production" [ref=e91] [cursor=pointer]:
+              - /url: /en/production
+              - generic [ref=e92]: ⚒
+            - link "Yard" [ref=e95] [cursor=pointer]:
+              - /url: /en/yard
+              - generic [ref=e96]: "Y"
+            - link "Warehouse" [ref=e99] [cursor=pointer]:
+              - /url: /en/warehouse
+              - generic [ref=e100]: ▥
+            - link "Scanner" [ref=e103] [cursor=pointer]:
+              - /url: /en/scanner/home
+              - generic [ref=e104]: 📱
+        - generic [ref=e107]:
+          - heading "QA & Shipping" [level=2] [ref=e108]
+          - generic [ref=e109]:
+            - link "Quality" [ref=e110] [cursor=pointer]:
+              - /url: /en/quality
+              - generic [ref=e111]: ✓
+            - link "Shipping" [ref=e114] [cursor=pointer]:
+              - /url: /en/shipping
+              - generic [ref=e115]: →
+        - generic [ref=e118]:
+          - heading "Premium" [level=2] [ref=e119]
+          - generic [ref=e120]:
+            - link "Technical" [ref=e121] [cursor=pointer]:
+              - /url: /en/technical
+              - generic [ref=e122]: ▦
+            - link "NPD" [ref=e125] [cursor=pointer]:
+              - /url: /en/pipeline
+              - generic [ref=e126]: ★
+            - link "Finance" [ref=e129] [cursor=pointer]:
+              - /url: /en/finance
+              - generic [ref=e130]: $
+            - link "OEE" [ref=e133] [cursor=pointer]:
+              - /url: /en/oee
+              - generic [ref=e134]: ◉
+            - link "Maintenance" [ref=e137] [cursor=pointer]:
+              - /url: /en/maintenance
+              - generic [ref=e138]: 🔧
+        - generic [ref=e141]:
+          - heading "Analytics & Network" [level=2] [ref=e142]
+          - generic [ref=e143]:
+            - link "Reporting" [ref=e144] [cursor=pointer]:
+              - /url: /en/reporting
+              - generic [ref=e145]: ▧
+            - link "Multi-Site" [ref=e148] [cursor=pointer]:
+              - /url: /en/multi-site
+              - generic [ref=e149]: ❖
+    - main [ref=e152]:
+      - main [ref=e358]:
+        - generic [ref=e360]:
+          - navigation "Breadcrumb" [ref=e361]:
+            - list [ref=e362]:
+              - listitem [ref=e363]:
+                - generic [ref=e364]: Planning
+              - listitem [ref=e365]:
+                - generic [ref=e366]: /
+                - generic [ref=e367]: Work orders
+          - generic [ref=e368]:
+            - heading "Work orders" [level=1] [ref=e369]
+            - paragraph [ref=e370]: Plan, release and track production work orders.
+        - generic [ref=e371]:
+          - status [ref=e372]: 2 work orders created — root WO-202607-0030.
+          - generic [ref=e373]:
+            - searchbox "Search WO number or item code…" [ref=e375]
+            - generic [ref=e376]:
+              - link "Import WOs" [ref=e377] [cursor=pointer]:
+                - /url: /en/planning/work-orders/import
+              - button "+ Create WO" [ref=e378] [cursor=pointer]
+          - tablist "All" [ref=e379]:
+            - tab "All28" [selected] [ref=e380]
+            - tab "Draft8" [ref=e381]
+            - tab "Released0" [ref=e382]
+            - tab "In progress3" [ref=e383]
+            - tab "On hold0" [ref=e384]
+            - tab "Completed1" [ref=e385]
+            - tab "Archive0" [ref=e386] [cursor=pointer]
+            - generic [ref=e387]: 28 rows
+          - generic [ref=e388]:
+            - table [ref=e389]:
+              - rowgroup [ref=e390]:
+                - row [ref=e391]:
+                  - columnheader "WO" [ref=e392]
+                  - columnheader "Product" [ref=e393]
+                  - columnheader "Status" [ref=e394]
+                  - columnheader "Qty" [ref=e395]
+                  - columnheader "Scheduled start" [ref=e396]
+                  - columnheader "Line" [ref=e397]
+                  - columnheader "BOM" [ref=e398]
+                  - columnheader [ref=e399]
+              - rowgroup [ref=e400]:
+                - row [ref=e401]:
+                  - cell [ref=e402]:
+                    - link "WO-202607-0018" [ref=e403] [cursor=pointer]:
+                      - /url: /en/planning/work-orders/b503edfc-9d96-4495-aac8-24263e3c66c8
+                  - cell "FG0014" [ref=e404]
+                  - cell "Cancelled" [ref=e405]
+                  - cell "15.000 kg" [ref=e407]
+                  - cell "Jul 13, 2026" [ref=e408]
+                  - cell "LINE02" [ref=e409]
+                  - cell "BOM" [ref=e410]
+                  - cell [ref=e412]
+                - row [ref=e413]:
+                  - cell [ref=e414]:
+                    - link "WO-202607-0018-W1" [ref=e415] [cursor=pointer]:
+                      - /url: /en/planning/work-orders/7144ec99-f2e7-45b7-98f0-2a6fea6b4de0
+                  - cell "WIP-20260707-0006" [ref=e416]
+                  - cell "Cancelled" [ref=e417]
+                  - cell "12.600 kg" [ref=e419]
+                  - cell "Jul 13, 2026" [ref=e420]
+                  - cell "LINE02" [ref=e421]
+                  - cell "BOM" [ref=e422]
+                  - cell [ref=e424]
+                - row [ref=e425]:
+                  - cell [ref=e426]:
+                    - link "WO-202607-0013-W1" [ref=e427] [cursor=pointer]:
+                      - /url: /en/planning/work-orders/233b13ac-e4a5-4e6b-9e7e-ec6930214b5e
+                  - cell "WIP-20260707-0006" [ref=e428]
+                  - cell "Cancelled" [ref=e429]
+                  - cell "8.820 kg" [ref=e431]
+                  - cell "Jul 14, 2026" [ref=e432]
+                  - cell "LINE02" [ref=e433]
+                  - cell "BOM" [ref=e434]
+                  - cell [ref=e436]
+                - row [ref=e437]:
+                  - cell [ref=e438]:
+                    - link "WO-202607-0026" [ref=e439] [cursor=pointer]:
+                      - /url: /en/planning/work-orders/ea97d0c1-11be-460e-b596-772a34974be2
+                  - cell "FG0014" [ref=e440]
+                  - cell "Cancelled" [ref=e441]
+                  - cell "1.500 kg" [ref=e443]
+                  - cell "Jul 15, 2026" [ref=e444]
+                  - cell "LINE03" [ref=e445]
+                  - cell "BOM" [ref=e446]
+                  - cell [ref=e448]
+                - row [ref=e449]:
+                  - cell [ref=e450]:
+                    - link "WO-202607-0026-W1" [ref=e451] [cursor=pointer]:
+                      - /url: /en/planning/work-orders/69179fb9-73e6-4276-b6ec-b431bfc0436e
+                  - cell "WIP-20260707-0006" [ref=e452]
+                  - cell "Cancelled" [ref=e453]
+                  - cell "1.260 kg" [ref=e455]
+                  - cell "Jul 15, 2026" [ref=e456]
+                  - cell "LINE02" [ref=e457]
+                  - cell "BOM" [ref=e458]
+                  - cell [ref=e460]
+                - row [ref=e461]:
+                  - cell [ref=e462]:
+                    - link "WO-202607-0019-W1" [ref=e463] [cursor=pointer]:
+                      - /url: /en/planning/work-orders/71b04d4b-27d6-4714-9fbc-2cfbc7acf8e8
+                  - cell "WIP-20260707-0006" [ref=e464]
+                  - cell "Draft" [ref=e465]
+                  - cell "252.155 kg" [ref=e467]
+                  - cell "Jul 15, 2026" [ref=e468]
+                  - cell "LINE02" [ref=e469]
+                  - cell "BOM" [ref=e470]
+                  - cell "Release Delete draft" [ref=e472]:
+                    - generic [ref=e473]
+                - row [ref=e476]:
+                  - cell [ref=e477]:
+                    - link "WO-202607-0013" [ref=e478] [cursor=pointer]:
+                      - /url: /en/planning/work-orders/bbc1091b-35f5-4d38-9f48-9477b05f6515
+                  - cell "FG0014" [ref=e479]
+                  - cell "Cancelled" [ref=e480]
+                  - cell "12.750 kg" [ref=e482]
+                  - cell "Jul 15, 2026" [ref=e483]
+                  - cell "LINE03" [ref=e484]
+                  - cell "BOM" [ref=e485]
+                  - cell [ref=e487]
+                - row [ref=e488]:
+                  - cell [ref=e489]:
+                    - link "WO-202607-0022-W1" [ref=e490] [cursor=pointer]:
+                      - /url: /en/planning/work-orders/83f11c2f-81c8-4e5a-a969-bfe8f5f00930
+                  - cell "WIP-20260707-0006" [ref=e491]
+                  - cell "Cancelled" [ref=e492]
+                  - cell "25.452 kg" [ref=e494]
+                  - cell "Jul 17, 2026" [ref=e495]
+                  - cell "LINE02" [ref=e496]
+                  - cell "BOM" [ref=e497]
+                  - cell [ref=e499]
+                - row [ref=e500]:
+                  - cell [ref=e501]:
+                    - link "WO-202607-0022" [ref=e502] [cursor=pointer]:
+                      - /url: /en/planning/work-orders/2da5ba5f-5485-4e35-ae1f-5b53b57d9c21
+                  - cell "FG0014" [ref=e503]
+                  - cell "Cancelled" [ref=e504]
+                  - cell "30.300 kg" [ref=e506]
+                  - cell "Jul 18, 2026" [ref=e507]
+                  - cell "LINE1" [ref=e508]
+                  - cell "BOM" [ref=e509]
+                  - cell [ref=e511]
+                - row [ref=e512]:
+                  - cell [ref=e513]:
+                    - link "WO-202607-0023-W1" [ref=e514] [cursor=pointer]:
+                      - /url: /en/planning/work-orders/659829a2-3d7d-43d3-8da5-c31ec524cfb2
+                  - cell "WIP-20260707-0006" [ref=e515]
+                  - cell "Cancelled" [ref=e516]
+                  - cell "10.080 kg" [ref=e518]
+                  - cell "Jul 19, 2026" [ref=e519]
+                  - cell "LINE02" [ref=e520]
+                  - cell "BOM" [ref=e521]
+                  - cell [ref=e523]
+                - row [ref=e524]:
+                  - cell [ref=e525]:
+                    - link "WO-202607-0023" [ref=e526] [cursor=pointer]:
+                      - /url: /en/planning/work-orders/618cdd44-d94c-4838-bfc6-4c15ada41d89
+                  - cell "FG0014" [ref=e527]
+                  - cell "Cancelled" [ref=e528]
+                  - cell "12.000 kg" [ref=e530]
+                  - cell "Jul 19, 2026" [ref=e531]
+                  - cell "LINE03" [ref=e532]
+                  - cell "BOM" [ref=e533]
+                  - cell [ref=e535]
+                - row [ref=e536]:
+                  - cell [ref=e537]:
+                    - link "WO-202607-0029" [ref=e538] [cursor=pointer]:
+                      - /url: /en/planning/work-orders/481ab3c2-b884-4a3c-a81b-e526bb14c4f8
+                  - cell "FG-R09-144638" [ref=e539]
+                  - cell "Draft" [ref=e540]
+                  - cell "8.400 kg" [ref=e542]
+                  - cell "Jul 20, 2026" [ref=e543]
+                  - cell "LINE02" [ref=e544]
+                  - cell "No BOM" [ref=e545]
+                  - cell "Release Delete draft" [ref=e547]:
+                    - generic [ref=e548]
+                - row [ref=e551]:
+                  - cell [ref=e552]:
+                    - link "WO-202607-0024" [ref=e553] [cursor=pointer]:
+                      - /url: /en/planning/work-orders/d7fec36b-976f-4d1c-a206-7bdd59776cf5
+                  - cell "FG0014" [ref=e554]
+                  - cell "Cancelled" [ref=e555]
+                  - cell "6.000 kg" [ref=e557]
+                  - cell "Jul 20, 2026" [ref=e558]
+                  - cell "LINE03" [ref=e559]
+                  - cell "BOM" [ref=e560]
+                  - cell [ref=e562]
+                - row [ref=e563]:
+                  - cell [ref=e564]:
+                    - link "WO-202607-0024-W1" [ref=e565] [cursor=pointer]:
+                      - /url: /en/planning/work-orders/4398ea7d-d6ca-404f-acc9-1aad74af7e88
+                  - cell "WIP-20260707-0006" [ref=e566]
+                  - cell "Cancelled" [ref=e567]
+                  - cell "5.040 kg" [ref=e569]
+                  - cell "Jul 20, 2026" [ref=e570]
+                  - cell "LINE02" [ref=e571]
+                  - cell "BOM" [ref=e572]
+                  - cell [ref=e574]
+                - row [ref=e575]:
+                  - cell [ref=e576]:
+                    - link "WO-202607-0025" [ref=e577] [cursor=pointer]:
+                      - /url: /en/planning/work-orders/ca42b933-9820-49cf-a120-bbf48476644a
+                  - cell "FG0014" [ref=e578]
+                  - cell "Cancelled" [ref=e579]
+                  - cell "3.000 kg" [ref=e581]
+                  - cell "Jul 21, 2026" [ref=e582]
+                  - cell "LINE03" [ref=e583]
+                  - cell "BOM" [ref=e584]
+                  - cell [ref=e586]
+                - row [ref=e587]:
+                  - cell [ref=e588]:
+                    - link "WO-202607-0025-W1" [ref=e589] [cursor=pointer]:
+                      - /url: /en/planning/work-orders/396bc20e-143b-4cf2-b4c7-4e47171b9b22
+                  - cell "WIP-20260707-0006" [ref=e590]
+                  - cell "Cancelled" [ref=e591]
+                  - cell "2.520 kg" [ref=e593]
+                  - cell "Jul 21, 2026" [ref=e594]
+                  - cell "LINE02" [ref=e595]
+                  - cell "BOM" [ref=e596]
+                  - cell [ref=e598]
+                - row [ref=e599]:
+                  - cell [ref=e600]:
+                    - link "WO-202607-0030" [ref=e601] [cursor=pointer]:
+                      - /url: /en/planning/work-orders/853bbb5a-02cb-4a56-84e2-0680e14f0162
+                  - cell "FG0014" [ref=e602]
+                  - cell "Draft" [ref=e603]
+                  - cell "12.345 kg" [ref=e605]
+                  - cell "Jul 25, 2026" [ref=e606]
+                  - cell "LINE03" [ref=e607]
+                  - cell "BOM" [ref=e608]
+                  - cell "Release Delete draft" [ref=e610]:
+                    - generic [ref=e611]
+                - row [ref=e614]:
+                  - cell [ref=e615]:
+                    - link "WO-202607-0030-W1" [ref=e616] [cursor=pointer]:
+                      - /url: /en/planning/work-orders/2c4dea11-437b-4c1c-9d79-d8ea0526a893
+                  - cell "WIP-20260707-0006" [ref=e617]
+                  - cell "Draft" [ref=e618]
+                  - cell "10.370 kg" [ref=e620]
+                  - cell "Jul 25, 2026" [ref=e621]
+                  - cell "LINE02" [ref=e622]
+                  - cell "BOM" [ref=e623]
+                  - cell "Release Delete draft" [ref=e625]:
+                    - generic [ref=e626]
+                - row [ref=e629]:
+                  - cell [ref=e630]:
+                    - link "E2E-A-N1-DISPLAY" [ref=e631] [cursor=pointer]:
+                      - /url: /en/planning/work-orders/a0000007-0000-4000-8000-00000000000a
+                  - cell "FG0014" [ref=e632]
+                  - cell "In progress" [ref=e633]
+                  - cell "300.000 kg" [ref=e635]
+                  - cell "—" [ref=e636]
+                  - cell "LINE1" [ref=e637]
+                  - cell "No BOM" [ref=e638]
+                  - cell [ref=e640]
+                - row [ref=e641]:
+                  - cell [ref=e642]:
+                    - link "E2E-A-S8-TIMESTAMPS" [ref=e643] [cursor=pointer]:
+                      - /url: /en/planning/work-orders/a0000004-0000-4000-8000-000000000006
+                  - cell "FG0015" [ref=e644]
+                  - cell "In progress" [ref=e645]
+                  - cell "50.000 kg" [ref=e647]
+                  - cell "—" [ref=e648]
+                  - cell "LINE1" [ref=e649]
+                  - cell "No BOM" [ref=e650]
+                  - cell [ref=e652]
+                - row [ref=e653]:
+                  - cell [ref=e654]:
+                    - link "E2E-A-HOLD-CONSUME" [ref=e655] [cursor=pointer]:
+                      - /url: /en/planning/work-orders/a0000003-0000-4000-8000-000000000004
+                  - cell "FG0014" [ref=e656]
+                  - cell "In progress" [ref=e657]
+                  - cell "100.000 kg" [ref=e659]
+                  - cell "—" [ref=e660]
+                  - cell "LINE1" [ref=e661]
+                  - cell "BOM" [ref=e662]
+                  - cell [ref=e664]
+                - row [ref=e665]:
+                  - cell [ref=e666]:
+                    - link "E2E-A-C5-WIP" [ref=e667] [cursor=pointer]:
+                      - /url: /en/planning/work-orders/a0000002-0000-4000-8000-000000000003
+                  - cell "WIP-20260707-0005" [ref=e668]
+                  - cell "Draft" [ref=e669]
+                  - cell "50.000 kg" [ref=e671]
+                  - cell "—" [ref=e672]
+                  - cell "LINE1" [ref=e673]
+                  - cell "No BOM" [ref=e674]
+                  - cell "Release Delete draft" [ref=e676]:
+                    - generic [ref=e677]
+                - row [ref=e680]:
+                  - cell [ref=e681]:
+                    - link "E2E-A-C5-FG" [ref=e682] [cursor=pointer]:
+                      - /url: /en/planning/work-orders/a0000002-0000-4000-8000-000000000002
+                  - cell "FG0015" [ref=e683]
+                  - cell "Draft" [ref=e684]
+                  - cell "50.000 kg" [ref=e686]
+                  - cell "—" [ref=e687]
+                  - cell "LINE1" [ref=e688]
+                  - cell "No BOM" [ref=e689]
+                  - cell "Release Delete draft" [ref=e691]:
+                    - generic [ref=e692]
+                - row [ref=e695]:
+                  - cell [ref=e696]:
+                    - link "E2E-A-C4-YIELD" [ref=e697] [cursor=pointer]:
+                      - /url: /en/planning/work-orders/a0000001-0000-4000-8000-000000000001
+                  - cell "FG0014" [ref=e698]
+                  - cell "Completed" [ref=e699]
+                  - cell "100.000 kg" [ref=e701]
+                  - cell "—" [ref=e702]
+                  - cell "LINE1" [ref=e703]
+                  - cell "No BOM" [ref=e704]
+                  - cell [ref=e706]
+                - row [ref=e707]:
+                  - cell [ref=e708]:
+                    - link "WO-202607-0014-W1" [ref=e709] [cursor=pointer]:
+                      - /url: /en/planning/work-orders/87864e8a-6ab0-4c1d-81f3-92020237bd80
+                  - cell "WIP-20260707-0006" [ref=e710]
+                  - cell "Cancelled" [ref=e711]
+                  - cell "12.600 kg" [ref=e713]
+                  - cell "—" [ref=e714]
+                  - cell "LINE02" [ref=e715]
+                  - cell "BOM" [ref=e716]
+                  - cell [ref=e718]
+                - row [ref=e719]:
+                  - cell [ref=e720]:
+                    - link "WO-202607-0014" [ref=e721] [cursor=pointer]:
+                      - /url: /en/planning/work-orders/099f3775-e037-4151-bcb1-b5925e2ab242
+                  - cell "FG0014" [ref=e722]
+                  - cell "Cancelled" [ref=e723]
+                  - cell "15.000 kg" [ref=e725]
+                  - cell "—" [ref=e726]
+                  - cell "LINE03" [ref=e727]
+                  - cell "BOM" [ref=e728]
+                  - cell [ref=e730]
+                - row [ref=e731]:
+                  - cell [ref=e732]:
+                    - link "WO-202607-0009-W1" [ref=e733] [cursor=pointer]:
+                      - /url: /en/planning/work-orders/5b015b4e-fea7-46db-9108-0ac4869804f5
+                  - cell "WIP-20260707-0006" [ref=e734]
+                  - cell "Draft" [ref=e735]
+                  - cell "63.000 kg" [ref=e737]
+                  - cell "—" [ref=e738]
+                  - cell "LINE02" [ref=e739]
+                  - cell "BOM" [ref=e740]
+                  - cell "Release Delete draft" [ref=e742]:
+                    - generic [ref=e743]
+                - row [ref=e746]:
+                  - cell [ref=e747]:
+                    - link "WO-202607-0009" [ref=e748] [cursor=pointer]:
+                      - /url: /en/planning/work-orders/1443e4f4-487d-4d19-9e8f-e01cfc2a464e
+                  - cell "FG0014" [ref=e749]
+                  - cell "Draft" [ref=e750]
+                  - cell "75.000 kg" [ref=e752]
+                  - cell "—" [ref=e753]
+                  - cell "LINE03" [ref=e754]
+                  - cell "BOM" [ref=e755]
+                  - cell "Release Delete draft" [ref=e757]:
+                    - generic [ref=e758]
+            - generic [ref=e761]:
+              - generic [ref=e762]: Showing 28 of 28
+              - generic [ref=e763]:
+                - generic [ref=e764]: Previous
+                - generic [ref=e765]: Next

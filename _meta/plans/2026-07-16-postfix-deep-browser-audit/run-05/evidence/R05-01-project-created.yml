@@ -1,0 +1,287 @@
+- generic [active] [ref=f95e1]:
+  - generic [ref=f95e2]:
+    - banner [ref=f95e4]:
+      - generic "MonoPilot MES" [ref=f95e5]
+      - searchbox "Search settings…" [ref=f95e7]
+      - generic [ref=f95e8]:
+        - button "Switch organization (platform admin)" [ref=f95e10] [cursor=pointer]:
+          - generic [ref=f95e11]: A2
+          - generic [ref=f95e12]: "000000000000"
+          - generic [ref=f95e13]: Apex 22
+          - generic [ref=f95e14]: ▼
+        - generic "Filters work orders, license plates and OEE only — other screens stay org-wide" [ref=f95e15]:
+          - generic [ref=f95e16]: Site
+          - combobox "Site" [ref=f95e17] [cursor=pointer]:
+            - option "All sites" [selected]
+            - option "tester1"
+            - option "CODEX-R14 SITE"
+            - option "Main Factory"
+            - option "makery"
+            - option "SOL-R02 Site 0539 Edited"
+            - option "warehouse 1"
+        - button "Notifications" [ref=f95e19]
+        - button "Open user menu for Apex Admin" [ref=f95e24]: AA
+    - navigation "Primary" [ref=f95e25]:
+      - generic [ref=f95e26]:
+        - generic [ref=f95e27]:
+          - heading "Core" [level=2] [ref=f95e28]
+          - generic [ref=f95e29]:
+            - link "Dashboard" [ref=f95e30] [cursor=pointer]:
+              - /url: /en/dashboard
+              - generic [ref=f95e31]: ◆
+            - link "Settings" [ref=f95e34] [cursor=pointer]:
+              - /url: /en/settings
+              - generic [ref=f95e35]: ⚙
+        - generic [ref=f95e38]:
+          - heading "Operations" [level=2] [ref=f95e39]
+          - generic [ref=f95e40]:
+            - link "Planning" [ref=f95e41] [cursor=pointer]:
+              - /url: /en/planning
+              - generic [ref=f95e42]: ▤
+            - link "Freight" [ref=f95e45] [cursor=pointer]:
+              - /url: /en/planning/carriers
+              - generic [ref=f95e46]: F
+            - link "Scheduler" [ref=f95e49] [cursor=pointer]:
+              - /url: /en/scheduler
+              - generic [ref=f95e50]: ⧗
+            - link "Production" [ref=f95e53] [cursor=pointer]:
+              - /url: /en/production
+              - generic [ref=f95e54]: ⚒
+            - link "Yard" [ref=f95e57] [cursor=pointer]:
+              - /url: /en/yard
+              - generic [ref=f95e58]: "Y"
+            - link "Warehouse" [ref=f95e61] [cursor=pointer]:
+              - /url: /en/warehouse
+              - generic [ref=f95e62]: ▥
+            - link "Scanner" [ref=f95e65] [cursor=pointer]:
+              - /url: /en/scanner/home
+              - generic [ref=f95e66]: 📱
+        - generic [ref=f95e69]:
+          - heading "QA & Shipping" [level=2] [ref=f95e70]
+          - generic [ref=f95e71]:
+            - link "Quality" [ref=f95e72] [cursor=pointer]:
+              - /url: /en/quality
+              - generic [ref=f95e73]: ✓
+            - link "Shipping" [ref=f95e76] [cursor=pointer]:
+              - /url: /en/shipping
+              - generic [ref=f95e77]: →
+        - generic [ref=f95e80]:
+          - heading "Premium" [level=2] [ref=f95e81]
+          - generic [ref=f95e82]:
+            - link "Technical" [ref=f95e83] [cursor=pointer]:
+              - /url: /en/technical
+              - generic [ref=f95e84]: ▦
+            - link "NPD" [ref=f95e87] [cursor=pointer]:
+              - /url: /en/pipeline
+              - generic [ref=f95e88]: ★
+            - link "Finance" [ref=f95e91] [cursor=pointer]:
+              - /url: /en/finance
+              - generic [ref=f95e92]: $
+            - link "OEE" [ref=f95e95] [cursor=pointer]:
+              - /url: /en/oee
+              - generic [ref=f95e96]: ◉
+            - link "Maintenance" [ref=f95e99] [cursor=pointer]:
+              - /url: /en/maintenance
+              - generic [ref=f95e100]: 🔧
+        - generic [ref=f95e103]:
+          - heading "Analytics & Network" [level=2] [ref=f95e104]
+          - generic [ref=f95e105]:
+            - link "Reporting" [ref=f95e106] [cursor=pointer]:
+              - /url: /en/reporting
+              - generic [ref=f95e107]: ▧
+            - link "Multi-Site" [ref=f95e110] [cursor=pointer]:
+              - /url: /en/multi-site
+              - generic [ref=f95e111]: ❖
+    - main [ref=f95e114]:
+      - generic [ref=f95e145]:
+        - navigation "NPD" [ref=f95e146]:
+          - link "Projects" [ref=f95e147] [cursor=pointer]:
+            - /url: /en/pipeline
+          - link "Formulations" [ref=f95e148] [cursor=pointer]:
+            - /url: /en/formulations
+          - link "Allergen cascade" [ref=f95e149] [cursor=pointer]:
+            - /url: /en/allergen-cascade
+          - link "Costing roll-up" [ref=f95e150] [cursor=pointer]:
+            - /url: /en/costing/rollup
+          - link "Owner workload" [ref=f95e151] [cursor=pointer]:
+            - /url: /en/pipeline/workload
+        - main [ref=f95e152]:
+          - generic [ref=f95e636]:
+            - region "NIGHT-R05-FG-1054" [ref=f95e637]:
+              - navigation "breadcrumb" [ref=f95e638]: NPD / Pipeline / NPD-023
+              - generic [ref=f95e639]:
+                - generic [ref=f95e640]:
+                  - generic [ref=f95e641]:
+                    - heading "NIGHT-R05-FG-1054" [level=1] [ref=f95e642]
+                    - generic [ref=f95e643]: Brief · G0 Idea
+                    - generic [ref=f95e644]: Normal priority
+                  - paragraph [ref=f95e645]: "NPD-023 · Bread · Loaf · Owner: Unassigned · Target launch: 2027-01-31"
+                - generic [ref=f95e646]:
+                  - button "Watching projects is not available yet." [disabled] [ref=f95e647]: ⚑ Watch
+                  - button "Duplicate" [ref=f95e648] [cursor=pointer]
+                  - button "Delete" [ref=f95e649] [cursor=pointer]
+                  - link "Gate checklist" [ref=f95e650] [cursor=pointer]:
+                    - /url: /en/pipeline/076ba78f-f94b-40c9-bc30-daeb35e92d02/gate
+                  - link "Open FG" [ref=f95e651] [cursor=pointer]:
+                    - /url: /en/pipeline/076ba78f-f94b-40c9-bc30-daeb35e92d02
+                  - button "Advance stage →" [ref=f95e652] [cursor=pointer]
+            - navigation "Project stages" [ref=f95e653]:
+              - list [ref=f95e654]:
+                - listitem [ref=f95e655]:
+                  - link "Brief" [ref=f95e656] [cursor=pointer]:
+                    - /url: /en/pipeline/076ba78f-f94b-40c9-bc30-daeb35e92d02/brief
+                    - generic [ref=f95e657]: "1"
+                - listitem [ref=f95e660]:
+                  - link "Recipe" [ref=f95e661] [cursor=pointer]:
+                    - /url: /en/pipeline/076ba78f-f94b-40c9-bc30-daeb35e92d02/formulation
+                    - generic [ref=f95e662]: "2"
+                - listitem [ref=f95e665]:
+                  - link "Packaging" [ref=f95e666] [cursor=pointer]:
+                    - /url: /en/pipeline/076ba78f-f94b-40c9-bc30-daeb35e92d02/packaging
+                    - generic [ref=f95e667]: "3"
+                - listitem [ref=f95e670]:
+                  - link "Costing & Nutrition" [ref=f95e671] [cursor=pointer]:
+                    - /url: /en/pipeline/076ba78f-f94b-40c9-bc30-daeb35e92d02/costing-nutrition
+                    - generic [ref=f95e672]: "4"
+                - listitem [ref=f95e675]:
+                  - link "Trial" [ref=f95e676] [cursor=pointer]:
+                    - /url: /en/pipeline/076ba78f-f94b-40c9-bc30-daeb35e92d02/trial
+                    - generic [ref=f95e677]: "5"
+                - listitem [ref=f95e680]:
+                  - link "Sensory" [ref=f95e681] [cursor=pointer]:
+                    - /url: /en/pipeline/076ba78f-f94b-40c9-bc30-daeb35e92d02/sensory
+                    - generic [ref=f95e682]: "6"
+                - listitem [ref=f95e685]:
+                  - link "Pilot" [ref=f95e686] [cursor=pointer]:
+                    - /url: /en/pipeline/076ba78f-f94b-40c9-bc30-daeb35e92d02/pilot
+                    - generic [ref=f95e687]: "7"
+                - listitem [ref=f95e690]:
+                  - link "Approval" [ref=f95e691] [cursor=pointer]:
+                    - /url: /en/pipeline/076ba78f-f94b-40c9-bc30-daeb35e92d02/approval
+                    - generic [ref=f95e692]: "8"
+                - listitem [ref=f95e695]:
+                  - link "Handoff" [ref=f95e696] [cursor=pointer]:
+                    - /url: /en/pipeline/076ba78f-f94b-40c9-bc30-daeb35e92d02/handoff
+                    - generic [ref=f95e697]: "9"
+            - main "FG-023 · v1 draft" [ref=f95e699]:
+              - generic [ref=f95e700]:
+                - generic [ref=f95e701]:
+                  - generic [ref=f95e702]:
+                    - generic [ref=f95e703]: Recipe
+                    - generic [ref=f95e704]: FG-023 · v1 draft
+                  - generic [ref=f95e705]:
+                    - generic [ref=f95e706]: Batch size (g)
+                    - textbox "Batch size (g)" [ref=f95e708]: "1000.000"
+                    - paragraph [ref=f95e709]: Batch size = pack weight; ingredients must total this.
+                  - generic [ref=f95e710]:
+                    - generic [ref=f95e711]: Target price
+                    - textbox "Target price" [ref=f95e713]: "3.50"
+                  - generic [ref=f95e714]:
+                    - generic [ref=f95e715]: Version
+                    - combobox "Version" [disabled] [ref=f95e717]:
+                      - generic [ref=f95e718]: v1
+                      - generic [ref=f95e719]: ⌄
+                - generic [ref=f95e720]:
+                  - button "Add version" [ref=f95e721] [cursor=pointer]
+                  - button "Compare versions" [ref=f95e722] [cursor=pointer]
+                  - button "Lock recipe" [disabled] [ref=f95e723]
+                  - button "Save draft" [ref=f95e724] [cursor=pointer]
+                  - button "Submit for trial →" [disabled] [ref=f95e725]
+              - generic [ref=f95e726]:
+                - generic [ref=f95e727]:
+                  - generic [ref=f95e728]:
+                    - generic [ref=f95e729]:
+                      - heading "Ingredients" [level=3] [ref=f95e730]
+                      - paragraph [ref=f95e731]: Edit any % or cost — nutrition, allergens, and margin recalculate live.
+                    - generic [ref=f95e732]:
+                      - button "Add ingredient" [ref=f95e733] [cursor=pointer]: + Add ingredient
+                      - button "Add WIP" [ref=f95e735] [cursor=pointer]
+                  - generic [ref=f95e736]:
+                    - table [ref=f95e737]:
+                      - rowgroup [ref=f95e738]:
+                        - row "Ingredient Qty / pack (kg) £ / kg Contrib. Allergen Delete ingredient" [ref=f95e739]
+                      - rowgroup [ref=f95e747]:
+                        - row "Total 0.000 kg — 0.0000 £" [ref=f95e748]
+                    - alert [ref=f95e755]: Ingredient total is 0.000 kg vs a 1.000000 kg pack. Adjust to match the pack weight (±1%) before submitting for trial.
+                    - generic [ref=f95e756]:
+                      - generic [ref=f95e757]: Composition
+                      - paragraph [ref=f95e758]: No ingredients to display.
+                - complementary "Live calculations" [ref=f95e759]:
+                  - paragraph [ref=f95e760]: Cost, nutrition and allergen panels appear here.
+                  - generic [ref=f95e761]:
+                    - generic [ref=f95e762]:
+                      - heading "Nutrition per 100g · live" [level=3] [ref=f95e763]
+                      - button "Export label" [disabled] [ref=f95e764]
+                    - generic [ref=f95e766]:
+                      - paragraph [ref=f95e767]: No nutrition data yet
+                      - paragraph [ref=f95e768]: Nutrition is computed once ingredients have nutrition values.
+                  - region [ref=f95e769]:
+                    - heading "Cost & margin · live" [level=3] [ref=f95e771]:
+                      - text: Cost & margin
+                      - generic [ref=f95e772]: · live
+                    - generic [ref=f95e773]:
+                      - generic [ref=f95e774]:
+                        - generic [ref=f95e775]
+                        - generic [ref=f95e778]
+                        - generic [ref=f95e781]
+                        - generic [ref=f95e784]
+                      - generic [ref=f95e787]:
+                        - generic [ref=f95e788]
+                        - generic [ref=f95e792]
+                        - generic [ref=f95e796]
+                      - generic [ref=f95e800]:
+                        - generic [ref=f95e801]
+                        - generic [ref=f95e804]
+                        - generic [ref=f95e807]
+                  - generic [ref=f95e810]:
+                    - generic [ref=f95e811]:
+                      - heading "Allergens" [level=3] [ref=f95e812]
+                      - paragraph [ref=f95e813]: EU 14 mandatory allergens · presence from formulation
+                    - generic [ref=f95e814]:
+                      - list [ref=f95e815]:
+                        - listitem [ref=f95e816]
+                        - listitem [ref=f95e821]
+                        - listitem [ref=f95e826]
+                        - listitem [ref=f95e831]
+                        - listitem [ref=f95e836]
+                        - listitem [ref=f95e841]
+                        - listitem [ref=f95e846]
+                        - listitem [ref=f95e851]
+                        - listitem [ref=f95e856]
+                        - listitem [ref=f95e861]
+                        - listitem [ref=f95e866]
+                        - listitem [ref=f95e871]
+                        - listitem [ref=f95e876]
+                        - listitem [ref=f95e881]
+                      - paragraph [ref=f95e886]: No allergens detected from the current ingredients.
+            - region [ref=f95e890]:
+              - generic [ref=f95e891]:
+                - generic [ref=f95e893]:
+                  - heading "Production detail" [level=2] [ref=f95e894]
+                  - paragraph [ref=f95e895]: Edits reset Built flag automatically.
+                - generic [ref=f95e896]:
+                  - generic [ref=f95e897]:
+                    - generic [ref=f95e898]:
+                      - generic [ref=f95e899]: Default line
+                      - combobox "Default line" [disabled] [ref=f95e901]:
+                        - generic [ref=f95e902]: Select a line…
+                        - generic [ref=f95e903]: ⌄
+                    - paragraph [ref=f95e904]: Applies when a process has no line of its own. Per-process lines override it.
+                  - generic [ref=f95e906]:
+                    - generic [ref=f95e908]:
+                      - heading "Processes" [level=4] [ref=f95e909]
+                      - paragraph [ref=f95e910]: Add the manufacturing processes for this component.
+                    - generic [ref=f95e911]:
+                      - paragraph [ref=f95e912]: No processes yet
+                      - paragraph [ref=f95e913]: Add the first manufacturing process.
+                    - generic [ref=f95e914]:
+                      - text: "Process subtotal:"
+                      - generic [ref=f95e915]: "0.00"
+              - generic [ref=f95e916]: FG-023
+            - generic [ref=f95e919]:
+              - paragraph [ref=f95e920]: No BOM yet
+              - paragraph [ref=f95e921]: This Finished Good has no bill of materials.
+              - paragraph [ref=f95e922]: Read-only view of the shared BOM. Bills of materials are edited in Technical.
+              - link "Open in Technical →" [ref=f95e923] [cursor=pointer]:
+                - /url: /en/technical/bom
+  - alert [ref=f95e144]

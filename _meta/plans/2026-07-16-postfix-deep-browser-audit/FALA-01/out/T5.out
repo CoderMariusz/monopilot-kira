@@ -1,0 +1,25 @@
+## FILES TOUCHED
+
+- `packages/db/migrations/514-maintenance-loto-dual-sign.sql`
+- `packages/db/schema/maintenance.ts`
+- Maintenance MWO: actions, types, canonical `[locale]` page, LOTO modal, detail client, labels, PG/unit/UI tests
+- Maintenance calibration: reviewer resolver, e-sign types, canonical `[locale]` page, register/modal
+- Maintenance i18n staging plus `apps/web/i18n/{en,pl}.json`
+
+## FIX per finding
+
+- PF-R20-02 → pojedynczy `signEvent` i słaba bramka Start → atomowy `dualSign`, dwaj różni aktorzy i nonce sesji, zapis obu receipt IDs oraz kroków izolacji. Start sprawdza kompletną parę podpisów, różne sesje i izolację. Legacy in-progress LOTO pozostaje wyłącznie zwalnialne.
+- PF-R20-05 → ręczne pole reviewer UUID → org-scoped lista aktywnych, uprawnionych reviewerów z nazwą i e-mailem, wyszukiwalny `Select`, ponowna walidacja server-side oraz czytelne tożsamości w odczycie rejestru.
+
+## MIGRATION
+
+`packages/db/migrations/514-maintenance-loto-dual-sign.sql`
+
+## TEST ADDED
+
+`apps/web/app/[locale]/(app)/(modules)/maintenance/_actions/__tests__/mwo-loto-signing.pg.test.ts`
+
+## UNCERTAINTIES
+
+- Testy/build/lint/git nie były uruchamiane zgodnie z TOR.
+- Review powinien potwierdzić migrację na assembled DB, interpretację nonce jako odrębnej sesji e-sign oraz release-only zachowanie istniejącego `MWO-2026-00003`.

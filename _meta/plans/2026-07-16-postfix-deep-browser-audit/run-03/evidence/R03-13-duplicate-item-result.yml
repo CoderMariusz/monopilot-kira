@@ -1,0 +1,61 @@
+- dialog "Create item" [ref=f51e917]:
+  - generic [ref=f51e918]:
+    - generic [ref=f51e919]:
+      - generic [ref=f51e920]: Create item
+      - generic [ref=f51e921]: Universal item master — links to BOM, spec and allergen matrix.
+    - button "Close" [ref=f51e922] [cursor=pointer]: ✕
+  - generic [ref=f51e923]:
+    - tablist "Wizard steps" [ref=f51e924]:
+      - tab "✓ Basic info" [ref=f51e959] [cursor=pointer]:
+        - generic [ref=f51e926]: ✓
+        - generic [ref=f51e927]: Basic info
+      - tab "✓ Classification" [ref=f51e1005] [cursor=pointer]:
+        - generic [ref=f51e930]: ✓
+        - generic [ref=f51e931]: Classification
+      - tab "✓ Weight & shelf life" [ref=f51e1044] [cursor=pointer]:
+        - generic [ref=f51e934]: ✓
+        - generic [ref=f51e935]: Weight & shelf life
+      - tab "4 Review & create" [selected] [ref=f51e937]:
+        - generic [ref=f51e938]: "4"
+        - generic [ref=f51e939]: Review & create
+    - generic [ref=f51e940]:
+      - generic [ref=f51e1045]:
+        - generic [ref=f51e1046]:
+          - generic [ref=f51e1047]:
+            - term [ref=f51e1048]: Item code
+            - definition [ref=f51e1049]: NIGHT-R03-0806-RM
+          - generic [ref=f51e1050]:
+            - term [ref=f51e1051]: Name
+            - definition [ref=f51e1052]: NIGHT R03 Duplicate Attempt
+          - generic [ref=f51e1053]:
+            - term [ref=f51e1054]: Item type
+            - definition [ref=f51e1055]: Raw material
+          - generic [ref=f51e1056]:
+            - term [ref=f51e1057]: Status
+            - definition [ref=f51e1058]: Active
+          - generic [ref=f51e1059]:
+            - term [ref=f51e1060]: Base UoM
+            - definition [ref=f51e1061]: kg
+          - generic [ref=f51e1062]:
+            - term [ref=f51e1063]: Pack hierarchy
+            - definition [ref=f51e1064]: Base unit
+          - generic [ref=f51e1065]:
+            - term [ref=f51e1066]: Weight mode
+            - definition [ref=f51e1067]: Fixed weight
+          - generic [ref=f51e1068]:
+            - term [ref=f51e1069]: GS1 GTIN
+            - definition [ref=f51e1070]: —
+          - generic [ref=f51e1071]:
+            - term [ref=f51e1072]: Nominal weight
+            - definition [ref=f51e1073]: —
+          - generic [ref=f51e1074]:
+            - term [ref=f51e1075]: List price (GBP / base UoM)
+            - definition [ref=f51e1076]: —
+        - generic [ref=f51e1077]:
+          - generic [ref=f51e1078]: ✓
+          - generic [ref=f51e1079]: Ready to create. An audit record will be logged.
+      - alert [ref=f51e1081]: Item NIGHT-R03-0806-RM already exists in this organization. It may have been created by an earlier attempt that did not finish cleanly.
+  - generic [ref=f51e955]:
+    - button "Back" [ref=f51e1004] [cursor=pointer]
+    - button "Cancel" [ref=f51e957] [cursor=pointer]
+    - button "Create item" [ref=f51e1080] [cursor=pointer]

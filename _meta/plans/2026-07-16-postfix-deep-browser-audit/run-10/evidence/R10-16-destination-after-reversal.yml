@@ -1,0 +1,121 @@
+- generic [ref=f9e1]:
+  - generic [ref=f9e2]:
+    - banner [ref=f9e4]:
+      - generic "MonoPilot MES" [ref=f9e5]
+      - searchbox "Search settings…" [ref=f9e7]
+      - generic [ref=f9e8]:
+        - button "Switch organization (platform admin)" [ref=f9e10] [cursor=pointer]:
+          - generic [ref=f9e11]: A2
+          - generic [ref=f9e12]: "000000000000"
+          - generic [ref=f9e13]: Apex 22
+          - generic [ref=f9e14]: ▼
+        - generic "Filters work orders, license plates and OEE only — other screens stay org-wide" [ref=f9e15]:
+          - generic [ref=f9e16]: Site
+          - combobox "Site" [ref=f9e17] [cursor=pointer]:
+            - option "All sites" [selected]
+            - option "tester1"
+            - option "CODEX-R14 SITE"
+            - option "Main Factory"
+            - option "makery"
+            - option "SOL-R02 Site 0539 Edited"
+            - option "warehouse 1"
+        - button "Notifications" [ref=f9e19]
+        - button "Open user menu for Apex Admin" [ref=f9e24]: AA
+    - navigation "Primary" [ref=f9e25]:
+      - generic [ref=f9e26]:
+        - generic [ref=f9e27]:
+          - heading "Core" [level=2] [ref=f9e28]
+          - generic [ref=f9e29]:
+            - link "Dashboard" [ref=f9e30] [cursor=pointer]:
+              - /url: /en/dashboard
+              - generic [ref=f9e31]: ◆
+            - link "Settings" [ref=f9e34] [cursor=pointer]:
+              - /url: /en/settings
+              - generic [ref=f9e35]: ⚙
+        - generic [ref=f9e38]:
+          - heading "Operations" [level=2] [ref=f9e39]
+          - generic [ref=f9e40]:
+            - link "Planning" [ref=f9e41] [cursor=pointer]:
+              - /url: /en/planning
+              - generic [ref=f9e42]: ▤
+            - link "Freight" [ref=f9e45] [cursor=pointer]:
+              - /url: /en/planning/carriers
+              - generic [ref=f9e46]: F
+            - link "Scheduler" [ref=f9e49] [cursor=pointer]:
+              - /url: /en/scheduler
+              - generic [ref=f9e50]: ⧗
+            - link "Production" [ref=f9e53] [cursor=pointer]:
+              - /url: /en/production
+              - generic [ref=f9e54]: ⚒
+            - link "Yard" [ref=f9e57] [cursor=pointer]:
+              - /url: /en/yard
+              - generic [ref=f9e58]: "Y"
+            - link "Warehouse" [ref=f9e61] [cursor=pointer]:
+              - /url: /en/warehouse
+              - generic [ref=f9e62]: ▥
+            - link "Scanner" [ref=f9e65] [cursor=pointer]:
+              - /url: /en/scanner/home
+              - generic [ref=f9e66]: 📱
+        - generic [ref=f9e69]:
+          - heading "QA & Shipping" [level=2] [ref=f9e70]
+          - generic [ref=f9e71]:
+            - link "Quality" [ref=f9e72] [cursor=pointer]:
+              - /url: /en/quality
+              - generic [ref=f9e73]: ✓
+            - link "Shipping" [ref=f9e76] [cursor=pointer]:
+              - /url: /en/shipping
+              - generic [ref=f9e77]: →
+        - generic [ref=f9e80]:
+          - heading "Premium" [level=2] [ref=f9e81]
+          - generic [ref=f9e82]:
+            - link "Technical" [ref=f9e83] [cursor=pointer]:
+              - /url: /en/technical
+              - generic [ref=f9e84]: ▦
+            - link "NPD" [ref=f9e87] [cursor=pointer]:
+              - /url: /en/pipeline
+              - generic [ref=f9e88]: ★
+            - link "Finance" [ref=f9e91] [cursor=pointer]:
+              - /url: /en/finance
+              - generic [ref=f9e92]: $
+            - link "OEE" [ref=f9e95] [cursor=pointer]:
+              - /url: /en/oee
+              - generic [ref=f9e96]: ◉
+            - link "Maintenance" [ref=f9e99] [cursor=pointer]:
+              - /url: /en/maintenance
+              - generic [ref=f9e100]: 🔧
+        - generic [ref=f9e103]:
+          - heading "Analytics & Network" [level=2] [ref=f9e104]
+          - generic [ref=f9e105]:
+            - link "Reporting" [ref=f9e106] [cursor=pointer]:
+              - /url: /en/reporting
+              - generic [ref=f9e107]: ▧
+            - link "Multi-Site" [ref=f9e110] [cursor=pointer]:
+              - /url: /en/multi-site
+              - generic [ref=f9e111]: ❖
+    - main [ref=f9e114]:
+      - main [ref=f9e115]:
+        - generic [ref=f9e117]:
+          - navigation "Breadcrumb" [ref=f9e118]:
+            - list [ref=f9e119]:
+              - listitem [ref=f9e120]
+              - listitem [ref=f9e122]
+          - generic [ref=f9e125]:
+            - heading "License plates" [level=1] [ref=f9e126]
+            - paragraph [ref=f9e127]: Inventory by license plate — receipt to consumption.
+        - generic [ref=f9e128]:
+          - paragraph [ref=f9e129]: 33 LPs · 0 reserved · 8 on QC hold · 0 blocked
+          - generic [ref=f9e130]:
+            - tablist "Status" [ref=f9e131]:
+              - tab "All 33" [selected] [ref=f9e508]
+              - tab "Available 20" [ref=f9e509]
+              - tab "Reserved 0" [ref=f9e136]
+              - tab "Blocked 0" [ref=f9e138]
+              - tab "QC Hold 8" [ref=f9e510]
+            - generic [ref=f9e142]:
+              - searchbox "Search license plates" [active] [ref=f9e143]: LP-1784311327233-1IIY
+              - generic [ref=f9e144]: 1 rows
+            - paragraph [ref=f9e145]: Bulk select / actions are deferred to a later lane.
+            - generic [ref=f9e146]:
+              - table "LP" [ref=f9e511]
+              - generic [ref=f9e501]
+  - alert [ref=f9e506]

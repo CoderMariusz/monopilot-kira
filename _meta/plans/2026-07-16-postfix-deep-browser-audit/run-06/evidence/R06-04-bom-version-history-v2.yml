@@ -1,0 +1,43 @@
+- generic [ref=f117e633]:
+  - tablist "Components" [ref=f117e634]:
+    - tab "Components 3" [ref=f117e941] [cursor=pointer]:
+      - generic [ref=f117e636]: Components
+      - generic [ref=f117e637]: "3"
+    - tab "Co-products 0" [ref=f117e638] [cursor=pointer]:
+      - generic [ref=f117e639]: Co-products
+      - generic [ref=f117e640]: "0"
+    - tab "Snapshots 0" [ref=f117e641] [cursor=pointer]:
+      - generic [ref=f117e642]: Snapshots
+      - generic [ref=f117e643]: "0"
+    - tab "Versions 2" [active] [selected] [ref=f117e1015] [cursor=pointer]:
+      - generic [ref=f117e645]: Versions
+      - generic [ref=f117e646]: "2"
+    - tab "Approval" [ref=f117e647] [cursor=pointer]
+    - tab "Where-used 0" [ref=f117e649] [cursor=pointer]:
+      - generic [ref=f117e650]: Where-used
+      - generic [ref=f117e651]: "0"
+    - tab "Recipe sheet" [ref=f117e652] [cursor=pointer]
+  - tabpanel "Versions 2" [ref=f117e1055]:
+    - table "Versions" [ref=f117e1057]:
+      - rowgroup [ref=f117e1058]:
+        - row [ref=f117e1059]:
+          - columnheader "Version" [ref=f117e1060]
+          - columnheader "Status" [ref=f117e1061]
+          - columnheader "Effective from" [ref=f117e1062]
+          - columnheader "Approved by" [ref=f117e1063]
+      - rowgroup [ref=f117e1064]:
+        - row [ref=f117e1065]:
+          - cell "v2 Current" [ref=f117e1066]:
+            - link "v2" [ref=f117e1067] [cursor=pointer]:
+              - /url: /technical/bom/NIGHT-R06-FG-1138?v=2
+            - generic [ref=f117e1068]: Current
+          - cell "Draft" [ref=f117e1069]
+          - cell "2026-07-17" [ref=f117e1071]
+          - cell "—" [ref=f117e1072]
+        - row [ref=f117e1073]:
+          - cell [ref=f117e1074]:
+            - link "v1" [ref=f117e1075] [cursor=pointer]:
+              - /url: /technical/bom/NIGHT-R06-FG-1138?v=1
+          - cell "Archived" [ref=f117e1076]
+          - cell "2026-07-17" [ref=f117e1078]
+          - cell "—" [ref=f117e1079]

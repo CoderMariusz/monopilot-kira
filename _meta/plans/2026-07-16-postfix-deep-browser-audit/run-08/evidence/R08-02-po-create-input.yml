@@ -1,0 +1,360 @@
+- generic:
+  - generic:
+    - generic:
+      - banner:
+        - generic: MonoPilot MES
+        - generic:
+          - searchbox
+        - generic:
+          - generic:
+            - button:
+              - generic: A2
+              - generic: "000000000000"
+              - generic: Apex 22
+              - generic: ▼
+          - generic:
+            - generic: Site
+            - combobox
+          - generic:
+            - button
+          - generic:
+            - button: AA
+    - navigation:
+      - generic:
+        - generic:
+          - heading [level=2]: Core
+          - generic:
+            - link:
+              - /url: /en/dashboard
+              - generic: ◆
+              - generic: Dashboard
+            - link:
+              - /url: /en/settings
+              - generic: ⚙
+              - generic: Settings
+        - generic:
+          - heading [level=2]: Operations
+          - generic:
+            - link:
+              - /url: /en/planning
+              - generic: ▤
+              - generic: Planning
+            - link:
+              - /url: /en/planning/carriers
+              - generic: F
+              - generic: Freight
+            - link:
+              - /url: /en/scheduler
+              - generic: ⧗
+              - generic: Scheduler
+            - link:
+              - /url: /en/production
+              - generic: ⚒
+              - generic: Production
+            - link:
+              - /url: /en/yard
+              - generic: "Y"
+              - generic: Yard
+            - link:
+              - /url: /en/warehouse
+              - generic: ▥
+              - generic: Warehouse
+            - link:
+              - /url: /en/scanner/home
+              - generic: 📱
+              - generic: Scanner
+        - generic:
+          - heading [level=2]: QA & Shipping
+          - generic:
+            - link:
+              - /url: /en/quality
+              - generic: ✓
+              - generic: Quality
+            - link:
+              - /url: /en/shipping
+              - generic: →
+              - generic: Shipping
+        - generic:
+          - heading [level=2]: Premium
+          - generic:
+            - link:
+              - /url: /en/technical
+              - generic: ▦
+              - generic: Technical
+            - link:
+              - /url: /en/pipeline
+              - generic: ★
+              - generic: NPD
+            - link:
+              - /url: /en/finance
+              - generic: $
+              - generic: Finance
+            - link:
+              - /url: /en/oee
+              - generic: ◉
+              - generic: OEE
+            - link:
+              - /url: /en/maintenance
+              - generic: 🔧
+              - generic: Maintenance
+        - generic:
+          - heading [level=2]: Analytics & Network
+          - generic:
+            - link:
+              - /url: /en/reporting
+              - generic: ▧
+              - generic: Reporting
+            - link:
+              - /url: /en/multi-site
+              - generic: ❖
+              - generic: Multi-Site
+    - main:
+      - main:
+        - generic:
+          - generic:
+            - navigation:
+              - list:
+                - listitem:
+                  - generic: Planning
+                - listitem:
+                  - generic: /
+                  - generic: Purchase orders
+            - generic:
+              - heading [level=1]: Purchase orders
+              - paragraph: Supplier purchase orders, line items and receiving status.
+        - generic:
+          - generic:
+            - generic:
+              - searchbox
+            - generic:
+              - link:
+                - /url: /en/planning/import?source=po
+                - text: Import
+              - link:
+                - /url: /en/planning/purchase-orders/import
+                - text: Import POs
+              - button: Export
+              - button: + Create PO
+          - tablist:
+            - tab [selected]: All8
+            - tab: Draft3
+            - tab: Sent0
+            - tab: Confirmed0
+            - tab: Partially received1
+            - tab: Received2
+            - tab: Cancelled2
+            - tab: Archive0
+          - generic:
+            - generic:
+              - generic:
+                - combobox:
+                  - generic: All suppliers
+                  - generic: ⌄
+            - button: Clear all filters
+            - generic: 8 rows
+          - generic:
+            - table:
+              - rowgroup:
+                - row:
+                  - columnheader: PO number
+                  - columnheader: Supplier
+                  - columnheader: Expected delivery
+                  - columnheader: Lines
+                  - columnheader: Status
+                  - columnheader: Currency
+                  - columnheader: Actions
+              - rowgroup:
+                - row:
+                  - cell:
+                    - link:
+                      - /url: /en/planning/purchase-orders/a18033c8-b16a-4a5b-9e7e-d5d59b717eca
+                  - cell:
+                    - generic: maet sup
+                    - generic: MEAT
+                  - cell: Jul 12, 2026
+                  - cell: "1"
+                  - cell:
+                    - generic: Draft
+                  - cell: GBP
+                  - cell:
+                    - link:
+                      - /url: /en/planning/purchase-orders/a18033c8-b16a-4a5b-9e7e-d5d59b717eca
+                - row:
+                  - cell:
+                    - link:
+                      - /url: /en/planning/purchase-orders/095cc166-4161-40ff-a28c-4df931140779
+                  - cell:
+                    - generic: E2E Active Supplier
+                    - generic: E2E-A-SUP-ACTIVE
+                  - cell: Jul 16, 2026
+                  - cell: "1"
+                  - cell:
+                    - generic: Received
+                  - cell: GBP
+                  - cell:
+                    - link:
+                      - /url: /en/planning/purchase-orders/095cc166-4161-40ff-a28c-4df931140779
+                - row:
+                  - cell:
+                    - link:
+                      - /url: /en/planning/purchase-orders/3a5903ec-411b-45d7-8f69-1f24e2c4e460
+                  - cell:
+                    - generic: SOL-R09-20260715T142011Z Supplier
+                    - generic: SOL-R09-142011
+                  - cell: Jul 23, 2026
+                  - cell: "2"
+                  - cell:
+                    - generic: Received
+                  - cell: GBP
+                  - cell:
+                    - link:
+                      - /url: /en/planning/purchase-orders/3a5903ec-411b-45d7-8f69-1f24e2c4e460
+                - row:
+                  - cell:
+                    - link:
+                      - /url: /en/planning/purchase-orders/71db188f-41d3-48f0-b3a8-de85ddf5aac8
+                  - cell:
+                    - generic: SOL-R09-20260715T142011Z Supplier
+                    - generic: SOL-R09-142011
+                  - cell: Jul 24, 2026
+                  - cell: "1"
+                  - cell:
+                    - generic: Cancelled
+                  - cell: GBP
+                  - cell:
+                    - link:
+                      - /url: /en/planning/purchase-orders/71db188f-41d3-48f0-b3a8-de85ddf5aac8
+                - row:
+                  - cell:
+                    - link:
+                      - /url: /en/planning/purchase-orders/7969df57-e7c0-4aad-b551-5b84cf7ac9d7
+                  - cell:
+                    - generic: Web Foods Ltd.
+                    - generic: WEB
+                  - cell: Jul 26, 2026
+                  - cell: "3"
+                  - cell:
+                    - generic: Partially received
+                  - cell: GBP
+                  - cell:
+                    - link:
+                      - /url: /en/planning/purchase-orders/7969df57-e7c0-4aad-b551-5b84cf7ac9d7
+                - row:
+                  - cell:
+                    - link:
+                      - /url: /en/planning/purchase-orders/71694ad9-b326-458b-82e5-14fe3a9eb231
+                  - cell:
+                    - generic: Web Foods Ltd.
+                    - generic: WEB
+                  - cell: Jul 27, 2026
+                  - cell: "1"
+                  - cell:
+                    - generic: Cancelled
+                  - cell: GBP
+                  - cell:
+                    - link:
+                      - /url: /en/planning/purchase-orders/71694ad9-b326-458b-82e5-14fe3a9eb231
+                - row:
+                  - cell:
+                    - link:
+                      - /url: /en/planning/purchase-orders/676de7f4-39e9-4cd8-bf66-7c22e551b87b
+                  - cell:
+                    - generic: Web Foods Ltd.
+                    - generic: WEB
+                  - cell: —
+                  - cell: "1"
+                  - cell:
+                    - generic: Draft
+                  - cell: GBP
+                  - cell:
+                    - link:
+                      - /url: /en/planning/purchase-orders/676de7f4-39e9-4cd8-bf66-7c22e551b87b
+                - row:
+                  - cell:
+                    - link:
+                      - /url: /en/planning/purchase-orders/4d9995c6-0030-48bc-8af6-cd4081668a60
+                  - cell:
+                    - generic: Web Foods Ltd.
+                    - generic: WEB
+                  - cell: —
+                  - cell: "1"
+                  - cell:
+                    - generic: Draft
+                  - cell: GBP
+                  - cell:
+                    - link:
+                      - /url: /en/planning/purchase-orders/4d9995c6-0030-48bc-8af6-cd4081668a60
+            - generic:
+              - generic: Showing 8 of 8
+              - generic:
+                - generic: Previous
+                - generic: Next
+  - alert
+  - dialog [ref=f3e316]:
+    - generic [ref=f3e317]:
+      - heading "Create purchase order" [level=2] [ref=f3e318]
+      - button "Close" [ref=f3e319] [cursor=pointer]: ✕
+    - generic [ref=f3e321]:
+      - generic [ref=f3e329]:
+        - generic [ref=f3e330]:
+          - generic [ref=f3e331]: PO number
+          - textbox "PO number Leave empty to auto-number (format in Settings → Documents)." [ref=f3e333]:
+            - /placeholder: Auto (e.g. PO-202606-0007)
+            - text: NIGHT-R08-PO-1400
+          - generic [ref=f3e334]: Leave empty to auto-number (format in Settings → Documents).
+        - generic [ref=f3e335]:
+          - generic [ref=f3e336]: Supplier
+          - combobox "Supplier" [ref=f3e338] [cursor=pointer]:
+            - generic [ref=f3e399]: WEB — Web Foods Ltd.
+            - generic [ref=f3e339]: ⌄
+        - generic [ref=f3e340]:
+          - generic [ref=f3e341]: Destination warehouse
+          - combobox "Destination warehouse" [ref=f3e343] [cursor=pointer]:
+            - generic [ref=f3e344]: WH1 — Main Warehouse
+            - generic [ref=f3e345]: ⌄
+        - generic [ref=f3e346]:
+          - generic [ref=f3e347]: Expected delivery
+          - textbox "Expected delivery" [ref=f3e349]: 2026-07-20
+        - generic [ref=f3e350]:
+          - generic [ref=f3e351]: Currency
+          - textbox "Currency" [ref=f3e353]: GBP
+      - generic [ref=f3e354]:
+        - generic [ref=f3e355]:
+          - generic [ref=f3e356]: Lines
+          - button "+ Add line" [ref=f3e357] [cursor=pointer]
+        - table [ref=f3e359]:
+          - rowgroup [ref=f3e360]:
+            - row [ref=f3e361]:
+              - columnheader "Item" [ref=f3e362]
+              - columnheader "Qty" [ref=f3e363]
+              - columnheader "UoM" [ref=f3e364]
+              - columnheader "Unit price" [ref=f3e365]
+              - columnheader "Tax %" [ref=f3e366]
+              - columnheader [ref=f3e367]
+          - rowgroup [ref=f3e368]:
+            - row [ref=f3e423]:
+              - cell "RM-BUTTER Butter ✕" [ref=f3e415]:
+                - generic [ref=f3e416]:
+                  - generic [ref=f3e417]: RM-BUTTER
+                  - generic [ref=f3e418]: Butter
+                  - button "✕" [ref=f3e419] [cursor=pointer]
+              - cell "12.345" [ref=f3e424]:
+                - textbox "0" [ref=f3e375]: "12.345"
+              - cell [ref=f3e376]:
+                - combobox "UoM" [ref=f3e378] [cursor=pointer]:
+                  - generic [ref=f3e420]: kg
+                  - generic [ref=f3e379]: ⌄
+              - cell "4.0000 From supplier spec" [ref=f3e421]:
+                - textbox "0.00" [ref=f3e382]: "4.0000"
+                - generic [ref=f3e422]: From supplier spec
+              - cell "20" [ref=f3e425]:
+                - textbox "0" [active] [ref=f3e385]: "20"
+              - cell [ref=f3e386]
+      - generic [ref=f3e387]:
+        - generic [ref=f3e388]: Notes
+        - textbox "Notes" [ref=f3e390]:
+          - /placeholder: Optional notes for this purchase order
+          - text: NIGHT-R08-1400 warehouse lifecycle audit
+    - generic [ref=f3e391]:
+      - button "Cancel" [ref=f3e392] [cursor=pointer]
+      - button "Create PO" [ref=f3e393] [cursor=pointer]

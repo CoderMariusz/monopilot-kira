@@ -1,0 +1,27 @@
+- dialog [ref=f16e446]:
+  - generic [ref=f16e447]:
+    - heading "Add site" [level=2] [ref=f16e448]
+    - button "Close" [ref=f16e449] [cursor=pointer]: ✕
+  - generic [ref=f16e450]:
+    - generic [ref=f16e451]:
+      - generic [ref=f16e452]:
+        - generic [ref=f16e453]: Site code *
+        - textbox "Site code required" [ref=f16e454]: N17R02
+      - generic [ref=f16e455]:
+        - generic [ref=f16e456]: Name *
+        - textbox "Name required" [ref=f16e457]: NIGHT-R02 Site 0731
+      - generic [ref=f16e458]:
+        - generic [ref=f16e459]: Timezone
+        - textbox "Timezone" [ref=f16e460]: Europe/London
+      - generic [ref=f16e461]:
+        - generic [ref=f16e462]: Country
+        - textbox "Country" [ref=f16e463]: GB
+      - generic [ref=f16e464]:
+        - generic [ref=f16e465]: Legal entity
+        - textbox "Legal entity" [active] [ref=f16e466]: Apex 22
+      - generic [ref=f16e468]:
+        - checkbox "Primary site" [ref=f16e469]
+        - text: Primary site
+    - generic [ref=f16e470]:
+      - button "Cancel" [ref=f16e471] [cursor=pointer]
+      - button "Save" [ref=f16e472] [cursor=pointer]

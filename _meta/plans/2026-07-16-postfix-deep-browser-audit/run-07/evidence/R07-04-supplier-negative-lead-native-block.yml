@@ -1,0 +1,47 @@
+- dialog [ref=f1e385]:
+  - generic [ref=f1e386]:
+    - heading "Edit supplier — NIGHT-R07-SUP-1300" [level=2] [ref=f1e387]
+    - button "Close" [ref=f1e388] [cursor=pointer]: ✕
+  - generic [ref=f1e390]:
+    - paragraph [ref=f1e391]: Changes take effect immediately and are recorded in the audit log. The supplier code cannot be changed.
+    - generic [ref=f1e392]:
+      - generic [ref=f1e393]:
+        - generic [ref=f1e394]: Supplier code *
+        - textbox "Supplier code * Supplier code is permanent — it is the natural key referenced by purchase orders." [disabled] [ref=f1e396]: NIGHT-R07-SUP-1300
+        - generic [ref=f1e397]: Supplier code is permanent — it is the natural key referenced by purchase orders.
+      - generic [ref=f1e398]:
+        - generic [ref=f1e399]: Name *
+        - textbox "Name *" [ref=f1e401]:
+          - /placeholder: Acme Meats Ltd.
+          - text: NIGHT R07 Decimal Supplier 1300
+      - generic [ref=f1e402]:
+        - generic [ref=f1e403]: Currency (ISO-4217) *
+        - combobox "Currency (ISO-4217) *" [ref=f1e405] [cursor=pointer]:
+          - generic [ref=f1e406]: GBP
+          - generic [ref=f1e407]: ⌄
+      - generic [ref=f1e408]:
+        - generic [ref=f1e409]: Default lead time (days) *
+        - spinbutton "Default lead time (days) *" [active] [ref=f1e411]: "-1"
+      - generic [ref=f1e412]:
+        - generic [ref=f1e413]: Country (ISO-3166)
+        - textbox "Country (ISO-3166)" [ref=f1e415]:
+          - /placeholder: GB
+          - text: GB
+      - generic [ref=f1e416]:
+        - generic [ref=f1e417]: Email
+        - textbox "Email" [ref=f1e419]:
+          - /placeholder: orders@example.com
+          - text: night-r07@example.test
+      - generic [ref=f1e420]:
+        - generic [ref=f1e421]: Phone (E.164)
+        - textbox "Phone (E.164)" [ref=f1e423]:
+          - /placeholder: +44 20 7946 0891
+          - text: "+442079460707"
+    - generic [ref=f1e424]:
+      - generic [ref=f1e425]: Notes
+      - textbox "Notes" [ref=f1e427]:
+        - /placeholder: Internal comments, allergen cross-risk notes, EUDR scope…
+        - text: NIGHT-R07 owned supplier for PO arithmetic and receiving handoff
+  - generic [ref=f1e428]:
+    - button "Cancel" [ref=f1e429] [cursor=pointer]
+    - button "Save changes" [ref=f1e430] [cursor=pointer]

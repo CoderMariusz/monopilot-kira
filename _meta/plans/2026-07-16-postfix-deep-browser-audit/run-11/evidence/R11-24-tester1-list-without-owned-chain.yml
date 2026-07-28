@@ -1,0 +1,156 @@
+- generic [active] [ref=f9e1]:
+  - generic [ref=f9e2]:
+    - banner [ref=f9e4]:
+      - generic "MonoPilot MES" [ref=f9e5]
+      - searchbox "Search settings…" [ref=f9e7]
+      - generic [ref=f9e8]:
+        - button "Switch organization (platform admin)" [ref=f9e10] [cursor=pointer]:
+          - generic [ref=f9e11]: A2
+          - generic [ref=f9e12]: "000000000000"
+          - generic [ref=f9e13]: Apex 22
+          - generic [ref=f9e14]: ▼
+        - generic "Filters work orders, license plates and OEE only — other screens stay org-wide" [ref=f9e15]:
+          - generic [ref=f9e16]: Site
+          - combobox "Site" [ref=f9e17] [cursor=pointer]:
+            - option "All sites"
+            - option "tester1" [selected]
+            - option "CODEX-R14 SITE"
+            - option "Main Factory"
+            - option "makery"
+            - option "SOL-R02 Site 0539 Edited"
+            - option "warehouse 1"
+        - button "Notifications" [ref=f9e19]
+        - button "Open user menu for Apex Admin" [ref=f9e24]: AA
+    - navigation "Primary" [ref=f9e25]:
+      - generic [ref=f9e26]:
+        - generic [ref=f9e27]:
+          - heading "Core" [level=2] [ref=f9e28]
+          - generic [ref=f9e29]:
+            - link "Dashboard" [ref=f9e30] [cursor=pointer]:
+              - /url: /en/dashboard
+              - generic [ref=f9e31]: ◆
+            - link "Settings" [ref=f9e34] [cursor=pointer]:
+              - /url: /en/settings
+              - generic [ref=f9e35]: ⚙
+        - generic [ref=f9e38]:
+          - heading "Operations" [level=2] [ref=f9e39]
+          - generic [ref=f9e40]:
+            - link "Planning" [ref=f9e41] [cursor=pointer]:
+              - /url: /en/planning
+              - generic [ref=f9e42]: ▤
+            - link "Freight" [ref=f9e45] [cursor=pointer]:
+              - /url: /en/planning/carriers
+              - generic [ref=f9e46]: F
+            - link "Scheduler" [ref=f9e49] [cursor=pointer]:
+              - /url: /en/scheduler
+              - generic [ref=f9e50]: ⧗
+            - link "Production" [ref=f9e53] [cursor=pointer]:
+              - /url: /en/production
+              - generic [ref=f9e54]: ⚒
+            - link "Yard" [ref=f9e57] [cursor=pointer]:
+              - /url: /en/yard
+              - generic [ref=f9e58]: "Y"
+            - link "Warehouse" [ref=f9e61] [cursor=pointer]:
+              - /url: /en/warehouse
+              - generic [ref=f9e62]: ▥
+            - link "Scanner" [ref=f9e65] [cursor=pointer]:
+              - /url: /en/scanner/home
+              - generic [ref=f9e66]: 📱
+        - generic [ref=f9e69]:
+          - heading "QA & Shipping" [level=2] [ref=f9e70]
+          - generic [ref=f9e71]:
+            - link "Quality" [ref=f9e72] [cursor=pointer]:
+              - /url: /en/quality
+              - generic [ref=f9e73]: ✓
+            - link "Shipping" [ref=f9e76] [cursor=pointer]:
+              - /url: /en/shipping
+              - generic [ref=f9e77]: →
+        - generic [ref=f9e80]:
+          - heading "Premium" [level=2] [ref=f9e81]
+          - generic [ref=f9e82]:
+            - link "Technical" [ref=f9e83] [cursor=pointer]:
+              - /url: /en/technical
+              - generic [ref=f9e84]: ▦
+            - link "NPD" [ref=f9e87] [cursor=pointer]:
+              - /url: /en/pipeline
+              - generic [ref=f9e88]: ★
+            - link "Finance" [ref=f9e91] [cursor=pointer]:
+              - /url: /en/finance
+              - generic [ref=f9e92]: $
+            - link "OEE" [ref=f9e95] [cursor=pointer]:
+              - /url: /en/oee
+              - generic [ref=f9e96]: ◉
+            - link "Maintenance" [ref=f9e99] [cursor=pointer]:
+              - /url: /en/maintenance
+              - generic [ref=f9e100]: 🔧
+        - generic [ref=f9e103]:
+          - heading "Analytics & Network" [level=2] [ref=f9e104]
+          - generic [ref=f9e105]:
+            - link "Reporting" [ref=f9e106] [cursor=pointer]:
+              - /url: /en/reporting
+              - generic [ref=f9e107]: ▧
+            - link "Multi-Site" [ref=f9e110] [cursor=pointer]:
+              - /url: /en/multi-site
+              - generic [ref=f9e111]: ❖
+    - main [ref=f9e114]:
+      - main [ref=f9e115]:
+        - generic [ref=f9e117]:
+          - navigation "Breadcrumb" [ref=f9e118]:
+            - list [ref=f9e119]:
+              - listitem [ref=f9e120]:
+                - generic [ref=f9e121]: Planning
+              - listitem [ref=f9e122]:
+                - generic [ref=f9e123]: /
+                - generic [ref=f9e124]: Work orders
+          - generic [ref=f9e125]:
+            - heading "Work orders" [level=1] [ref=f9e126]
+            - paragraph [ref=f9e127]: Plan, release and track production work orders.
+        - generic [ref=f9e128]:
+          - generic [ref=f9e129]:
+            - searchbox "Search WO number or item code…" [ref=f9e131]
+            - generic [ref=f9e132]:
+              - link "Import WOs" [ref=f9e133] [cursor=pointer]:
+                - /url: /en/planning/work-orders/import
+              - button "+ Create WO" [ref=f9e134] [cursor=pointer]
+          - tablist "All" [ref=f9e135]:
+            - tab "All1" [selected] [ref=f9e536]
+            - tab "Draft1" [ref=f9e537]
+            - tab "Released0" [ref=f9e138]
+            - tab "In progress0" [ref=f9e538]
+            - tab "On hold0" [ref=f9e140]
+            - tab "Completed0" [ref=f9e539]
+            - tab "Archive0" [ref=f9e142] [cursor=pointer]
+            - generic [ref=f9e143]: 1 rows
+          - generic [ref=f9e144]:
+            - table [ref=f9e145]:
+              - rowgroup [ref=f9e146]:
+                - row [ref=f9e147]:
+                  - columnheader "WO" [ref=f9e148]
+                  - columnheader "Product" [ref=f9e149]
+                  - columnheader "Status" [ref=f9e150]
+                  - columnheader "Qty" [ref=f9e151]
+                  - columnheader "Scheduled start" [ref=f9e152]
+                  - columnheader "Line" [ref=f9e153]
+                  - columnheader "BOM" [ref=f9e154]
+                  - columnheader [ref=f9e155]
+              - rowgroup [ref=f9e156]:
+                - row [ref=f9e540]:
+                  - cell [ref=f9e541]:
+                    - link "WO-202607-0016-W1" [ref=f9e542] [cursor=pointer]:
+                      - /url: /en/planning/work-orders/f93f942e-9002-4939-abaa-c8189d083151
+                  - cell "WIP-20260707-0006" [ref=f9e543]
+                  - cell "Draft" [ref=f9e544]
+                  - cell "252.000 kg" [ref=f9e546]
+                  - cell "Jul 12, 2026" [ref=f9e547]
+                  - cell "Not assigned" [ref=f9e548]
+                  - cell "BOM" [ref=f9e549]
+                  - cell [ref=f9e551]:
+                    - generic [ref=f9e552]:
+                      - button "Release" [ref=f9e553] [cursor=pointer]
+                      - button "Delete draft" [ref=f9e554] [cursor=pointer]
+            - generic [ref=f9e172]:
+              - generic [ref=f9e173]: Showing 1 of 1
+              - generic [ref=f9e174]:
+                - generic [ref=f9e175]: Previous
+                - generic [ref=f9e176]: Next
+  - alert [ref=f9e177]

@@ -1,0 +1,94 @@
+- generic [ref=f16e123]:
+  - generic [ref=f16e124]:
+    - generic [ref=f16e125]:
+      - link "← Back to license plates" [ref=f16e126] [cursor=pointer]:
+        - /url: /en/warehouse/license-plates
+      - heading "LP-1784297297223-HFWI Butter" [level=1] [ref=f16e127]:
+        - generic [ref=f16e128]: LP-1784297297223-HFWI
+        - generic [ref=f16e129]: Butter
+      - paragraph [ref=f16e130]: 0.000000 kg · Batch NIGHT-R08-SB-1400 · Expiry 2026-07-24
+    - generic [ref=f16e131]:
+      - generic [ref=f16e132]: Merged
+      - generic [ref=f16e133]: Released
+  - generic [ref=f16e134]:
+    - generic [ref=f16e135]:
+      - heading "Identity" [level=2] [ref=f16e136]
+      - generic [ref=f16e137]:
+        - generic [ref=f16e138]: Product
+        - generic [ref=f16e139]:
+          - text: RM-BUTTER
+          - generic [ref=f16e140]: — Butter
+      - generic [ref=f16e141]:
+        - generic [ref=f16e142]: Quantity
+        - generic [ref=f16e143]: 0.000000 kg
+      - generic [ref=f16e145]:
+        - generic [ref=f16e146]: Available
+        - generic [ref=f16e147]: 0.000000 kg
+      - generic [ref=f16e149]:
+        - generic [ref=f16e150]: Batch
+        - generic [ref=f16e151]: NIGHT-R08-SB-1400
+      - generic [ref=f16e152]:
+        - generic [ref=f16e153]: Supplier batch
+        - generic [ref=f16e154]: —
+      - generic [ref=f16e155]:
+        - generic [ref=f16e156]: Expiry date
+        - generic [ref=f16e157]: 2026-07-24
+      - generic [ref=f16e158]:
+        - generic [ref=f16e159]: Best before
+        - generic [ref=f16e160]: 2026-07-24
+      - generic [ref=f16e161]:
+        - generic [ref=f16e162]: Location
+        - generic [ref=f16e163]:
+          - text: RECV
+          - generic [ref=f16e164]: — Receiving Bay
+      - generic [ref=f16e165]:
+        - generic [ref=f16e166]: Warehouse
+        - generic [ref=f16e167]:
+          - text: WH1
+          - generic [ref=f16e168]: — Main Warehouse
+      - generic [ref=f16e169]:
+        - generic [ref=f16e170]: Source
+        - generic [ref=f16e171]: grn
+      - generic [ref=f16e172]:
+        - generic [ref=f16e173]: Parent LP
+        - generic [ref=f16e174]: —
+      - generic [ref=f16e175]:
+        - button "Split" [disabled] [ref=f16e176]
+        - button "Merge" [disabled] [ref=f16e177]
+        - button "Change QA status" [disabled] [ref=f16e178]
+        - button "Reserve" [disabled] [ref=f16e179]
+        - button "Move" [disabled] [ref=f16e180]
+        - button "Destroy / scrap" [disabled] [ref=f16e181]
+      - paragraph [ref=f16e182]: Available actions are determined by the LP state machine. Split, Merge, and Destroy are live.
+    - generic [ref=f16e183]:
+      - tablist "Identity" [ref=f16e184]:
+        - tab "Overview" [selected] [ref=f16e185]
+        - tab "State history" [ref=f16e186]
+        - tab "Reservations" [ref=f16e187]
+        - tab "Movements" [ref=f16e188]
+        - tab "Genealogy" [ref=f16e189]
+        - tab "Labels" [ref=f16e190]
+        - tab "Raw" [ref=f16e191]
+      - generic [ref=f16e192]:
+        - heading "Identity snapshot" [level=3] [ref=f16e193]
+        - generic [ref=f16e194]:
+          - term [ref=f16e195]: Product
+          - definition [ref=f16e196]: RM-BUTTER — Butter
+          - term [ref=f16e197]: Quantity
+          - definition [ref=f16e198]: 0.000000 kg
+          - term [ref=f16e199]: Reserved
+          - definition [ref=f16e200]: 0.000000 kg
+          - term [ref=f16e201]: Available
+          - definition [ref=f16e202]: 0.000000 kg
+          - term [ref=f16e203]: Batch
+          - definition [ref=f16e204]: NIGHT-R08-SB-1400
+          - term [ref=f16e205]: Expiry date
+          - definition [ref=f16e206]: 2026-07-24
+          - term [ref=f16e207]: Location
+          - definition [ref=f16e208]: RECV
+          - term [ref=f16e209]: Warehouse
+          - definition [ref=f16e210]: WH1
+          - term [ref=f16e211]: Source
+          - definition [ref=f16e212]: grn
+          - term [ref=f16e213]: Parent LP
+          - definition [ref=f16e214]: —

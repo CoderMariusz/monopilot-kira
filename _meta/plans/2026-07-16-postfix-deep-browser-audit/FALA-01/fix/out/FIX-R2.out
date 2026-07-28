@@ -1,0 +1,25 @@
+## FILES TOUCHED
+
+- `apps/web/app/(npd)/pipeline/_actions/__tests__/launch-stage-gate.test.ts`
+- `apps/web/app/(npd)/pipeline/[projectId]/formulation/_actions/load-recipe-cascade.test.ts`
+- `apps/web/app/[locale]/(app)/(modules)/technical/wip-library/_actions/__tests__/wip-definition-clone-on-write.unit.test.ts`
+
+## FIX
+
+**R1** — `evaluateStageGate` importowany dynamicznie z kanonicznego `../_lib/evaluate-stage-gate` (funkcja `loadEvaluateStageGate()`), zamiast z `advance-project-gate.ts`, gdzie re-export został usunięty z powodu `'use server'`.
+
+**R2** — Asercja `toHaveLength(2)` → `toHaveLength(3)` z komentarzem. Probe `hasExpandableSubRecipe()` na granicy `MAX_DEPTH` musi wykonać dodatkowy `loadRecipeComponents(version-c)`, bo przy `depth >= MAX_DEPTH` nie mamy jeszcze załadowanych danych potomka — sam `itemCode` nie wystarczy, by odróżnić liść od rozwijalnego węzła. Optymalizacja bez tego query wymagałaby przekazywania cache/hintów z rodzica (zmiana produkcyjna poza zakresem). Zachowanie `maxDepthReached: true, lines: []` pozostaje poprawne.
+
+**R3** — Mock DB rozszerzony o:
+- `pg_advisory_xact_lock` → `{ pg_advisory_xact_lock: true }`
+- `loadWipCompositionEdges` (`wd.item_id::text as parent`) → `[]` (brak cykli w grafie)
+
+Dodatkowo `RAW_INGREDIENT_ID` ≠ `ITEM_ID` (definicja vs składnik) — po dodaniu cycle-guarda self-reference `parent → parent` był poprawnie odrzucany jako `WIP_DEFINITION_CYCLE`; test nadal weryfikuje clone-on-write (insert nowej wersji, archive + activate), nie mutację in-place.
+
+## VERIFY
+
+```
+Test Files  3 passed (3)
+Tests       11 passed (11)
+Duration    239ms
+```

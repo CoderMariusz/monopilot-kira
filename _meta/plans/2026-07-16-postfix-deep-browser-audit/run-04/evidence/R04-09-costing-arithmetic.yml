@@ -1,0 +1,30 @@
+url: https://monopilot-kira.vercel.app/en/pipeline/e60aa78f-f093-48dc-baf3-50e312af783b/costing
+captured_at: 2026-07-17T09:31:00+01:00
+run: 04
+project: NPD-021
+inputs:
+  pack_weight_kg: "0.480"
+  target_price_per_pack_gbp: "2.50"
+  batch_packs: "500"
+  raw_cost_per_kg_gbp: "0.50"
+observed_waterfall:
+  total_cost:
+    per_kg: "0.50"
+    per_pack: "0.24"
+    per_batch: "120.00"
+  row_label: "Margin vs target price"
+  displayed:
+    per_kg: "5.20"
+    per_pack: "2.50"
+    per_batch: "1250.00"
+manual_expected_margin:
+  per_kg: "2.50 / 0.480 - 0.50 = 4.708333..."
+  per_pack: "2.50 - 0.24 = 2.26"
+  per_batch: "1250.00 - 120.00 = 1130.00"
+observation: "The row labelled margin displays cumulative revenue/target price, not margin."
+yield_zero_probe:
+  input: "0%"
+  raw_cost_per_kg: "0.50"
+  displayed_after_yield_per_kg: "0.50"
+  observation: "A physically impossible 0% yield is treated as a no-loss fallback instead of invalid/undefined."
+

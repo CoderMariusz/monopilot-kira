@@ -1,0 +1,234 @@
+- generic:
+  - generic:
+    - generic:
+      - banner:
+        - generic: MonoPilot MES
+        - generic:
+          - searchbox
+        - generic:
+          - generic:
+            - button:
+              - generic: A2
+              - generic: "000000000000"
+              - generic: Apex 22
+              - generic: ▼
+          - generic:
+            - generic: Site
+            - combobox
+          - generic:
+            - button
+          - generic:
+            - button: AA
+    - navigation:
+      - generic:
+        - generic:
+          - heading [level=2]: Core
+          - generic:
+            - link:
+              - /url: /en/dashboard
+              - generic: ◆
+              - generic: Dashboard
+            - link:
+              - /url: /en/settings
+              - generic: ⚙
+              - generic: Settings
+        - generic:
+          - heading [level=2]: Operations
+          - generic:
+            - link:
+              - /url: /en/planning
+              - generic: ▤
+              - generic: Planning
+            - link:
+              - /url: /en/planning/carriers
+              - generic: F
+              - generic: Freight
+            - link:
+              - /url: /en/scheduler
+              - generic: ⧗
+              - generic: Scheduler
+            - link:
+              - /url: /en/production
+              - generic: ⚒
+              - generic: Production
+            - link:
+              - /url: /en/yard
+              - generic: "Y"
+              - generic: Yard
+            - link:
+              - /url: /en/warehouse
+              - generic: ▥
+              - generic: Warehouse
+            - link:
+              - /url: /en/scanner/home
+              - generic: 📱
+              - generic: Scanner
+        - generic:
+          - heading [level=2]: QA & Shipping
+          - generic:
+            - link:
+              - /url: /en/quality
+              - generic: ✓
+              - generic: Quality
+            - link:
+              - /url: /en/shipping
+              - generic: →
+              - generic: Shipping
+        - generic:
+          - heading [level=2]: Premium
+          - generic:
+            - link:
+              - /url: /en/technical
+              - generic: ▦
+              - generic: Technical
+            - link:
+              - /url: /en/pipeline
+              - generic: ★
+              - generic: NPD
+            - link:
+              - /url: /en/finance
+              - generic: $
+              - generic: Finance
+            - link:
+              - /url: /en/oee
+              - generic: ◉
+              - generic: OEE
+            - link:
+              - /url: /en/maintenance
+              - generic: 🔧
+              - generic: Maintenance
+        - generic:
+          - heading [level=2]: Analytics & Network
+          - generic:
+            - link:
+              - /url: /en/reporting
+              - generic: ▧
+              - generic: Reporting
+            - link:
+              - /url: /en/multi-site
+              - generic: ❖
+              - generic: Multi-Site
+    - main:
+      - main:
+        - generic:
+          - generic:
+            - navigation:
+              - list:
+                - listitem:
+                  - link:
+                    - /url: /en/planning
+                    - text: Planning
+                - listitem:
+                  - generic: /
+                  - link:
+                    - /url: /en/planning/work-orders
+                    - text: Work orders
+                - listitem:
+                  - generic: /
+                  - generic: Detail
+            - generic:
+              - heading [level=1]: Work order
+        - generic:
+          - generic:
+            - generic: WO-202607-0030
+            - generic: Draft
+            - generic: normal
+            - generic:
+              - button: Release
+              - button: Edit
+              - button: Cancel chain
+          - generic:
+            - generic:
+              - term: Product
+              - definition: FG0014
+            - generic:
+              - term: Qty
+              - definition: 12.345 kg
+            - generic:
+              - term: Scheduled start
+              - definition: Jul 25, 2026, 12:00 AM
+            - generic:
+              - term: Scheduled end
+              - definition: —
+            - generic:
+              - term: Line
+              - definition: LINE03 — Assembly Line
+            - generic:
+              - term: Priority
+              - definition: normal
+            - generic:
+              - term: Source
+              - definition: manual
+          - generic:
+            - tablist:
+              - tab [selected]: Overview
+              - tab: Outputs 1
+              - tab: Dependencies 1
+              - tab: Reservations
+              - tab: Sequencing
+              - tab: State history 1
+              - tab: D365 sync
+            - tabpanel:
+              - generic:
+                - heading [level=3]: Pinned BOM / factory spec
+                - generic:
+                  - generic:
+                    - term: BOM header ID
+                    - definition: cdc8a9a7-9100-4e0f-9915-496566acdca4
+                    - term: BOM version
+                    - definition: "3"
+                  - generic:
+                    - term: Factory spec ID
+                    - definition: 59c93a1c-053d-4819-9615-39dfc39ddb99
+                    - term: Factory spec version
+                    - definition: 4 (FS-FG0014-v4)
+              - generic:
+                - heading [level=3]: Materials (BOM snapshot)
+                - table:
+                  - rowgroup:
+                    - row
+                  - rowgroup:
+                    - row
+                    - row
+                    - row
+                    - row
+              - generic:
+                - heading [level=3]: Operations (routing snapshot)
+                - paragraph: No operations recorded for this work order.
+  - alert
+  - dialog [ref=f2e223]:
+    - generic [ref=f2e224]:
+      - heading "Edit work order" [level=2] [ref=f2e225]
+      - button "Close" [active] [ref=f2e226] [cursor=pointer]: ✕
+    - generic [ref=f2e228]:
+      - note [ref=f2e229]: Changing the product or quantity rebuilds this work order's components and operations from the current BOM and routing.
+      - generic [ref=f2e230]:
+        - generic [ref=f2e231]: Product (finished good)
+        - generic [ref=f2e232]: FG0014
+        - button "Change product" [ref=f2e236] [cursor=pointer]
+      - generic [ref=f2e237]:
+        - generic [ref=f2e238]: Order unit
+        - combobox "Order unit" [ref=f2e240] [cursor=pointer]:
+          - generic [ref=f2e241]: kg
+          - generic [ref=f2e242]: ⌄
+      - generic [ref=f2e243]:
+        - generic [ref=f2e244]: Planned quantity
+        - textbox "Planned quantity" [ref=f2e246]:
+          - /placeholder: e.g. 1000 or 1000.500
+          - text: "12.345"
+      - generic [ref=f2e247]:
+        - generic [ref=f2e248]: Scheduled start
+        - textbox "Scheduled start" [ref=f2e250]: 2026-07-25
+      - generic [ref=f2e251]:
+        - generic [ref=f2e252]: Production line
+        - combobox "Production line" [ref=f2e254] [cursor=pointer]:
+          - generic [ref=f2e255]: LINE03 — Assembly Line
+          - generic [ref=f2e256]: ⌄
+      - generic [ref=f2e257]:
+        - generic [ref=f2e258]: Notes
+        - textbox "Notes" [ref=f2e260]:
+          - /placeholder: Optional notes…
+          - text: NIGHT-R11-2222 parent FG chain integrity
+    - generic [ref=f2e261]:
+      - button "Cancel" [ref=f2e262] [cursor=pointer]
+      - button "Save changes" [ref=f2e263] [cursor=pointer]

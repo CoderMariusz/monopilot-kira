@@ -1,0 +1,29 @@
+## FILES TOUCHED
+- `apps/web/actions/users/invite.ts`
+- `apps/web/actions/users/invite.behavior.test.ts`
+- `packages/db/migrations/510-tenant-idp-policy-upsert.sql`
+- `packages/db/src/migrations/510-tenant-idp-policy-upsert.sql`
+
+## FIX per finding
+
+### PF-R01-01 · P0 — Invite ignoruje wybrany site
+**Root cause:** `inviteUser` zapisywał `site` tylko w metadanych Supabase Auth / audit / outbox — bez wiersza w `public.user_sites`. Przy 0 przypisaniach `isUserSiteAccessUnrestricted()` traktuje użytkownika jako unrestricted (cross-site).
+
+**Zmiana:** Po walidacji RBAC serwer rozwiązuje site (UUID, `name` lub `site_code`, org-scoped, deny-by-default przy 0/>1 dopasowaniu) i atomowo zapisuje `user_sites` przez `replaceInvitedUserSiteScope()` (delete+insert w tej samej transakcji `withOrgContext`). Przy błędzie zapisu scope — `throw` → rollback (brak orphan user bez restrykcji). Dotyczy nowego invite i resend pending invite.
+
+### PF-R01-02 · P1 — Security settings nie zapisują się
+**Root cause:** `app.upsert_my_tenant_idp_policy()` (mig 509) robiło tylko `UPDATE` i zwracało `false`, gdy brak wiersza `tenant_idp_config` (legacy tenant Apex 22). `upsertSecurityPolicy` mapuje to na `persistence_failed`.
+
+**Zmiana:** Mig 510 backfilluje brakujące `tenant_idp_config` i przepisuje funkcję na `INSERT … ON CONFLICT DO UPDATE` (zawsze `return true` gdy org ma `tenant_id`). Akcja `upsert-policy.ts` bez zmian — już woła właściwą funkcję.
+
+## MIGRATION
+`510-tenant-idp-policy-upsert.sql` (w `packages/db/migrations/` i `packages/db/src/migrations/`)
+
+## TEST ADDED
+`apps/web/actions/users/invite.behavior.test.ts` — test `persists invite site scope in user_sites and keeps the user site-restricted after claim` (unknown site → `invalid_input`; named site → `user_sites` row; `isUserSiteAccessUnrestricted` → `false` dla Viewera)
+
+## UNCERTAINTIES
+- **InviteDialog nadal wysyła nazwę site** (nie UUID) — rozwiązywane server-side; review powinien potwierdzić dopasowanie do `sites.name` w prod (np. „Main Factory”).
+- **Mig 510 na prod:** backfill + nowa funkcja muszą przejść gate Vercel migrate przed deployem kodu invite.
+- **Claim path:** accept route nie dotyka `user_sites` (scope ustawiany przy invite, utrzymuje się po aktywacji) — review może zweryfikować E2E invite → accept → shell site picker.
+- **Org bez `tenant_id`:** nadal `persistence_failed` (poprawne fail-closed); Apex 22 powinien mieć tenant po backfillu.

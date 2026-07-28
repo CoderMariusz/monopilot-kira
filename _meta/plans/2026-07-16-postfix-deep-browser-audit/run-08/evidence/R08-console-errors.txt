@@ -1,0 +1,9 @@
+Total messages: 1 (Errors: 0, Warnings: 0)
+Returning 4 messages for level "error"
+
+[ERROR] Failed to load resource: the server responded with a status of 404 () @ https://monopilot-kira.vercel.app/favicon.ico:0
+[ERROR] Failed to load resource: the server responded with a status of 401 () @ https://monopilot-kira.vercel.app/en/planning/purchase-orders:0
+[ERROR] Error: An unexpected response was received from the server.
+    at I (https://monopilot-kira.vercel.app/_next/static/chunks/0uhab5f3ew69l.js:3:743) @ https://monopilot-kira.vercel.app/_next/static/chunks/3zwcazv_dbgvy.js:31
+[ERROR] [app/error] uncaught render error: Error: An unexpected response was received from the server.
+    at I (https://monopilot-kira.vercel.app/_next/static/chunks/0uhab5f3ew69l.js:3:743) @ https://monopilot-kira.vercel.app/_next/static/chunks/3-gvp--s22ycv.js:1

@@ -1,0 +1,22 @@
+url: https://monopilot-kira.vercel.app/en/pipeline/e60aa78f-f093-48dc-baf3-50e312af783b/costing-nutrition?modal=advanceGate
+captured_at: 2026-07-17T09:02:48+01:00
+run: 04
+phase: "Costing & Nutrition"
+gate: "G3 Development"
+visible_gate_checklist:
+  completion: "1/11 (9%)"
+  required_items: 0
+  status: "No blockers — ready to advance"
+computed_state:
+  costing: true
+  nutrition: false
+server_preflight:
+  result: blocked_then_override_offered
+  hidden_required_check: "Nutrition computed"
+  override_requires:
+    note: true
+    e_signature: false
+    second_approver: false
+  override_button: "Override and advance"
+observation: "The client says there are no blockers because every substantive G3 checklist item is optional. The server identifies nutrition as required but allows a one-person, note-only override."
+candidate_severity: P1

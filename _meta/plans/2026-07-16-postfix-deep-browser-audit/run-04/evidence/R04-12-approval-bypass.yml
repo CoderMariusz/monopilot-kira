@@ -1,0 +1,33 @@
+url: https://monopilot-kira.vercel.app/en/pipeline/e60aa78f-f093-48dc-baf3-50e312af783b/gate
+captured_at: 2026-07-17T10:05:52+01:00
+run: 04
+project: NPD-021
+g3:
+  checklist_progress_at_approval: "1/11 (9%)"
+  substantive_items_marked_optional: true
+  accepted_decision: APPROVED
+  e_signed: true
+  approver: Admin
+  missing_at_time_of_signature:
+    - locked formulation
+    - completed costing/nutrition
+    - packaging
+    - trial
+    - sensory evaluation
+    - pilot plan/work order
+g4:
+  accepted_decision: APPROVED
+  e_signed: true
+  approver: Admin
+  moved_to_stage: Handoff
+  still_missing:
+    - pilot work order
+    - active supplier specification for ING-FLOUR
+    - 25.555 kg material
+    - compliance document
+signature_details:
+  verification: "Valid — Signature verified"
+  certificate_id_visible_value: ""
+  history_timestamp_format: "2026-07-17 09:13:14.821+00"
+observation: "Formal e-sign records were created even though the required project evidence was incomplete; the expandable signature details expose no Certificate ID/hash."
+

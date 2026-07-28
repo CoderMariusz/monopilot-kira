@@ -1,0 +1,59 @@
+- dialog "Edit item" [ref=f39e319]:
+  - generic [ref=f39e320]:
+    - generic [ref=f39e321]:
+      - generic [ref=f39e322]: Edit item
+      - generic [ref=f39e323]: Universal item master — links to BOM, spec and allergen matrix.
+    - button "Close" [ref=f39e324] [cursor=pointer]: ✕
+  - generic [ref=f39e325]:
+    - tablist "Wizard steps" [ref=f39e326]:
+      - tab "✓ Basic info" [ref=f39e361] [cursor=pointer]:
+        - generic [ref=f39e328]: ✓
+        - generic [ref=f39e329]: Basic info
+      - tab "✓ Classification" [ref=f39e400] [cursor=pointer]:
+        - generic [ref=f39e332]: ✓
+        - generic [ref=f39e333]: Classification
+      - tab "✓ Weight & shelf life" [ref=f39e452] [cursor=pointer]:
+        - generic [ref=f39e336]: ✓
+        - generic [ref=f39e337]: Weight & shelf life
+      - tab "4 Review & create" [selected] [ref=f39e339]:
+        - generic [ref=f39e340]: "4"
+        - generic [ref=f39e341]: Review & create
+    - generic [ref=f39e453]:
+      - generic [ref=f39e454]:
+        - generic [ref=f39e455]:
+          - term [ref=f39e456]: Item code
+          - definition [ref=f39e457]: NIGHT-R03-0806-FG
+        - generic [ref=f39e458]:
+          - term [ref=f39e459]: Name
+          - definition [ref=f39e460]: NIGHT-R03 Finished Good 0806
+        - generic [ref=f39e461]:
+          - term [ref=f39e462]: Item type
+          - definition [ref=f39e463]: Finished good
+        - generic [ref=f39e464]:
+          - term [ref=f39e465]: Status
+          - definition [ref=f39e466]: Active
+        - generic [ref=f39e467]:
+          - term [ref=f39e468]: Base UoM
+          - definition [ref=f39e469]: pcs (each)
+        - generic [ref=f39e470]:
+          - term [ref=f39e471]: Pack hierarchy
+          - definition [ref=f39e472]: Base unit
+        - generic [ref=f39e473]:
+          - term [ref=f39e474]: Weight mode
+          - definition [ref=f39e475]: Catch weight
+        - generic [ref=f39e476]:
+          - term [ref=f39e477]: GS1 GTIN
+          - definition [ref=f39e478]: —
+        - generic [ref=f39e479]:
+          - term [ref=f39e480]: Nominal weight
+          - definition [ref=f39e481]: "0.48"
+        - generic [ref=f39e482]:
+          - term [ref=f39e483]: List price (GBP / base UoM)
+          - definition [ref=f39e484]: "2.5000"
+      - generic [ref=f39e485]:
+        - generic [ref=f39e486]: ✓
+        - generic [ref=f39e487]: Ready to save your changes. An audit record will be logged.
+  - generic [ref=f39e357]:
+    - button "Back" [ref=f39e399] [cursor=pointer]
+    - button "Cancel" [ref=f39e359] [cursor=pointer]
+    - button "Save changes" [active] [ref=f39e488] [cursor=pointer]

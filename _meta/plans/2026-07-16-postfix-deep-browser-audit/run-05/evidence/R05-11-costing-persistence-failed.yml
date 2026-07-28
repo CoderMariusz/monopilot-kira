@@ -1,0 +1,33 @@
+- main [ref=f106e187]:
+  - heading "Cost breakdown" [level=1] [ref=f106e189]
+  - alert [ref=f106e244]: Could not compute the costing. Try again.
+  - generic [ref=f106e190]:
+    - heading "Costing inputs" [level=3] [ref=f106e192]
+    - generic [ref=f106e193]:
+      - generic [ref=f106e194]:
+        - generic [ref=f106e195]:
+          - generic [ref=f106e196]: Avg batch qty (kg)
+          - spinbutton "Avg batch qty (kg)" [ref=f106e198]: "100.125"
+        - generic [ref=f106e199]:
+          - generic [ref=f106e200]: Overhead override (£/kg)
+          - spinbutton "Overhead override (£/kg)" [ref=f106e202]: "0"
+        - generic [ref=f106e203]:
+          - generic [ref=f106e204]: Logistics override (£/box)
+          - spinbutton "Logistics override (£/box)" [ref=f106e206]: "0"
+        - generic [ref=f106e207]:
+          - button "Save inputs" [ref=f106e208] [cursor=pointer]
+          - status [ref=f106e243]: Inputs saved
+      - generic [ref=f106e209]:
+        - generic [ref=f106e210]:
+          - generic [ref=f106e211]: "Weekly volume (packs):"
+          - text: "1234.567"
+        - generic [ref=f106e212]:
+          - generic [ref=f106e213]: "Runs per week:"
+          - text: "3.00"
+        - link "Edit in Brief" [ref=f106e214] [cursor=pointer]:
+          - /url: /en/pipeline/076ba78f-f94b-40c9-bc30-daeb35e92d02/brief
+  - generic [ref=f106e215]:
+    - generic [ref=f106e216]: 📊
+    - generic [ref=f106e217]: No costing data yet
+    - generic [ref=f106e218]: Costing is computed once the formulation has ingredient costs.
+  - button "Compute costing" [ref=f106e220] [cursor=pointer]

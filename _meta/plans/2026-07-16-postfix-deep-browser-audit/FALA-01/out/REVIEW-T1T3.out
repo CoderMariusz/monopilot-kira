@@ -1,0 +1,60 @@
+## T1 — VERDICT: BLOCKER
+
+- **BLOCKER — brak site nadal daje pełny dostęp cross-site.** `site` pozostaje opcjonalny, a zapis `user_sites` wykonuje się tylko przy `inviteSiteId` ([invite.ts](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/actions/users/invite.ts:198), [invite.ts](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/actions/users/invite.ts:239)). To omija P0 deny-by-default; zero wpisów oznacza unrestricted. Serwer powinien wymagać site dla zwykłej roli albo dopuścić brak wyłącznie dla jawnej roli all-site.
+
+- **BLOCKER — rollback jest pozorny.** Błąd zapisu scope rzuca wyjątek, ale lokalny `catch` zamienia go na normalny `return` ([invite.ts](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/actions/users/invite.ts:177), [invite.ts](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/actions/users/invite.ts:257)). `withOrgContext` wtedy robi `COMMIT`, więc może pozostać użytkownik/token bez scope. Wyjątek musi wyjść poza callback transakcyjny; mapowanie na `persistence_failed` dopiero na zewnątrz.
+
+- **BLOCKER — nazwa site trafia do parametru typu UUID.** Zapytanie zawiera `$2::uuid`, choć `$2` może być `"Warsaw Plant"` ([invite.ts](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/actions/users/invite.ts:282)). PostgreSQL odrzuci parametr przy bindzie, zanim warunek boolean ochroni cast. Użyć `s.id::text = $2::text` po walidacji albo przekazywać `null` do osobnego parametru UUID.
+
+- **BLOCKER — scope jest przypięty do złej tożsamości.** `generateLink` tworzy Supabase Auth usera, lecz helper zwraca tylko token, a `public.users` jest insertowany bez auth UUID ([invite.ts](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/actions/users/invite.ts:223), [invite.ts](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/actions/users/invite.ts:331)). `user_sites` dostaje losowy `public.users.id`, nie `auth.users.id`. Repo jawnie wymaga ich równości w analogicznym flow ([create-user-with-password.ts](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/actions/users/create-user-with-password.ts:243)). Zwrócić `linkResponse.data.user.id`, użyć go przy insercie i scope oraz obsłużyć istniejące niespójne invite’y.
+
+- **BLOCKER — suite jest logicznie czerwona.** Istniejący test z `"Warsaw Plant"` nie ustawia `siteByName`, więc nowy resolver zwróci `invalid_input`, mimo oczekiwanego sukcesu ([invite.behavior.test.ts](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/actions/users/invite.behavior.test.ts:213)).
+
+- Nowy test scope failuje bez fixa, ale nie testuje faktycznego claim flow ani rollbacku: ręcznie odpytuje helper dla tego samego fake ID ([invite.behavior.test.ts](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/actions/users/invite.behavior.test.ts:245)).
+
+Migracja 510:
+
+- `packages/db/src/migrations/510-*` jest identycznym, martwym dla runnera duplikatem. Runner oraz Drizzle wskazują wyłącznie `packages/db/migrations/` ([migrate.ts](/Users/mariuszkrawczyk/Projects/monopilot-kira/packages/db/scripts/migrate.ts:51), [drizzle.config.ts](/Users/mariuszkrawczyk/Projects/monopilot-kira/packages/db/drizzle.config.ts:12)).
+- Nie będzie double-apply. Kanonicznie zostawić [packages/db/migrations/510-tenant-idp-policy-upsert.sql](/Users/mariuszkrawczyk/Projects/monopilot-kira/packages/db/migrations/510-tenant-idp-policy-upsert.sql:1). Kopia `src/migrations` nie uczestniczy w deployu.
+- Sam SQL jest org-scoped przez `app.current_org_id()`, idempotentny i naprawia UPDATE-only z 509.
+
+## T2 — VERDICT: BLOCKER
+
+- **BLOCKER — G4 operational criteria nadal można ominąć.** `approveProjectGate` wywołuje evaluator przed e-sign, ale `getBlockers` dla `approval → handoff` nie sprawdza niczego ([evaluate-stage-gate.ts](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/(npd)/pipeline/_actions/_lib/evaluate-stage-gate.ts:192), [gate-helpers.ts](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/(npd)/pipeline/_actions/_lib/gate-helpers.ts:557)). Kryteria C1–C7 są sprawdzane dopiero przy `handoff → launched` ([gate-helpers.ts](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/(npd)/pipeline/_actions/_lib/gate-helpers.ts:590)). Tymczasem kontrakt T-058 wymaga na G4 department closures, release preflight, RM usability, BOM/factory-spec readiness i Settings approvals. Podpiąć ich autorytatywne evaluatory do formalnego G4 przed `signEvent`.
+
+- **NEEDS-FIX — test auth override ma fałszywą nazwę/pokrycie.** Test „unauthenticated override” nadaje aktorowi zarówno `npd.gate.advance`, jak i `npd.gate.approve` ([gate-approval-readiness.pg.test.ts](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/(npd)/pipeline/_actions/__tests__/gate-approval-readiness.pg.test.ts:38)). Dowodzi tylko, że required evidence jest hard; nie dowodzi ograniczenia advisory override do approvera. Dodać aktora posiadającego wyłącznie advance i oczekiwać `FORBIDDEN`, bez audytu i update.
+
+Potwierdzone poprawne:
+
+- `approve-project-gate.ts` jest żywym kodem używanym przez oba produkcyjne ekrany.
+- Required checklist/fields są oceniane przed `signEvent` i zwracane jako `HARD_BLOCKED` ([approve-project-gate.ts](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/(npd)/pipeline/_actions/approve-project-gate.ts:91)).
+- Advisory override wymaga teraz `GATE_APPROVE_PERMISSION` ([advance-project-gate.ts](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/(npd)/pipeline/_actions/advance-project-gate.ts:124)).
+- Dodane testy G3/hard-required logicznie failują na starym kodzie. Brakuje testu G4 operational oraz rzeczywiście nieuprawnionego override.
+
+## T3 — VERDICT: BLOCKER
+
+- **BLOCKER — race pozwala utworzyć A→B→A.** Guard czyta graf, po czym zapisuje; blokada obejmuje tylko edytowaną definicję. Dwie transakcje mogą równolegle zablokować różne A i B, obie zobaczyć graf bez drugiej nowej krawędzi i obie zatwierdzić ([wip-definition-cycle.ts](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/technical/wip-library/_actions/wip-definition-cycle.ts:31), [wip-definition-actions.ts](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/technical/wip-library/_actions/wip-definition-actions.ts:188)). Serializować mutacje grafu per org, np. transakcyjnym advisory lockiem przed odczytem aż do zapisu, i dodać równoległy test DB.
+
+- **BLOCKER — zmiana depth łamie istniejący kontrakt/test.** `depth >= MAX_DEPTH` zmieniono na `depth > MAX_DEPTH` ([load-recipe-cascade.ts](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/(npd)/pipeline/[projectId]/formulation/_actions/load-recipe-cascade.ts:108)). Istniejący test nadal oczekuje stopu na depth 3 ([load-recipe-cascade.test.ts](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/(npd)/pipeline/[projectId]/formulation/_actions/load-recipe-cascade.test.ts:121)); logicznie będzie czerwony. Zachować granicę i na granicy sondować, czy węzeł rzeczywiście ma potomków.
+
+- **NEEDS-FIX — nowy leaf test nie testuje fixa.** Przypadek ma tylko jeden poziom sub-recipe, więc nigdy nie dociera do `MAX_DEPTH`; przechodził również przed zmianą ([load-recipe-cascade.test.ts](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/(npd)/pipeline/[projectId]/formulation/_actions/load-recipe-cascade.test.ts:99)). Potrzebny terminalny leaf dokładnie na granicy oraz expandable node na tej samej granicy.
+
+- **NEEDS-FIX — stale-after-save nie jest naprawione root-cause.** Efekt czyści cache przy lokalnej zmianie rows, nie po zakończeniu zapisu ([formulation-editor.tsx](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/formulation/_components/formulation-editor.tsx:847)). `saveDraft` usuwa i reinseruje ingredient rows, więc zmienia ich ID, natomiast editor celowo nie reseeduje rows przy refreshu tej samej wersji. Cascade jest mapowany po efemerycznym `ingredientLineId`; po zapisie nowe wyniki nie pasują do starych lokalnych ID. Potrzebne stabilne mapowanie albo reseed/remount po udanym save oraz RTL test save→reload cascade.
+
+- Self i sekwencyjne A→B→A są wykrywane przed zapisem i ich unit testy logicznie failują bez fixa. Nie pokrywają wyścigu.
+
+- `en.json` i `pl.json` są poprawnym JSON-em, bez conflict markerów; klucze WIP są spójne ([en.json](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/i18n/en.json:6775), [pl.json](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/i18n/pl.json:4148)). W tych samych plikach są też hunki FactorySpec/maintenance z innych torów, ale nie znalazłem faktycznego nadpisania T3.
+
+## BLOCKERY przed deployem
+
+1. T1: wymagany site/all-site authority, prawdziwy rollback, bezpieczna resolucja nazwy oraz zgodność `public.users.id = auth.users.id`.
+2. T1: naprawić czerwony fixture i dodać test realnego claim/rollback.
+3. T2: dołączyć pełne operational blockers G4 przed e-sign.
+4. T2: test nieuprawnionego advisory override.
+5. T3: serializacja współbieżnych mutacji grafu.
+6. T3: naprawić off-by-one depth i czerwony istniejący test.
+7. T3: rzeczywisty test boundary leaf/max-depth oraz poprawne odświeżenie cascade po save.
+
+NICE-TO-HAVE: usunąć martwy mirror migracji 510, jeśli nie jest utrzymywany jako celowy artefakt; dodać `saveCycleError` również do `ro/uk` zamiast angielskiego fallbacku.
+
+Testów/builda nie uruchamiałem, zgodnie z poleceniem.

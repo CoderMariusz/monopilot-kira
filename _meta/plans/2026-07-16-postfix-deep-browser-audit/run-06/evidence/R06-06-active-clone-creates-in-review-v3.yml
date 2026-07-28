@@ -1,0 +1,14 @@
+- generic [ref=f119e209]:
+  - generic [ref=f119e210]:
+    - generic [ref=f119e211]:
+      - heading "NIGHT R06 Revision Test 1138" [level=1] [ref=f119e212]
+      - generic [ref=f119e213]: In review
+      - generic [ref=f119e214]: v3
+    - paragraph [ref=f119e215]:
+      - text: "Yield:"
+      - generic [ref=f119e216]: 100%
+  - generic [ref=f119e218]:
+    - button "Add component" [ref=f119e219] [cursor=pointer]
+    - button "Save version" [ref=f119e220] [cursor=pointer]
+    - button "Delete version" [ref=f119e221] [cursor=pointer]
+    - button "Approve" [ref=f119e462] [cursor=pointer]

@@ -1,0 +1,45 @@
+## FILES TOUCHED
+
+- `apps/web/app/(npd)/pipeline/[projectId]/formulation/_actions/load-recipe-cascade.ts`
+- `apps/web/app/(npd)/pipeline/[projectId]/formulation/_actions/load-recipe-cascade.types.ts`
+- `apps/web/app/(npd)/pipeline/[projectId]/formulation/_actions/load-recipe-cascade.test.ts`
+- `apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/formulation/_components/formulation-editor.tsx`
+- `apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/formulation/_components/__tests__/formulation-editor.cascade.test.tsx`
+- `apps/web/app/[locale]/(app)/(modules)/technical/wip-library/_actions/wip-definition-cycle.ts`
+- `apps/web/app/[locale]/(app)/(modules)/technical/wip-library/_actions/__tests__/wip-definition-cycle.unit.test.ts`
+- `apps/web/app/[locale]/(app)/(modules)/technical/wip-library/_actions/__tests__/wip-definition-cycle.pg.test.ts` *(new)*
+
+## FIX
+
+**F1 — depth boundary (BLOCKER)**  
+Przywrócono granicę `depth >= MAX_DEPTH`. Na granicy `hasExpandableSubRecipe()` sprawdza faktyczne komponenty (formulation ingredients / BOM / WIP def), nie samą obecność wersji receptury. Liść bez potomków → `undefined`; węzeł rozwijalny → `{ maxDepthReached: true }`.
+
+**F2 — testy granicy (NEEDS-FIX)**  
+Dodano dwa przypadki na `MAX_DEPTH`: (a) terminalny `RM-LEAF` na depth 3 — brak `maxDepthReached`; (b) rozwijalny `WIP-C` na depth 3 — `maxDepthReached`. Zachowano test płytkich liści WIP-def.
+
+**F3 — stale-after-save (NEEDS-FIX)**  
+- `RecipeCascadeNode` rozszerzony o `sequence` + `itemId` (stabilny klucz).  
+- Editor mapuje cascade po `sequence:itemId:rmCode`, nie po efemerycznym `ingredientLineId`.  
+- `expandedCascadeKeys` też po stabilnym kluczu (przetrwa rotację ID po save).  
+- Po udanym save: `setCascadeRows(null)` + auto-reload gdy cascade jest rozwinięty.  
+- RTL test: save → rerender z nowym `ingredient.id` → świeże dane cascade bez hard-refresh.
+
+**F4 — race A→B / B→A (BLOCKER)**  
+`pg_advisory_xact_lock(hashtextextended('wip-composition:' || app.current_org_id()::text, 0))` w `assertWipDefinitionCompositionAcyclic` **przed** odczytem grafu, w tej samej transakcji `withOrgContext` co zapis.  
+PG test: równoległe `saveWipDefinition` A→B i B→A → dokładnie 1 sukces, 1× `WIP_DEFINITION_CYCLE`, graf bez pętli.
+
+## MIGRATION
+
+**none**
+
+## TEST
+
+- `load-recipe-cascade.test.ts` — boundary leaf / expandable + shallow leaves
+- `formulation-editor.cascade.test.tsx` — save → ID rotation → fresh cascade
+- `wip-definition-cycle.unit.test.ts` — advisory lock przed edge load
+- `wip-definition-cycle.pg.test.ts` — concurrent A↔B (wymaga `DATABASE_URL`)
+
+## UNCERTAINTIES
+
+- Klucz cascade `sequence:itemId:rmCode` zakłada unikalność w obrębie wersji (zgodne z `ORDER BY fi.sequence`). Duplikat tego samego `itemId` na dwóch liniach wymagałby dodatkowego disambiguanta (np. `ingredientLineId` jako fallback).
+- PG test concurrency zależy od realnego Postgresa i serializacji `pg_advisory_xact_lock` w `withOrgContext`; mockowany unit test nie weryfikuje wyścigu między transakcjami.

@@ -1,0 +1,100 @@
+- generic [active] [ref=f40e1]:
+  - generic [ref=f40e2]:
+    - banner [ref=f40e4]:
+      - generic "MonoPilot MES" [ref=f40e5]
+      - searchbox "Search settings…" [ref=f40e7]
+      - generic [ref=f40e8]:
+        - button "Switch organization (platform admin)" [ref=f40e10] [cursor=pointer]:
+          - generic [ref=f40e11]: A2
+          - generic [ref=f40e12]: "000000000000"
+          - generic [ref=f40e13]: Apex 22
+          - generic [ref=f40e14]: ▼
+        - generic "Filters work orders, license plates and OEE only — other screens stay org-wide" [ref=f40e15]:
+          - generic [ref=f40e16]: Site
+          - combobox "Site" [ref=f40e17] [cursor=pointer]:
+            - option "All sites" [selected]
+            - option "tester1"
+            - option "CODEX-R14 SITE"
+            - option "Main Factory"
+            - option "makery"
+            - option "SOL-R02 Site 0539 Edited"
+            - option "warehouse 1"
+        - button "Notifications" [ref=f40e19]
+        - button "Open user menu for Apex Admin" [ref=f40e24]: AA
+    - navigation "Primary" [ref=f40e25]:
+      - generic [ref=f40e26]:
+        - generic [ref=f40e27]:
+          - heading "Core" [level=2] [ref=f40e28]
+          - generic [ref=f40e29]:
+            - link "Dashboard" [ref=f40e30] [cursor=pointer]:
+              - /url: /en/dashboard
+              - generic [ref=f40e31]: ◆
+            - link "Settings" [ref=f40e34] [cursor=pointer]:
+              - /url: /en/settings
+              - generic [ref=f40e35]: ⚙
+        - generic [ref=f40e38]:
+          - heading "Operations" [level=2] [ref=f40e39]
+          - generic [ref=f40e40]:
+            - link "Planning" [ref=f40e41] [cursor=pointer]:
+              - /url: /en/planning
+              - generic [ref=f40e42]: ▤
+            - link "Freight" [ref=f40e45] [cursor=pointer]:
+              - /url: /en/planning/carriers
+              - generic [ref=f40e46]: F
+            - link "Scheduler" [ref=f40e49] [cursor=pointer]:
+              - /url: /en/scheduler
+              - generic [ref=f40e50]: ⧗
+            - link "Production" [ref=f40e53] [cursor=pointer]:
+              - /url: /en/production
+              - generic [ref=f40e54]: ⚒
+            - link "Yard" [ref=f40e57] [cursor=pointer]:
+              - /url: /en/yard
+              - generic [ref=f40e58]: "Y"
+            - link "Warehouse" [ref=f40e61] [cursor=pointer]:
+              - /url: /en/warehouse
+              - generic [ref=f40e62]: ▥
+            - link "Scanner" [ref=f40e65] [cursor=pointer]:
+              - /url: /en/scanner/home
+              - generic [ref=f40e66]: 📱
+        - generic [ref=f40e69]:
+          - heading "QA & Shipping" [level=2] [ref=f40e70]
+          - generic [ref=f40e71]:
+            - link "Quality" [ref=f40e72] [cursor=pointer]:
+              - /url: /en/quality
+              - generic [ref=f40e73]: ✓
+            - link "Shipping" [ref=f40e76] [cursor=pointer]:
+              - /url: /en/shipping
+              - generic [ref=f40e77]: →
+        - generic [ref=f40e80]:
+          - heading "Premium" [level=2] [ref=f40e81]
+          - generic [ref=f40e82]:
+            - link "Technical" [ref=f40e83] [cursor=pointer]:
+              - /url: /en/technical
+              - generic [ref=f40e84]: ▦
+            - link "NPD" [ref=f40e87] [cursor=pointer]:
+              - /url: /en/pipeline
+              - generic [ref=f40e88]: ★
+            - link "Finance" [ref=f40e91] [cursor=pointer]:
+              - /url: /en/finance
+              - generic [ref=f40e92]: $
+            - link "OEE" [ref=f40e95] [cursor=pointer]:
+              - /url: /en/oee
+              - generic [ref=f40e96]: ◉
+            - link "Maintenance" [ref=f40e99] [cursor=pointer]:
+              - /url: /en/maintenance
+              - generic [ref=f40e100]: 🔧
+        - generic [ref=f40e103]:
+          - heading "Analytics & Network" [level=2] [ref=f40e104]
+          - generic [ref=f40e105]:
+            - link "Reporting" [ref=f40e106] [cursor=pointer]:
+              - /url: /en/reporting
+              - generic [ref=f40e107]: ▧
+            - link "Multi-Site" [ref=f40e110] [cursor=pointer]:
+              - /url: /en/multi-site
+              - generic [ref=f40e111]: ❖
+    - main [ref=f40e114]:
+      - generic [ref=f40e115]:
+        - banner [ref=f40e116]
+        - navigation "Primary" [ref=f40e120]
+        - main [ref=f40e138]
+  - alert [ref=f40e144]

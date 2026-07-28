@@ -1,0 +1,221 @@
+- generic [active] [ref=f5e1]:
+  - generic [ref=f5e2]:
+    - banner [ref=f5e4]:
+      - generic "MonoPilot MES" [ref=f5e5]
+      - searchbox "Search settings…" [ref=f5e7]
+      - generic [ref=f5e8]:
+        - button "Switch organization (platform admin)" [ref=f5e10] [cursor=pointer]:
+          - generic [ref=f5e11]: A2
+          - generic [ref=f5e12]: "000000000000"
+          - generic [ref=f5e13]: Apex 22
+          - generic [ref=f5e14]: ▼
+        - generic "Filters work orders, license plates and OEE only — other screens stay org-wide" [ref=f5e15]:
+          - generic [ref=f5e16]: Site
+          - combobox "Site" [ref=f5e17] [cursor=pointer]:
+            - option "All sites"
+            - option "tester1"
+            - option "CODEX-R14 SITE"
+            - option "Main Factory" [selected]
+            - option "makery"
+            - option "SOL-R02 Site 0539 Edited"
+            - option "warehouse 1"
+        - button "Notifications" [ref=f5e19]
+        - button "Open user menu for Apex Admin" [ref=f5e24]: AA
+    - navigation "Primary" [ref=f5e25]:
+      - generic [ref=f5e26]:
+        - generic [ref=f5e27]:
+          - heading "Core" [level=2] [ref=f5e28]
+          - generic [ref=f5e29]:
+            - link "Dashboard" [ref=f5e30] [cursor=pointer]:
+              - /url: /en/dashboard
+              - generic [ref=f5e31]: ◆
+            - link "Settings" [ref=f5e34] [cursor=pointer]:
+              - /url: /en/settings
+              - generic [ref=f5e35]: ⚙
+        - generic [ref=f5e38]:
+          - heading "Operations" [level=2] [ref=f5e39]
+          - generic [ref=f5e40]:
+            - link "Planning" [ref=f5e41] [cursor=pointer]:
+              - /url: /en/planning
+              - generic [ref=f5e42]: ▤
+            - link "Freight" [ref=f5e45] [cursor=pointer]:
+              - /url: /en/planning/carriers
+              - generic [ref=f5e46]: F
+            - link "Scheduler" [ref=f5e49] [cursor=pointer]:
+              - /url: /en/scheduler
+              - generic [ref=f5e50]: ⧗
+            - link "Production" [ref=f5e53] [cursor=pointer]:
+              - /url: /en/production
+              - generic [ref=f5e54]: ⚒
+            - link "Yard" [ref=f5e57] [cursor=pointer]:
+              - /url: /en/yard
+              - generic [ref=f5e58]: "Y"
+            - link "Warehouse" [ref=f5e61] [cursor=pointer]:
+              - /url: /en/warehouse
+              - generic [ref=f5e62]: ▥
+            - link "Scanner" [ref=f5e65] [cursor=pointer]:
+              - /url: /en/scanner/home
+              - generic [ref=f5e66]: 📱
+        - generic [ref=f5e69]:
+          - heading "QA & Shipping" [level=2] [ref=f5e70]
+          - generic [ref=f5e71]:
+            - link "Quality" [ref=f5e72] [cursor=pointer]:
+              - /url: /en/quality
+              - generic [ref=f5e73]: ✓
+            - link "Shipping" [ref=f5e76] [cursor=pointer]:
+              - /url: /en/shipping
+              - generic [ref=f5e77]: →
+        - generic [ref=f5e80]:
+          - heading "Premium" [level=2] [ref=f5e81]
+          - generic [ref=f5e82]:
+            - link "Technical" [ref=f5e83] [cursor=pointer]:
+              - /url: /en/technical
+              - generic [ref=f5e84]: ▦
+            - link "NPD" [ref=f5e87] [cursor=pointer]:
+              - /url: /en/pipeline
+              - generic [ref=f5e88]: ★
+            - link "Finance" [ref=f5e91] [cursor=pointer]:
+              - /url: /en/finance
+              - generic [ref=f5e92]: $
+            - link "OEE" [ref=f5e95] [cursor=pointer]:
+              - /url: /en/oee
+              - generic [ref=f5e96]: ◉
+            - link "Maintenance" [ref=f5e99] [cursor=pointer]:
+              - /url: /en/maintenance
+              - generic [ref=f5e100]: 🔧
+        - generic [ref=f5e103]:
+          - heading "Analytics & Network" [level=2] [ref=f5e104]
+          - generic [ref=f5e105]:
+            - link "Reporting" [ref=f5e106] [cursor=pointer]:
+              - /url: /en/reporting
+              - generic [ref=f5e107]: ▧
+            - link "Multi-Site" [ref=f5e110] [cursor=pointer]:
+              - /url: /en/multi-site
+              - generic [ref=f5e111]: ❖
+    - main [ref=f5e114]:
+      - main [ref=f5e318]:
+        - generic [ref=f5e319]:
+          - generic [ref=f5e320]:
+            - generic [ref=f5e321]:
+              - generic [ref=f5e322]:
+                - link "← Back to license plates" [ref=f5e323] [cursor=pointer]:
+                  - /url: /en/warehouse/license-plates
+                - heading "LP-1784297297223-HFWI Butter" [level=1] [ref=f5e324]:
+                  - generic [ref=f5e325]: LP-1784297297223-HFWI
+                  - generic [ref=f5e326]: Butter
+                - paragraph [ref=f5e327]: 12.345000 kg · Batch NIGHT-R08-SB-1400 · Expiry 2026-07-24
+              - generic [ref=f5e328]:
+                - generic [ref=f5e329]: Available
+                - generic [ref=f5e330]: Released
+            - generic [ref=f5e331]:
+              - generic [ref=f5e332]:
+                - heading "Identity" [level=2] [ref=f5e333]
+                - generic [ref=f5e334]:
+                  - generic [ref=f5e335]: Product
+                  - generic [ref=f5e336]:
+                    - text: RM-BUTTER
+                    - generic [ref=f5e337]: — Butter
+                - generic [ref=f5e338]:
+                  - generic [ref=f5e339]: Quantity
+                  - generic [ref=f5e340]: 12.345000 kg
+                - generic [ref=f5e342]:
+                  - generic [ref=f5e343]: Available
+                  - generic [ref=f5e344]: 12.345000 kg
+                - generic [ref=f5e346]:
+                  - generic [ref=f5e347]: Batch
+                  - generic [ref=f5e348]: NIGHT-R08-SB-1400
+                - generic [ref=f5e349]:
+                  - generic [ref=f5e350]: Supplier batch
+                  - generic [ref=f5e351]: —
+                - generic [ref=f5e352]:
+                  - generic [ref=f5e353]: Expiry date
+                  - generic [ref=f5e354]: 2026-07-24
+                - generic [ref=f5e355]:
+                  - generic [ref=f5e356]: Best before
+                  - generic [ref=f5e357]: 2026-07-24
+                - generic [ref=f5e358]:
+                  - generic [ref=f5e359]: Location
+                  - generic [ref=f5e360]:
+                    - text: RECV
+                    - generic [ref=f5e361]: — Receiving Bay
+                - generic [ref=f5e362]:
+                  - generic [ref=f5e363]: Warehouse
+                  - generic [ref=f5e364]:
+                    - text: WH1
+                    - generic [ref=f5e365]: — Main Warehouse
+                - generic [ref=f5e366]:
+                  - generic [ref=f5e367]: Source
+                  - generic [ref=f5e368]: grn
+                - generic [ref=f5e369]:
+                  - generic [ref=f5e370]: Parent LP
+                  - generic [ref=f5e371]: —
+                - generic [ref=f5e372]:
+                  - button "Split" [ref=f5e373]
+                  - button "Merge" [ref=f5e374]
+                  - button "Change QA status" [disabled] [ref=f5e375]
+                  - button "Reserve" [ref=f5e376]
+                  - button "Move" [ref=f5e377]
+                  - button "Block" [ref=f5e378]
+                  - button "Destroy / scrap" [ref=f5e379]
+                  - button "Edit metadata…" [ref=f5e380]
+                - paragraph [ref=f5e381]: Available actions are determined by the LP state machine. Split, Merge, and Destroy are live.
+              - generic [ref=f5e382]:
+                - tablist "Identity" [ref=f5e383]:
+                  - tab "Overview" [selected] [ref=f5e384]
+                  - tab "State history" [ref=f5e385]
+                  - tab "Reservations" [ref=f5e386]
+                  - tab "Movements" [ref=f5e387]
+                  - tab "Genealogy" [ref=f5e388]
+                  - tab "Labels" [ref=f5e389]
+                  - tab "Raw" [ref=f5e390]
+                - generic [ref=f5e391]:
+                  - heading "Identity snapshot" [level=3] [ref=f5e392]
+                  - generic [ref=f5e393]:
+                    - term [ref=f5e394]: Product
+                    - definition [ref=f5e395]: RM-BUTTER — Butter
+                    - term [ref=f5e396]: Quantity
+                    - definition [ref=f5e397]: 12.345000 kg
+                    - term [ref=f5e398]: Reserved
+                    - definition [ref=f5e399]: 0.000000 kg
+                    - term [ref=f5e400]: Available
+                    - definition [ref=f5e401]: 12.345000 kg
+                    - term [ref=f5e402]: Batch
+                    - definition [ref=f5e403]: NIGHT-R08-SB-1400
+                    - term [ref=f5e404]: Expiry date
+                    - definition [ref=f5e405]: 2026-07-24
+                    - term [ref=f5e406]: Location
+                    - definition [ref=f5e407]: RECV
+                    - term [ref=f5e408]: Warehouse
+                    - definition [ref=f5e409]: WH1
+                    - term [ref=f5e410]: Source
+                    - definition [ref=f5e411]: grn
+                    - term [ref=f5e412]: Parent LP
+                    - definition [ref=f5e413]: —
+          - group [ref=f5e414]:
+            - generic [ref=f5e416] [cursor=pointer]:
+              - generic [ref=f5e417]:
+                - heading "History" [level=2] [ref=f5e418]
+                - paragraph [ref=f5e419]: Read-only audit trail for this document.
+              - generic [ref=f5e420]: ▾
+            - list "History" [ref=f5e423]:
+              - listitem [ref=f5e424]:
+                - generic [ref=f5e425]:
+                  - generic [ref=f5e426]:
+                    - generic [ref=f5e427]: Status change
+                    - generic [ref=f5e428]: lp_state.transition
+                  - generic [ref=f5e429]:
+                    - time [ref=f5e430]: 17 Jul 2026, 15:09
+                    - text: · Admin
+                  - group [ref=f5e431]:
+                    - generic "Details" [ref=f5e432] [cursor=pointer]
+              - listitem [ref=f5e433]:
+                - generic [ref=f5e434]:
+                  - generic [ref=f5e435]:
+                    - generic [ref=f5e436]: Status change
+                    - generic [ref=f5e437]: lp_state.transition
+                  - generic [ref=f5e438]:
+                    - time [ref=f5e439]: 17 Jul 2026, 15:08
+                    - text: · Admin
+                  - group [ref=f5e440]:
+                    - generic "Details" [ref=f5e441] [cursor=pointer]
+  - alert [ref=f5e208]

@@ -1,0 +1,33 @@
+- dialog "Edit Mixing" [ref=f99e322]:
+  - generic [ref=f99e323]:
+    - heading "Edit — Mixing" [level=3] [ref=f99e324]
+    - generic [ref=f99e325]:
+      - generic [ref=f99e326]:
+        - generic [ref=f99e327]: Duration (h)
+        - spinbutton [ref=f99e329]: "1.25"
+      - generic [ref=f99e330]:
+        - generic [ref=f99e331]: Additional cost
+        - spinbutton [ref=f99e333]: "3.3333"
+      - generic [ref=f99e334]:
+        - generic [ref=f99e335]: Throughput / hour
+        - spinbutton [ref=f99e337]: "2.5"
+      - generic [ref=f99e338]:
+        - generic [ref=f99e339]: Throughput UoM
+        - combobox "Throughput UoM" [ref=f99e341] [cursor=pointer]:
+          - generic [ref=f99e342]: kg
+          - generic [ref=f99e343]: ⌄
+      - generic [ref=f99e344]:
+        - generic [ref=f99e345]: Setup cost
+        - spinbutton [ref=f99e347]: "7.7777"
+      - generic [ref=f99e348]:
+        - generic [ref=f99e349]: Yield %
+        - spinbutton [ref=f99e351]: "91.25"
+    - generic [ref=f99e352]:
+      - heading "Roles" [level=4] [ref=f99e353]
+      - generic [ref=f99e355]:
+        - textbox "Role group" [disabled] [ref=f99e357]: packer
+        - spinbutton "Headcount" [ref=f99e359]: "3"
+        - spinbutton "Rate / hour" [ref=f99e361]: "11.1111"
+    - generic [ref=f99e362]:
+      - button "Cancel" [ref=f99e363] [cursor=pointer]
+      - button "Save" [ref=f99e364] [cursor=pointer]

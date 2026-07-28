@@ -1,0 +1,414 @@
+- generic [active] [ref=f9e1]:
+  - generic [ref=f9e2]:
+    - banner [ref=f9e4]:
+      - generic "MonoPilot MES" [ref=f9e5]
+      - searchbox "Search settings…" [ref=f9e7]
+      - generic [ref=f9e8]:
+        - button "Switch organization (platform admin)" [ref=f9e10] [cursor=pointer]:
+          - generic [ref=f9e11]: A2
+          - generic [ref=f9e12]: "000000000000"
+          - generic [ref=f9e13]: Apex 22
+          - generic [ref=f9e14]: ▼
+        - generic "Filters work orders, license plates and OEE only — other screens stay org-wide" [ref=f9e15]:
+          - generic [ref=f9e16]: Site
+          - combobox "Site" [ref=f9e17] [cursor=pointer]:
+            - option "All sites" [selected]
+            - option "tester1"
+            - option "CODEX-R14 SITE"
+            - option "Main Factory"
+            - option "makery"
+            - option "SOL-R02 Site 0539 Edited"
+            - option "warehouse 1"
+        - button "Notifications" [ref=f9e19]
+        - button "Open user menu for Apex Admin" [ref=f9e24]: AA
+    - navigation "Primary" [ref=f9e25]:
+      - generic [ref=f9e26]:
+        - generic [ref=f9e27]:
+          - heading "Core" [level=2] [ref=f9e28]
+          - generic [ref=f9e29]:
+            - link "Dashboard" [ref=f9e30] [cursor=pointer]:
+              - /url: /en/dashboard
+              - generic [ref=f9e31]: ◆
+            - link "Settings" [ref=f9e34] [cursor=pointer]:
+              - /url: /en/settings
+              - generic [ref=f9e35]: ⚙
+        - generic [ref=f9e38]:
+          - heading "Operations" [level=2] [ref=f9e39]
+          - generic [ref=f9e40]:
+            - link "Planning" [ref=f9e41] [cursor=pointer]:
+              - /url: /en/planning
+              - generic [ref=f9e42]: ▤
+            - link "Freight" [ref=f9e45] [cursor=pointer]:
+              - /url: /en/planning/carriers
+              - generic [ref=f9e46]: F
+            - link "Scheduler" [ref=f9e49] [cursor=pointer]:
+              - /url: /en/scheduler
+              - generic [ref=f9e50]: ⧗
+            - link "Production" [ref=f9e53] [cursor=pointer]:
+              - /url: /en/production
+              - generic [ref=f9e54]: ⚒
+            - link "Yard" [ref=f9e57] [cursor=pointer]:
+              - /url: /en/yard
+              - generic [ref=f9e58]: "Y"
+            - link "Warehouse" [ref=f9e61] [cursor=pointer]:
+              - /url: /en/warehouse
+              - generic [ref=f9e62]: ▥
+            - link "Scanner" [ref=f9e65] [cursor=pointer]:
+              - /url: /en/scanner/home
+              - generic [ref=f9e66]: 📱
+        - generic [ref=f9e69]:
+          - heading "QA & Shipping" [level=2] [ref=f9e70]
+          - generic [ref=f9e71]:
+            - link "Quality" [ref=f9e72] [cursor=pointer]:
+              - /url: /en/quality
+              - generic [ref=f9e73]: ✓
+            - link "Shipping" [ref=f9e76] [cursor=pointer]:
+              - /url: /en/shipping
+              - generic [ref=f9e77]: →
+        - generic [ref=f9e80]:
+          - heading "Premium" [level=2] [ref=f9e81]
+          - generic [ref=f9e82]:
+            - link "Technical" [ref=f9e83] [cursor=pointer]:
+              - /url: /en/technical
+              - generic [ref=f9e84]: ▦
+            - link "NPD" [ref=f9e87] [cursor=pointer]:
+              - /url: /en/pipeline
+              - generic [ref=f9e88]: ★
+            - link "Finance" [ref=f9e91] [cursor=pointer]:
+              - /url: /en/finance
+              - generic [ref=f9e92]: $
+            - link "OEE" [ref=f9e95] [cursor=pointer]:
+              - /url: /en/oee
+              - generic [ref=f9e96]: ◉
+            - link "Maintenance" [ref=f9e99] [cursor=pointer]:
+              - /url: /en/maintenance
+              - generic [ref=f9e100]: 🔧
+        - generic [ref=f9e103]:
+          - heading "Analytics & Network" [level=2] [ref=f9e104]
+          - generic [ref=f9e105]:
+            - link "Reporting" [ref=f9e106] [cursor=pointer]:
+              - /url: /en/reporting
+              - generic [ref=f9e107]: ▧
+            - link "Multi-Site" [ref=f9e110] [cursor=pointer]:
+              - /url: /en/multi-site
+              - generic [ref=f9e111]: ❖
+    - main [ref=f9e114]:
+      - main [ref=f9e145]:
+        - generic [ref=f9e147]:
+          - navigation "Breadcrumb" [ref=f9e148]:
+            - list [ref=f9e149]:
+              - listitem [ref=f9e150]:
+                - link "Planning" [ref=f9e151] [cursor=pointer]:
+                  - /url: /en/planning
+              - listitem [ref=f9e152]:
+                - generic [ref=f9e153]: /
+                - generic [ref=f9e154]: MRP
+          - generic [ref=f9e155]:
+            - heading "MRP" [level=1] [ref=f9e156]
+            - paragraph [ref=f9e157]: Material requirements — demand vs supply netting (read-only)
+        - generic [ref=f9e158]:
+          - generic [ref=f9e159]:
+            - paragraph [ref=f9e160]: "Read-only analysis: nothing is saved and no orders are created."
+            - generic [ref=f9e161]:
+              - generic [ref=f9e181]: "Last run: 17/07/2026, 18:23:00"
+              - generic [ref=f9e162]:
+                - generic [ref=f9e163]: Planning horizon
+                - combobox "Planning horizon" [ref=f9e166] [cursor=pointer]:
+                  - generic [ref=f9e167]: 12 weeks
+                  - generic [ref=f9e168]: ⌄
+              - generic [ref=f9e169]:
+                - checkbox "Save this run" [ref=f9e170]
+                - text: Save this run
+              - button "Run MRP" [ref=f9e171] [cursor=pointer]
+          - generic [ref=f9e182]:
+            - generic [ref=f9e183]:
+              - generic [ref=f9e184]: Items short
+              - generic [ref=f9e185]: "2"
+              - generic [ref=f9e186]: "Below min: 1"
+            - generic [ref=f9e187]:
+              - generic [ref=f9e188]: Demand coverage
+              - generic [ref=f9e189]: 60.3%
+            - generic [ref=f9e190]:
+              - generic [ref=f9e191]: Items analyzed
+              - generic [ref=f9e192]: "13"
+            - generic [ref=f9e193]:
+              - generic [ref=f9e194]: Total open demand
+              - generic [ref=f9e195]: "1171.887"
+              - generic [ref=f9e196]: Sum across items, each in its own base UoM
+          - table [ref=f9e199]:
+            - rowgroup [ref=f9e200]:
+              - row [ref=f9e201]:
+                - columnheader "Item" [ref=f9e202]
+                - columnheader "Type" [ref=f9e203]
+                - columnheader "On hand" [ref=f9e204]
+                - columnheader "Reserved" [ref=f9e205]
+                - columnheader "Open supply" [ref=f9e206]
+                - columnheader "Demand" [ref=f9e207]
+                - columnheader "Net position" [ref=f9e208]
+                - columnheader "Preferred supplier" [ref=f9e209]
+                - columnheader "Suggested action" [ref=f9e210]
+            - rowgroup [ref=f9e211]:
+              - row [ref=f9e376]:
+                - cell "WIP-20260707-0006 FG0014 Dough Stage" [ref=f9e377]:
+                  - generic [ref=f9e378]: WIP-20260707-0006
+                  - generic [ref=f9e379]: FG0014 Dough Stage
+                - cell "Intermediate" [ref=f9e380]
+                - cell "0.000" [ref=f9e382]
+                - cell "0.000" [ref=f9e383]
+                - 'cell "0.000 PO: 0.000 · Prod: 0.000" [ref=f9e384]':
+                  - generic [ref=f9e385]: "0.000"
+                  - generic [ref=f9e386]: "PO: 0.000 · Prod: 0.000"
+                - cell "441.000" [ref=f9e387]
+                - cell "-441.000 kg Shortage" [ref=f9e388]:
+                  - generic [ref=f9e389]: "-441.000 kg"
+                  - generic [ref=f9e390]: Shortage
+                - cell "None configured" [ref=f9e391]
+                - 'cell "MAKE 441 kg Due: 2026-07-17" [ref=f9e392]':
+                  - generic [ref=f9e393]: MAKE 441 kg
+                  - generic [ref=f9e394]: "Due: 2026-07-17"
+              - row [ref=f9e231]:
+                - cell "FG-R09-144638 NIGHT-R09-20260717T144638Z Finished Good" [ref=f9e232]:
+                  - generic [ref=f9e233]: FG-R09-144638
+                  - generic [ref=f9e234]: NIGHT-R09-20260717T144638Z Finished Good
+                - cell "fg" [ref=f9e235]
+                - cell "0.000" [ref=f9e237]
+                - cell "0.000" [ref=f9e238]
+                - 'cell "0.000 PO: 0.000 · Prod: 0.000" [ref=f9e239]':
+                  - generic [ref=f9e240]: "0.000"
+                  - generic [ref=f9e241]: "PO: 0.000 · Prod: 0.000"
+                - cell "24.345" [ref=f9e242]
+                - cell "-24.345 kg Shortage" [ref=f9e243]:
+                  - generic [ref=f9e244]: "-24.345 kg"
+                  - generic [ref=f9e245]: Shortage
+                - cell "None configured" [ref=f9e246]
+                - 'cell "MAKE 9 kg Due: 2026-07-17" [ref=f9e247]':
+                  - generic [ref=f9e248]: MAKE 9 kg
+                  - generic [ref=f9e249]: "Due: 2026-07-17"
+              - row [ref=f9e395]:
+                - cell "RM-R09-144638 NIGHT-R09-20260717T144638Z Raw Material" [ref=f9e308]:
+                  - generic [ref=f9e309]: RM-R09-144638
+                  - generic [ref=f9e310]: NIGHT-R09-20260717T144638Z Raw Material
+                - cell "Raw material" [ref=f9e311]
+                - cell "7.125" [ref=f9e396]
+                - cell "0.000" [ref=f9e314]
+                - 'cell "5.250 PO: 5.250 · Prod: 0.000" [ref=f9e397]':
+                  - generic [ref=f9e316]: "5.250"
+                  - generic [ref=f9e317]: "PO: 5.250 · Prod: 0.000"
+                - cell "0.000" [ref=f9e318]
+                - 'cell "12.375 kg Below min stock Min: 15.875 kg" [ref=f9e398]':
+                  - generic [ref=f9e320]: 12.375 kg
+                  - generic [ref=f9e321]: Below min stock
+                  - generic [ref=f9e322]: "Min: 15.875 kg"
+                - cell "SUP-R09-144638 NIGHT-R09-20260717T144638Z Supplier Active" [ref=f9e323]:
+                  - generic [ref=f9e324]:
+                    - generic [ref=f9e325]: SUP-R09-144638
+                    - generic [ref=f9e326]: NIGHT-R09-20260717T144638Z Supplier
+                    - generic [ref=f9e327]: Active
+                - 'cell "BUY 12 kg Due: 2026-07-17" [ref=f9e399]':
+                  - generic [ref=f9e329]: BUY 12 kg
+                  - generic [ref=f9e330]: "Due: 2026-07-17"
+              - row [ref=f9e400]:
+                - 'cell "Box-001 box Excluded UoMs (no clean conversion): each" [ref=f9e401]':
+                  - generic [ref=f9e402]: Box-001
+                  - generic [ref=f9e403]: box
+                  - generic [ref=f9e404]: "Excluded UoMs (no clean conversion): each"
+                - cell "Packaging" [ref=f9e405]
+                - cell "0.000" [ref=f9e407]
+                - cell "0.000" [ref=f9e408]
+                - 'cell "0.000 PO: 0.000 · Prod: 0.000" [ref=f9e409]':
+                  - generic [ref=f9e410]: "0.000"
+                  - generic [ref=f9e411]: "PO: 0.000 · Prod: 0.000"
+                - cell "0.000" [ref=f9e412]
+                - cell "0.000 pcs Covered" [ref=f9e413]:
+                  - generic [ref=f9e414]: 0.000 pcs
+                  - generic [ref=f9e415]: Covered
+                - cell "None configured" [ref=f9e416]
+                - cell "—" [ref=f9e417]
+              - row [ref=f9e418]:
+                - 'cell "LAB-001 label Excluded UoMs (no clean conversion): each" [ref=f9e419]':
+                  - generic [ref=f9e420]: LAB-001
+                  - generic [ref=f9e421]: label
+                  - generic [ref=f9e422]: "Excluded UoMs (no clean conversion): each"
+                - cell "Packaging" [ref=f9e423]
+                - cell "0.000" [ref=f9e425]
+                - cell "0.000" [ref=f9e426]
+                - 'cell "0.000 PO: 0.000 · Prod: 0.000" [ref=f9e427]':
+                  - generic [ref=f9e428]: "0.000"
+                  - generic [ref=f9e429]: "PO: 0.000 · Prod: 0.000"
+                - cell "0.000" [ref=f9e430]
+                - cell "0.000 pcs Covered" [ref=f9e431]:
+                  - generic [ref=f9e432]: 0.000 pcs
+                  - generic [ref=f9e433]: Covered
+                - cell "None configured" [ref=f9e434]
+                - cell "—" [ref=f9e435]
+              - row [ref=f9e436]:
+                - cell "FG0014 Butter Shortbread 250g" [ref=f9e270]:
+                  - generic [ref=f9e271]: FG0014
+                  - generic [ref=f9e272]: Butter Shortbread 250g
+                - cell "fg" [ref=f9e273]
+                - cell "60.000" [ref=f9e437]
+                - cell "3.250" [ref=f9e438]
+                - 'cell "0.000 PO: 0.000 · Prod: 0.000" [ref=f9e277]':
+                  - generic [ref=f9e278]: "0.000"
+                  - generic [ref=f9e279]: "PO: 0.000 · Prod: 0.000"
+                - cell "10.500" [ref=f9e280]
+                - cell "46.250 kg Covered" [ref=f9e439]:
+                  - generic [ref=f9e282]: 46.250 kg
+                  - generic [ref=f9e283]: Covered
+                - cell "None configured" [ref=f9e284]
+                - cell "—" [ref=f9e440]
+              - row [ref=f9e441]:
+                - cell "FG-016 drozdzowka" [ref=f9e442]:
+                  - generic [ref=f9e443]: FG-016
+                  - generic [ref=f9e444]: drozdzowka
+                - cell "fg" [ref=f9e445]
+                - cell "0.000" [ref=f9e447]
+                - cell "0.000" [ref=f9e448]
+                - 'cell "200.000 PO: 0.000 · Prod: 200.000" [ref=f9e449]':
+                  - generic [ref=f9e450]: "200.000"
+                  - generic [ref=f9e451]: "PO: 0.000 · Prod: 200.000"
+                - cell "0.000" [ref=f9e452]
+                - cell "200.000 kg Covered" [ref=f9e453]:
+                  - generic [ref=f9e454]: 200.000 kg
+                  - generic [ref=f9e455]: Covered
+                - cell "None configured" [ref=f9e456]
+                - cell "—" [ref=f9e457]
+              - row [ref=f9e458]:
+                - cell "FG0015 test bread 1" [ref=f9e289]:
+                  - generic [ref=f9e290]: FG0015
+                  - generic [ref=f9e291]: test bread 1
+                - cell "fg" [ref=f9e292]
+                - cell "0.960" [ref=f9e459]
+                - cell "0.000" [ref=f9e295]
+                - 'cell "300.000 PO: 0.000 · Prod: 300.000" [ref=f9e460]':
+                  - generic [ref=f9e297]: "300.000"
+                  - generic [ref=f9e298]: "PO: 0.000 · Prod: 300.000"
+                - cell "2.500" [ref=f9e299]
+                - cell "298.460 kg Covered" [ref=f9e461]:
+                  - generic [ref=f9e301]: 298.460 kg
+                  - generic [ref=f9e302]: Covered
+                - cell "None configured" [ref=f9e303]
+                - cell "—" [ref=f9e462]
+              - row [ref=f9e463]:
+                - cell "flower2 flower 2" [ref=f9e464]:
+                  - generic [ref=f9e465]: flower2
+                  - generic [ref=f9e466]: flower 2
+                - cell "Raw material" [ref=f9e467]
+                - cell "189.000" [ref=f9e469]
+                - cell "0.000" [ref=f9e470]
+                - 'cell "320.000 PO: 320.000 · Prod: 0.000" [ref=f9e471]':
+                  - generic [ref=f9e472]: "320.000"
+                  - generic [ref=f9e473]: "PO: 320.000 · Prod: 0.000"
+                - cell "178.000" [ref=f9e474]
+                - cell "331.000 kg Covered" [ref=f9e475]:
+                  - generic [ref=f9e476]: 331.000 kg
+                  - generic [ref=f9e477]: Covered
+                - cell "None configured" [ref=f9e478]
+                - cell "—" [ref=f9e479]
+              - row [ref=f9e480]:
+                - 'cell "RM-BUTTER Butter Excluded UoMs (no clean conversion): g" [ref=f9e481]':
+                  - generic [ref=f9e482]: RM-BUTTER
+                  - generic [ref=f9e483]: Butter
+                  - generic [ref=f9e484]: "Excluded UoMs (no clean conversion): g"
+                - cell "Raw material" [ref=f9e485]
+                - cell "540.345" [ref=f9e487]
+                - cell "0.000" [ref=f9e488]
+                - 'cell "0.001 PO: 0.001 · Prod: 0.000" [ref=f9e489]':
+                  - generic [ref=f9e490]: "0.001"
+                  - generic [ref=f9e491]: "PO: 0.001 · Prod: 0.000"
+                - cell "130.667" [ref=f9e492]
+                - cell "409.679 kg Covered" [ref=f9e493]:
+                  - generic [ref=f9e494]: 409.679 kg
+                  - generic [ref=f9e495]: Covered
+                - cell "None configured" [ref=f9e496]
+                - cell "—" [ref=f9e497]
+              - row [ref=f9e498]:
+                - cell "ING-SUGAR Caster Sugar" [ref=f9e251]:
+                  - generic [ref=f9e252]: ING-SUGAR
+                  - generic [ref=f9e253]: Caster Sugar
+                - cell "Ingredient" [ref=f9e254]
+                - cell "519.890" [ref=f9e499]
+                - cell "0.000" [ref=f9e257]
+                - 'cell "0.000 PO: 0.000 · Prod: 0.000" [ref=f9e258]':
+                  - generic [ref=f9e259]: "0.000"
+                  - generic [ref=f9e260]: "PO: 0.000 · Prod: 0.000"
+                - cell "109.149" [ref=f9e500]
+                - cell "410.741 kg Covered" [ref=f9e501]:
+                  - generic [ref=f9e263]: 410.741 kg
+                  - generic [ref=f9e264]: Covered
+                - cell "None configured" [ref=f9e265]
+                - cell "—" [ref=f9e502]
+              - row [ref=f9e503]:
+                - 'cell "PM-BOX Cardboard Box Excluded UoMs (no clean conversion): each" [ref=f9e504]':
+                  - generic [ref=f9e505]: PM-BOX
+                  - generic [ref=f9e506]: Cardboard Box
+                  - generic [ref=f9e507]: "Excluded UoMs (no clean conversion): each"
+                - cell "Packaging" [ref=f9e508]
+                - cell "700.000" [ref=f9e510]
+                - cell "0.000" [ref=f9e511]
+                - 'cell "77.500 PO: 77.500 · Prod: 0.000" [ref=f9e512]':
+                  - generic [ref=f9e513]: "77.500"
+                  - generic [ref=f9e514]: "PO: 77.500 · Prod: 0.000"
+                - cell "0.000" [ref=f9e515]
+                - cell "777.500 pcs Covered" [ref=f9e516]:
+                  - generic [ref=f9e517]: 777.500 pcs
+                  - generic [ref=f9e518]: Covered
+                - cell "None configured" [ref=f9e519]
+                - cell "—" [ref=f9e520]
+              - row [ref=f9e521]:
+                - cell "ING-FLOUR Wheat Flour" [ref=f9e213]:
+                  - generic [ref=f9e214]: ING-FLOUR
+                  - generic [ref=f9e215]: Wheat Flour
+                - cell "Raw material" [ref=f9e216]
+                - cell "1092.497" [ref=f9e522]
+                - cell "0.000" [ref=f9e219]
+                - 'cell "0.000 PO: 0.000 · Prod: 0.000" [ref=f9e220]':
+                  - generic [ref=f9e221]: "0.000"
+                  - generic [ref=f9e222]: "PO: 0.000 · Prod: 0.000"
+                - cell "275.726" [ref=f9e523]
+                - cell "816.771 kg Covered" [ref=f9e524]:
+                  - generic [ref=f9e225]: 816.771 kg
+                  - generic [ref=f9e226]: Covered
+                - cell "None configured" [ref=f9e227]
+                - cell "—" [ref=f9e525]
+          - generic [ref=f9e177]:
+            - generic [ref=f9e178]: Previous runs
+            - table [ref=f9e332]:
+              - rowgroup [ref=f9e333]:
+                - row [ref=f9e334]:
+                  - columnheader "Run" [ref=f9e335]
+                  - columnheader "Run date" [ref=f9e336]
+                  - columnheader "Horizon start" [ref=f9e337]
+                  - columnheader "Items" [ref=f9e338]
+                  - columnheader "Shortages" [ref=f9e339]
+                  - columnheader "Status" [ref=f9e340]
+                  - columnheader [ref=f9e341]
+              - rowgroup [ref=f9e342]:
+                - row [ref=f9e343]:
+                  - cell "MRP-20260712-C760F191" [ref=f9e344]
+                  - cell "12/07/2026, 15:58:01" [ref=f9e345]
+                  - cell "2026-07-06" [ref=f9e346]
+                  - cell "14" [ref=f9e347]
+                  - cell "2" [ref=f9e348]
+                  - cell "Completed" [ref=f9e350]
+                  - cell "Details" [ref=f9e352]:
+                    - button "Details" [ref=f9e353] [cursor=pointer]
+                - row [ref=f9e354]:
+                  - cell "MRP-20260712-36568933" [ref=f9e355]
+                  - cell "12/07/2026, 15:54:09" [ref=f9e356]
+                  - cell "2026-07-06" [ref=f9e357]
+                  - cell "14" [ref=f9e358]
+                  - cell "2" [ref=f9e359]
+                  - cell "Completed" [ref=f9e361]
+                  - cell "Details" [ref=f9e363]:
+                    - button "Details" [ref=f9e364] [cursor=pointer]
+                - row [ref=f9e365]:
+                  - cell "MRP-20260711-49A7A7BC" [ref=f9e366]
+                  - cell "11/07/2026, 22:09:30" [ref=f9e367]
+                  - cell "2026-07-06" [ref=f9e368]
+                  - cell "9" [ref=f9e369]
+                  - cell "1" [ref=f9e370]
+                  - cell "Completed" [ref=f9e372]
+                  - cell "Details" [ref=f9e374]:
+                    - button "Details" [ref=f9e375] [cursor=pointer]
+  - alert [ref=f9e144]

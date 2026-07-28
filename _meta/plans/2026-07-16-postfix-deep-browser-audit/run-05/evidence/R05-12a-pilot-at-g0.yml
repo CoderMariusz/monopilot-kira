@@ -1,0 +1,27 @@
+- region "NIGHT-R05-FG-1054":
+  - heading "NIGHT-R05-FG-1054" [level=1]
+  - generic: Brief · G0 Idea
+  - paragraph: "NPD-023 · Bread · Loaf · Target launch: 2027-01-31"
+- main "Pilot production":
+  - note:
+    - strong: "Scheduled pilot:"
+    - text: "2026-07-20 · MIXING — MIXING (bakery) · 12.345 kg batch · Supervisor: Unassigned"
+  - generic:
+    - heading "Pilot work order" [level=3]
+    - button "Create pilot WO"
+    - alert: "ING-SUGAR: SUPPLIER_SPEC_NOT_ACTIVE"
+  - generic:
+    - heading "Pilot run plan" [level=3]
+    - button "Edit plan"
+    - button "Delete plan"
+    - generic: "Batch size 12.345 kg"
+    - generic: "Expected yield 87.65 %"
+    - generic: "Duration 2.75 h"
+  - generic:
+    - heading "Material reservation" [level=3]
+    - row "Caster Sugar ING-SUGAR 2.1794 kg 0 kg 0 kg Short 2.1794 kg"
+    - row "NIGHT-R05-L2-1020 WIP-20260717-0012 10.1656 kg 0 kg 0 kg Short 10.1656 kg"
+    - alert: "Materials short by 12.345 kg. Raise a PO or reduce the batch size."
+
+# Extracted verbatim from the Playwright accessibility snapshot captured immediately
+# after the browser-created pilot plan and the subsequent Create pilot WO attempt.

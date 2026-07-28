@@ -1,0 +1,68 @@
+- generic [ref=f117e633]:
+  - tablist "Components" [ref=f117e634]:
+    - tab "Components 3" [selected] [ref=f117e941] [cursor=pointer]:
+      - generic [ref=f117e636]: Components
+      - generic [ref=f117e637]: "3"
+    - tab "Co-products 0" [ref=f117e638] [cursor=pointer]:
+      - generic [ref=f117e639]: Co-products
+      - generic [ref=f117e640]: "0"
+    - tab "Snapshots 0" [ref=f117e641] [cursor=pointer]:
+      - generic [ref=f117e642]: Snapshots
+      - generic [ref=f117e643]: "0"
+    - tab "Versions 1" [ref=f117e644] [cursor=pointer]:
+      - generic [ref=f117e645]: Versions
+      - generic [ref=f117e646]: "1"
+    - tab "Approval" [ref=f117e647] [cursor=pointer]
+    - tab "Where-used 0" [ref=f117e649] [cursor=pointer]:
+      - generic [ref=f117e650]: Where-used
+      - generic [ref=f117e651]: "0"
+    - tab "Recipe sheet" [ref=f117e652] [cursor=pointer]
+  - tabpanel "Components 3" [ref=f117e942]:
+    - table "Components" [ref=f117e656]:
+      - rowgroup [ref=f117e657]:
+        - row [ref=f117e658]:
+          - columnheader "#" [ref=f117e659]
+          - columnheader "Component" [ref=f117e660]
+          - columnheader "Type" [ref=f117e661]
+          - columnheader "Qty" [ref=f117e662]
+          - columnheader "UoM" [ref=f117e663]
+          - columnheader "Scrap" [ref=f117e664]
+          - columnheader "Operation" [ref=f117e665]
+          - columnheader "Actions" [ref=f117e666]
+      - rowgroup [ref=f117e667]:
+        - row [ref=f117e668]:
+          - cell "1" [ref=f117e669]
+          - cell "ING-FLOUR" [ref=f117e670]
+          - cell "RM" [ref=f117e671]
+          - cell "0.612345" [ref=f117e673]
+          - cell "kg" [ref=f117e674]
+          - cell "2.4%" [ref=f117e675]
+          - cell "Grinding" [ref=f117e676]
+          - cell [ref=f117e677]:
+            - generic "Row actions" [ref=f117e678]:
+              - button "Edit" [ref=f117e679] [cursor=pointer]: ✎
+              - button "Delete" [ref=f117e680] [cursor=pointer]: 🗑
+        - row [ref=f117e807]:
+          - cell "2" [ref=f117e808]
+          - cell "ING-SUGAR" [ref=f117e809]
+          - cell "RM" [ref=f117e810]
+          - cell "0.287655" [ref=f117e812]
+          - cell "kg" [ref=f117e813]
+          - cell "1.0%" [ref=f117e814]
+          - cell "Grinding" [ref=f117e815]
+          - cell [ref=f117e816]:
+            - generic "Row actions" [ref=f117e817]:
+              - button "Edit" [ref=f117e818] [cursor=pointer]: ✎
+              - button "Delete" [ref=f117e819] [cursor=pointer]: 🗑
+        - row [ref=f117e943]:
+          - cell "3" [ref=f117e944]
+          - cell "RM-BUTTER" [ref=f117e945]
+          - cell "RM" [ref=f117e946]
+          - cell "0.100000" [ref=f117e948]
+          - cell "kg" [ref=f117e949]
+          - cell "0.3%" [ref=f117e950]
+          - cell "Grinding" [ref=f117e951]
+          - cell [ref=f117e952]:
+            - generic "Row actions" [ref=f117e953]:
+              - button "Edit" [ref=f117e954] [cursor=pointer]: ✎
+              - button "Delete" [ref=f117e955] [cursor=pointer]: 🗑

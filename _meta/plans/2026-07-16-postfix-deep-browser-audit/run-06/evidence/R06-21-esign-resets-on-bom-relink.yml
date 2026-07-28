@@ -1,0 +1,7 @@
+- dialog [ref=f128e474]:
+  - generic [ref=f128e475]:
+    - generic [ref=f128e476]:
+      - heading "Approve FactorySpec + BOM bundle" [level=2] [ref=f128e477]
+      - paragraph [ref=f128e478]: NIGHT-R06-FG-1138 NIGHT R06 Revision Test 1138 · paired Technical release
+    - button "Cancel" [ref=f128e479] [cursor=pointer]: ✕
+  - status [ref=f128e596]: Signature recorded (1 of 2 approvers). Bundle is not released until all required approvers sign.

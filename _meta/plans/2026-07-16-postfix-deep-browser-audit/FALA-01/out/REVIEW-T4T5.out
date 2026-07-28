@@ -1,0 +1,100 @@
+# CROSS-REVIEW — FALA 1, tory T4 / T5
+
+---
+
+## TOR T4 — Factory Spec immutability + bundle receipts
+
+### VERDICT: **NEEDS-FIX**
+
+### Odpowiedzi na pytania krytyczne
+
+| # | Odpowiedź |
+|---|-----------|
+| **5. Immutability** | **Częściowo tak.** Po podpisie (`e_sign_log` z nonce `{specId}:{bomHeaderId}:approve`) zmiana `spec_code` lub `notes` na `in_review` nie mutuje w miejscu — tworzy nową rewizję `in_review`, archiwizuje starą, audyt `factory_spec.esign_invalidated` (`factory-spec-lifecycle.ts:149–215`). Stary podpis zostaje historyczny (inny `specId` w nonce). |
+| **5b. Unieważnienie** | Pośrednio przez nowy `specId` + `archived` na starym wierszu. Brak jawnego revoke w `e_sign_log` (append-only — OK), ale jest audyt security. |
+| **5c. Reopen / receipts** | **Tak.** `loadReleaseBundle` czyta `e_sign_log` z `app.current_org_id()`, flaga `current` przez `nonce = $3` (`bundle-data.ts:328–370`). `ReleaseBundlePanelButton` zawsze przeładowuje dane przy otwarciu (usunięto `if (data) return`) — fix PF-R06-14. |
+| **6. RLS** | Zapytania scoped `org_id = app.current_org_id()` — OK. |
+| **6. Testy** | Test jednostkowy rewizji po e-sign jest sensowny (`factory-spec-lifecycle.unit.test.ts:128–173`). Brak testu loadera z historycznymi receiptami; UI test tylko dodaje pusty `approval` w mocku. |
+
+### Findings
+
+| Sev | Plik:linia | Problem | Sugerowany fix |
+|-----|------------|---------|----------------|
+| **P1** | `factory-spec-lifecycle.ts:356–424` (`saveFactorySpecVersion`) | **Alternatywna ścieżka wersjonowania** bez `hasBundleApprovalReceipt` / `factory_spec.esign_invalidated`. Na `in_review` z podpisem można wywołać `saveFactorySpecVersion` → archiwum + nowy `draft` bez tej samej ochrony co `updateFactorySpec`. Nowy `specId` de facto unieważnia nonce, ale brak spójnego audytu i ryzyko obejścia procedury „signed edit = revision in_review”. | Ujednolicić: jeśli `hasBundleApprovalReceipt`, wymusić ten sam flow co `updateFactorySpec` (revision `in_review` + audyt), albo zablokować `saveFactorySpecVersion` na podpisanym `in_review`. |
+| **P2** | `factory-spec-lifecycle.ts:83–95` | `hasBundleApprovalReceipt` = **jakikolwiek** receipt na nonce (nawet 1 z 2 w dual-approve). Bezpieczne (konserwatywne), ale może wymuszać rewizję przy częściowej kolekcji podpisów. | Akceptowalne; ewentualnie sprawdzać `approvalsCollected >= 1` z policy. |
+| **P2** | `factory-spec-lifecycle.ts:149–152` | Ochrona tylko dla `spec_code` / `notes`. Zmiana treści BOM bez zmiany `bom_header_id` nadal poza tym fixem (pre-existing scope). | Osobny tor / guard na mutację BOM przy aktywnym bundle. |
+| **P3** | `bundle-data.unit.test.ts` | Brak testu receipts / `current` vs historical. | Dodać fixture z 2 wierszami `e_sign_log` i assert na `approval.receipts`. |
+| **P3** | `factory-specs-ui.test.tsx:177` | Mock `receipts: []` — nie weryfikuje UI historycznych podpisów. | RTL case z `signatureCurrent` / `signatureHistorical`. |
+
+### Co jest solidne
+
+- `requireMutableSpec` + `FOR UPDATE` serializuje edycję vs approve (brak okna INSERT→archiwum bez locka).
+- Rewizja kopiuje `bom_header_id`, nowy nonce = nowy `specId` → stary podpis nie „current”.
+- Loader + panel: org-scoped, reopen odświeża cache.
+
+---
+
+## TOR T5 — LOTO dual-sign + calibration reviewer
+
+### VERDICT: **SOLID**
+
+### Odpowiedzi na pytania krytyczne
+
+| # | Odpowiedź |
+|---|-----------|
+| **1. dualSign atomowość** | **Tak — jedna transakcja.** `verifyMwoLotoLockout` w `withOrgContext`, `dualSign(..., { client })` (`mwo-actions.ts:1275–1287`), `signEvent` w tej samej sesji PG. Rollback przy `throw` po failed UPDATE (`1321–1322`). |
+| **1b. Różni aktorzy + sesje** | **Tak, wielowarstwowo:** `dualSign` → `ESignSoDError` (`dual.ts:23–24`); `assertDualLotoReceipts` — różni `user_id`, różne `nonce`, ten sam `subjectHash` (`mwo-actions.ts:470–477`); `readLotoGate` SQL join na `e_sign_log` (`340–355`); CHECK `lockout_applied_by <> zero_energy_verified_by` (migracja 514). |
+| **1c. Obejścia** | Ten sam aktor 2×: **zablokowane** (pg test `mwo-loto-signing.pg.test.ts:286–301`). Replay nonce: `EReplayError` (`sign.ts:206–218`). TOCTOU sign→persist: ten sam txn + `FOR UPDATE` MWO (`1237`). |
+| **2. Start gate** | **Twardy.** Jedyna legalna ścieżka `transitionMwo` → `in_progress` (`mwo-actions.ts:1523–1530`). `lotoActiveLockout` wymaga: obu aktorów, obu `signature_id`, izolacji (JSON arrays), `dual_signatures_valid`, brak `released_by`. Legacy single-sign **nie przejdzie** (pg test: legacy row + Start = `loto_not_verified`). |
+| **2b. Bypass endpointów** | Brak innej akcji ustawiającej `in_progress` (grep — tylko `transitionMwo`). |
+| **3. Migracja 514** | **Spójna ze `schema/maintenance.ts`** (`lockout_applied_by`, `lockout_signature_id`, `zero_energy_signature_id`). Legacy wiersze (tylko `zero_energy_verified_by`) pasują do gałęzi CHECK „wszystkie nowe kolumny NULL” — migracja nie psuje istniejących danych. Idempotentna (`IF NOT EXISTS`, `DROP CONSTRAINT IF EXISTS`). |
+| **4. Calibration** | **Tak.** `listCalibrationReviewers` — org-scoped, active, not deleted, permission `mnt.calib.record` (`list-calibration.ts:143–181`). Server **re-waliduje** w `recordCalibration` → `assertActiveCalibrationReviewer` + SoD (`calibration-actions.ts:521–533`) — bez zmian w tym PR, ale dead-end UUID w UI usunięty (Select + search). |
+| **6. Testy** | `mwo-loto-signing.pg.test.ts` — real DB, real `dualSign`, same-actor, legacy Start block, pełny flow — **waliduje faktyczną poprawkę**. `mwo-actions.test.ts` mockuje `dualSign` (wiring only). |
+
+### Findings (brak BLOCKER)
+
+| Sev | Plik:linia | Problem | Sugerowany fix |
+|-----|------------|---------|----------------|
+| **P2** | `mwo-actions.ts:1258–1260` | `eligibleLotoVerifiers(ctx, null)` **nie wyklucza** primary na serwerze (UI robi `ctx.userId` w `listMwoLotoVerifiers`). Self-verifier kończy jako `loto_same_actor`, nie `invalid_verifier`. | Użyć `eligibleLotoVerifiers(ctx, ctx.userId)` + jawny guard `verifier !== ctx.userId`. |
+| **P2** | `mwo-actions.ts:383–386` | `lotoReleaseAllowed` słabszy od Start (legacy: tylko `zero_energy_verified_by` + `verified_at`) — **zamierzone** dla MWO już `in_progress`, ale operator musi wiedzieć, że open legacy wymaga re-dual-sign. | Banner `lotoLegacyBanner` jest — OK; rozważyć runbook. |
+| **P3** | `mwo-actions.ts:1412–1417` | Release blokuje tylko `zero_energy_verified_by`, nie `lockout_applied_by` — lockout applier może release’ować (test to potwierdza). | OK jeśli zgodne z OSHA policy; inaczej rozszerzyć SoD. |
+| **P3** | Deploy | Migracja `514-maintenance-loto-dual-sign.sql` to **nowy plik** — musi być w deploy przed kodem. | Pipeline / migrate gate. |
+
+### Co jest solidne
+
+- Warstwa DB + aplikacja + e-sign spójne dla P0 (PF-R20-02).
+- Subject LOTO immutable: `energySourcesIsolated` + `tagsApplied` w hash podpisu.
+- UPDATE checklist z guardem `lockout_applied_by IS NULL` — brak nadpisania kompletnego dual-sign.
+- Calibration: dead-end zniknął; server nie ufa clientowi.
+
+---
+
+## BLOCKERY (przed deployem)
+
+| Tor | BLOCKER? | Uzasadnienie |
+|-----|----------|--------------|
+| **T4** | **Nie** (P0 scenariusz naprawiony dla `updateFactorySpec`) | Główna luka P0 (`edit in-place po e-sign`) zamknięta. `saveFactorySpecVersion` to P1 proceduralny, nie bezpośredni bypass podpisu na zmienionej treści tego samego `specId`. |
+| **T5** | **Nie** (warunkowo) | Logika dual-sign i Start gate poprawna. **Warunek deploy:** migracja 514 musi być zaaplikowana na Supabase przed rolloutem kodu. |
+
+**Brak kodowych BLOCKERów logicznych w T5.**  
+**T4 nie blokuje deployu P0**, ale `saveFactorySpecVersion` warto domknąć przed zamknięciem tora.
+
+---
+
+## NICE-TO-HAVE
+
+1. **T4:** Ujednolicić `saveFactorySpecVersion` z polityką e-sign invalidation.
+2. **T4:** Test loadera + RTL dla historycznych receiptów.
+3. **T4:** Osobny tor na mutację BOM przy podpisanym bundle.
+4. **T5:** `eligibleLotoVerifiers(ctx, ctx.userId)` w `verifyMwoLotoLockout`.
+5. **T5:** Test integracyjny `listCalibrationReviewers` (obecnie brak w diff).
+6. **T5:** Dokumentacja operacyjna: open legacy LOTO MWO wymaga re-dual-sign przed Start.
+
+---
+
+## Podsumowanie werdyktów
+
+| Tor | VERDICT | Uzasadnienie jednym zdaniem |
+|-----|---------|----------------------------|
+| **T4** | **NEEDS-FIX** | P0 fix dla `updateFactorySpec` + reopen receipts jest poprawny, ale `saveFactorySpecVersion` omija tę samą politykę, a testy receipts są cienkie. |
+| **T5** | **SOLID** | Dual-sign atomowy, Start gate twardy, migracja kompatybilna z legacy, calibration dead-end naprawiony z istniejącą re-walidacją server-side. |

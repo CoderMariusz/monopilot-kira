@@ -1,0 +1,162 @@
+- generic [active] [ref=f9e1]:
+  - generic [ref=f9e2]:
+    - banner [ref=f9e4]:
+      - generic "MonoPilot MES" [ref=f9e5]
+      - searchbox "Search settings…" [ref=f9e7]
+      - generic [ref=f9e8]:
+        - button "Switch organization (platform admin)" [ref=f9e10] [cursor=pointer]:
+          - generic [ref=f9e11]: A2
+          - generic [ref=f9e12]: "000000000000"
+          - generic [ref=f9e13]: Apex 22
+          - generic [ref=f9e14]: ▼
+        - generic "Filters work orders, license plates and OEE only — other screens stay org-wide" [ref=f9e15]:
+          - generic [ref=f9e16]: Site
+          - combobox "Site" [ref=f9e17] [cursor=pointer]:
+            - option "All sites"
+            - option "tester1"
+            - option "CODEX-R14 SITE"
+            - option "Main Factory" [selected]
+            - option "makery"
+            - option "SOL-R02 Site 0539 Edited"
+            - option "warehouse 1"
+        - button "Notifications" [ref=f9e19]
+        - button "Open user menu for Apex Admin" [ref=f9e24]: AA
+    - navigation "Primary" [ref=f9e25]:
+      - generic [ref=f9e26]:
+        - generic [ref=f9e27]:
+          - heading "Core" [level=2] [ref=f9e28]
+          - generic [ref=f9e29]:
+            - link "Dashboard" [ref=f9e30] [cursor=pointer]:
+              - /url: /en/dashboard
+              - generic [ref=f9e31]: ◆
+            - link "Settings" [ref=f9e34] [cursor=pointer]:
+              - /url: /en/settings
+              - generic [ref=f9e35]: ⚙
+        - generic [ref=f9e38]:
+          - heading "Operations" [level=2] [ref=f9e39]
+          - generic [ref=f9e40]:
+            - link "Planning" [ref=f9e41] [cursor=pointer]:
+              - /url: /en/planning
+              - generic [ref=f9e42]: ▤
+            - link "Freight" [ref=f9e45] [cursor=pointer]:
+              - /url: /en/planning/carriers
+              - generic [ref=f9e46]: F
+            - link "Scheduler" [ref=f9e49] [cursor=pointer]:
+              - /url: /en/scheduler
+              - generic [ref=f9e50]: ⧗
+            - link "Production" [ref=f9e53] [cursor=pointer]:
+              - /url: /en/production
+              - generic [ref=f9e54]: ⚒
+            - link "Yard" [ref=f9e57] [cursor=pointer]:
+              - /url: /en/yard
+              - generic [ref=f9e58]: "Y"
+            - link "Warehouse" [ref=f9e61] [cursor=pointer]:
+              - /url: /en/warehouse
+              - generic [ref=f9e62]: ▥
+            - link "Scanner" [ref=f9e65] [cursor=pointer]:
+              - /url: /en/scanner/home
+              - generic [ref=f9e66]: 📱
+        - generic [ref=f9e69]:
+          - heading "QA & Shipping" [level=2] [ref=f9e70]
+          - generic [ref=f9e71]:
+            - link "Quality" [ref=f9e72] [cursor=pointer]:
+              - /url: /en/quality
+              - generic [ref=f9e73]: ✓
+            - link "Shipping" [ref=f9e76] [cursor=pointer]:
+              - /url: /en/shipping
+              - generic [ref=f9e77]: →
+        - generic [ref=f9e80]:
+          - heading "Premium" [level=2] [ref=f9e81]
+          - generic [ref=f9e82]:
+            - link "Technical" [ref=f9e83] [cursor=pointer]:
+              - /url: /en/technical
+              - generic [ref=f9e84]: ▦
+            - link "NPD" [ref=f9e87] [cursor=pointer]:
+              - /url: /en/pipeline
+              - generic [ref=f9e88]: ★
+            - link "Finance" [ref=f9e91] [cursor=pointer]:
+              - /url: /en/finance
+              - generic [ref=f9e92]: $
+            - link "OEE" [ref=f9e95] [cursor=pointer]:
+              - /url: /en/oee
+              - generic [ref=f9e96]: ◉
+            - link "Maintenance" [ref=f9e99] [cursor=pointer]:
+              - /url: /en/maintenance
+              - generic [ref=f9e100]: 🔧
+        - generic [ref=f9e103]:
+          - heading "Analytics & Network" [level=2] [ref=f9e104]
+          - generic [ref=f9e105]:
+            - link "Reporting" [ref=f9e106] [cursor=pointer]:
+              - /url: /en/reporting
+              - generic [ref=f9e107]: ▧
+            - link "Multi-Site" [ref=f9e110] [cursor=pointer]:
+              - /url: /en/multi-site
+              - generic [ref=f9e111]: ❖
+    - main [ref=f9e114]:
+      - main [ref=f9e115]:
+        - generic [ref=f9e117]:
+          - navigation "Breadcrumb" [ref=f9e118]:
+            - list [ref=f9e119]:
+              - listitem [ref=f9e120]:
+                - generic [ref=f9e121]: Planning
+              - listitem [ref=f9e122]:
+                - generic [ref=f9e123]: /
+                - generic [ref=f9e124]: Work orders
+          - generic [ref=f9e125]:
+            - heading "Work orders" [level=1] [ref=f9e126]
+            - paragraph [ref=f9e127]: Plan, release and track production work orders.
+        - generic [ref=f9e128]:
+          - generic [ref=f9e129]:
+            - searchbox "Search WO number or item code…" [ref=f9e131]
+            - generic [ref=f9e132]:
+              - link "Import WOs" [ref=f9e133] [cursor=pointer]:
+                - /url: /en/planning/work-orders/import
+              - button "+ Create WO" [ref=f9e134] [cursor=pointer]
+          - tablist "All" [ref=f9e135]:
+            - tab "All28" [selected] [ref=f9e178]
+            - tab "Draft6" [ref=f9e179]
+            - tab "Released0" [ref=f9e138]
+            - tab "In progress3" [ref=f9e180]
+            - tab "On hold0" [ref=f9e140]
+            - tab "Completed1" [ref=f9e181]
+            - tab "Archive0" [ref=f9e142] [cursor=pointer]
+            - generic [ref=f9e143]: 28 rows
+          - generic [ref=f9e144]:
+            - table [ref=f9e145]:
+              - rowgroup [ref=f9e146]:
+                - row "WO Product Status Qty Scheduled start Line BOM" [ref=f9e147]
+              - rowgroup [ref=f9e156]:
+                - row "WO-202607-0018 FG0014 Cancelled 15.000 kg Jul 13, 2026 LINE02 BOM" [ref=f9e182]
+                - row "WO-202607-0018-W1 WIP-20260707-0006 Cancelled 12.600 kg Jul 13, 2026 LINE02 BOM" [ref=f9e194]
+                - row "WO-202607-0013-W1 WIP-20260707-0006 Cancelled 8.820 kg Jul 14, 2026 LINE02 BOM" [ref=f9e206]
+                - row "WO-202607-0026 FG0014 Cancelled 1.500 kg Jul 15, 2026 LINE03 BOM" [ref=f9e218]
+                - row "WO-202607-0026-W1 WIP-20260707-0006 Cancelled 1.260 kg Jul 15, 2026 LINE02 BOM" [ref=f9e230]
+                - row "WO-202607-0019-W1 WIP-20260707-0006 Draft 252.155 kg Jul 15, 2026 LINE02 BOM Release Delete draft" [ref=f9e242]
+                - row "WO-202607-0013 FG0014 Cancelled 12.750 kg Jul 15, 2026 LINE03 BOM" [ref=f9e257]
+                - row "WO-202607-0022-W1 WIP-20260707-0006 Cancelled 25.452 kg Jul 17, 2026 LINE02 BOM" [ref=f9e269]
+                - row "WO-202607-0022 FG0014 Cancelled 30.300 kg Jul 18, 2026 LINE1 BOM" [ref=f9e281]
+                - row "WO-202607-0023-W1 WIP-20260707-0006 Cancelled 10.080 kg Jul 19, 2026 LINE02 BOM" [ref=f9e293]
+                - row "WO-202607-0023 FG0014 Cancelled 12.000 kg Jul 19, 2026 LINE03 BOM" [ref=f9e305]
+                - row "WO-202607-0029 FG-R09-144638 Draft 8.400 kg Jul 20, 2026 LINE02 No BOM Release Delete draft" [ref=f9e317]
+                - row "WO-202607-0024 FG0014 Cancelled 6.000 kg Jul 20, 2026 LINE03 BOM" [ref=f9e332]
+                - row "WO-202607-0024-W1 WIP-20260707-0006 Cancelled 5.040 kg Jul 20, 2026 LINE02 BOM" [ref=f9e344]
+                - row "WO-202607-0025 FG0014 Cancelled 3.000 kg Jul 21, 2026 LINE03 BOM" [ref=f9e356]
+                - row "WO-202607-0025-W1 WIP-20260707-0006 Cancelled 2.520 kg Jul 21, 2026 LINE02 BOM" [ref=f9e368]
+                - row "WO-202607-0030-W1 WIP-20260707-0006 Cancelled 12.495 kg Jul 25, 2026 LINE02 BOM" [ref=f9e380]
+                - row "WO-202607-0030 FG0014 Cancelled 14.875 kg Jul 26, 2026 LINE1 BOM" [ref=f9e392]
+                - row "E2E-A-N1-DISPLAY FG0014 In progress 300.000 kg — LINE1 No BOM" [ref=f9e404]
+                - row "E2E-A-S8-TIMESTAMPS FG0015 In progress 50.000 kg — LINE1 No BOM" [ref=f9e416]
+                - row "E2E-A-HOLD-CONSUME FG0014 In progress 100.000 kg — LINE1 BOM" [ref=f9e428]
+                - row "E2E-A-C5-WIP WIP-20260707-0005 Draft 50.000 kg — LINE1 No BOM Release Delete draft" [ref=f9e440]
+                - row "E2E-A-C5-FG FG0015 Draft 50.000 kg — LINE1 No BOM Release Delete draft" [ref=f9e455]
+                - row "E2E-A-C4-YIELD FG0014 Completed 100.000 kg — LINE1 No BOM" [ref=f9e470]
+                - row "WO-202607-0014-W1 WIP-20260707-0006 Cancelled 12.600 kg — LINE02 BOM" [ref=f9e482]
+                - row "WO-202607-0014 FG0014 Cancelled 15.000 kg — LINE03 BOM" [ref=f9e494]
+                - row "WO-202607-0009-W1 WIP-20260707-0006 Draft 63.000 kg — LINE02 BOM Release Delete draft" [ref=f9e506]
+                - row "WO-202607-0009 FG0014 Draft 75.000 kg — LINE03 BOM Release Delete draft" [ref=f9e521]
+            - generic [ref=f9e172]:
+              - generic [ref=f9e173]: Showing 28 of 28
+              - generic [ref=f9e174]:
+                - generic [ref=f9e175]: Previous
+                - generic [ref=f9e176]: Next
+  - alert [ref=f9e177]
