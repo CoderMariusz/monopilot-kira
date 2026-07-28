@@ -541,10 +541,11 @@
       "storageRulesSaved": "Storage rules saved.",
       "storageRulesSaveFailed": "Storage rules could not be saved. Try again or contact an administrator.",
       "editStorageRules": "Edit storage rules for {name}",
-      "renameWarehouse": "Rename warehouse",
-      "renameWarehouseTitle": "Rename warehouse",
-      "renameWarehousePending": "Renaming…",
-      "renameWarehouseFailed": "Warehouse could not be renamed.",
+      "editWarehouse": "Edit warehouse",
+      "editWarehouseTitle": "Edit warehouse",
+      "editWarehousePending": "Saving…",
+      "editWarehouseFailed": "Warehouse could not be updated.",
+      "warehouseSiteLocked": "Site cannot be changed after creation — locations, production lines and stock are tied to this warehouse. A warehouse with no dependents can be deleted and recreated.",
       "reactivateWarehouse": "Reactivate warehouse",
       "reactivateWarehousePending": "Reactivating…",
       "reactivateSuccess": "Warehouse reactivated.",
@@ -633,7 +634,10 @@
       "deleteHasChildren": "Delete child locations first.",
       "inactive": "Inactive",
       "barcodeLabel": "Barcode",
-      "noBarcode": "No barcode"
+      "noBarcode": "No barcode",
+      "parentInactiveHint": "The parent location is inactive, so this location is saved as inactive. Reactivate the parent first to keep it active.",
+      "parentInactiveLegacyHint": "This location is active even though its parent is inactive. Editing it here keeps its current status — reactivate {parent} to repair the hierarchy.",
+      "hasActiveChildrenError": "This location still has active child locations. Deactivate them first, or leave this location active."
     }
   },
   "schema": {

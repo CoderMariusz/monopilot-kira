@@ -111,6 +111,7 @@ describe('ActAsBanner', () => {
       <ActAsBanner
         orgName="Kobe Dairy"
         orgCode="KOBE"
+        actorLabel="Ola K."
         actorEmail="owner@monopilot.test"
         labels={{ role: 'PLATFORM ADMIN', actingAs: 'acting as', exit: 'Exit act-as' }}
         exitActAsAction={exit}
@@ -121,6 +122,8 @@ describe('ActAsBanner', () => {
     expect(banner).toHaveTextContent('PLATFORM ADMIN');
     expect(screen.getByTestId('act-as-banner-org')).toHaveTextContent('Kobe Dairy');
     expect(banner).toHaveTextContent('KOBE');
+    expect(banner).toHaveTextContent('Ola K.');
+    expect(banner).not.toHaveTextContent('owner@monopilot.test');
 
     fireEvent.click(screen.getByTestId('act-as-banner-exit'));
     await waitFor(() => expect(exit).toHaveBeenCalled());

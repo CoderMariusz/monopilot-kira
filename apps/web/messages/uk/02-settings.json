@@ -541,10 +541,11 @@
       "storageRulesSaved": "Правила зберігання збережено.",
       "storageRulesSaveFailed": "Не вдалося зберегти правила зберігання. Спробуйте ще раз або зверніться до адміністратора.",
       "editStorageRules": "Редагувати правила зберігання для {name}",
-      "renameWarehouse": "Rename warehouse",
-      "renameWarehouseTitle": "Rename warehouse",
-      "renameWarehousePending": "Renaming…",
-      "renameWarehouseFailed": "Warehouse could not be renamed.",
+      "editWarehouse": "Edit warehouse",
+      "editWarehouseTitle": "Edit warehouse",
+      "editWarehousePending": "Saving…",
+      "editWarehouseFailed": "Warehouse could not be updated.",
+      "warehouseSiteLocked": "Site cannot be changed after creation — locations, production lines and stock are tied to this warehouse. A warehouse with no dependents can be deleted and recreated.",
       "reactivateWarehouse": "Reactivate warehouse",
       "reactivateWarehousePending": "Reactivating…",
       "reactivateSuccess": "Warehouse reactivated.",
@@ -633,7 +634,10 @@
       "deleteHasChildren": "Спочатку видаліть дочірні локації.",
       "inactive": "Inactive",
       "barcodeLabel": "Barcode",
-      "noBarcode": "No barcode"
+      "noBarcode": "No barcode",
+      "parentInactiveHint": "Батьківська локація неактивна, тому цю локацію буде збережено як неактивну. Щоб вона залишалася активною, спершу активуйте батьківську локацію.",
+      "parentInactiveLegacyHint": "Ця локація активна, хоча її батьківська локація неактивна. Редагування тут зберігає її поточний статус — активуйте {parent}, щоб виправити ієрархію.",
+      "hasActiveChildrenError": "Ця локація ще має активні дочірні локації. Спершу деактивуйте їх або залиште цю локацію активною."
     }
   },
   "schema": {

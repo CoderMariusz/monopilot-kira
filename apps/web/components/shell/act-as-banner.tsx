@@ -25,7 +25,10 @@ export type ActAsBannerLabels = {
 export type ActAsBannerProps = {
   orgName: string;
   orgCode: string;
-  actorEmail: string;
+  /** Resolved actor identity (display_name → name → metadata → email). */
+  actorLabel: string;
+  /** Raw email — shown on hover for audit, not as the primary label. */
+  actorEmail?: string;
   labels: ActAsBannerLabels;
   exitActAsAction: () => Promise<{ ok: boolean } | { ok: false; error: string }>;
 };
@@ -33,6 +36,7 @@ export type ActAsBannerProps = {
 export function ActAsBanner({
   orgName,
   orgCode,
+  actorLabel,
   actorEmail,
   labels,
   exitActAsAction,
@@ -75,7 +79,9 @@ export function ActAsBanner({
         {orgCode}
       </span>
       <span style={{ flex: 1 }} />
-      <span style={{ fontSize: 11, opacity: 0.85 }}>{actorEmail}</span>
+      <span style={{ fontSize: 11, opacity: 0.85 }} title={actorEmail}>
+        {actorLabel}
+      </span>
       <button
         type="button"
         data-testid="act-as-banner-exit"

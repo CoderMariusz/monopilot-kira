@@ -541,10 +541,11 @@
       "storageRulesSaved": "Reguły składowania zapisane.",
       "storageRulesSaveFailed": "Nie można zapisać reguł składowania. Spróbuj ponownie lub skontaktuj się z administratorem.",
       "editStorageRules": "Edytuj reguły składowania dla {name}",
-      "renameWarehouse": "Zmień nazwę magazynu",
-      "renameWarehouseTitle": "Zmień nazwę magazynu",
-      "renameWarehousePending": "Zmienianie nazwy…",
-      "renameWarehouseFailed": "Nie udało się zmienić nazwy magazynu.",
+      "editWarehouse": "Edytuj magazyn",
+      "editWarehouseTitle": "Edytuj magazyn",
+      "editWarehousePending": "Zapisywanie…",
+      "editWarehouseFailed": "Nie udało się zaktualizować magazynu.",
+      "warehouseSiteLocked": "Zakładu nie można zmienić po utworzeniu — lokalizacje, linie produkcyjne i zapasy są powiązane z tym magazynem. Magazyn bez zależności można usunąć i utworzyć ponownie.",
       "reactivateWarehouse": "Reaktywuj magazyn",
       "reactivateWarehousePending": "Reaktywacja…",
       "reactivateSuccess": "Magazyn reaktywowany.",
@@ -633,7 +634,10 @@
       "deleteHasChildren": "Delete child locations first.",
       "inactive": "Nieaktywna",
       "barcodeLabel": "Kod kreskowy",
-      "noBarcode": "Brak kodu kreskowego"
+      "noBarcode": "Brak kodu kreskowego",
+      "parentInactiveHint": "Lokalizacja nadrzędna jest nieaktywna, więc ta lokalizacja zostanie zapisana jako nieaktywna. Aby pozostała aktywna, najpierw aktywuj lokalizację nadrzędną.",
+      "parentInactiveLegacyHint": "Ta lokalizacja jest aktywna, choć jej lokalizacja nadrzędna jest nieaktywna. Edycja tutaj zachowuje jej bieżący status — aktywuj {parent}, aby naprawić hierarchię.",
+      "hasActiveChildrenError": "Ta lokalizacja ma jeszcze aktywne lokalizacje podrzędne. Najpierw je dezaktywuj albo pozostaw tę lokalizację aktywną."
     }
   },
   "schema": {

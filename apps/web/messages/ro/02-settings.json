@@ -541,10 +541,11 @@
       "storageRulesSaved": "Reguli de stocare salvate.",
       "storageRulesSaveFailed": "Regulile de stocare nu au putut fi salvate. Încercați din nou sau contactați un administrator.",
       "editStorageRules": "Editează regulile de stocare pentru {name}",
-      "renameWarehouse": "Rename warehouse",
-      "renameWarehouseTitle": "Rename warehouse",
-      "renameWarehousePending": "Renaming…",
-      "renameWarehouseFailed": "Warehouse could not be renamed.",
+      "editWarehouse": "Edit warehouse",
+      "editWarehouseTitle": "Edit warehouse",
+      "editWarehousePending": "Saving…",
+      "editWarehouseFailed": "Warehouse could not be updated.",
+      "warehouseSiteLocked": "Site cannot be changed after creation — locations, production lines and stock are tied to this warehouse. A warehouse with no dependents can be deleted and recreated.",
       "reactivateWarehouse": "Reactivate warehouse",
       "reactivateWarehousePending": "Reactivating…",
       "reactivateSuccess": "Warehouse reactivated.",
@@ -633,7 +634,10 @@
       "deleteHasChildren": "Ștergeți mai întâi locațiile copil.",
       "inactive": "Inactive",
       "barcodeLabel": "Barcode",
-      "noBarcode": "No barcode"
+      "noBarcode": "No barcode",
+      "parentInactiveHint": "Locația părinte este inactivă, deci această locație este salvată ca inactivă. Reactivați mai întâi locația părinte pentru a o păstra activă.",
+      "parentInactiveLegacyHint": "Această locație este activă deși locația părinte este inactivă. Editarea aici îi păstrează statusul curent — reactivați {parent} pentru a repara ierarhia.",
+      "hasActiveChildrenError": "Această locație are încă locații subordonate active. Dezactivați-le mai întâi sau păstrați această locație activă."
     }
   },
   "schema": {
