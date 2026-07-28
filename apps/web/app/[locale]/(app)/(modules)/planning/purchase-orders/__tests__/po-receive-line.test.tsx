@@ -78,9 +78,14 @@ const receiveLabels: NonNullable<PoDetailLabels['receive']> = {
       not_found: 'gone',
       invalid_qty: 'invalid qty',
       over_receive_cap: 'Cannot exceed 110% of the ordered quantity.',
+      over_receive_confirm_required:
+        'This receipt is more than the outstanding quantity. Over-receipts have to be confirmed on the Warehouse → Receive PO screen.',
       no_warehouse: 'No warehouse configured — set one up in Settings.',
       invalid_location: 'That location is invalid.',
+      location_inactive: 'That location has been deactivated.',
       invalid_state: 'no longer a draft',
+      wac_unresolved_uom:
+        "Receipt is blocked: {item} has no unit conversion defined for {uom}. Add a conversion for {uom} in the item's master data — retrying will not help.",
       wac_unsupported_currency:
         'Receipt is blocked because this purchase order is not in GBP. Change the PO currency to GBP before receiving.',
       error: 'save failed',
@@ -93,6 +98,9 @@ const detailLabels: PoDetailLabels = {
   summary: { title: 'PO summary', supplier: 'Supplier', status: 'Status', expected: 'Expected delivery', currency: 'Currency', total: 'Total', created: 'Created' },
   lines: { title: 'PO lines', seq: '#', item: 'Item', qty: 'Qty', uom: 'UoM', unitPrice: 'Unit price', lineTotal: 'Line total', received: 'Received', receivedFull: 'Received', receivedPartial: 'Partial', empty: 'No lines.' },
   receivedSummary: { title: 'Receipt progress', lines: '{received} / {total} lines' },
+  // po-detail-view reads labels.relatedGrns.{title,empty} unconditionally; the real
+  // page supplies both from detail.relatedGrns.* (present in all four locales).
+  relatedGrns: { title: 'Related GRNs', empty: 'No GRNs yet.' },
   transitions: { title: 'Status', send: 'Submit', confirm: 'Confirm', receivePartial: 'Mark partial', receive: 'Mark received', cancel: 'Cancel PO', pending: 'Updating…', confirmPrompt: 'Change status of {po} to {status}?', cancelConfirmTitle: 'Cancel {po}?', cancelConfirmBody: 'cancel body', cancelSuccess: 'cancelled', cancelPoHasReceipts: 'has receipts' },
   reopen: { button: 'Reopen', pending: 'Reopening…', confirmPrompt: 'Reopen {po}?', confirmTitle: 'Reopen {po}?', confirmBody: 'body', success: 'reopened', error: 'failed' },
   notesTitle: 'Notes',
@@ -299,5 +307,121 @@ describe('Desktop PO line receive affordance', () => {
     fireEvent.click(screen.getByTestId('po-line-receive-line-1'));
     await screen.findByTestId('po-receive-form');
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * R07-02 — purchase_order_lines.qty and grn_items.received_qty are both
+ * NUMERIC(18,6). This modal was the only 3-decimal narrowing in the chain: its
+ * qty pattern accepted 1-3 decimals and remaining() ran toFixed(3) over a
+ * six-decimal value, so a 12.345600 line prefilled 12.346 (MORE than ordered)
+ * and its last 0.000600 could never be received — the line could never reach
+ * "fully received" through this UI.
+ */
+describe('Desktop PO line receive — six-decimal quantities', () => {
+  const sixDpPo = (receivedQty: string): PoDetail =>
+    makePo({
+      lines: [
+        {
+          id: 'line-1',
+          itemCode: 'RM-001',
+          itemName: 'Pork Belly',
+          qty: '12.345600',
+          uom: 'kg',
+          unitPrice: '5.50',
+          lineNo: 1,
+          receivedQty,
+        },
+      ],
+    });
+
+  async function openSixDp(receivedQty: string, receive?: ReturnType<typeof vi.fn>) {
+    const rendered = renderDetail({ po: sixDpPo(receivedQty), receive });
+    fireEvent.click(screen.getByTestId('po-line-receive-line-1'));
+    const form = await screen.findByTestId('po-receive-form');
+    return { ...rendered, form };
+  }
+
+  it('prefills the EXACT remainder and never proposes more than was ordered', async () => {
+    const { form } = await openSixDp('0');
+    // Was "12.346" — 0.0004 kg more than the PO line actually ordered.
+    expect(within(form).getByTestId('po-receive-qty')).toHaveValue('12.3456');
+  });
+
+  it('prefills the exact 0.000600 tail rather than rounding it up to 0.001', async () => {
+    const { form } = await openSixDp('12.345000');
+    expect(within(form).getByTestId('po-receive-qty')).toHaveValue('0.0006');
+  });
+
+  it('accepts a typed 0.0006 against a 0.000600 remainder and closes the line', async () => {
+    const { form, receive } = await openSixDp('12.345000');
+    fireEvent.change(within(form).getByTestId('po-receive-qty'), { target: { value: '0.0006' } });
+    fireEvent.click(screen.getByTestId('po-receive-submit'));
+
+    await waitFor(() => expect(receive).toHaveBeenCalledTimes(1));
+    // The old 1-3 decimal pattern rejected this locally with the FALSE message
+    // "Enter a quantity greater than zero." for a value that is above zero.
+    expect(screen.queryByTestId('po-receive-error')).not.toBeInTheDocument();
+    expect(receive).toHaveBeenCalledWith(expect.objectContaining({ poLineId: 'line-1', qty: '0.0006' }));
+  });
+
+  it('still rejects a 7th decimal locally — the column and the server both stop at 6', async () => {
+    const { form, receive } = await openSixDp('0');
+    fireEvent.change(within(form).getByTestId('po-receive-qty'), { target: { value: '0.0000001' } });
+    fireEvent.click(screen.getByTestId('po-receive-submit'));
+    expect(await screen.findByTestId('po-receive-error')).toHaveTextContent('Enter a quantity greater than zero.');
+    expect(receive).not.toHaveBeenCalled();
+  });
+
+  it('rejects the shapes the server rejects (leading zero / bare dot / trailing dot)', async () => {
+    for (const bad of ['01.5', '.5', '1.']) {
+      const { form, receive, unmount } = await openSixDp('0');
+      fireEvent.change(within(form).getByTestId('po-receive-qty'), { target: { value: bad } });
+      fireEvent.click(screen.getByTestId('po-receive-submit'));
+      expect(await screen.findByTestId('po-receive-error')).toBeInTheDocument();
+      expect(receive).not.toHaveBeenCalled();
+      unmount();
+    }
+  });
+
+  it('gives a NAMED reason when the server refuses an over-receipt (not the generic failure)', async () => {
+    const receive = vi
+      .fn()
+      .mockResolvedValue({ ok: false, error: 'over_receive_confirm_required' } satisfies DesktopReceiveResult);
+    await openSixDp('0', receive);
+    fireEvent.click(screen.getByTestId('po-receive-submit'));
+
+    const alert = await screen.findByTestId('po-receive-error');
+    expect(alert).toHaveAttribute('role', 'alert');
+    expect(alert).toHaveTextContent('Over-receipts have to be confirmed');
+    // The key was absent from the label contract, so this used to render the
+    // generic "save failed" / "please retry" message.
+    expect(alert).not.toHaveTextContent('save failed');
+  });
+});
+
+/**
+ * R07-05 — the server result union carries `wac_unresolved_uom` and the action
+ * returns it (BookReceiptWacError 'unresolved_uom'), but no label contract or
+ * locale bundle had the key, so the lookup fell through to "Something went wrong
+ * receiving. Please retry." — advice that can never work, because the UoM
+ * contract is structurally broken until master data is fixed.
+ */
+describe('Desktop PO line receive — wac_unresolved_uom is named, not masked', () => {
+  it('names the item and the UoM and does not tell the user to retry', async () => {
+    const receive = vi.fn().mockResolvedValue({ ok: false, error: 'wac_unresolved_uom' } satisfies DesktopReceiveResult);
+    renderDetail({ receive });
+    fireEvent.click(screen.getByTestId('po-line-receive-line-1'));
+    await screen.findByTestId('po-receive-form');
+    fireEvent.click(screen.getByTestId('po-receive-submit'));
+
+    const alert = await screen.findByTestId('po-receive-error');
+    expect(alert).toHaveAttribute('role', 'alert');
+    expect(alert).toHaveTextContent('RM-001');
+    expect(alert).toHaveTextContent('kg');
+    expect(alert).toHaveTextContent('master data');
+    expect(alert).not.toHaveTextContent('save failed');
+    // Placeholders must be interpolated, not rendered raw.
+    expect(alert.textContent ?? '').not.toMatch(/\{item\}|\{uom\}/);
   });
 });

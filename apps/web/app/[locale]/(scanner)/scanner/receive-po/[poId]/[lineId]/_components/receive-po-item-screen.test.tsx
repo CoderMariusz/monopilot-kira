@@ -125,6 +125,64 @@ describe('ReceivePoItemScreen', () => {
     expect(typeof receiveCall?.[1].qty).toBe('string');
   });
 
+  it('shows already-received read-only state with LP and qty on revisit (not generic load error)', async () => {
+    scannerFetch.mockImplementation((path: string) => {
+      if (path.includes('/pos/po-1')) {
+        return jsonResponse({
+          ok: true,
+          alreadyReceived: true,
+          po: {
+            id: 'po-1',
+            poNumber: 'PO-1',
+            supplierCode: 'SUP',
+            supplierName: 'Supplier',
+            expectedDelivery: '2026-06-20',
+            status: 'received',
+            lines: [
+              {
+                id: 'line-1',
+                lineNo: 1,
+                itemCode: 'RM-BEEF',
+                itemName: 'Beef',
+                qty: '3.125',
+                receivedQty: '3.125',
+                uom: 'kg',
+                receiptLpNumber: 'LP-1784363420662-6L1D',
+                receiptLpQty: '1.5',
+              },
+            ],
+          },
+        });
+      }
+      if (path === '/api/warehouse/scanner/location') {
+        return jsonResponse({ ok: true, locations: [] });
+      }
+      return jsonResponse({ ok: false }, 500);
+    });
+
+    render(<ReceivePoItemScreen locale="en" poId="po-1" lineId="line-1" labels={getScannerLabels('en')} />);
+
+    expect(await screen.findByText('Already received')).toBeInTheDocument();
+    expect(screen.getByText('LP-1784363420662-6L1D')).toBeInTheDocument();
+    expect(screen.getByText(/New LP · 1\.5 kg/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Receive' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Could not load data.')).not.toBeInTheDocument();
+  });
+
+  it('shows not-found (not generic load error) for a missing PO', async () => {
+    scannerFetch.mockImplementation((path: string) => {
+      if (path.includes('/pos/missing')) {
+        return jsonResponse({ ok: false, error: 'po_not_found' }, 404);
+      }
+      return jsonResponse({ ok: true, locations: [] });
+    });
+
+    render(<ReceivePoItemScreen locale="en" poId="missing" lineId="line-1" labels={getScannerLabels('en')} />);
+
+    expect(await screen.findByText('Purchase order not found.')).toBeInTheDocument();
+    expect(screen.queryByText('Could not load data.')).not.toBeInTheDocument();
+  });
+
   it('shows the QC-hold info line when the receive response flags a required inspection', async () => {
     scannerFetch.mockImplementation((path: string) => {
       if (path.includes('/pos/po-1')) {
@@ -377,5 +435,48 @@ describe('ReceivePoItemScreen', () => {
     });
     const alert = await screen.findByTestId('receive-po-error');
     expect(alert).toHaveTextContent(/not in GBP/i);
+  });
+
+  it('shows already-received revisit with LP and qty instead of a generic load error', async () => {
+    scannerFetch.mockImplementation((path: string) => {
+      if (path.includes('/pos/po-1')) {
+        return jsonResponse({
+          ok: true,
+          alreadyReceived: true,
+          po: {
+            id: 'po-1',
+            poNumber: 'PO-1',
+            supplierCode: 'SUP',
+            supplierName: 'Supplier',
+            expectedDelivery: '2026-06-20',
+            status: 'received',
+            lineCount: 1,
+            receivedLineCount: 1,
+            lines: [
+              {
+                id: 'line-1',
+                lineNo: 1,
+                itemCode: 'RM-BEEF',
+                itemName: 'Beef',
+                qty: '3.125',
+                receivedQty: '3.125',
+                uom: 'kg',
+                receiptLpNumber: 'LP-1784363420662-6L1D',
+                receiptLpQty: '1.5',
+              },
+            ],
+          },
+        });
+      }
+      return jsonResponse({ ok: false, error: 'po_not_found' }, 404);
+    });
+
+    render(<ReceivePoItemScreen locale="en" poId="po-1" lineId="line-1" labels={getScannerLabels('en')} />);
+
+    expect(await screen.findByText('Already received')).toBeInTheDocument();
+    expect(screen.getByText('LP-1784363420662-6L1D')).toBeInTheDocument();
+    expect(screen.getByText(/1\.5 kg/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Receive' })).not.toBeInTheDocument();
+    expect(scannerFetch.mock.calls.some((call) => call[0] === '/api/warehouse/scanner/location')).toBe(false);
   });
 });

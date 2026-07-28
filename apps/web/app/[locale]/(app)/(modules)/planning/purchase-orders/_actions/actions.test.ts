@@ -33,6 +33,8 @@ let supplierStatus = 'active';
 let listTotal = 1;
 let warehouseSiteId: string | null = SITE_ID;
 let poDestinationWarehouseId: string | null = null;
+/** Whether the WAC resolver can convert the PO line UoM to kg (R07-03 confirm gate). */
+let wacUomResolvable = true;
 
 function permissionAllowed(permission: unknown): boolean {
   if (permission === 'npd.planning.write') return allowWritePermission;
@@ -193,6 +195,13 @@ function makeClient(): QueryClient {
       if (normalized.startsWith('update public.purchase_orders')) {
         return { rows: poExists ? [header({ status: String(params[1]), supplier_code: null, supplier_name: null })] : [], rowCount: poExists ? 1 : 0 };
       }
+      // WAC kg-resolvability probe behind the PO-confirm gate (R07-03).
+      if (normalized.includes('from public.items i') && normalized.includes('as qty_kg')) {
+        return {
+          rows: [{ qty_kg: wacUomResolvable ? String(params[0] ?? '0') : '0', resolved: wacUomResolvable }],
+          rowCount: 1,
+        };
+      }
       if (normalized.includes('from public.purchase_order_lines')) {
         return { rows: [line()], rowCount: 1 };
       }
@@ -218,6 +227,7 @@ describe('planning purchase order actions', () => {
     listTotal = 1;
     warehouseSiteId = SITE_ID;
     poDestinationWarehouseId = null;
+    wacUomResolvable = true;
     getActiveSiteIdMock.mockResolvedValue(SITE_ID);
     resolveWriteSiteIdMock.mockResolvedValue({ ok: true, siteId: SITE_ID });
     client = makeClient();
@@ -538,6 +548,22 @@ describe('planning purchase order actions', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(result.error);
     expect(result.data.status).toBe('sent');
+  });
+
+  // R07-03: a priced line whose UoM cannot be costed in kg was orderable and then
+  // impossible to receive. Refuse it while the order can still be corrected.
+  it('refuses draft -> sent when a priced line UoM cannot be converted to kg', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    currentStatus = 'draft';
+    wacUomResolvable = false;
+
+    const result = await transitionPurchaseOrderStatus(PO_ID, 'sent');
+
+    expect(result).toMatchObject({ ok: false, error: 'line_uom_not_convertible', code: 'line_uom_not_convertible' });
+    const calls = vi.mocked(client.query).mock.calls.map(([sql]) => String(sql));
+    expect(calls.some((sql) => sql.startsWith('update public.purchase_orders') && sql.includes('set status = $2'))).toBe(
+      false,
+    );
   });
 
   it('rejects draft -> sent when supplier is blocked (C050)', async () => {

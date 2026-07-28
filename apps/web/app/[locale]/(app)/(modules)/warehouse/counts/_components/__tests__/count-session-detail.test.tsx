@@ -45,6 +45,7 @@ function buildLabels(locale: string): CountSessionDetailLabels {
       columns: {
         location: t('detail.entry.columns.location'),
         item: t('detail.entry.columns.item'),
+        lp: t('detail.entry.columns.lp'),
         counted: t('detail.entry.columns.counted'),
         actions: t('detail.entry.columns.actions'),
       },
@@ -63,6 +64,7 @@ function buildLabels(locale: string): CountSessionDetailLabels {
       columns: {
         location: t('detail.review.columns.location'),
         item: t('detail.review.columns.item'),
+        lp: t('detail.review.columns.lp'),
         system: t('detail.review.columns.system'),
         counted: t('detail.review.columns.counted'),
         variance: t('detail.review.columns.variance'),
@@ -206,8 +208,49 @@ const noopRecord = async () => ({ ok: true as const, data: makeLine({}) });
 const noopApprove = async () => ({ ok: true as const, data: { countLineId: 'line-1' } });
 
 describe('CountSessionDetailClient (E10 blind count + variance + e-sign)', () => {
+  it('shows LP number and a unique aria-label for duplicate item/location rows at LP grain', () => {
+    const lines = [
+      makeLine({
+        id: 'line-1',
+        lpId: 'lp-1',
+        lpNumber: 'LP-0001',
+        itemCode: 'RM-BUTTER',
+        itemName: 'Butter',
+        locationCode: 'RECV',
+      }),
+      makeLine({
+        id: 'line-2',
+        lpId: 'lp-2',
+        lpNumber: 'LP-0002',
+        itemCode: 'RM-BUTTER',
+        itemName: 'Butter',
+        locationCode: 'RECV',
+      }),
+    ];
+    renderDetail(makeSession(lines), noopRecord, noopApprove);
+
+    expect(screen.getByTestId('count-entry-lp-line-1')).toHaveTextContent('LP-0001');
+    expect(screen.getByTestId('count-entry-lp-line-2')).toHaveTextContent('LP-0002');
+    const input1 = screen.getByTestId('count-entry-input-line-1');
+    const input2 = screen.getByTestId('count-entry-input-line-2');
+    expect(input1).toHaveAttribute('aria-label', expect.stringContaining('LP-0001'));
+    expect(input2).toHaveAttribute('aria-label', expect.stringContaining('LP-0002'));
+    expect(input1.getAttribute('aria-label')).not.toBe(input2.getAttribute('aria-label'));
+  });
+
+  it('renders location/item rows without an LP column when no line has lpNumber', () => {
+    const line = makeLine({ id: 'line-1', lpId: null, lpNumber: null });
+    renderDetail(makeSession([line]), noopRecord, noopApprove);
+
+    expect(screen.queryByText(EN.entry.columns.lp)).not.toBeInTheDocument();
+    expect(screen.queryByTestId('count-entry-lp-line-1')).not.toBeInTheDocument();
+    expect(screen.getByTestId('count-entry-input-line-1')).toHaveAttribute(
+      'aria-label',
+      `${EN.entry.columns.counted} — A-01-01 — R-1001`,
+    );
+  });
+
   it('BLIND: the entry tab shows location + item + input but NOT the system qty', () => {
-    // System qty would be counted − variance = 15 − 3 = 12; it must NOT appear on entry.
     const line = makeLine({ id: 'line-1', countedQty: null, varianceQty: null, status: 'pending' });
     renderDetail(makeSession([line]), noopRecord, noopApprove);
 

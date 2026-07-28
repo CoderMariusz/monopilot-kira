@@ -3,7 +3,13 @@
 /**
  * WH-R3 — LP Split modal (client island).
  *
- * Wires the hardened `splitLp(lpId, splitQty, reason, clientOpId)` Server Action
+ * R08-02: the modal used to collect a quantity and a reason and nothing else, so the child
+ * pallet silently inherited the source's location. It now REQUIRES a destination, picked from
+ * the same org/site-scoped `listLocations` read the Move modal uses. The source location is
+ * kept in the list on purpose — splitting into the same bin is legitimate, it just has to be
+ * chosen rather than assumed.
+ *
+ * Wires the hardened `splitLp(lpId, splitQty, reason, clientOpId, toLocationId)` Server Action
  * (lp-split-merge-destroy-actions.ts). Mirrors the in-codebase modal pattern
  * (LpReserveModal / LpBlockModal): shadcn/ui Modal + Input + Textarea, an inline
  * error region, refresh-on-success via the caller's onSuccess.
@@ -22,8 +28,10 @@ import { useEffect, useMemo, useState, useTransition } from 'react';
 
 import Input from '@monopilot/ui/Input';
 import Modal from '@monopilot/ui/Modal';
+import { Select } from '@monopilot/ui/Select';
 import Textarea from '@monopilot/ui/Textarea';
 
+import type { listLocations, LocationOption } from '../../../_actions/location-read-actions';
 import type { splitLp } from '../_actions/lp-split-merge-destroy-actions';
 
 export type LpSplitModalLabels = {
@@ -31,6 +39,8 @@ export type LpSplitModalLabels = {
   intro: string;
   qty: string;
   qtyHint: string;
+  destination: string;
+  destinationPlaceholder: string;
   reason: string;
   reasonPlaceholder: string;
   cancel: string;
@@ -40,6 +50,7 @@ export type LpSplitModalLabels = {
     positive: string;
     lessThanAvailable: string;
     reasonRequired: string;
+    destinationRequired: string;
   };
   errors: {
     forbidden: string;
@@ -48,6 +59,10 @@ export type LpSplitModalLabels = {
     invalidState: string;
     onHold: string;
     qtyTooLarge: string;
+    /** Destination missing / unknown / deactivated / in another site. */
+    destinationInvalid: string;
+    /** The LP or the destination is outside the active site, or no site is bound at all. */
+    siteScope: string;
     generic: string;
   };
 };
@@ -71,6 +86,18 @@ function splitErrorMessage(error: string, labels: LpSplitModalLabels): string {
       return labels.errors.onHold;
     case 'split quantity must be less than available quantity':
       return labels.errors.qtyTooLarge;
+    // R08-02 — every way the destination can be unusable lands on one honest instruction:
+    // pick an active location in this site.
+    case 'destination_required':
+    case 'destination_not_found':
+    case 'destination_inactive':
+    case 'destination_site_required':
+    case 'cross_site_destination':
+      return labels.errors.destinationInvalid;
+    // FALA 7 — the LP itself is out of scope, or nothing is bound. Same remedy: fix the site.
+    case 'cross_site_lp':
+    case 'no_active_site':
+      return labels.errors.siteScope;
     default:
       return labels.errors.generic;
   }
@@ -94,6 +121,7 @@ export function LpSplitModal({
   availableQty,
   uom,
   labels,
+  listLocationsAction,
   splitAction,
   onSuccess,
 }: {
@@ -105,11 +133,14 @@ export function LpSplitModal({
   availableQty: string;
   uom: string;
   labels: LpSplitModalLabels;
+  listLocationsAction: typeof listLocations;
   splitAction: typeof splitLp;
   onSuccess: () => void;
 }) {
   const [qty, setQty] = useState('');
   const [reason, setReason] = useState('');
+  const [toLocationId, setToLocationId] = useState('');
+  const [locations, setLocations] = useState<LocationOption[]>([]);
   const [error, setError] = useState<string | null>(null);
   // Fresh idempotency key per modal open; stable across retries within this open.
   const [clientOpId, setClientOpId] = useState('');
@@ -131,6 +162,9 @@ export function LpSplitModal({
     parsedQty > 0 &&
     (available === null || parsedQty < available) &&
     reason.trim().length > 0 &&
+    // R08-02 — no destination, no split. Never defaulted to the source location: a pre-filled
+    // value would be the same silent inheritance wearing a dropdown.
+    toLocationId !== '' &&
     !isPending;
 
   useEffect(() => {
@@ -140,10 +174,34 @@ export function LpSplitModal({
     } else {
       setQty('');
       setReason('');
+      setToLocationId('');
+      setLocations([]);
       setError(null);
       setClientOpId('');
     }
   }, [open]);
+
+  // Destination options, loaded per open. The read is site-scoped server-side; the action
+  // re-validates whatever comes back, so this list is a convenience, never the gate.
+  // ponytail: a failed/empty load surfaces through the shared inline error + the disabled
+  // confirm. Give it its own skeleton/empty panel (as the Move modal has) if operators
+  // report confusion.
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    (async () => {
+      const result = await listLocationsAction({ limit: 500 });
+      if (cancelled) return;
+      if (!result.ok) {
+        setError(labels.errors.generic);
+        return;
+      }
+      setLocations(result.data);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, listLocationsAction, labels.errors.generic]);
 
   function close() {
     if (isPending) return;
@@ -152,9 +210,13 @@ export function LpSplitModal({
 
   function submit() {
     if (!canSubmit || parsedQty === null) return;
+    if (toLocationId === '') {
+      setError(labels.validation.destinationRequired);
+      return;
+    }
     setError(null);
     startTransition(async () => {
-      const result = await splitAction(lpId, parsedQty, reason.trim(), clientOpId);
+      const result = await splitAction(lpId, parsedQty, reason.trim(), clientOpId, toLocationId);
       if (result.ok) {
         onOpenChange(false);
         onSuccess();
@@ -191,6 +253,27 @@ export function LpSplitModal({
               {validationError}
             </p>
           ) : null}
+
+          {/* R08-02 — where the NEW pallet goes. Required; the source location stays in the
+              list because splitting into the same bin is a real operation. */}
+          {/* Plain span, not <label htmlFor>: the Select carries its own aria-label, and a second
+              association would give the control two accessible names. Same shape as LpMoveModal. */}
+          <span className="text-sm font-medium text-slate-700">
+            {labels.destination} <span aria-hidden className="text-red-500">*</span>
+          </span>
+          <div data-testid="lp-split-destination">
+            <Select
+              aria-label={labels.destination}
+              value={toLocationId}
+              onValueChange={setToLocationId}
+              placeholder={labels.destinationPlaceholder}
+              disabled={isPending}
+              options={locations.map((location) => ({
+                value: location.id,
+                label: location.warehouseCode ? `${location.warehouseCode} · ${location.code} — ${location.name}` : `${location.code} — ${location.name}`,
+              }))}
+            />
+          </div>
 
           <label htmlFor="lp-split-reason" className="text-sm font-medium text-slate-700">
             {labels.reason}

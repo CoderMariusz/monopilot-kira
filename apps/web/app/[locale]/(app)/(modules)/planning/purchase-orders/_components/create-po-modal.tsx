@@ -46,6 +46,14 @@ import type { PoSupplierOption } from '../_actions/po-form-data-types';
 import { UomSelect, type UomOptionLabels } from '../../../../../../../components/forms/uom-select';
 import { SiteSwitcher, type SiteSwitcherOption } from '../../../../../../../components/shell/site-switcher';
 import { listPoWarehouses } from '../_actions/actions';
+import {
+  getAllPoLineFieldErrors,
+  getCompletePoLines,
+  hasInvalidStartedPoLine,
+  type LineField,
+  type LineFieldErrorReason,
+  type PoLineFieldError,
+} from './po-line-form-validation';
 
 /**
  * BUG1 — effective supplier-spec price by date (fallback items.list_price_gbp).
@@ -114,6 +122,24 @@ export type CreatePoLabels = {
     poNumberRequired: string;
     supplierRequired: string;
     linesRequired: string;
+    /**
+     * R07-01 — shown AT the offending line's price field when the typed value
+     * cannot be stored exactly in purchase_order_lines.unit_price numeric(12,4).
+     * The line is refused; the price is NEVER silently coerced to 0.
+     */
+    priceInvalid: string;
+    /** Shown when a started line has no unit price (blank is not consent to zero). */
+    priceRequired: string;
+    /** Line {line}: bad unit-price format (numeric 12,4). */
+    linePriceInvalid: string;
+    /** Line {line}: enter a positive quantity (up to 6 decimals). */
+    lineQtyInvalid: string;
+    /** Line {line}: select a unit of measure. */
+    lineUomRequired: string;
+    /** Line {line}: select an item. */
+    lineItemRequired: string;
+    /** Line {line}: tax must be between 0 and 100 (up to 4 decimals). */
+    lineTaxInvalid: string;
     invalid_input: string;
     forbidden: string;
     not_found: string;
@@ -190,9 +216,33 @@ export type CreatePoModalProps = {
   setSiteAction: (siteId: string | null) => Promise<{ ok: boolean }>;
 };
 
-const QTY_PATTERN = /^\d+(?:\.\d{1,6})?$/;
-const PRICE_PATTERN = /^\d+(?:\.\d{1,4})?$/;
-const PCT_PATTERN = /^\d+(?:\.\d{1,4})?$/;
+function lineFieldErrorMessage(
+  labels: CreatePoLabels['errors'],
+  error: PoLineFieldError,
+): string {
+  const n = String(error.lineNo);
+  if (error.field === 'unitPrice') {
+    return error.reason === 'required'
+      ? labels.priceRequired.replace('{line}', n)
+      : labels.linePriceInvalid.replace('{line}', n);
+  }
+  const map: Record<Exclude<LineField, 'unitPrice'>, string> = {
+    item: labels.lineItemRequired,
+    qty: labels.lineQtyInvalid,
+    uom: labels.lineUomRequired,
+    taxPct: labels.lineTaxInvalid,
+  };
+  return map[error.field].replace('{line}', n);
+}
+
+function fieldErrorForLine(
+  errors: PoLineFieldError[],
+  lineNo: number,
+  field: LineField,
+  reason?: LineFieldErrorReason,
+): PoLineFieldError | undefined {
+  return errors.find((e) => e.lineNo === lineNo && e.field === field && (reason == null || e.reason === reason));
+}
 
 function makeLine(): CreatePoLine {
   return { key: Math.random().toString(36).slice(2), item: null, qty: '', uom: '', unitPrice: '', taxPct: '0', priceSource: null };
@@ -267,6 +317,10 @@ export function CreatePoModal({
   const currency = selectedSupplier?.currency ?? 'GBP';
   const needsSiteSelection = !activeSiteId && sites.length > 0;
   const noSitesConfigured = sites.length === 0;
+  // Any started line with a field error blocks create — never silently drop it from
+  // validLines. Trailing blank rows are ignored (isPoLineStarted).
+  const lineFieldErrors = getAllPoLineFieldErrors(lines);
+  const hasInvalidStartedLine = hasInvalidStartedPoLine(lines);
   const createBlocked = needsSiteSelection || noSitesConfigured;
 
   // BUG2 — every line's ItemPicker must search the SELECTED supplier's items only.
@@ -296,7 +350,7 @@ export function CreatePoModal({
   // BUG1 — on item select pre-fill the line's unit price from the supplier-effective
   // price (spec by date, else item list price). Editable: a manual change clears the
   // source hint (handled in the price input's onChange). Failure is silent — the user
-  // simply types the price (blank → '0' submit fallback preserved).
+  // must type a price (blank on a started line is refused, never coerced to zero).
   async function prefillLinePrice(key: string, item: ItemPickerOption) {
     if (!getItemSupplierPriceAction) return;
     try {
@@ -328,17 +382,12 @@ export function CreatePoModal({
       setFormError(labels.errors.supplierRequired);
       return;
     }
-    const validLines = lines.filter(
-      (l) =>
-        l.item &&
-        QTY_PATTERN.test(l.qty.trim()) &&
-        Number(l.qty) > 0 &&
-        l.uom.trim().length > 0 &&
-        PCT_PATTERN.test(l.taxPct.trim()) &&
-        Number(l.taxPct) >= 0 &&
-        Number(l.taxPct) <= 100,
-    );
-    if (validLines.length === 0) {
+    // Submit is disabled while hasInvalidStartedLine, but implicit (Enter) submission
+    // can still reach here — refuse before any write. Field messages name the line.
+    if (hasInvalidStartedLine) return;
+
+    const completeLines = getCompletePoLines(lines);
+    if (completeLines.length === 0) {
       setFormError(labels.errors.linesRequired);
       return;
     }
@@ -352,11 +401,11 @@ export function CreatePoModal({
         expectedDelivery: expected || undefined,
         currency,
         notes: notes.trim() || undefined,
-        lines: validLines.map((l, idx) => ({
+        lines: completeLines.map((l, idx) => ({
           itemId: l.item!.id,
           qty: l.qty.trim(),
           uom: l.uom.trim(),
-          unitPrice: PRICE_PATTERN.test(l.unitPrice.trim()) ? l.unitPrice.trim() : '0',
+          unitPrice: l.unitPrice.trim(),
           taxPct: l.taxPct.trim() || '0',
           lineNo: idx + 1,
         })),
@@ -504,7 +553,15 @@ export function CreatePoModal({
                   </tr>
                 </thead>
                 <tbody>
-                  {lines.map((line) => (
+                  {lines.map((line, lineIdx) => {
+                    const lineNo = lineIdx + 1;
+                    const priceError = fieldErrorForLine(lineFieldErrors, lineNo, 'unitPrice');
+                    const qtyError = fieldErrorForLine(lineFieldErrors, lineNo, 'qty');
+                    const uomError = fieldErrorForLine(lineFieldErrors, lineNo, 'uom');
+                    const itemError = fieldErrorForLine(lineFieldErrors, lineNo, 'item');
+                    const taxError = fieldErrorForLine(lineFieldErrors, lineNo, 'taxPct');
+
+                    return (
                     <tr key={line.key} data-testid={`create-po-line-${line.key}`} className="border-b border-slate-100 last:border-0 align-top">
                       <td className="px-3 py-2">
                         {line.item ? (
@@ -531,6 +588,15 @@ export function CreatePoModal({
                             labels={labels.picker}
                           />
                         )}
+                        {itemError ? (
+                          <span
+                            role="alert"
+                            className="mt-0.5 block text-[11px] text-red-600"
+                            data-testid="create-po-line-item-error"
+                          >
+                            {lineFieldErrorMessage(labels.errors, itemError)}
+                          </span>
+                        ) : null}
                       </td>
                       <td className="px-3 py-2 text-right">
                         <Input
@@ -541,7 +607,17 @@ export function CreatePoModal({
                           placeholder={labels.qtyPlaceholder}
                           onChange={(e) => updateLine(line.key, { qty: e.target.value })}
                           className="w-24 text-right"
+                          aria-invalid={qtyError ? true : undefined}
                         />
+                        {qtyError ? (
+                          <span
+                            role="alert"
+                            className="mt-0.5 block text-[11px] text-red-600"
+                            data-testid="create-po-line-qty-error"
+                          >
+                            {lineFieldErrorMessage(labels.errors, qtyError)}
+                          </span>
+                        ) : null}
                       </td>
                       <td className="px-3 py-2" data-testid="create-po-line-uom">
                         {/* No free-text units: constrained dropdown defaulting to the
@@ -555,7 +631,17 @@ export function CreatePoModal({
                           placeholder={labels.uomPlaceholder}
                           aria-label={labels.lineUom}
                           className="w-24"
+                          aria-invalid={uomError ? true : undefined}
                         />
+                        {uomError ? (
+                          <span
+                            role="alert"
+                            className="mt-0.5 block text-[11px] text-red-600"
+                            data-testid="create-po-line-uom-error"
+                          >
+                            {lineFieldErrorMessage(labels.errors, uomError)}
+                          </span>
+                        ) : null}
                       </td>
                       <td className="px-3 py-2 text-right">
                         <Input
@@ -567,7 +653,17 @@ export function CreatePoModal({
                           // A manual edit clears the "pre-filled from supplier" hint.
                           onChange={(e) => updateLine(line.key, { unitPrice: e.target.value, priceSource: null })}
                           className="w-28 text-right"
+                          aria-invalid={priceError ? true : undefined}
                         />
+                        {priceError ? (
+                          <span
+                            role="alert"
+                            className="mt-0.5 block text-[11px] text-red-600"
+                            data-testid="create-po-line-price-error"
+                          >
+                            {lineFieldErrorMessage(labels.errors, priceError)}
+                          </span>
+                        ) : null}
                         {line.priceSource ? (
                           <span
                             className="mt-0.5 block text-[10px] text-slate-500"
@@ -586,7 +682,17 @@ export function CreatePoModal({
                           placeholder={labels.taxPctPlaceholder}
                           onChange={(e) => updateLine(line.key, { taxPct: e.target.value })}
                           className="w-20 text-right"
+                          aria-invalid={taxError ? true : undefined}
                         />
+                        {taxError ? (
+                          <span
+                            role="alert"
+                            className="mt-0.5 block text-[11px] text-red-600"
+                            data-testid="create-po-line-tax-error"
+                          >
+                            {lineFieldErrorMessage(labels.errors, taxError)}
+                          </span>
+                        ) : null}
                       </td>
                       <td className="px-3 py-2 text-right">
                         {lines.length > 1 ? (
@@ -602,7 +708,8 @@ export function CreatePoModal({
                         ) : null}
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -631,7 +738,7 @@ export function CreatePoModal({
           form="create-po-form"
           className="btn--primary"
           data-testid="create-po-submit"
-          disabled={pending || createBlocked}
+          disabled={pending || createBlocked || hasInvalidStartedLine}
           aria-busy={pending}
         >
           {pending ? labels.submitting : labels.submit}

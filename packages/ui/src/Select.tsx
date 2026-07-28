@@ -286,6 +286,7 @@ export interface SelectTriggerProps {
   'aria-labelledby'?: string;
   'aria-describedby'?: string;
   'aria-invalid'?: boolean | 'true' | 'false' | 'grammar' | 'spelling';
+  'data-testid'?: string;
 }
 
 export function SelectTrigger({
@@ -297,6 +298,7 @@ export function SelectTrigger({
   'aria-labelledby': ariaLabelledBy,
   'aria-describedby': ariaDescribedBy,
   'aria-invalid': ariaInvalid,
+  'data-testid': dataTestId,
 }: SelectTriggerProps) {
   const ctx = React.useContext(SelectCtx);
   // Root Select a11y first; explicit Trigger props win when provided.
@@ -350,6 +352,7 @@ export function SelectTrigger({
       data-slot="select-trigger"
       data-state={ctx?.open ? 'open' : 'closed'}
       data-value={ctx?.value || undefined}
+      data-testid={dataTestId}
       value={ctx?.value ?? ''}
       className={['select__trigger', className].filter(Boolean).join(' ')}
       disabled={ctx?.disabled}
@@ -482,9 +485,10 @@ export interface SelectItemProps {
   value: string;
   disabled?: boolean;
   children?: React.ReactNode;
+  'data-testid'?: string;
 }
 
-export function SelectItem({ value, disabled, children }: SelectItemProps) {
+export function SelectItem({ value, disabled, children, 'data-testid': dataTestId }: SelectItemProps) {
   const ctx = React.useContext(SelectCtx);
   const isSelected = ctx?.value === value;
   const ref = React.useRef<HTMLDivElement | null>(null);
@@ -511,6 +515,7 @@ export function SelectItem({ value, disabled, children }: SelectItemProps) {
       data-slot="select-item"
       data-value={value}
       data-state={isSelected ? 'checked' : 'unchecked'}
+      data-testid={dataTestId}
       tabIndex={disabled ? -1 : 0}
       onClick={select}
       onKeyDown={(event) => {

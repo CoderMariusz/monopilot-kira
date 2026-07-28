@@ -222,11 +222,15 @@ export function PutawayScreen({ locale, labels }: { locale: string; labels: Scan
         { clientOpId: opId, lpId: lp.id, toLocationId: chosen.locationId },
         { namespace: "absolute" },
       );
+      const body = (await res.json()) as MoveResult & { error?: string };
       if (res.status === 409) {
-        setSubmitErr(L.errNotMovable);
+        // C101 — same_location is a distinct rejection ("already in that bay"),
+        // not a lock/status block; errNotMovable would misdescribe it. Reachable
+        // only via the manual field — the suggest route no longer offers the
+        // LP's current location.
+        setSubmitErr(body.error === "same_location" ? L.errSameLocation : L.errNotMovable);
         return;
       }
-      const body = (await res.json()) as MoveResult & { error?: string };
       if (res.status === 422) {
         setSubmitErr(body.error === "location_inactive" ? L.locationInactive : L.errInvalid);
         return;

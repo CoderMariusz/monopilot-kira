@@ -13,13 +13,23 @@ const WAREHOUSE_ID = '77777777-7777-4777-8777-777777777777';
 const LOCATION_ID = '88888888-8888-4888-8888-888888888888';
 const PRODUCT_ID = '99999999-9999-4999-8999-999999999999';
 const OTHER_PRODUCT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+// R08-02 — the split destination is deliberately NOT the source location, so every assertion
+// below can tell "went where it was told" apart from "inherited the source".
+const DEST_LOCATION_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const DEST_WAREHOUSE_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+const OTHER_SITE_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 const SPLIT_CLIENT_OP_ID = 'split-op-001';
 const DESTROY_CLIENT_OP_ID = 'destroy-op-001';
 
 let client: QueryClient;
 let grantedPermissions: Set<string>;
 let heldLpIds: Set<string>;
-let splitReplayChildId: string | null;
+/**
+ * Committed split children, keyed by the seed the action derives from the PAYLOAD (clientOpId +
+ * qty + destination). A single boolean would model "any split already ran" and would hide the
+ * bug this keying exists to prevent: a retry that changed the destination must NOT replay.
+ */
+let committedSplitSeeds: Map<string, string>;
 let splitFits: boolean;
 let primaryReservedQty: string;
 let primaryQuantity: string;
@@ -31,6 +41,11 @@ let secondaryProductId: string;
 let secondarySiteId: string | null;
 let secondaryWarehouseId: string;
 let secondaryLocationId: string | null;
+let primarySiteId: string | null;
+/** The site withSiteContext binds for the call — `null` = ALL-sites (super_admin). */
+let activeSiteId: string | null;
+/** The one location the destination lookup can resolve, or null for "no such location". */
+let destinationLocation: { id: string; warehouse_id: string; site_id: string | null; is_active: boolean } | null;
 let siblingListRows: Array<{
   primary_id: string;
   id: string | null;
@@ -39,10 +54,28 @@ let siblingListRows: Array<{
   uom: string | null;
 }>;
 
-vi.mock('../../../../../../../../../lib/auth/with-org-context', () => ({
-  withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
-    action({ userId: USER_ID, orgId: ORG_ID, client }),
-  ),
+// The actions moved from withOrgContext to withSiteContext (FALA 7 handover: they never compared
+// the LP's site with the active one). The fake binds `siteId` the way the real wrapper does and
+// re-exports a stand-in NoActiveSiteError so the `instanceof` branch in mapFailure stays live.
+// vi.hoisted, not a plain class: vi.mock factories run before the module body, so a bare class
+// declaration would still be in its TDZ when the factory reads it.
+const { FakeNoActiveSiteError } = vi.hoisted(() => ({
+  FakeNoActiveSiteError: class extends Error {
+    readonly reason = 'no_active_site' as const;
+  },
+}));
+
+vi.mock('../../../../../../../../../lib/auth/with-site-context', () => ({
+  NoActiveSiteError: FakeNoActiveSiteError,
+  withSiteContext: vi.fn(async (arg1: unknown, arg2?: unknown) => {
+    const action = (typeof arg1 === 'function' ? arg1 : arg2) as (ctx: {
+      userId: string;
+      orgId: string;
+      client: QueryClient;
+      siteId: string | null;
+    }) => Promise<unknown>;
+    return action({ userId: USER_ID, orgId: ORG_ID, client, siteId: activeSiteId });
+  }),
 }));
 
 function normalize(sql: string): string {
@@ -53,7 +86,7 @@ function baseLp(overrides: Partial<Record<string, string | null>> = {}) {
   return {
     id: PRIMARY_LP_ID,
     lp_number: 'LP-001',
-    site_id: SITE_ID,
+    site_id: primarySiteId,
     warehouse_id: WAREHOUSE_ID,
     location_id: LOCATION_ID,
     product_id: PRODUCT_ID,
@@ -88,11 +121,25 @@ function makeClient(): QueryClient {
       }
 
       if (q.startsWith('with deterministic_child as') && q.includes('replay_child as')) {
-        return { rows: splitReplayChildId ? [{ id: splitReplayChildId }] : [], rowCount: splitReplayChildId ? 1 : 0 };
+        // $1 is the child seed; the real query ORs three predicates all derived from it.
+        const replayId = committedSplitSeeds.get(String(params?.[0] ?? ''));
+        return { rows: replayId ? [{ id: replayId }] : [], rowCount: replayId ? 1 : 0 };
       }
 
       if (q.includes('from public.license_plates lp') && q.includes('lp.id = $1::uuid') && q.includes('for update')) {
         return { rows: [baseLp()], rowCount: 1 };
+      }
+
+      // R08-02 destination lookup. Modelled with the real predicate so a query that dropped the
+      // site filter or the is_active column fails here rather than passing on a looser fake.
+      if (q.includes('from public.locations loc') && q.includes('join public.warehouses w')) {
+        expect(q).toContain('coalesce(loc.is_active, true)');
+        const requestedId = String(params?.[0] ?? '');
+        const boundSite = (params?.[1] as string | null) ?? null;
+        const found = destinationLocation?.id === requestedId ? destinationLocation : null;
+        // ($2::uuid is null or w.site_id is null or w.site_id = $2::uuid)
+        const visible = found !== null && (boundSite === null || found.site_id === null || found.site_id === boundSite);
+        return { rows: visible ? [found] : [], rowCount: visible ? 1 : 0 };
       }
 
       if (q.startsWith('select ($1::numeric < (quantity - reserved_qty))')) {
@@ -113,8 +160,12 @@ function makeClient(): QueryClient {
       }
 
       if (q.startsWith('with deterministic_child as') && q.includes('insert into public.license_plates')) {
-        splitReplayChildId = CHILD_LP_ID;
-        return { rows: [{ id: CHILD_LP_ID }], rowCount: 1 };
+        // $12 is the child seed. Each distinct payload mints its own child id, so a replay lookup
+        // for a DIFFERENT payload finds nothing — exactly as the deterministic-uuid insert behaves.
+        const seed = String(params?.[11] ?? '');
+        const childId = committedSplitSeeds.size === 0 ? CHILD_LP_ID : `${CHILD_LP_ID.slice(0, -1)}${committedSplitSeeds.size}`;
+        committedSplitSeeds.set(seed, childId);
+        return { rows: [{ id: childId }], rowCount: 1 };
       }
 
       if (q.includes('from public.license_plates lp') && q.includes('lp.id = any($1::uuid[])') && q.includes('for update')) {
@@ -157,36 +208,42 @@ function makeClient(): QueryClient {
   };
 }
 
+// File-scope on purpose: the cross-site describe below needs the same fixtures, and a hook
+// nested in the first describe would not run for it.
+beforeEach(() => {
+  grantedPermissions = new Set(['warehouse.lp.split', 'warehouse.lp.merge', 'warehouse.lp.destroy']);
+  heldLpIds = new Set();
+  committedSplitSeeds = new Map();
+  splitFits = true;
+  primaryReservedQty = '0.000000';
+  primaryQuantity = '10.000000';
+  secondaryReservedQty = '0.000000';
+  primaryStatus = 'available';
+  primaryQaStatus = 'released';
+  secondaryQaStatus = 'released';
+  secondaryProductId = PRODUCT_ID;
+  secondarySiteId = SITE_ID;
+  secondaryWarehouseId = WAREHOUSE_ID;
+  secondaryLocationId = LOCATION_ID;
+  primarySiteId = SITE_ID;
+  activeSiteId = SITE_ID;
+  destinationLocation = { id: DEST_LOCATION_ID, warehouse_id: DEST_WAREHOUSE_ID, site_id: SITE_ID, is_active: true };
+  siblingListRows = [
+    {
+      primary_id: PRIMARY_LP_ID,
+      id: SECONDARY_LP_ID,
+      lp_number: 'LP-002',
+      quantity: '4.000000',
+      uom: 'kg',
+    },
+  ];
+  client = makeClient();
+});
+
 describe('LP split/merge/destroy server actions', () => {
-  beforeEach(() => {
-    grantedPermissions = new Set(['warehouse.lp.split', 'warehouse.lp.merge', 'warehouse.lp.destroy']);
-    heldLpIds = new Set();
-    splitReplayChildId = null;
-    splitFits = true;
-    primaryReservedQty = '0.000000';
-    primaryQuantity = '10.000000';
-    secondaryReservedQty = '0.000000';
-    primaryStatus = 'available';
-    primaryQaStatus = 'released';
-    secondaryQaStatus = 'released';
-    secondaryProductId = PRODUCT_ID;
-    secondarySiteId = SITE_ID;
-    secondaryWarehouseId = WAREHOUSE_ID;
-    secondaryLocationId = LOCATION_ID;
-    siblingListRows = [
-      {
-        primary_id: PRIMARY_LP_ID,
-        id: SECONDARY_LP_ID,
-        lp_number: 'LP-002',
-        quantity: '4.000000',
-        uom: 'kg',
-      },
-    ];
-    client = makeClient();
-  });
 
   it('splitLp reduces the source, creates a child LP, genealogy, history, and stock moves', async () => {
-    const result = await splitLp(PRIMARY_LP_ID, 4, 'split for line staging', SPLIT_CLIENT_OP_ID);
+    const result = await splitLp(PRIMARY_LP_ID, 4, 'split for line staging', SPLIT_CLIENT_OP_ID, DEST_LOCATION_ID);
 
     expect(result).toEqual({ ok: true });
     const calls = vi.mocked(client.query).mock.calls.map(([sql, params]) => ({ sql: normalize(String(sql)), params }));
@@ -201,9 +258,113 @@ describe('LP split/merge/destroy server actions', () => {
     expect(moves.map((call) => call.params?.[6])).toEqual(['-4', '4']);
   });
 
+  // ── R08-02 · the child pallet goes where it was told ─────────────────────────────────────────
+  it('splitLp puts the child at the CHOSEN destination — site, warehouse and location — not the source bin', async () => {
+    await expect(splitLp(PRIMARY_LP_ID, 4, 'split to staging', SPLIT_CLIENT_OP_ID, DEST_LOCATION_ID)).resolves.toEqual({ ok: true });
+
+    const calls = vi.mocked(client.query).mock.calls.map(([sql, params]) => ({ sql: normalize(String(sql)), params }));
+    const childInsert = calls.find((call) => call.sql.startsWith('with deterministic_child as') && call.sql.includes('insert into public.license_plates'));
+    // $1 site, $2 warehouse, $3 location — all three from the destination. The source sits in
+    // LOCATION_ID/WAREHOUSE_ID, so inheriting would be visible here.
+    expect(childInsert?.params?.[0]).toBe(SITE_ID);
+    expect(childInsert?.params?.[1]).toBe(DEST_WAREHOUSE_ID);
+    expect(childInsert?.params?.[2]).toBe(DEST_LOCATION_ID);
+    expect(childInsert?.params?.[2]).not.toBe(LOCATION_ID);
+
+    const moves = calls.filter((call) => call.sql.startsWith('insert into public.stock_moves'));
+    // The source's negative adjustment leaves the SOURCE bin (from_location_id = $5)…
+    expect(moves[0]?.params?.[4]).toBe(LOCATION_ID);
+    // …and the child's positive split move lands in the DESTINATION (to_location_id = $6).
+    expect(moves[1]?.params?.[5]).toBe(DEST_LOCATION_ID);
+  });
+
+  it('splitLp refuses a split with no destination, before it touches anything', async () => {
+    const result = await splitLp(PRIMARY_LP_ID, 4, 'split', SPLIT_CLIENT_OP_ID, '   ');
+
+    expect(result).toEqual({ ok: false, error: 'destination_required' });
+    expect(vi.mocked(client.query)).not.toHaveBeenCalled();
+  });
+
+  it('splitLp refuses an INACTIVE destination — a fresh pallet the scanner would then refuse to move', async () => {
+    destinationLocation = { id: DEST_LOCATION_ID, warehouse_id: DEST_WAREHOUSE_ID, site_id: SITE_ID, is_active: false };
+
+    const result = await splitLp(PRIMARY_LP_ID, 4, 'split', SPLIT_CLIENT_OP_ID, DEST_LOCATION_ID);
+
+    expect(result).toEqual({ ok: false, error: 'destination_inactive' });
+    const calls = vi.mocked(client.query).mock.calls.map(([sql]) => normalize(String(sql)));
+    expect(calls.some((sql) => sql.startsWith('with deterministic_child as') && sql.includes('insert into public.license_plates'))).toBe(false);
+    expect(calls.some((sql) => sql.startsWith('insert into public.stock_moves'))).toBe(false);
+  });
+
+  it('splitLp refuses an unknown destination', async () => {
+    destinationLocation = null;
+
+    const result = await splitLp(PRIMARY_LP_ID, 4, 'split', SPLIT_CLIENT_OP_ID, DEST_LOCATION_ID);
+
+    expect(result).toEqual({ ok: false, error: 'destination_not_found' });
+  });
+
+  it('splitLp refuses a destination in ANOTHER site — the site filter is in the query, so it never resolves', async () => {
+    destinationLocation = { id: DEST_LOCATION_ID, warehouse_id: DEST_WAREHOUSE_ID, site_id: OTHER_SITE_ID, is_active: true };
+
+    const result = await splitLp(PRIMARY_LP_ID, 4, 'split', SPLIT_CLIENT_OP_ID, DEST_LOCATION_ID);
+
+    expect(result).toEqual({ ok: false, error: 'destination_not_found' });
+    const calls = vi.mocked(client.query).mock.calls.map(([sql]) => normalize(String(sql)));
+    expect(calls.some((sql) => sql.startsWith('with deterministic_child as') && sql.includes('insert into public.license_plates'))).toBe(false);
+  });
+
+  it('splitLp refuses a cross-site destination even when the site filter cannot see it (ALL-sites bind)', async () => {
+    // super_admin / ALL-sites: the query stops filtering, so the explicit source-vs-destination
+    // comparison is the only thing left standing between two sites.
+    activeSiteId = null;
+    destinationLocation = { id: DEST_LOCATION_ID, warehouse_id: DEST_WAREHOUSE_ID, site_id: OTHER_SITE_ID, is_active: true };
+
+    const result = await splitLp(PRIMARY_LP_ID, 4, 'split', SPLIT_CLIENT_OP_ID, DEST_LOCATION_ID);
+
+    expect(result).toEqual({ ok: false, error: 'cross_site_destination' });
+  });
+
+  it('splitLp refuses a destination whose warehouse has no site at all', async () => {
+    destinationLocation = { id: DEST_LOCATION_ID, warehouse_id: DEST_WAREHOUSE_ID, site_id: null, is_active: true };
+
+    const result = await splitLp(PRIMARY_LP_ID, 4, 'split', SPLIT_CLIENT_OP_ID, DEST_LOCATION_ID);
+
+    expect(result).toEqual({ ok: false, error: 'destination_site_required' });
+  });
+
+  it('splitLp does NOT replay a retry that changed the destination — the key covers the payload', async () => {
+    // The modal keeps one clientOpId per open while the destination Select stays editable. If the
+    // key ignored the payload, this second call would hit the replay short-circuit and answer
+    // ok:true while the pallet sat in the FIRST destination — the modal reporting a location that
+    // was never written.
+    await expect(splitLp(PRIMARY_LP_ID, 4, 'split', SPLIT_CLIENT_OP_ID, DEST_LOCATION_ID)).resolves.toEqual({ ok: true });
+
+    const otherDestination = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+    destinationLocation = { id: otherDestination, warehouse_id: DEST_WAREHOUSE_ID, site_id: SITE_ID, is_active: true };
+    await expect(splitLp(PRIMARY_LP_ID, 4, 'split', SPLIT_CLIENT_OP_ID, otherDestination)).resolves.toEqual({ ok: true });
+
+    const childInserts = vi
+      .mocked(client.query)
+      .mock.calls.map(([sql, params]) => ({ sql: normalize(String(sql)), params }))
+      .filter((call) => call.sql.startsWith('with deterministic_child as') && call.sql.includes('insert into public.license_plates'));
+    // Two distinct operations, each landing in the location it was actually given.
+    expect(childInserts).toHaveLength(2);
+    expect(childInserts.map((call) => call.params?.[2])).toEqual([DEST_LOCATION_ID, otherDestination]);
+  });
+
+  it('splitLp accepts the SOURCE location as a destination — two pallets in one bin is legitimate', async () => {
+    destinationLocation = { id: LOCATION_ID, warehouse_id: WAREHOUSE_ID, site_id: SITE_ID, is_active: true };
+
+    const result = await splitLp(PRIMARY_LP_ID, 4, 'relabel in place', SPLIT_CLIENT_OP_ID, LOCATION_ID);
+
+    // The bug was the silent DEFAULT, not the value: choosing the source bin on purpose is fine.
+    expect(result).toEqual({ ok: true });
+  });
+
   it('splitLp replays the same clientOpId without double-decrementing or minting another child LP', async () => {
-    await expect(splitLp(PRIMARY_LP_ID, 4, 'split for line staging', SPLIT_CLIENT_OP_ID)).resolves.toEqual({ ok: true });
-    await expect(splitLp(PRIMARY_LP_ID, 4, 'split for line staging', SPLIT_CLIENT_OP_ID)).resolves.toEqual({ ok: true });
+    await expect(splitLp(PRIMARY_LP_ID, 4, 'split for line staging', SPLIT_CLIENT_OP_ID, DEST_LOCATION_ID)).resolves.toEqual({ ok: true });
+    await expect(splitLp(PRIMARY_LP_ID, 4, 'split for line staging', SPLIT_CLIENT_OP_ID, DEST_LOCATION_ID)).resolves.toEqual({ ok: true });
 
     const calls = vi.mocked(client.query).mock.calls.map(([sql]) => normalize(String(sql)));
     expect(calls.filter((sql) => sql.startsWith('with deterministic_child as') && sql.includes('insert into public.license_plates'))).toHaveLength(1);
@@ -213,7 +374,7 @@ describe('LP split/merge/destroy server actions', () => {
   it('splitLp rejects split quantity greater than available quantity before writes', async () => {
     splitFits = false;
 
-    const result = await splitLp(PRIMARY_LP_ID, 11, 'too much', SPLIT_CLIENT_OP_ID);
+    const result = await splitLp(PRIMARY_LP_ID, 11, 'too much', SPLIT_CLIENT_OP_ID, DEST_LOCATION_ID);
 
     expect(result).toEqual({ ok: false, error: 'split quantity must be less than available quantity' });
     const calls = vi.mocked(client.query).mock.calls.map(([sql]) => normalize(String(sql)));
@@ -278,8 +439,10 @@ describe('LP split/merge/destroy server actions', () => {
     expect(calls.some((sql) => sql.startsWith('insert into public.stock_moves'))).toBe(false);
   });
 
-  it('mergeLps rejects cross-site or cross-warehouse LPs before writes', async () => {
-    secondarySiteId = 'abababab-abab-4aba-8aba-abababababab';
+  // The cross-SITE half moved to the dedicated suite below: the new cross_site_lp guard runs
+  // before sameSkuLot, so a site mismatch no longer reaches this message. Warehouse mismatch —
+  // two bins in the same site — is still this check's job.
+  it('mergeLps rejects cross-warehouse LPs before writes', async () => {
     secondaryWarehouseId = 'bcbcbcbc-bcbc-4bcb-8bcb-bcbcbcbcbcbc';
 
     const result = await mergeLps(PRIMARY_LP_ID, [SECONDARY_LP_ID], 'bad merge');
@@ -341,7 +504,7 @@ describe('LP split/merge/destroy server actions', () => {
   it('splitLp rejects a non-operable LP status before writes', async () => {
     primaryStatus = 'quarantine';
 
-    const result = await splitLp(PRIMARY_LP_ID, 4, 'split held stock', SPLIT_CLIENT_OP_ID);
+    const result = await splitLp(PRIMARY_LP_ID, 4, 'split held stock', SPLIT_CLIENT_OP_ID, DEST_LOCATION_ID);
 
     expect(result).toEqual({ ok: false, error: 'LP status does not allow split' });
     const calls = vi.mocked(client.query).mock.calls.map(([sql]) => normalize(String(sql)));
@@ -352,7 +515,7 @@ describe('LP split/merge/destroy server actions', () => {
   it('splitLp rejects an LP under an active quality hold before writes', async () => {
     heldLpIds = new Set([PRIMARY_LP_ID]);
 
-    const result = await splitLp(PRIMARY_LP_ID, 4, 'split held stock', SPLIT_CLIENT_OP_ID);
+    const result = await splitLp(PRIMARY_LP_ID, 4, 'split held stock', SPLIT_CLIENT_OP_ID, DEST_LOCATION_ID);
 
     expect(result).toEqual({ ok: false, error: 'LP is under an active quality hold' });
     const calls = vi.mocked(client.query).mock.calls.map(([sql]) => normalize(String(sql)));
@@ -391,5 +554,77 @@ describe('LP split/merge/destroy server actions', () => {
     const calls = vi.mocked(client.query).mock.calls.map(([sql]) => normalize(String(sql)));
     expect(calls.some((sql) => sql.startsWith('update public.license_plates'))).toBe(false);
     expect(calls.some((sql) => sql.startsWith('insert into public.stock_moves'))).toBe(false);
+  });
+});
+
+// ── FALA 7 handover · the LP's site must match the active one ─────────────────────────────────
+// The UI path is closed (you cannot navigate to another site's LP), but these are Server Actions:
+// a direct POST carrying someone else's lpId reached the mutation untouched. Each case calls the
+// action DIRECTLY, exactly as that POST would, and asserts nothing was written.
+describe('LP split/merge/destroy · cross-site direct invocation', () => {
+  beforeEach(() => {
+    // The pallet belongs to another site; the caller's bound site is the default SITE_ID.
+    primarySiteId = OTHER_SITE_ID;
+  });
+
+  function writes() {
+    return vi
+      .mocked(client.query)
+      .mock.calls.map(([sql]) => normalize(String(sql)))
+      .filter(
+        (sql) =>
+          sql.startsWith('update public.license_plates') ||
+          sql.startsWith('insert into public.stock_moves') ||
+          sql.startsWith('insert into public.lp_state_history') ||
+          sql.startsWith('insert into public.lp_genealogy') ||
+          (sql.startsWith('with deterministic_child as') && sql.includes('insert into public.license_plates')),
+      );
+  }
+
+  it('splitLp refuses another site\'s LP', async () => {
+    const result = await splitLp(PRIMARY_LP_ID, 4, 'split someone else stock', SPLIT_CLIENT_OP_ID, DEST_LOCATION_ID);
+
+    expect(result).toEqual({ ok: false, error: 'cross_site_lp' });
+    expect(writes()).toEqual([]);
+  });
+
+  it('mergeLps refuses when any LP in the set belongs to another site', async () => {
+    // Both rows come back on the same site as the primary, so the same-lot check would PASS —
+    // proving the new guard, not the old one, is what stops this.
+    secondarySiteId = OTHER_SITE_ID;
+
+    const result = await mergeLps(PRIMARY_LP_ID, [SECONDARY_LP_ID], 'merge someone else stock');
+
+    expect(result).toEqual({ ok: false, error: 'cross_site_lp' });
+    expect(writes()).toEqual([]);
+  });
+
+  it('destroyLp refuses another site\'s LP', async () => {
+    const result = await destroyLp(PRIMARY_LP_ID, 'destroy someone else stock', DESTROY_CLIENT_OP_ID);
+
+    expect(result).toEqual({ ok: false, error: 'cross_site_lp' });
+    expect(writes()).toEqual([]);
+  });
+
+  it('destroyLp refuses BEFORE the already-destroyed short-circuit, so ok:true never confirms a foreign id', async () => {
+    primaryStatus = 'destroyed';
+
+    const result = await destroyLp(PRIMARY_LP_ID, 'probe', DESTROY_CLIENT_OP_ID);
+
+    expect(result).toEqual({ ok: false, error: 'cross_site_lp' });
+  });
+
+  it('does NOT block a legacy LP with no site of its own (anti-over-blocking)', async () => {
+    // Pre-multi-site pallets carry site_id NULL. They are not another tenant's rows — org scoping
+    // still covers them — and freezing them would strand real stock.
+    primarySiteId = null;
+
+    await expect(destroyLp(PRIMARY_LP_ID, 'destroy legacy pallet', DESTROY_CLIENT_OP_ID)).resolves.toEqual({ ok: true });
+  });
+
+  it('does NOT block the ALL-sites (super_admin) bind', async () => {
+    activeSiteId = null;
+
+    await expect(destroyLp(PRIMARY_LP_ID, 'destroy as super admin', DESTROY_CLIENT_OP_ID)).resolves.toEqual({ ok: true });
   });
 });

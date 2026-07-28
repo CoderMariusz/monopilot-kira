@@ -170,6 +170,9 @@ export type WoDetailGenealogyInput = {
   id: string;
   componentId: string;
   lpId: string;
+  /** license_plates.lp_number for lpId — null when the LP row is gone or is the
+   *  nil sentinel (LP-less consume). The UI must render this, never the uuid. */
+  lpNumber: string | null;
   qtyKg: number;
   fefoAdherence: boolean;
   consumedAt: string | null;
@@ -517,17 +520,25 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
           id: string;
           component_id: string;
           lp_id: string;
+          lp_number: string | null;
           qty_consumed: string | number;
           fefo_adherence_flag: boolean;
           consumed_at: string | Date | null;
           correction_of_id: string | null;
         }>(
-          `select id::text as id, component_id::text as component_id, lp_id::text as lp_id,
-                  qty_consumed, fefo_adherence_flag, consumed_at,
-                  correction_of_id::text as correction_of_id
-             from public.wo_material_consumption
-            where org_id = app.current_org_id() and wo_id = $1::uuid
-            order by consumed_at asc`,
+          // R14-02 — same left join as the disassembly-inputs read below: genealogy
+          // is a traceability surface, so it must expose the LP NUMBER (and link to
+          // it), never a bare uuid prefix. LEFT so a deleted/sentinel LP still
+          // yields its row (the screen falls back to the uuid prefix).
+          `select mc.id::text as id, mc.component_id::text as component_id, mc.lp_id::text as lp_id,
+                  lp.lp_number,
+                  mc.qty_consumed, mc.fefo_adherence_flag, mc.consumed_at,
+                  mc.correction_of_id::text as correction_of_id
+             from public.wo_material_consumption mc
+             left join public.license_plates lp
+               on lp.id = mc.lp_id and lp.org_id = mc.org_id
+            where mc.org_id = app.current_org_id() and mc.wo_id = $1::uuid
+            order by mc.consumed_at asc`,
           [woId],
         ),
         c.query<{
@@ -704,6 +715,7 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
         id: r.id,
         componentId: r.component_id,
         lpId: r.lp_id,
+        lpNumber: r.lp_number,
         qtyKg: Number(r.qty_consumed),
         fefoAdherence: Boolean(r.fefo_adherence_flag),
         consumedAt: toIso(r.consumed_at),

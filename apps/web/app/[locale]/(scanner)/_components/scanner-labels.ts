@@ -171,6 +171,9 @@ interface ScannerLabelsShape {
     loadingLines: string;
     errorLoad: string;
     permissionDenied: string;
+    poNotFound: string;
+    alreadyReceivedTitle: string;
+    alreadyReceivedSub: string;
     retry: string;
     destinationLabel: string;
     destinationPlaceholder: string;
@@ -252,6 +255,8 @@ interface ScannerLabelsShape {
     locationNotFound: string;
     locationInactive: string;
     resolvedLabel: string;
+    /** C101 — putaway into the LP's CURRENT location (409 same_location). */
+    errSameLocation: string;
   };
   moveScreen: {
     title: string;
@@ -627,6 +632,9 @@ const en: ScannerLabelsShape = {
     loadingLines: "Loading PO lines…",
     errorLoad: "Could not load data.",
     permissionDenied: "Session expired or permission denied.",
+    poNotFound: "Purchase order not found.",
+    alreadyReceivedTitle: "Already received",
+    alreadyReceivedSub: "This purchase order is fully received. Receipt details are shown below.",
     retry: "Try again",
     destinationLabel: "Destination location",
     destinationPlaceholder: "LOC-XXX-XX-XX…",
@@ -715,6 +723,7 @@ const en: ScannerLabelsShape = {
     locationNotFound: "Location not found.",
     locationInactive: "This location has been deactivated and cannot receive stock.",
     resolvedLabel: "Selected location",
+    errSameLocation: "This LP is already in that location. Scan a different one.",
   },
   moveScreen: {
     title: "Move LP",
@@ -1115,6 +1124,9 @@ const pl: ScannerLabelsShape = {
     loadingLines: "Ładowanie pozycji PO…",
     errorLoad: "Nie udało się załadować danych.",
     permissionDenied: "Sesja wygasła lub brak uprawnień.",
+    poNotFound: "Nie znaleziono zamówienia zakupu.",
+    alreadyReceivedTitle: "Już przyjęte",
+    alreadyReceivedSub: "To zamówienie jest w pełni przyjęte. Szczegóły przyjęcia są poniżej.",
     retry: "Spróbuj ponownie",
     destinationLabel: "Lokalizacja docelowa",
     destinationPlaceholder: "LOC-XXX-XX-XX…",
@@ -1202,6 +1214,7 @@ const pl: ScannerLabelsShape = {
     locationNotFound: "Nie znaleziono lokalizacji.",
     locationInactive: "Ta lokalizacja została dezaktywowana i nie może przyjmować towaru.",
     resolvedLabel: "Wybrana lokalizacja",
+    errSameLocation: "Ten LP już stoi w tej lokalizacji. Zeskanuj inną.",
   },
   moveScreen: {
     title: "Przesuń LP",

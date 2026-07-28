@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { revalidatePath } from 'next/cache';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { QueryClient } from './shared';
@@ -16,6 +17,12 @@ vi.mock('../../../../../../lib/auth/with-org-context', () => ({
   ),
 }));
 
+const { getActiveSiteIdMock } = vi.hoisted(() => ({ getActiveSiteIdMock: vi.fn() }));
+
+vi.mock('../../../../../../lib/site/site-context', () => ({
+  getActiveSiteId: getActiveSiteIdMock,
+}));
+
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
 const GRN_ITEM_ID = '33333333-3333-4333-8333-333333333333';
@@ -23,6 +30,7 @@ const GRN_ID = '44444444-4444-4444-8444-444444444444';
 const LP_ID = '55555555-5555-4555-8555-555555555555';
 const PO_ID = '66666666-6666-4666-8666-666666666666';
 const SITE_ID = '88888888-8888-4888-8888-888888888888';
+const OTHER_SITE_ID = '99999999-9999-4999-8999-999999999999';
 
 type State = {
   granted: boolean;
@@ -39,6 +47,8 @@ type State = {
   lpBestBeforeDate: string | null;
   lpConsumptionRows: string[];
   lpHasChild: boolean;
+  grnSiteId: string | null;
+  lpSiteId: string | null;
   grnExtJsonb: unknown;
   poCurrency: string | null;
   rollupTotalReceived: string;
@@ -70,6 +80,7 @@ function makeClient(): QueryClient {
                 id: GRN_ITEM_ID,
                 grn_id: GRN_ID,
                 grn_status: state.grnStatus,
+                grn_site_id: state.grnSiteId,
                 po_id: PO_ID,
                 item_id: '77777777-7777-4777-8777-777777777777',
                 lp_id: LP_ID,
@@ -99,7 +110,23 @@ function makeClient(): QueryClient {
                 lp_expiry_date: state.lpExpiryDate,
                 lp_best_before_date: state.lpBestBeforeDate,
                 lp_location_id: '99999999-9999-4999-8999-999999999999',
-                lp_site_id: SITE_ID,
+                lp_site_id: state.lpSiteId,
+              }]
+            : [],
+          rowCount: state.lpExists ? 1 : 0,
+        };
+      }
+
+      if (n.startsWith('select id::text, status, site_id::text')) {
+        return {
+          rows: state.lpExists
+            ? [{
+                id: LP_ID,
+                status: state.lpStatus,
+                site_id: state.lpSiteId,
+                batch_number: state.lpBatchNumber,
+                expiry_date: state.lpExpiryDate,
+                best_before_date: state.lpBestBeforeDate,
               }]
             : [],
           rowCount: state.lpExists ? 1 : 0,
@@ -190,6 +217,8 @@ beforeEach(() => {
     lpBestBeforeDate: '2026-09-15T00:00:00.000Z',
     lpConsumptionRows: [],
     lpHasChild: false,
+    grnSiteId: SITE_ID,
+    lpSiteId: SITE_ID,
     grnExtJsonb: null,
     poCurrency: 'GBP',
     rollupTotalReceived: '0',
@@ -197,6 +226,8 @@ beforeEach(() => {
   };
   queries = [];
   client = makeClient();
+  getActiveSiteIdMock.mockReset();
+  getActiveSiteIdMock.mockResolvedValue(SITE_ID);
 });
 
 describe('receipt corrections actions', () => {
@@ -457,5 +488,86 @@ describe('receipt corrections actions', () => {
     const dataQueries = queries.filter((q) => !normalize(q.sql).includes('from public.user_roles'));
     expect(dataQueries.length).toBeGreaterThan(0);
     expect(dataQueries.every((q) => normalize(q.sql).includes('app.current_org_id()'))).toBe(true);
+  });
+
+  it('R08-09 — cancelGrnLine rejects a GRN line from another site before any mutation', async () => {
+    state.grnSiteId = OTHER_SITE_ID;
+
+    const result = await cancelGrnLine({ grnItemId: GRN_ITEM_ID, reasonCode: 'entry_error' });
+
+    expect(result).toEqual({ ok: false, error: 'not_found' });
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.grn_items'))).toBe(false);
+    expect(getActiveSiteIdMock).toHaveBeenCalledWith({ client });
+  });
+
+  it('R08-09 — cancelGrnLine rejects an LP from another site before any mutation', async () => {
+    state.lpSiteId = OTHER_SITE_ID;
+
+    const result = await cancelGrnLine({ grnItemId: GRN_ITEM_ID, reasonCode: 'entry_error' });
+
+    expect(result).toEqual({ ok: false, error: 'not_found' });
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.license_plates'))).toBe(false);
+  });
+
+  it('R08-09 — updateLpMetadata rejects an LP from another site before any mutation', async () => {
+    state.lpSiteId = OTHER_SITE_ID;
+
+    const result = await updateLpMetadata({
+      lpId: LP_ID,
+      expiryDate: '2026-12-31T00:00:00.000Z',
+      reasonCode: 'wrong_batch',
+    });
+
+    expect(result).toEqual({ ok: false, error: 'not_found' });
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.license_plates'))).toBe(false);
+  });
+
+  it('R07-04 — the GRN line lock never names the nullable side of an outer join', async () => {
+    const result = await cancelGrnLine({ grnItemId: GRN_ITEM_ID, reasonCode: 'entry_error' });
+    expect(result).toEqual({ ok: true });
+
+    const loader = queries.find((q) => normalize(q.sql).includes('for update of gi, g'));
+    expect(loader).toBeDefined();
+    // Postgres 0A000 — a locked alias may not sit on the nullable side of an
+    // outer join, so `g` (locked) must be INNER joined. This assertion pins the
+    // shipped SQL; the rule itself is proven against a real database in
+    // packages/db/__tests__/grn-line-for-update-outer-join.test.ts, because a
+    // query mock passes either way — which is how the defect reached production.
+    expect(normalize(loader!.sql)).toContain('join public.grns g');
+    expect(normalize(loader!.sql)).not.toContain('left join public.grns');
+    // Unlocked joins may still be outer — they are not in `for update of`.
+    expect(normalize(loader!.sql)).toContain('left join public.purchase_order_lines pol');
+  });
+
+  it('R07-04 — a failing cache revalidation cannot undo a committed cancellation', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.mocked(revalidatePath).mockImplementationOnce(() => {
+      throw new Error('revalidatePath called outside a request scope');
+    });
+
+    const result = await cancelGrnLine({ grnItemId: GRN_ITEM_ID, reasonCode: 'entry_error' });
+
+    // Pre-fix, revalidateLocalized ran INSIDE withOrgContext after all seven
+    // mutations: this throw unwound the transaction and the operator got
+    // `persistence_failed` with the receipt still live and the LP still valid.
+    expect(result).toEqual({ ok: true });
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.grn_items'))).toBe(true);
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.license_plates'))).toBe(true);
+  });
+
+  it('R07-04 — updateLpMetadata survives a failing revalidation too', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.mocked(revalidatePath).mockImplementationOnce(() => {
+      throw new Error('revalidatePath called outside a request scope');
+    });
+
+    const result = await updateLpMetadata({
+      lpId: LP_ID,
+      expiryDate: '2026-12-31T00:00:00.000Z',
+      reasonCode: 'wrong_batch',
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.license_plates'))).toBe(true);
   });
 });

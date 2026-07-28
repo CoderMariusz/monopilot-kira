@@ -17,7 +17,14 @@ export type LocationRow = {
   warehouseName?: string | null;
   siteCode?: string | null;
   siteName?: string | null;
-  lpCount?: number;
+  /**
+   * R08-01 — live LPs parked here (page.tsx lp_counts CTE: every status but the terminal three).
+   * REQUIRED on purpose. It used to be optional, and the save path rebuilt the row from the
+   * dialog input alone — dropping the count silently, so the panel rendered "LPs here: 0" for a
+   * location whose stock had not moved. A required field makes that omission a typecheck error
+   * instead of a screen that contradicts itself.
+   */
+  lpCount: number;
 };
 
 export type UpsertLocationInput = {
@@ -37,7 +44,7 @@ export type UpsertLocationResult =
   // parent clamp / legacy carve-out can make differ from the requested one. The screen renders
   // this value so it never advertises an activity the row does not have.
   | { ok: true; data: { id: string; path: string; level: number; active: boolean } }
-  | { ok: false; error: UpsertLocationErrorCode };
+  | { ok: false; error: UpsertLocationErrorCode; lpCount?: number };
 
 export type DeleteLocationInput = { locationId: string; warehouseId: string };
 

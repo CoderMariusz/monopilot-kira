@@ -4,10 +4,12 @@ import {
   ReceivePoError,
   getScannerPurchaseOrder,
   listScannerPurchaseOrders,
+  lookupScannerPurchaseOrder,
   parseDecimal,
   receiveScannerPoLine,
   type ReceiveLineInput,
 } from './receive-po';
+import { OPEN_PO_STATUSES } from '../receive-po-line-core';
 import type { QueryClient } from '../../scanner/db';
 import type { ScannerSessionRow } from '../../scanner/session';
 
@@ -623,6 +625,61 @@ describe('scanner receive PO service', () => {
     });
   });
 
+  describe('lookupScannerPurchaseOrder (R17-01)', () => {
+    it('returns open PO from OPEN_PO_STATUSES read', async () => {
+      const client = makePoDetailClient({ qty: '10', receivedQty: '0', poStatus: 'confirmed' });
+      const result = await lookupScannerPurchaseOrder(client, session, PO_ID);
+      expect(result).toEqual({ kind: 'open', po: expect.objectContaining({ poNumber: 'PO-1' }) });
+      const detailCall = findCall(client, 'from public.purchase_orders po');
+      expect(detailCall?.params?.[2]).toEqual(OPEN_PO_STATUSES);
+    });
+
+    it('falls back to received-status read and marks already_received', async () => {
+      const client = makePoLookupClient({
+        openStatus: 'received',
+        completedStatus: 'received',
+        receivedQty: '3.125',
+        receiptLpNumber: 'LP-1784363420662-6L1D',
+        receiptLpQty: '1.5',
+      });
+      const result = await lookupScannerPurchaseOrder(client, session, PO_ID);
+      expect(result.kind).toBe('already_received');
+      if (result.kind !== 'already_received') return;
+      expect(result.po.status).toBe('received');
+      expect(result.po.lines[0]).toMatchObject({
+        receivedQty: '3.125',
+        receiptLpNumber: 'LP-1784363420662-6L1D',
+        receiptLpQty: '1.5',
+      });
+      const calls = client.calls.filter((call) => call.sql.includes('from public.purchase_orders po'));
+      expect(calls[0]?.params?.[2]).toEqual(OPEN_PO_STATUSES);
+      expect(calls[1]?.params?.[2]).toEqual(['received']);
+    });
+
+    it('returns not_found when neither open nor completed PO exists', async () => {
+      const client = makePoLookupClient({ openStatus: null, completedStatus: null });
+      const result = await lookupScannerPurchaseOrder(client, session, PO_ID);
+      expect(result).toEqual({ kind: 'not_found' });
+    });
+  });
+
+  it('write path still rejects receive on a fully received PO (OPEN_PO_STATUSES gate)', async () => {
+    const client = makeReceiveClient({
+      orderedQty: '3.125000',
+      receivedQty: '3.125000',
+      poStatus: 'received',
+    });
+
+    await expect(receiveScannerPoLine(client, session, input)).rejects.toMatchObject({
+      code: 'po_line_not_found',
+      status: 404,
+    });
+
+    const lineLookup = findCall(client, 'from public.purchase_order_lines pol');
+    expect(lineLookup?.params?.[2]).toEqual(OPEN_PO_STATUSES);
+    expect(client.calls.some((call) => call.sql.includes('insert into public.license_plates'))).toBe(false);
+  });
+
   it('rejects WAC-governed receipts with an unresolvable UoM before any GRN/LP/grn_item writes', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     const client = makeReceiveClient({
@@ -649,7 +706,7 @@ type FakeClient = QueryClient & {
   statements: string[];
 };
 
-function makePoDetailClient(options: { qty: string; receivedQty: string }): FakeClient {
+function makePoDetailClient(options: { qty: string; receivedQty: string; poStatus?: string }): FakeClient {
   const calls: FakeClient['calls'] = [];
   const statements: string[] = [];
   return {
@@ -659,6 +716,11 @@ function makePoDetailClient(options: { qty: string; receivedQty: string }): Fake
       const normalized = sql.trim().replace(/\s+/g, ' ');
       calls.push({ sql: normalized, params });
       if (normalized.includes('from public.purchase_orders po') && normalized.includes('pol.qty::text')) {
+        const statuses = params[2] as string[] | undefined;
+        const poStatus = options.poStatus ?? 'sent';
+        if (!statuses?.includes(poStatus)) {
+          return { rows: [] as T[], rowCount: 0 };
+        }
         return {
           rows: [
             {
@@ -667,7 +729,7 @@ function makePoDetailClient(options: { qty: string; receivedQty: string }): Fake
               supplier_code: 'SUP',
               supplier_name: 'Supplier',
               expected_delivery: null,
-              status: 'sent',
+              status: poStatus,
               id: LINE_ID,
               line_no: 1,
               item_code: 'RM-1',
@@ -675,6 +737,63 @@ function makePoDetailClient(options: { qty: string; receivedQty: string }): Fake
               qty: options.qty,
               uom: 'kg',
               received_qty: options.receivedQty,
+              receipt_lp_id: null,
+              receipt_lp_number: null,
+              receipt_qty: null,
+              line_count: 0,
+              received_line_count: 0,
+            },
+          ] as T[],
+          rowCount: 1,
+        };
+      }
+      return { rows: [] as T[], rowCount: 0 };
+    },
+  };
+}
+
+function makePoLookupClient(options: {
+  openStatus: string | null;
+  completedStatus: string | null;
+  qty?: string;
+  receivedQty?: string;
+  receiptLpNumber?: string | null;
+  receiptLpQty?: string | null;
+}): FakeClient {
+  const calls: FakeClient['calls'] = [];
+  const statements: string[] = [];
+  return {
+    calls,
+    statements,
+    async query<T = unknown>(sql: string, params: readonly unknown[] = []) {
+      const normalized = sql.trim().replace(/\s+/g, ' ');
+      calls.push({ sql: normalized, params });
+      if (normalized.includes('from public.purchase_orders po') && normalized.includes('pol.qty::text')) {
+        const statuses = params[2] as string[] | undefined;
+        const isOpenQuery = statuses?.join(',') === OPEN_PO_STATUSES.join(',');
+        const status = isOpenQuery ? options.openStatus : options.completedStatus;
+        if (!status || !statuses?.includes(status)) {
+          return { rows: [] as T[], rowCount: 0 };
+        }
+        return {
+          rows: [
+            {
+              po_id: PO_ID,
+              po_number: 'PO-1',
+              supplier_code: 'SUP',
+              supplier_name: 'Supplier',
+              expected_delivery: null,
+              status,
+              id: LINE_ID,
+              line_no: 1,
+              item_code: 'RM-1',
+              item_name: 'Raw material',
+              qty: options.qty ?? '3.125',
+              uom: 'kg',
+              received_qty: options.receivedQty ?? '3.125',
+              receipt_lp_id: 'lp-1',
+              receipt_lp_number: options.receiptLpNumber ?? 'LP-1784363420662-6L1D',
+              receipt_qty: options.receiptLpQty ?? '1.5',
               line_count: 0,
               received_line_count: 0,
             },
@@ -690,6 +809,7 @@ function makePoDetailClient(options: { qty: string; receivedQty: string }): Fake
 function makeReceiveClient(options: {
   orderedQty?: string;
   receivedQty?: string;
+  poStatus?: string;
   isReceived?: boolean;
   lineMissing?: boolean;
   replayExt?: Record<string, unknown>;
@@ -729,26 +849,29 @@ function makeReceiveClient(options: {
         return { rows: [{ is_received: options.isReceived ?? false }] as T[], rowCount: 1 };
       }
       if (normalized.includes('from public.purchase_order_lines pol')) {
+        const openStatuses = params[2] as string[] | undefined;
+        const poStatus = options.poStatus ?? 'confirmed';
+        if (!openStatuses?.includes(poStatus) || options.lineMissing) {
+          return { rows: [] as T[], rowCount: 0 };
+        }
         return {
-          rows: options.lineMissing
-            ? ([] as T[])
-            : ([
-                {
-                  id: LINE_ID,
-                  org_id: ORG_A,
-                  po_id: PO_ID,
-                  item_id: ITEM_ID,
-                  supplier_id: SUPPLIER_ID,
-                  destination_warehouse_id: options.destinationWarehouseId ?? null,
-                  line_no: 1,
-                  ordered_qty: options.orderedQty ?? '10.000000',
-                  uom: options.uom ?? 'kg',
-                  received_qty: options.receivedQty ?? '0.000000',
-                  shelf_life_days: options.shelfLifeDays ?? null,
-                  shelf_life_mode: options.shelfLifeMode ?? null,
-                },
-              ] as T[]),
-          rowCount: options.lineMissing ? 0 : 1,
+          rows: [
+            {
+              id: LINE_ID,
+              org_id: ORG_A,
+              po_id: PO_ID,
+              item_id: ITEM_ID,
+              supplier_id: SUPPLIER_ID,
+              destination_warehouse_id: options.destinationWarehouseId ?? null,
+              line_no: 1,
+              ordered_qty: options.orderedQty ?? '10.000000',
+              uom: options.uom ?? 'kg',
+              received_qty: options.receivedQty ?? '0.000000',
+              shelf_life_days: options.shelfLifeDays ?? null,
+              shelf_life_mode: options.shelfLifeMode ?? null,
+            },
+          ] as T[],
+          rowCount: 1,
         };
       }
       // lane W9-L8 destination lookup: `l.id = $2::uuid` is unique to the

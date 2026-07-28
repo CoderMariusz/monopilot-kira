@@ -21,6 +21,9 @@ export type ScannerPoLine = {
   qty: string;
   uom: string;
   receivedQty: string;
+  receiptLpId?: string | null;
+  receiptLpNumber?: string | null;
+  receiptLpQty?: string | null;
 };
 
 export type ScannerPoDetail = ScannerPoSummary & {

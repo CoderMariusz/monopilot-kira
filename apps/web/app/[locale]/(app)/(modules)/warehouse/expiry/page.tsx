@@ -24,9 +24,8 @@
  * `blockLp` Server Action (RBAC `warehouse.lp.block` re-enforced server-side),
  * then refreshes the dashboard so the now-blocked LP drops out of the FEFO read.
  *
- * Data note: getExpiryDashboard returns the FEFO `tier` (red/amber), item, location,
- * warehouse, qty, uom and expiry date — but NOT a per-LP status or batch number, so
- * those columns render the neutral "—" placeholder (never fabricated).
+ * Data note: getExpiryDashboard returns the FEFO `tier`, item, location,
+ * warehouse, qty, uom, expiry date, LP status, and QA status.
  *
  * See _meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md.
  */
@@ -39,7 +38,6 @@ import { getWhdTranslator } from '../wh-d-labels';
 import { blockLp } from '../license-plates/[lpId]/_actions/lp-detail-actions';
 import { ExpiryDashboardClient, type ExpiryLabels, type ExpiryRow } from './_components/expiry-dashboard.client';
 
-// Org-scoped DB read per request — never statically prerendered.
 export const dynamic = 'force-dynamic';
 
 type PageProps = {
@@ -112,13 +110,17 @@ function buildExpiryLabels(locale: string): ExpiryLabels {
       quarantine: t('dashboard.status.quarantine'),
       blocked: t('dashboard.status.blocked'),
     },
+    qaStatus: {
+      pending: t('expiryPage.qaStatus.pending'),
+      released: t('expiryPage.qaStatus.released'),
+      on_hold: t('expiryPage.qaStatus.on_hold'),
+      rejected: t('expiryPage.qaStatus.rejected'),
+      quarantined: t('expiryPage.qaStatus.quarantined'),
+      passed: t('expiryPage.qaStatus.passed'),
+      failed: t('expiryPage.qaStatus.failed'),
+      hold: t('expiryPage.qaStatus.hold'),
+    },
   };
-}
-
-function daysFromNow(iso: string): number {
-  const exp = new Date(iso).getTime();
-  if (Number.isNaN(exp)) return 0;
-  return Math.floor((exp - Date.now()) / 86_400_000);
 }
 
 async function ExpiryContent({ locale }: { locale: string }) {
@@ -157,15 +159,15 @@ async function ExpiryContent({ locale }: { locale: string }) {
     tier: r.tier,
     itemCode: r.itemCode,
     itemName: r.itemName,
-    // getExpiryDashboard does not expose batch number or per-LP status — never fabricated.
-    batchNumber: null,
+    batchNumber: r.batchNumber,
     locationCode: r.locationCode,
     warehouseCode: r.warehouseCode,
     quantity: r.quantity,
     uom: r.uom,
     expiryDate: r.expiryDate,
-    daysLeft: daysFromNow(r.expiryDate),
-    status: '',
+    daysLeft: r.daysLeft,
+    status: r.status,
+    qaStatus: r.qaStatus,
   }));
 
   return (

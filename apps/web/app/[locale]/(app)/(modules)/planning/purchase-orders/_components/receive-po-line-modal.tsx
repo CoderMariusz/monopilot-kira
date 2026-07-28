@@ -30,10 +30,10 @@ import { Button } from '@monopilot/ui/Button';
 import Input from '@monopilot/ui/Input';
 import { Select, type SelectOption } from '@monopilot/ui/Select';
 
-import type { DesktopReceiveInput, DesktopReceiveResult } from '../_actions/receive-po-line.types';
+import { DECIMAL_QTY_RE, microToDecimal, toMicro } from '../../../../../../../lib/shared/decimal';
 
-/** Numeric with up to 3 decimals (mirrors the line modal's qty pattern). */
-const QTY_PATTERN = /^\d+(?:\.\d{1,3})?$/;
+import type { DesktopReceiveError, DesktopReceiveInput, DesktopReceiveResult } from '../_actions/receive-po-line.types';
+
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 /** A warehouse-grouped location option for the destination picker. */
@@ -68,19 +68,17 @@ export type ReceivePoLineLabels = {
   overReceivedNote: string;
   /** Extra line shown when a QC inspection was raised. */
   qcRaisedNote: string;
-  errors: {
-    /** Local form validation. */
+  /**
+   * One message per server error code — exhaustive BY TYPE, deliberately not a
+   * `Record<string, string>`. `wac_unresolved_uom` was missing here (and in every
+   * locale bundle) and the lookup silently degraded to the generic "please retry"
+   * message, which is advice that can never work. Keeping this keyed means the
+   * next added error code fails typecheck instead of failing the user.
+   * `{item}` / `{uom}` in a message are interpolated from the line being received.
+   */
+  errors: Record<DesktopReceiveError, string> & {
+    /** Local form validation, not a server code. */
     qtyRequired: string;
-    forbidden: string;
-    not_found: string;
-    invalid_qty: string;
-    over_receive_cap: string;
-    no_warehouse: string;
-    invalid_location: string;
-    location_inactive: string;
-    invalid_state: string;
-    wac_unsupported_currency: string;
-    error: string;
   };
 };
 
@@ -105,13 +103,15 @@ export type ReceivePoLineModalProps = {
   onReceived: () => void;
 };
 
+/**
+ * Ordered − received in exact micro-units (scale 6), the same arithmetic the
+ * server does. The float version rounded a NUMERIC(18,6) qty with `toFixed(3)`,
+ * so a line of 12.345600 prefilled 12.346 — MORE than was ordered — and the
+ * final 0.000600 could never be received. '' = nothing outstanding.
+ */
 function remaining(line: ReceiveLineSeed): string {
-  const ordered = Number(line.qty);
-  const received = Number(line.receivedQty);
-  const rem = ordered - received;
-  if (!(rem > 0)) return '';
-  // Trim trailing zeros from a float subtraction (e.g. 100 - 0 = 100, not "100").
-  return String(Number(rem.toFixed(3)));
+  const rem = toMicro(line.qty) - toMicro(line.receivedQty);
+  return rem > 0n ? microToDecimal(rem) : '';
 }
 
 export function ReceivePoLineModal({
@@ -166,7 +166,7 @@ export function ReceivePoLineModal({
     setSuccess(null);
 
     const trimmedQty = qty.trim();
-    if (!QTY_PATTERN.test(trimmedQty) || Number(trimmedQty) <= 0) {
+    if (!DECIMAL_QTY_RE.test(trimmedQty) || toMicro(trimmedQty) <= 0n) {
       setFormError(labels.errors.qtyRequired);
       return;
     }
@@ -187,8 +187,16 @@ export function ReceivePoLineModal({
       });
 
       if (!result.ok) {
-        const map = labels.errors as Record<string, string>;
-        setFormError(map[result.error] ?? labels.errors.error);
+        // Every code in the union has a label (enforced by the type above), so no
+        // cast and no silent fallback. `{item}`/`{uom}` name the offending line —
+        // only wac_unresolved_uom uses them today; a no-op elsewhere.
+        // replaceAll, not replace: the wac_unresolved_uom template names `{uom}`
+        // twice, so `replace` left the second one on screen as literal `{uom}`.
+        setFormError(
+          labels.errors[result.error]
+            .replaceAll('{item}', line.itemCode ?? line.itemName ?? '—')
+            .replaceAll('{uom}', line.uom),
+        );
         setPending(false);
         return;
       }

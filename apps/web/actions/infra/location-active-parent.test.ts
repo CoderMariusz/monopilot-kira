@@ -97,6 +97,12 @@ function makeClient(): FakeClient {
         return { rows: [{ active_children: count }] as T[], rowCount: 1 };
       }
 
+      // R08-01 lives in location-live-stock.test.ts; this file only needs a zero stub so an
+      // explicit parent deactivation does not throw on an unmodelled table.
+      if (normalized.includes('live_lps')) {
+        return { rows: [{ live_lps: 0 }] as T[], rowCount: 1 };
+      }
+
       if (normalized.startsWith('select') && normalized.includes('from public.locations')) {
         const found = client.locations.get(String(params[0]));
         return { rows: (found ? [found] : []) as T[], rowCount: found ? 1 : 0 };
@@ -279,6 +285,8 @@ describe('R02-03 · locations: active child under an inactive parent', () => {
 
     expect(result).toMatchObject({ ok: true, data: { active: false } });
     expect(currentClient.locations.get(AISLE_ID)).toMatchObject({ parent_id: BIN1_ID, is_active: false });
+    // Parent clamp, not an explicit deactivation — stock probe must stay off (R08-01 scope).
+    expect(currentClient.calls.some((call) => call.sql.includes('live_lps'))).toBe(false);
   });
 
   it('lets an already-inactive parent that carries legacy active children be edited without tripping the guard', async () => {
@@ -432,6 +440,10 @@ function makeLockWorld(seed: Row[]) {
             const parentId = String(params[0]);
             const count = Array.from(locations.values()).filter((l) => l.parent_id === parentId && l.is_active).length;
             return { rows: [{ active_children: count }] as T[], rowCount: 1 };
+          }
+
+          if (normalized.includes('live_lps')) {
+            return { rows: [{ live_lps: 0 }] as T[], rowCount: 1 };
           }
 
           if (normalized.startsWith('select') && normalized.includes('from public.locations')) {

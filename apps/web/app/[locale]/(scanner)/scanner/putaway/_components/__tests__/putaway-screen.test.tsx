@@ -271,4 +271,96 @@ describe("PutawayScreen", () => {
     renderPutaway();
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/en/scanner/login"));
   });
+
+  // R17-02 — a manually entered destination can still be the bay the LP already
+  // occupies; the server rejects it with 409 same_location and the screen must
+  // say so (NOT "cannot be moved") and must NOT show the success screen.
+  it("409 same_location: shows the dedicated error and never reaches the success screen", async () => {
+    seedSession();
+    const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+      if (init?.method === "POST")
+        return Promise.resolve({
+          status: 409,
+          ok: false,
+          json: async () => ({ error: "same_location", message: "already there" }),
+        });
+      if (url.includes("/scanner/location")) return Promise.resolve(locationOk());
+      if (url.includes("/putaway/suggest")) return Promise.resolve(suggestOk());
+      if (url.includes("/scanner/lp")) return Promise.resolve(lpOk());
+      return Promise.resolve(lpNotFound());
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderPutaway();
+    const input = await screen.findByPlaceholderText(L.scanPlaceholder);
+    fireEvent.change(input, { target: { value: "LP-00567" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(screen.getByText("Pork shoulder")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: L.chooseSuggestion }));
+    await waitFor(() => expect(screen.getByText("LOC-B-02-03")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByText("LOC-B-02-03").closest("button")!);
+    fireEvent.click(screen.getByRole("button", { name: L.confirm }));
+
+    await waitFor(() => expect(screen.getByText(L.errSameLocation)).toBeInTheDocument());
+    expect(screen.queryByText(L.errNotMovable)).not.toBeInTheDocument();
+    expect(screen.queryByText(L.successTitle)).not.toBeInTheDocument();
+  });
+
+  it("409 without a same_location code still shows the generic not-movable error", async () => {
+    seedSession();
+    const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+      if (init?.method === "POST")
+        return Promise.resolve({ status: 409, ok: false, json: async () => ({ error: "lp_not_movable" }) });
+      if (url.includes("/putaway/suggest")) return Promise.resolve(suggestOk());
+      if (url.includes("/scanner/lp")) return Promise.resolve(lpOk());
+      return Promise.resolve(lpNotFound());
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderPutaway();
+    const input = await screen.findByPlaceholderText(L.scanPlaceholder);
+    fireEvent.change(input, { target: { value: "LP-00567" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(screen.getByText("Pork shoulder")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: L.chooseSuggestion }));
+    await waitFor(() => expect(screen.getByText("LOC-B-02-03")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("LOC-B-02-03").closest("button")!);
+    fireEvent.click(screen.getByRole("button", { name: L.confirm }));
+
+    await waitFor(() => expect(screen.getByText(L.errNotMovable)).toBeInTheDocument());
+  });
+
+  // R17-02 anti-regression — once the LP's own bay is excluded server-side, an LP
+  // in the only candidate location gets ZERO suggestions. That must be a calm
+  // empty state with the manual field still usable, never a crash/error banner.
+  it("ANTI-REGRESSION: zero suggestions → empty state, manual entry still available", async () => {
+    seedSession();
+    const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+      if (init?.method === "POST") return Promise.resolve(putawayOk());
+      if (url.includes("/scanner/location")) return Promise.resolve(locationOk());
+      if (url.includes("/putaway/suggest"))
+        return Promise.resolve({ status: 200, ok: true, json: async () => ({ suggestions: [] }) });
+      if (url.includes("/scanner/lp")) return Promise.resolve(lpOk());
+      return Promise.resolve(lpNotFound());
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderPutaway();
+    const input = await screen.findByPlaceholderText(L.scanPlaceholder);
+    fireEvent.change(input, { target: { value: "LP-00567" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(screen.getByText("Pork shoulder")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: L.chooseSuggestion }));
+
+    await waitFor(() => expect(screen.getByText(L.suggestEmpty)).toBeInTheDocument());
+    expect(screen.queryByText(L.suggestError)).not.toBeInTheDocument();
+
+    // the operator can still put the LP away by typing a location
+    const manual = screen.getByLabelText(L.manualLabel);
+    fireEvent.change(manual, { target: { value: "LOC-Z-09-09" } });
+    fireEvent.keyDown(manual, { key: "Enter" });
+    await waitFor(() => expect(screen.getByText(L.resolvedLabel)).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: L.confirm })).not.toBeDisabled();
+  });
 });

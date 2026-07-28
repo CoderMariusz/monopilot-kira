@@ -9051,7 +9051,8 @@
         "already_exists": "A purchase order with that number already exists.",
         "invalid_state": "That action isn't allowed in the current status.",
         "persistence_failed": "Something went wrong saving. Please retry.",
-        "po_has_receipts": "This purchase order already has receipts and cannot be reopened to draft."
+        "po_has_receipts": "This purchase order already has receipts and cannot be reopened to draft.",
+        "line_uom_not_convertible": "A priced line uses a unit of measure that cannot be converted to kg for costing, so the goods could not be received. Set the item's net weight per each (and units per box) in the item master, or order the line in kg."
       },
       "create": {
         "title": "Create purchase order",
@@ -9093,7 +9094,14 @@
           "persistence_failed": "Something went wrong saving. Please retry.",
           "no_active_site": "Select a site before creating a purchase order. This organisation has no active site yet — add one in Settings → Sites.",
           "ambiguous_site": "Select a site in the top bar before creating a purchase order.",
-          "warehouse_site_mismatch": "Destination warehouse must belong to the purchase order's site."
+          "warehouse_site_mismatch": "Destination warehouse must belong to the purchase order's site.",
+          "priceInvalid": "Enter a unit price with at most 4 decimal places, using a dot separator (e.g. 0.0199).",
+          "priceRequired": "Line {line}: enter a unit price (type 0 for a free line).",
+          "linePriceInvalid": "Line {line}: enter a unit price with at most 4 decimal places, using a dot separator (e.g. 0.0199).",
+          "lineItemRequired": "Line {line}: select an item.",
+          "lineQtyInvalid": "Line {line}: enter a positive quantity (up to 6 decimals).",
+          "lineUomRequired": "Line {line}: select a unit of measure.",
+          "lineTaxInvalid": "Line {line}: tax must be between 0 and 100 (up to 4 decimals)."
         },
         "picker": {
           "trigger": "+ Add item",
@@ -9201,7 +9209,8 @@
           "editTitle": "Edit PO line",
           "submitAdd": "Add line",
           "submitEdit": "Save line",
-          "qtyRequired": "Enter a quantity greater than zero and pick a unit."
+          "qtyRequired": "Enter a quantity greater than zero and pick a unit.",
+          "priceRequired": "Enter a unit price (type 0 for a free line)."
         }
       },
       "receive": {
@@ -9229,10 +9238,12 @@
             "not_found": "That purchase order line no longer exists.",
             "invalid_qty": "That quantity isn't valid.",
             "over_receive_cap": "Cannot exceed 110% of the ordered quantity.",
+            "over_receive_confirm_required": "This receipt is more than the outstanding quantity. Over-receipts have to be confirmed on the Warehouse → Receive PO screen — receive the outstanding quantity here, or confirm the over-receipt there.",
             "no_warehouse": "No warehouse is configured — set one up in Settings before receiving.",
             "invalid_location": "That destination location is invalid.",
             "location_inactive": "That location has been deactivated and cannot receive stock.",
             "invalid_state": "This purchase order can't be received in its current status.",
+            "wac_unresolved_uom": "Receipt is blocked: {item} has no unit conversion defined for {uom}, so this receipt can't be valued. Add a conversion for {uom} (or set the item's base unit) in the item's master data — retrying will not help until that is fixed.",
             "wac_unsupported_currency": "Receipt is blocked because this purchase order is not in GBP. Inventory valuation currently requires GBP — change the PO currency to GBP before receiving, or recreate the order in GBP. Foreign-currency POs can still be created and edited, but cannot be received until FX conversion is supported.",
             "error": "Something went wrong receiving. Please retry."
           }

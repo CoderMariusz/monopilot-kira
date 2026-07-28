@@ -42,6 +42,7 @@ export type PrintJobRow = {
   copies: number;
   payload: Record<string, unknown>;
   status: PrintJobStatus;
+  printer_type: PrinterType | null;
   error_text: string | null;
   result_url: string | null;
   created_by: string | null;
@@ -223,6 +224,13 @@ async function loadPrinterMode(client: QueryClient, printerId: string | null): P
   return row;
 }
 
+/** Reject a site-bound printer that does not match the LP's site (org-wide printers pass). */
+function assertPrinterSiteScope(printer: PrinterModeRow, lpSiteId: string | null): void {
+  if (!printer.site_id) return;
+  if (!lpSiteId) return;
+  if (printer.site_id !== lpSiteId) throw new Error('printer_site_mismatch');
+}
+
 async function loadLicensePlateForLabel(client: QueryClient, entityId: string): Promise<LicensePlateLabelRow> {
   const { rows } = await client.query<LicensePlateLabelRow>(
     `select lp.id::text as entity_id,
@@ -297,6 +305,18 @@ function dataTextResultUrl(payload: Record<string, unknown>): string {
   return `data:text/plain;charset=utf-8,${encodeURIComponent(JSON.stringify(payload, null, 2))}`;
 }
 
+/** Resolve output mode for legacy rows where printer_type was never persisted (migration 527). */
+function resolvePrintJobPrinterType(row: {
+  printer_type: string | null;
+  status: PrintJobStatus;
+  result_url: string | null;
+}): PrinterType {
+  if (row.printer_type === 'pdf' || row.printer_type === 'zpl') return row.printer_type;
+  if (row.result_url) return 'pdf';
+  if (row.status === 'queued') return 'zpl';
+  throw new Error('print_job_printer_type_unknown');
+}
+
 async function insertPrintJob(
   context: OrgContextLike,
   input: {
@@ -308,13 +328,14 @@ async function insertPrintJob(
     copies: number;
     payload: Record<string, unknown>;
     status: PrintJobStatus;
+    printerType: PrinterType;
     resultUrl: string | null;
   },
 ): Promise<PrintJobRow> {
   const { rows } = await context.client.query<PrintJobDbRow>(
     `insert into public.print_jobs
-       (org_id, site_id, printer_id, template_id, entity_type, entity_id, copies, payload, status, result_url, created_by)
-     values (app.current_org_id(), $1::uuid, $2::uuid, $3::uuid, $4, $5::uuid, $6::integer, $7::jsonb, $8, $9, $10::uuid)
+       (org_id, site_id, printer_id, template_id, entity_type, entity_id, copies, payload, status, result_url, printer_type, created_by)
+     values (app.current_org_id(), $1::uuid, $2::uuid, $3::uuid, $4, $5::uuid, $6::integer, $7::jsonb, $8, $9, $10, $11::uuid)
      returning id::text,
                org_id::text,
                site_id::text,
@@ -325,6 +346,7 @@ async function insertPrintJob(
                copies,
                payload,
                status,
+               printer_type,
                error_text,
                result_url,
                created_by::text,
@@ -340,6 +362,7 @@ async function insertPrintJob(
       JSON.stringify(input.payload),
       input.status,
       input.resultUrl,
+      input.printerType,
       context.userId,
     ],
   );
@@ -458,6 +481,7 @@ export async function printLabel(rawInput: PrintLabelInput): Promise<PrintJobRow
 
     const printer = await loadPrinterMode(context.client, input.printerId ?? null);
     const lp = await loadLicensePlateForLabel(context.client, input.entityId);
+    if (printer) assertPrinterSiteScope(printer, lp.site_id);
     const payload = buildLpPayload(lp);
     const printerType = printer?.printer_type ?? 'pdf';
     const status: PrintJobStatus = printerType === 'pdf' ? 'sent' : 'queued';
@@ -472,6 +496,7 @@ export async function printLabel(rawInput: PrintLabelInput): Promise<PrintJobRow
       copies: input.copies ?? 1,
       payload,
       status,
+      printerType,
       resultUrl,
     });
   });
@@ -494,6 +519,7 @@ export async function listPrintJobs(rawInput: ListPrintJobsInput = {}): Promise<
               pj.copies,
               pj.payload,
               pj.status,
+              pj.printer_type,
               pj.error_text,
               pj.result_url,
               pj.created_by::text,
@@ -565,9 +591,7 @@ export async function reprintFromHistory(jobId: string): Promise<PrintJobRow> {
     const context = ctx as OrgContextLike;
     await assertCanUsePrinters(context);
 
-    const { rows } = await context.client.query<
-      PrintJobDbRow & { printer_type: PrinterType | null; printer_site_id: string | null }
-    >(
+    const { rows } = await context.client.query<PrintJobDbRow & { printer_site_id: string | null }>(
       `select pj.id::text,
               pj.org_id::text,
               pj.site_id::text,
@@ -578,12 +602,12 @@ export async function reprintFromHistory(jobId: string): Promise<PrintJobRow> {
               pj.copies,
               pj.payload,
               pj.status,
+              pj.printer_type,
               pj.error_text,
               pj.result_url,
               pj.created_by::text,
               pj.created_at,
               pj.updated_at,
-              p.printer_type,
               p.site_id::text as printer_site_id
          from public.print_jobs pj
          left join public.printers p
@@ -598,7 +622,7 @@ export async function reprintFromHistory(jobId: string): Promise<PrintJobRow> {
     if (!source) throw new Error('print_job_not_found');
 
     const payload = asRecord(source.payload);
-    const printerType = source.printer_type ?? 'zpl';
+    const printerType = resolvePrintJobPrinterType(source);
     const status: PrintJobStatus = printerType === 'pdf' ? 'sent' : 'queued';
     const resultUrl = printerType === 'pdf' ? dataTextResultUrl(payload) : null;
 
@@ -611,6 +635,7 @@ export async function reprintFromHistory(jobId: string): Promise<PrintJobRow> {
       copies: source.copies,
       payload,
       status,
+      printerType,
       resultUrl,
     });
   });

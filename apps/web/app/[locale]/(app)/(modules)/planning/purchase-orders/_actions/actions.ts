@@ -29,6 +29,10 @@ import {
   type QueryClient,
 } from '../../_actions/procurement-shared';
 import {
+  describeUnvaluablePoLines,
+  findUnvaluablePricedPoLines,
+} from '../../../../../../../lib/finance/book-receipt-wac';
+import {
   CreatePurchaseOrderInput,
   createPurchaseOrderCore,
 } from './create-purchase-order-core';
@@ -113,7 +117,8 @@ type PurchaseOrderError =
   | 'no_active_site'
   | 'ambiguous_site'
   | 'supplier_blocked'
-  | 'warehouse_site_mismatch';
+  | 'warehouse_site_mismatch'
+  | 'line_uom_not_convertible';
 type PurchaseOrderResult<T> = { ok: true; data: T } | { ok: false; error: PurchaseOrderError; code?: PurchaseOrderError; message?: string };
 type PurchaseOrderListResult =
   | {
@@ -414,6 +419,13 @@ async function ensureSupplierInOrg(client: QueryClient, supplierId: string): Pro
 
 /** Forward PO transitions require the linked supplier to remain active (C050). */
 const SUPPLIER_ACTIVE_REQUIRED_TRANSITIONS = new Set(['sent', 'confirmed', 'partially_received', 'received']);
+
+/**
+ * Placing an order commits the supplier to ship goods we must be able to book: a priced
+ * line whose UoM the WAC resolver cannot convert to kg is refused here, while the order
+ * can still be fixed — not at the receiving dock with the pallet already there (R07-03).
+ */
+const WAC_RESOLVABLE_UOM_REQUIRED_TRANSITIONS = new Set(['sent', 'confirmed']);
 
 async function ensurePurchaseOrderSupplierActive(
   client: QueryClient,
@@ -1078,6 +1090,18 @@ export async function transitionPurchaseOrderStatus(id: string, status: string):
             error: supplierCheck.error,
             code: supplierCheck.error,
             message: supplierCheck.message,
+          };
+        }
+      }
+
+      if (WAC_RESOLVABLE_UOM_REQUIRED_TRANSITIONS.has(parsed.data)) {
+        const unvaluableLines = await findUnvaluablePricedPoLines(ctx.client, orgId, id);
+        if (unvaluableLines.length > 0) {
+          return {
+            ok: false,
+            error: 'line_uom_not_convertible',
+            code: 'line_uom_not_convertible',
+            message: describeUnvaluablePoLines(unvaluableLines),
           };
         }
       }

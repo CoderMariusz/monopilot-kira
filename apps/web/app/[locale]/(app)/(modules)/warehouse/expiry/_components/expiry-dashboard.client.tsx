@@ -51,6 +51,7 @@ export type ExpiryRow = {
   expiryDate: string;
   daysLeft: number;
   status: string;
+  qaStatus: string;
 };
 
 export type ExpiryLabels = {
@@ -76,7 +77,25 @@ export type ExpiryLabels = {
   none: string;
   empty: string;
   status: Record<string, string>;
+  qaStatus: Record<string, string>;
 };
+
+const QA_STATUS_VARIANT: Record<string, BadgeVariant> = {
+  pending: 'warning',
+  released: 'success',
+  on_hold: 'danger',
+  rejected: 'danger',
+  quarantined: 'warning',
+  passed: 'success',
+  failed: 'danger',
+  hold: 'warning',
+};
+
+function humanizeQaStatus(value: string): string {
+  return value
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (ch) => ch.toUpperCase());
+}
 
 const STATUS_VARIANT: Record<string, BadgeVariant> = {
   available: 'success',
@@ -166,13 +185,24 @@ function TierSection({
                   {row.warehouseCode ? <span className="text-slate-400"> · {row.warehouseCode}</span> : null}
                 </TableCell>
                 <TableCell>
-                  {row.status ? (
-                    <Badge variant={STATUS_VARIANT[row.status] ?? 'muted'} data-testid={`expiry-status-${row.lpId}`}>
-                      {labels.status[row.status] ?? row.status}
-                    </Badge>
-                  ) : (
-                    <span data-testid={`expiry-status-${row.lpId}`} className="text-slate-400">{labels.none}</span>
-                  )}
+                  <div className="flex flex-col gap-1">
+                    {row.status ? (
+                      <Badge variant={STATUS_VARIANT[row.status] ?? 'muted'} data-testid={`expiry-status-${row.lpId}`}>
+                        {labels.status[row.status] ?? row.status}
+                      </Badge>
+                    ) : (
+                      <span data-testid={`expiry-status-${row.lpId}`} className="text-slate-400">{labels.none}</span>
+                    )}
+                    {row.qaStatus ? (
+                      <Badge
+                        variant={QA_STATUS_VARIANT[row.qaStatus.toLowerCase()] ?? 'muted'}
+                        data-testid={`expiry-qa-${row.lpId}`}
+                        className="text-[10px]"
+                      >
+                        {labels.qaStatus[row.qaStatus.toLowerCase()] ?? humanizeQaStatus(row.qaStatus)}
+                      </Badge>
+                    ) : null}
+                  </div>
                 </TableCell>
                 <TableCell className="text-right">
                   <button

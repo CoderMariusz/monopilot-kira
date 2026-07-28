@@ -108,6 +108,10 @@ export type LocationTreeLabels = {
   parentInactiveHint: string;
   parentInactiveLegacyHint: string;
   hasActiveChildrenError: string;
+  /** R08-01 — carries one `{count}` placeholder: live LPs still parked here (deactivate/delete guard). */
+  hasStockError: string;
+  /** Empty LP table when count > 0 but rows are not listed here — carries one `{count}` placeholder. */
+  lpsElsewhere: string;
 };
 
 type TreeNode = LocationRow & { children: TreeNode[] };
@@ -266,13 +270,19 @@ export function LocationTreeScreen({
     };
     const result = await upsertLocation(input);
     if (!result.ok) {
-      setFormError(mapUpsertLocationError(result.error, labels));
+      setFormError(mapUpsertLocationError(result.error, labels, result.lpCount));
       return;
     }
     // [L-4] isActive comes from the server, never from `input`: the clamp can persist something
     // other than what was asked for, and echoing the request back left the tree (and the status
     // badge) showing an activity the database does not hold until the next full reload.
-    const saved: LocationRow = { id: result.data.id, warehouseId, parentId: input.parentId, code: input.code, name: input.name, level: result.data.level, path: result.data.path, locationType: input.locationType, barcode: input.barcode ?? null, isActive: result.data.active };
+    //
+    // R08-01 — start from the row we ALREADY have and overwrite only what the dialog owns. The
+    // previous version rebuilt the row from `input` alone, which dropped every server-derived
+    // field the form never sends: lpCount (→ "LPs here: 0" next to stock that never moved) plus
+    // the warehouse/site display labels.
+    const previous = rows.find((row) => row.id === result.data.id);
+    const saved: LocationRow = { ...previous, id: result.data.id, warehouseId, parentId: input.parentId, code: input.code, name: input.name, level: result.data.level, path: result.data.path, locationType: input.locationType, barcode: input.barcode ?? null, isActive: result.data.active, lpCount: previous?.lpCount ?? 0 };
     setRows((current) => sortByPath([saved, ...current.filter((row) => row.id !== saved.id)]));
     setSelected(saved.id);
     setDialogMode(null);
@@ -376,10 +386,16 @@ export function LocationTreeScreen({
               {showBinOccupancy ? <BinOccupancy labels={labels} bins={bins} canUpdateInfra={canUpdateInfra} /> : null}
 
               <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3"><h3 className="text-sm font-semibold">{labels.lpsTableTitle} (0)</h3><a href="/en/warehouse/license-plates" className="text-sm font-medium text-blue-700 hover:underline">{labels.openFullLpList}</a></div>
+                {/* R08-01 — the header used to be a hardcoded (0) sitting next to "LPs here: 1"
+                    from the same object: one panel disagreeing with itself. This screen never
+                    loads the LP ROWS (no read exists for them), so the table body stays a
+                    pointer at the full list — but the COUNT is the one we already have, and it
+                    now matches the summary tile.
+                    ponytail: swap the body for real rows when a location-scoped LP read exists. */}
+                <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3"><h3 className="text-sm font-semibold">{labels.lpsTableTitle} ({selectedLocation?.lpCount ?? 0})</h3><a href="/en/warehouse/license-plates" className="text-sm font-medium text-blue-700 hover:underline">{labels.openFullLpList}</a></div>
                 <table role="table" aria-label={labels.lpsTableTitle} className="w-full text-left text-sm">
                   <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th scope="col" className="px-4 py-3">{labels.lpColumn}</th><th scope="col" className="px-4 py-3">{labels.productColumn}</th><th scope="col" className="px-4 py-3 text-right">{labels.qtyColumn}</th><th scope="col" className="px-4 py-3">{labels.batchColumn}</th><th scope="col" className="px-4 py-3">{labels.expiryColumn}</th><th scope="col" className="px-4 py-3">{labels.statusColumn}</th><th scope="col" className="px-4 py-3">{labels.qaColumn}</th></tr></thead>
-                  <tbody><tr><td className="px-4 py-8 text-center text-slate-500" colSpan={7}>{labels.noLpsAtLocation}</td></tr></tbody>
+                  <tbody><tr><td className="px-4 py-8 text-center text-slate-500" colSpan={7}>{(selectedLocation?.lpCount ?? 0) > 0 ? labels.lpsElsewhere.replace('{count}', String(selectedLocation?.lpCount ?? 0)) : labels.noLpsAtLocation}</td></tr></tbody>
                 </table>
               </section>
             </section>

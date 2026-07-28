@@ -79,6 +79,16 @@ function buildExpiryLabels(locale: string): ExpiryLabels {
       quarantine: t('dashboard.status.quarantine'),
       blocked: t('dashboard.status.blocked'),
     },
+    qaStatus: {
+      pending: t('expiryPage.qaStatus.pending'),
+      released: t('expiryPage.qaStatus.released'),
+      on_hold: t('expiryPage.qaStatus.on_hold'),
+      rejected: t('expiryPage.qaStatus.rejected'),
+      quarantined: t('expiryPage.qaStatus.quarantined'),
+      passed: t('expiryPage.qaStatus.passed'),
+      failed: t('expiryPage.qaStatus.failed'),
+      hold: t('expiryPage.qaStatus.hold'),
+    },
   };
 }
 
@@ -99,6 +109,7 @@ function makeRow(over: Partial<ExpiryRow>): ExpiryRow {
     expiryDate: over.expiryDate ?? '2026-04-15T00:00:00.000Z',
     daysLeft: over.daysLeft ?? -6,
     status: over.status ?? '',
+    qaStatus: over.qaStatus ?? 'released',
   };
 }
 
@@ -145,6 +156,28 @@ describe('ExpiryDashboardClient (WH-019 parity)', () => {
     expect(link).toHaveTextContent('LP-9999');
     const row = screen.getByTestId('expiry-row-lp-x');
     expect(within(row).getByText('12d')).toBeInTheDocument();
+  });
+
+  it('renders real batch number and LP status badge (null batch → em dash)', () => {
+    renderExpiry(
+      [
+        makeRow({ lpId: 'b1', batchNumber: 'NIGHT-R08-SB-1400', status: 'available', qaStatus: 'released', tier: 'red' }),
+        makeRow({ lpId: 'b2', batchNumber: null, status: '', qaStatus: 'pending', tier: 'amber', daysLeft: 10 }),
+      ],
+      1,
+      1,
+    );
+    const rowWithBatch = screen.getByTestId('expiry-row-b1');
+    expect(within(rowWithBatch).getByText('NIGHT-R08-SB-1400')).toBeInTheDocument();
+    expect(screen.getByTestId('expiry-status-b1')).toHaveTextContent(EN.status.available);
+    expect(screen.getByTestId('expiry-qa-b1')).toHaveTextContent(EN.qaStatus.released);
+
+    const rowWithoutBatch = screen.getByTestId('expiry-row-b2');
+    // Batch and LP-status are separate columns — both may show the em dash when empty.
+    const cells = within(rowWithoutBatch).getAllByRole('cell');
+    expect(cells[2]).toHaveTextContent(EN.none);
+    expect(screen.getByTestId('expiry-status-b2')).toHaveTextContent(EN.none);
+    expect(screen.getByTestId('expiry-qa-b2')).toHaveTextContent(EN.qaStatus.pending);
   });
 
   it('renders an expired row with the "expired Nd ago" days-left copy', () => {

@@ -150,6 +150,9 @@ export type LpDetailLabels = {
     noChildren: string;
     status: string;
     qty: string;
+    /** R14-02 — work orders that consumed from this LP. */
+    consumingWosTitle: string;
+    noConsumingWos: string;
   };
   labels: {
     deferred: string;
@@ -161,10 +164,12 @@ export type LpDetailLabels = {
     error: string;
     forbidden: string;
     historyLink: string;
+    printModal: LpPrintLabelModalLabels;
     errors: {
       generic: string;
       entityNotFound: string;
       printerNotFound: string;
+      printerSiteMismatch: string;
       unsupportedEntity: string;
     };
   };
@@ -175,7 +180,41 @@ export type LpDetailLabels = {
 export type LpPrintLabelResult =
   | { status: 'queued' | 'sent'; result_url: string | null }
   | { status: 'failed'; result_url: null; code: string };
-export type LpPrintLabelInput = { entityType: 'lp'; entityId: string };
+export type LpPrintLabelInput = {
+  entityType: 'lp';
+  entityId: string;
+  copies?: number;
+  printerId?: string;
+};
+
+export type LpPrinterOption = {
+  id: string;
+  name: string;
+  printerType: 'pdf' | 'zpl';
+};
+
+export type LpPrintLabelModalLabels = {
+  title: string;
+  intro: string;
+  copies: string;
+  copiesHelp: string;
+  printer: string;
+  printerPlaceholder: string;
+  noPrinters: string;
+  printersLoadError: string;
+  cancel: string;
+  submit: string;
+  submitting: string;
+  validation: {
+    copiesInteger: string;
+    copiesMin: string;
+    copiesMax: string;
+    printerRequired: string;
+  };
+  errors: {
+    generic: string;
+  };
+};
 
 
 export function buildLpDetailLabels(locale: string): LpDetailLabels {
@@ -318,6 +357,8 @@ export function buildLpDetailLabels(locale: string): LpDetailLabels {
         intro: t('detail.actions.splitModal.intro'),
         qty: t('detail.actions.splitModal.qty'),
         qtyHint: t('detail.actions.splitModal.qtyHint'),
+        destination: t('detail.actions.splitModal.destination'),
+        destinationPlaceholder: t('detail.actions.splitModal.destinationPlaceholder'),
         reason: t('detail.actions.splitModal.reason'),
         reasonPlaceholder: t('detail.actions.splitModal.reasonPlaceholder'),
         cancel: t('detail.actions.splitModal.cancel'),
@@ -327,6 +368,7 @@ export function buildLpDetailLabels(locale: string): LpDetailLabels {
           positive: t('detail.actions.splitModal.validation.positive'),
           lessThanAvailable: t('detail.actions.splitModal.validation.lessThanAvailable'),
           reasonRequired: t('detail.actions.splitModal.validation.reasonRequired'),
+          destinationRequired: t('detail.actions.splitModal.validation.destinationRequired'),
         },
         errors: {
           forbidden: t('detail.actions.splitModal.errors.forbidden'),
@@ -335,6 +377,8 @@ export function buildLpDetailLabels(locale: string): LpDetailLabels {
           invalidState: t('detail.actions.splitModal.errors.invalidState'),
           onHold: t('detail.actions.splitModal.errors.onHold'),
           qtyTooLarge: t('detail.actions.splitModal.errors.qtyTooLarge'),
+          destinationInvalid: t('detail.actions.splitModal.errors.destinationInvalid'),
+          siteScope: t('detail.actions.splitModal.errors.siteScope'),
           generic: t('detail.actions.splitModal.errors.generic'),
         },
       },
@@ -496,6 +540,8 @@ export function buildLpDetailLabels(locale: string): LpDetailLabels {
       noChildren: t('detail.genealogy.noChildren'),
       status: t('detail.genealogy.status'),
       qty: t('detail.genealogy.qty'),
+      consumingWosTitle: t('detail.genealogy.consumingWosTitle'),
+      noConsumingWos: t('detail.genealogy.noConsumingWos'),
     },
     labels: {
       deferred: t('detail.labels.deferred'),
@@ -507,6 +553,50 @@ export function buildLpDetailLabels(locale: string): LpDetailLabels {
       error: t('detail.labels.error'),
       forbidden: t('detail.labels.forbidden'),
       historyLink: t('detail.labels.historyLink'),
+      printModal: {
+        title: t.has('detail.labels.printModal.title')
+          ? t('detail.labels.printModal.title')
+          : 'Print label — {lp}',
+        intro: t.has('detail.labels.printModal.intro')
+          ? t('detail.labels.printModal.intro')
+          : 'Choose how many copies to print and which printer to use.',
+        copies: t.has('detail.labels.printModal.copies') ? t('detail.labels.printModal.copies') : 'Copies',
+        copiesHelp: t.has('detail.labels.printModal.copiesHelp')
+          ? t('detail.labels.printModal.copiesHelp')
+          : 'Enter a whole number from 1 to 100.',
+        printer: t.has('detail.labels.printModal.printer') ? t('detail.labels.printModal.printer') : 'Printer',
+        printerPlaceholder: t.has('detail.labels.printModal.printerPlaceholder')
+          ? t('detail.labels.printModal.printerPlaceholder')
+          : 'Select a printer…',
+        noPrinters: t.has('detail.labels.printModal.noPrinters')
+          ? t('detail.labels.printModal.noPrinters')
+          : 'No active printers are configured for this site.',
+        printersLoadError: t.has('detail.labels.printModal.printersLoadError')
+          ? t('detail.labels.printModal.printersLoadError')
+          : 'Could not load printers — try again.',
+        cancel: t.has('detail.labels.printModal.cancel') ? t('detail.labels.printModal.cancel') : 'Cancel',
+        submit: t.has('detail.labels.printModal.submit') ? t('detail.labels.printModal.submit') : 'Print',
+        submitting: t.has('detail.labels.printModal.submitting')
+          ? t('detail.labels.printModal.submitting')
+          : 'Printing…',
+        validation: {
+          copiesInteger: t.has('detail.labels.printModal.validation.copiesInteger')
+            ? t('detail.labels.printModal.validation.copiesInteger')
+            : 'Copies must be a whole number.',
+          copiesMin: t.has('detail.labels.printModal.validation.copiesMin')
+            ? t('detail.labels.printModal.validation.copiesMin')
+            : 'Copies must be at least 1.',
+          copiesMax: t.has('detail.labels.printModal.validation.copiesMax')
+            ? t('detail.labels.printModal.validation.copiesMax')
+            : 'Copies cannot exceed 100.',
+          printerRequired: t.has('detail.labels.printModal.validation.printerRequired')
+            ? t('detail.labels.printModal.validation.printerRequired')
+            : 'Select a printer.',
+        },
+        errors: {
+          generic: t('detail.labels.error'),
+        },
+      },
       errors: {
         generic: t('detail.labels.error'),
         entityNotFound: t.has('detail.labels.errors.entityNotFound')
@@ -515,6 +605,9 @@ export function buildLpDetailLabels(locale: string): LpDetailLabels {
         printerNotFound: t.has('detail.labels.errors.printerNotFound')
           ? t('detail.labels.errors.printerNotFound')
           : 'The selected printer is missing or inactive.',
+        printerSiteMismatch: t.has('detail.labels.errors.printerSiteMismatch')
+          ? t('detail.labels.errors.printerSiteMismatch')
+          : 'The selected printer is not available for this license plate\'s site.',
         unsupportedEntity: t.has('detail.labels.errors.unsupportedEntity')
           ? t('detail.labels.errors.unsupportedEntity')
           : 'Only license-plate labels can be printed from here.',

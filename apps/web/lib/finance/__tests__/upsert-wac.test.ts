@@ -1247,8 +1247,24 @@ function divideDecimal(left: string, right: string): string {
   return fromFixed((toFixed(left) * SCALE) / toFixed(right));
 }
 
+/**
+ * Mirrors `round(raw_qty_kg, 3)` — item_wac_state.total_qty_kg is numeric(14,3).
+ * The mock has to quantize exactly where Postgres does, or a mock-based test would
+ * "pass" on sub-gram deltas that the real column silently rounds to zero.
+ */
+function roundToPoolQtyScale(value: string): string {
+  const micro = toFixed(value);
+  const negative = micro < 0n;
+  const abs = negative ? -micro : micro;
+  const rounded = ((abs + 500n) / 1000n) * 1000n; // half away from zero, at 3 dp
+  return fromFixed(negative ? -rounded : rounded);
+}
+
 function coerceWacTotals(rawQty: string, rawValue: string): { totalQtyKg: string; totalValue: string; clamped: boolean } {
-  const coercedQty = maxDecimal(rawQty, '0');
+  // Coherence is judged on the quantity the column will STORE, not on the
+  // unrounded sum — judging the unrounded sum is what let value strand at qty 0.
+  const storedQty = roundToPoolQtyScale(rawQty);
+  const coercedQty = maxDecimal(storedQty, '0');
   const coercedValue = maxDecimal(rawValue, '0');
   const strandedValue = compareDecimal(coercedQty, '0') === 0 && compareDecimal(coercedValue, '0') > 0;
   const totalQtyKg = coercedQty;

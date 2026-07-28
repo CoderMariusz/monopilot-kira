@@ -386,4 +386,184 @@ runIntegrationSuite('upsertWac real Postgres behavior', () => {
       client.release();
     }
   });
+
+  // R07-03: priced g/pcs lines could be ordered but never received. Grams are an exact
+  // ÷1000 decimal shift; kg/each/box must keep converting exactly as before.
+  it('converts g to kg by exact decimal division and leaves kg/each/box untouched', async () => {
+    const client = await ownerPool.connect();
+    const gramItemId = randomUUID();
+    try {
+      await client.query('begin');
+      await client.query(`select set_config('app.current_org_id', $1, true)`, [orgId]);
+      await client.query(
+        `insert into public.items (
+           id, org_id, item_code, item_type, name, uom_base, net_qty_per_each, each_per_box, created_by
+         )
+         values ($1, $2, $3, 'rm', 'WAC Gram RM', 'kg', 0.400000, 6, $4)`,
+        [gramItemId, orgId, `WAC-G-${gramItemId.slice(0, 8)}`, userId],
+      );
+
+      // The exact production receipt that failed with [wac] unresolved_uom.
+      expect(await resolveWacDeltaQtyKg(client, { itemId: gramItemId, qty: '100.125', uom: 'g' })).toEqual({
+        qtyKg: '0.100125',
+        resolved: true,
+      });
+      // The ordered quantity from the same PO line, and case-insensitivity of the code.
+      expect(await resolveWacDeltaQtyKg(client, { itemId: gramItemId, qty: '789.125', uom: 'G' })).toEqual({
+        qtyKg: '0.789125',
+        resolved: true,
+      });
+      // A 6-dp gram input would need 9 dp in kg: rounded to 6 dp (1 mg), never rejected.
+      expect(await resolveWacDeltaQtyKg(client, { itemId: gramItemId, qty: '100.123456', uom: 'g' })).toEqual({
+        qtyKg: '0.100123',
+        resolved: true,
+      });
+
+      // Anti-regression: the three paths production already uses are byte-for-byte unchanged.
+      expect(await resolveWacDeltaQtyKg(client, { itemId: gramItemId, qty: '10.5', uom: 'kg' })).toEqual({
+        qtyKg: '10.5',
+        resolved: true,
+      });
+      const eachResolution = await resolveWacDeltaQtyKg(client, { itemId: gramItemId, qty: '7.5', uom: 'each' });
+      expect(eachResolution.resolved).toBe(true);
+      expect(Number(eachResolution.qtyKg)).toBe(3); // 7.5 each × 0.4 kg
+      const boxResolution = await resolveWacDeltaQtyKg(client, { itemId: gramItemId, qty: '2', uom: 'box' });
+      expect(boxResolution.resolved).toBe(true);
+      expect(Number(boxResolution.qtyKg)).toBe(4.8); // 2 boxes × 6 each × 0.4 kg
+
+      // Litres still have no density to convert with — deliberately still unresolved.
+      expect(await resolveWacDeltaQtyKg(client, { itemId: gramItemId, qty: '3', uom: 'l' })).toEqual({
+        qtyKg: '0',
+        resolved: false,
+        marker: 'unresolved_uom',
+      });
+
+      // Storage truth: item_wac_state.total_qty_kg is numeric(14,3), so the exact
+      // 0.100125 kg quantizes to 1 g in the pool — the same rounding each/box always had.
+      await upsertWac(client, {
+        orgId,
+        siteId: null,
+        itemId: gramItemId,
+        deltaQtyKg: '0.100125',
+        deltaValue: '1.9925',
+        updatedBy: userId,
+      });
+      const { rows } = await client.query<{ total_qty_kg: string; total_value: string }>(
+        `select total_qty_kg::text, total_value::text
+           from public.item_wac_state
+          where org_id = $1::uuid
+            and item_id = $2::uuid`,
+        [orgId, gramItemId],
+      );
+      expect(rows).toEqual([{ total_qty_kg: '0.100', total_value: '1.9925' }]);
+
+      await client.query('commit');
+    } catch (error) {
+      await client.query('rollback').catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
+  });
+
+  /**
+   * The pool row carries THREE different scales: total_qty_kg numeric(14,3),
+   * total_value numeric(18,4), avg_cost numeric(18,6). Quantity is the first to
+   * quantize away, and the coherence clamp used to be judged on the UNROUNDED sum
+   * — so a sub-gram receipt stored qty 0.000 and kept its value, leaving the pool
+   * holding money it reported as weightless.
+   *
+   * avg_cost is generated as `case when total_qty_kg = 0 then 0 else round(...) end`,
+   * so the row does not divide by zero; it reports the stranded value as costing
+   * NOTHING, and then the next gram received divides that whole stranded value by
+   * one gram. This test pins both halves.
+   */
+  it('never strands value at zero quantity when a sub-gram receipt quantizes away', async () => {
+    const client = await ownerPool.connect();
+    const subGramItemId = randomUUID();
+    const readPool = () =>
+      client.query<{ total_qty_kg: string; total_value: string; avg_cost: string }>(
+        `select total_qty_kg::text, total_value::text, avg_cost::text
+           from public.item_wac_state
+          where org_id = $1::uuid
+            and item_id = $2::uuid`,
+        [orgId, subGramItemId],
+      );
+    try {
+      await client.query('begin');
+      await client.query(`select set_config('app.current_org_id', $1, true)`, [orgId]);
+
+      // 0.4 g = 0.0004 kg, worth £4. numeric(14,3) rounds the quantity to 0.000 on
+      // store; numeric(18,4) keeps every penny of the value.
+      const first = await upsertWac(client, {
+        orgId,
+        siteId: null,
+        itemId: subGramItemId,
+        deltaQtyKg: '0.0004',
+        deltaValue: '4.0000',
+        updatedBy: userId,
+      });
+      // Dropped value is reported, not swallowed: this raises FINANCE_WAC_UNDERFLOW.
+      expect(first.clamped).toBe(true);
+      expect(first.appliedQtyKg).toBe('0');
+      expect(first.appliedValue).toBe('0');
+
+      expect((await readPool()).rows).toEqual([
+        { total_qty_kg: '0.000', total_value: '0.0000', avg_cost: '0.000000' },
+      ]);
+
+      // The explosion this prevents: with £4 stranded at qty 0, receiving one more
+      // gram at £0.01 would price the pool at 4010.000000/kg instead of 10.000000/kg.
+      await upsertWac(client, {
+        orgId,
+        siteId: null,
+        itemId: subGramItemId,
+        deltaQtyKg: '0.001',
+        deltaValue: '0.0100',
+        updatedBy: userId,
+      });
+      expect((await readPool()).rows).toEqual([
+        { total_qty_kg: '0.001', total_value: '0.0100', avg_cost: '10.000000' },
+      ]);
+
+      await client.query('commit');
+    } catch (error) {
+      await client.query('rollback').catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
+  });
+
+  /** A receipt big enough to survive the 3-dp store is untouched by the clamp. */
+  it('leaves a normal receipt fully intact, applied amounts equal to the requested delta', async () => {
+    const client = await ownerPool.connect();
+    const normalItemId = randomUUID();
+    try {
+      await client.query('begin');
+      await client.query(`select set_config('app.current_org_id', $1, true)`, [orgId]);
+
+      const result = await upsertWac(client, {
+        orgId,
+        siteId: null,
+        itemId: normalItemId,
+        deltaQtyKg: '0.100125',
+        deltaValue: '1.9925',
+        updatedBy: userId,
+      });
+
+      expect(result.clamped).toBe(false);
+      // 0.100125 kg stores as 0.100 — the applied quantity reports what the pool
+      // actually took, which is what the reversal snapshot must record.
+      expect(result.appliedQtyKg).toBe('0.1');
+      expect(result.appliedValue).toBe('1.9925');
+
+      await client.query('commit');
+    } catch (error) {
+      await client.query('rollback').catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
+  });
 });

@@ -1,14 +1,13 @@
 import { randomUUID } from 'node:crypto';
 
+import { DECIMAL_QTY_RE, microToDecimal, toMicro } from '../shared/decimal';
+
 import type { QueryClient } from '../scanner/db';
 
 export type DecimalString = string;
 
 export const OPEN_PO_STATUSES = ['sent', 'confirmed', 'partially_received'] as const;
 export const RECEIVE_PO_APP_VERSION = 'warehouse-scanner-receive-po-v1';
-
-const DECIMAL_SCALE = 6n;
-const DECIMAL_FACTOR = 1_000_000n;
 
 export type ReceivePoLineCoreInput = {
   poLineId: string;
@@ -832,17 +831,25 @@ async function completeFullyReceivedGrns(
   );
 }
 
+/**
+ * Server-side quantity guard.
+ *
+ * The pattern is IMPORTED from lib/shared/decimal, never re-declared here. This
+ * guard and the receiving forms each used to carry their own copy; the copies
+ * drifted (server 6 dp, forms 3 dp) and that divergence WAS R07-02 — the last
+ * 0.000600 of a line became impossible to receive. Two copies cannot be kept in
+ * sync by discipline; one shared symbol cannot drift at all. Do not inline it.
+ */
 export function parseDecimal(input: string): bigint {
-  if (!/^(?:0|[1-9]\d*)(?:\.\d{1,6})?$/.test(input)) throw new ReceivePoLineCoreError('invalid_qty', 400);
-  const [whole, frac = ''] = input.split('.');
-  return BigInt(whole) * DECIMAL_FACTOR + BigInt(frac.padEnd(Number(DECIMAL_SCALE), '0'));
+  if (!DECIMAL_QTY_RE.test(input)) throw new ReceivePoLineCoreError('invalid_qty', 400);
+  return toMicro(input);
 }
 
-export function formatDecimal(value: bigint): string {
-  const whole = value / DECIMAL_FACTOR;
-  const frac = (value % DECIMAL_FACTOR).toString().padStart(Number(DECIMAL_SCALE), '0').replace(/0+$/, '');
-  return frac ? `${whole}.${frac}` : whole.toString();
-}
+/**
+ * Micro-units → decimal text. Alias of the shared helper for the same reason as
+ * above (it also renders negatives correctly, which the local copy did not).
+ */
+export const formatDecimal = microToDecimal;
 
 export function computeExpiryDate(bestBefore: string | null, shelfLifeDays: number | null): string | null {
   if (bestBefore) return bestBefore;

@@ -61,6 +61,7 @@ function buildLabels(t: ReturnType<typeof getCountsTranslator>): CountSessionDet
       columns: {
         location: t('detail.entry.columns.location'),
         item: t('detail.entry.columns.item'),
+        lp: t('detail.entry.columns.lp'),
         counted: t('detail.entry.columns.counted'),
         actions: t('detail.entry.columns.actions'),
       },
@@ -79,6 +80,7 @@ function buildLabels(t: ReturnType<typeof getCountsTranslator>): CountSessionDet
       columns: {
         location: t('detail.review.columns.location'),
         item: t('detail.review.columns.item'),
+        lp: t('detail.review.columns.lp'),
         system: t('detail.review.columns.system'),
         counted: t('detail.review.columns.counted'),
         variance: t('detail.review.columns.variance'),

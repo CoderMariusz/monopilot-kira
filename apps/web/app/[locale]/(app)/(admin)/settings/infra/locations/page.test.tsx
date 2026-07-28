@@ -384,6 +384,9 @@ const REQUIRED_LOCATION_MODAL_LABEL_KEYS = Object.freeze([
   'createLocation',
   'confirmDelete',
   'saveChanges',
+  // R08-01 — the refusal an operator meets when deactivating a stocked location. Pinned across
+  // all four locales so it can never regress to a raw key.
+  'hasStockError',
 ]);
 
 async function renderLocationModalCrud(overrides: LocationModalCrudProps = {}) {

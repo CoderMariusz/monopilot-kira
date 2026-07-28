@@ -637,7 +637,9 @@
       "noBarcode": "No barcode",
       "parentInactiveHint": "The parent location is inactive, so this location is saved as inactive. Reactivate the parent first to keep it active.",
       "parentInactiveLegacyHint": "This location is active even though its parent is inactive. Editing it here keeps its current status — reactivate {parent} to repair the hierarchy.",
-      "hasActiveChildrenError": "This location still has active child locations. Deactivate them first, or leave this location active."
+      "hasActiveChildrenError": "This location still has active child locations. Deactivate them first, or leave this location active.",
+      "hasStockError": "This location still holds {count} live license plate(s). Move or consume that stock first — an inactive location cannot be scanned as a move target.",
+      "lpsElsewhere": "{count} live LP(s) are parked here. Open the full LP list to see them."
     }
   },
   "schema": {

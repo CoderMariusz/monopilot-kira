@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { revalidateLocalized } from '../../../../../../lib/i18n/revalidate-localized';
+import { getActiveSiteId } from '../../../../../../lib/site/site-context';
 import { CORRECTION_REASON_CODES } from '../../../../../../lib/corrections/correct-ledger-entry';
 import {
   resolveWacDeltaQtyKg,
@@ -65,10 +66,36 @@ type LpMetadataError =
   | 'invalid_input'
   | 'persistence_failed';
 
+type CancelGrnLineResult = { ok: true } | { ok: false; error: ReceiptCorrectionError; message?: string };
+type UpdateLpMetadataResult = { ok: true } | { ok: false; error: LpMetadataError; message?: string };
+
+/**
+ * R07-04 — cache revalidation runs AFTER the org transaction has committed, and
+ * can never fail the action.
+ *
+ * It used to sit inside the `withOrgContext` callback, after all seven
+ * mutations: `revalidatePath` throws whenever it runs outside a request scope,
+ * and that throw unwound the transaction (rolling back the LP return, the GRN
+ * line cancellation, the stock move and the WAC reversal) and surfaced as a bare
+ * `persistence_failed`. Same shape as the receive path
+ * (`receive-po-line.ts` → `revalidateReceivePaths`): outside the transaction and
+ * guarded. Deliberately swallowing instead of rethrowing — a stale cache must
+ * not report committed work as a failure the operator retries into
+ * `already_cancelled`.
+ */
+function revalidateAfterCommit(routes: readonly string[]): void {
+  try {
+    for (const route of routes) revalidateLocalized(route);
+  } catch (error) {
+    console.warn('[warehouse] revalidate after commit failed', { routes, error });
+  }
+}
+
 type GrnLineForCancel = {
   id: string;
   grn_id: string;
   grn_status: string;
+  grn_site_id: string | null;
   po_id: string | null;
   item_id: string;
   lp_id: string | null;
@@ -97,6 +124,7 @@ type LicensePlateForCancel = {
 type LicensePlateForMetadata = {
   id: string;
   status: string;
+  site_id: string | null;
   batch_number: string | null;
   expiry_date: string | null;
   best_before_date: string | null;
@@ -119,6 +147,11 @@ function normalizeNullableText(value: string | null | undefined): string | null 
 // float precision and admit false matches/mismatches).
 function sameDecimal(a: string | null | undefined, b: string | null | undefined): boolean {
   return toMicro(a ?? '0') === toMicro(b ?? '0');
+}
+
+/** R08-09 — mutations fail closed; reads may admit site_id IS NULL rows. */
+function resourceVisibleForMutation(resourceSiteId: string | null, activeSiteId: string | null): boolean {
+  return activeSiteId !== null && resourceSiteId !== null && resourceSiteId === activeSiteId;
 }
 
 function negateDecimalString(value: string): string {
@@ -162,6 +195,7 @@ async function loadGrnLineForUpdate(ctx: WarehouseContext, grnItemId: string): P
     `select gi.id::text,
             gi.grn_id::text,
             g.status as grn_status,
+            g.site_id::text as grn_site_id,
             coalesce(g.po_id, pol.po_id)::text as po_id,
             gi.product_id::text as item_id,
             gi.lp_id::text,
@@ -173,7 +207,13 @@ async function loadGrnLineForUpdate(ctx: WarehouseContext, grnItemId: string): P
             gi.ext_jsonb,
             po.currency as po_currency
        from public.grn_items gi
-       left join public.grns g
+       -- R07-04 — INNER, never LEFT: Postgres refuses 'for update of g' when g is
+       -- the nullable side of an outer join (0A000 "FOR UPDATE cannot be applied
+       -- to the nullable side of an outer join"), so EVERY receipt cancellation
+       -- failed here, before the first mutation. grn_items.grn_id is NOT NULL, so
+       -- the outer join never admitted a row an inner join drops.
+       -- The pol/po joins below stay LEFT — they are not in 'for update of'.
+       join public.grns g
          on g.org_id = gi.org_id
         and g.id = gi.grn_id
        left join public.purchase_order_lines pol
@@ -353,6 +393,7 @@ async function loadLpForMetadataUpdate(ctx: WarehouseContext, lpId: string): Pro
   const { rows } = await ctx.client.query<LicensePlateForMetadata>(
     `select id::text,
             status,
+            site_id::text,
             batch_number,
             expiry_date::text as expiry_date,
             best_before_date::text as best_before_date
@@ -366,28 +407,34 @@ async function loadLpForMetadataUpdate(ctx: WarehouseContext, lpId: string): Pro
   return rows[0] ?? null;
 }
 
-export async function cancelGrnLine(input: unknown): Promise<
-  | { ok: true }
-  | { ok: false; error: ReceiptCorrectionError; message?: string }
-> {
+export async function cancelGrnLine(input: unknown): Promise<CancelGrnLineResult> {
   const parsed = CancelGrnLineInput.safeParse(input);
   if (!parsed.success) return { ok: false, error: 'invalid_input', message: parsed.error.message };
   const note = normalizeNote(parsed.data.note);
 
   try {
-    return await withOrgContext(async ({ userId, orgId, client }) => {
+    const result = await withOrgContext(async ({ userId, orgId, client }): Promise<CancelGrnLineResult> => {
       const ctx: WarehouseContext = { userId, orgId, client: client as QueryClient };
       if (!(await hasWarehousePermission(ctx, WAREHOUSE_RECEIPT_CORRECT_PERMISSION))) {
         return { ok: false, error: 'forbidden' };
       }
 
+      const activeSiteId = await getActiveSiteId({ client: ctx.client });
+      if (!activeSiteId) return { ok: false, error: 'not_found' };
+
       const line = await loadGrnLineForUpdate(ctx, parsed.data.grnItemId);
       if (!line) return { ok: false, error: 'not_found' };
+      if (!resourceVisibleForMutation(line.grn_site_id, activeSiteId)) {
+        return { ok: false, error: 'not_found' };
+      }
       if (line.grn_status === 'completed') return { ok: false, error: 'grn_completed' };
       if (line.cancelled_at) return { ok: false, error: 'already_cancelled' };
       if (!line.lp_id) return { ok: false, error: 'lp_not_cancellable' };
       const lp = await loadLpForCancel(ctx, line.lp_id);
       if (!lp?.lp_status || !lp.lp_qa_status) return { ok: false, error: 'lp_not_cancellable' };
+      if (!resourceVisibleForMutation(lp.lp_site_id, activeSiteId)) {
+        return { ok: false, error: 'not_found' };
+      }
       if (!CANCELLABLE_LP_STATUSES.has(lp.lp_status) || !CANCELLABLE_QA_STATUSES.has(lp.lp_qa_status)) {
         return { ok: false, error: 'lp_not_cancellable' };
       }
@@ -533,20 +580,18 @@ export async function cancelGrnLine(input: unknown): Promise<
         },
       });
 
-      revalidateLocalized('/warehouse/grns');
-      revalidateLocalized('/planning/purchase-orders');
       return { ok: true };
     });
+
+    if (result.ok) revalidateAfterCommit(['/warehouse/grns', '/planning/purchase-orders']);
+    return result;
   } catch (error) {
     console.error('[warehouse] cancelGrnLine failed', error);
     return { ok: false, error: 'persistence_failed' };
   }
 }
 
-export async function updateLpMetadata(input: unknown): Promise<
-  | { ok: true }
-  | { ok: false; error: LpMetadataError; message?: string }
-> {
+export async function updateLpMetadata(input: unknown): Promise<UpdateLpMetadataResult> {
   const parsed = UpdateLpMetadataInput.safeParse(input);
   if (!parsed.success) return { ok: false, error: 'invalid_input', message: parsed.error.message };
   const note = normalizeNote(parsed.data.note);
@@ -554,14 +599,20 @@ export async function updateLpMetadata(input: unknown): Promise<
   const batchNumber = normalizeNullableText(parsed.data.batchNumber);
 
   try {
-    return await withOrgContext(async ({ userId, orgId, client }) => {
+    const result = await withOrgContext(async ({ userId, orgId, client }): Promise<UpdateLpMetadataResult> => {
       const ctx: WarehouseContext = { userId, orgId, client: client as QueryClient };
       if (!(await hasWarehousePermission(ctx, WAREHOUSE_RECEIPT_CORRECT_PERMISSION))) {
         return { ok: false, error: 'forbidden' };
       }
 
+      const activeSiteId = await getActiveSiteId({ client: ctx.client });
+      if (!activeSiteId) return { ok: false, error: 'not_found' };
+
       const lp = await loadLpForMetadataUpdate(ctx, parsed.data.lpId);
       if (!lp) return { ok: false, error: 'not_found' };
+      if (!resourceVisibleForMutation(lp.site_id, activeSiteId)) {
+        return { ok: false, error: 'not_found' };
+      }
       if (EDITABLE_METADATA_BLOCKED_STATUSES.has(lp.status)) {
         return { ok: false, error: 'lp_not_editable' };
       }
@@ -634,10 +685,15 @@ export async function updateLpMetadata(input: unknown): Promise<
         },
       });
 
-      revalidateLocalized('/warehouse/license-plates');
-      revalidateLocalized(`/warehouse/license-plates/${lp.id}`);
       return { ok: true };
     });
+
+    // Same defect as cancelGrnLine: an unguarded revalidate inside the open
+    // transaction rolled the metadata correction back.
+    if (result.ok) {
+      revalidateAfterCommit(['/warehouse/license-plates', `/warehouse/license-plates/${parsed.data.lpId}`]);
+    }
+    return result;
   } catch (error) {
     console.error('[warehouse] updateLpMetadata failed', error);
     return { ok: false, error: 'persistence_failed' };

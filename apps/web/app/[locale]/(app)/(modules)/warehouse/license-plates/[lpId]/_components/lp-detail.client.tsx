@@ -74,16 +74,18 @@ import {
 } from './lp-metadata-edit-modal.client';
 import { LpReserveModal } from './lp-reserve-modal.client';
 import { LP_DEFERRED_ACTIONS, LP_DETAIL_ACTIONS, type LpDetailAction, type LpDeferredAction } from './lp-detail-constants';
+import { LpPrintLabelModal } from './lp-print-label-modal.client';
 import {
   type LpDetailLabels,
   type LpPrintLabelInput,
   type LpPrintLabelResult,
+  type LpPrinterOption,
 } from './lp-detail-labels';
 
 // Client-side consumers (tests) may keep importing these from here; SERVER code
 // must import from './lp-detail-constants' / './lp-detail-labels'.
 export { LP_DEFERRED_ACTIONS, LP_DETAIL_ACTIONS, type LpDetailAction, type LpDeferredAction };
-export type { LpDetailLabels, LpPrintLabelInput, LpPrintLabelResult };
+export type { LpDetailLabels, LpPrintLabelInput, LpPrintLabelResult, LpPrinterOption };
 
 /** LP statuses for which the "move" action is NOT allowed (terminal lifecycle). */
 const IMMOVABLE_STATUSES = new Set(['consumed', 'merged', 'shipped', 'returned', 'destroyed']);
@@ -196,6 +198,8 @@ export function LpDetailClient({
   updateLpMetadataAction,
   printLabelAction,
   canPrint,
+  sitePrinters = [],
+  sitePrintersLoadError = false,
 }: {
   detail: LicensePlateDetail;
   labels: LpDetailLabels;
@@ -222,6 +226,10 @@ export function LpDetailClient({
    */
   printLabelAction: (input: LpPrintLabelInput) => Promise<LpPrintLabelResult>;
   canPrint: boolean;
+  /** Active printers for this LP's site (resolved server-side on the page). */
+  sitePrinters?: LpPrinterOption[];
+  /** True when listPrinters failed — distinct from an empty printer list. */
+  sitePrintersLoadError?: boolean;
   /**
    * C-R3 — edit LP expiry / batch. OWNED by the warehouse corrections lane
    * (warehouse/_actions/lp-metadata-actions.ts) and threaded in by the page via an
@@ -250,7 +258,7 @@ export function LpDetailClient({
   const [destroyModalOpen, setDestroyModalOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   // E1 — label print state for the labels tab.
-  const [printPending, setPrintPending] = useState(false);
+  const [printModalOpen, setPrintModalOpen] = useState(false);
   const [printResult, setPrintResult] = useState<LpPrintLabelResult | null>(null);
   const [printError, setPrintError] = useState<string | null>(null);
   const router = useRouter();
@@ -391,27 +399,26 @@ export function LpDetailClient({
     if (code === 'forbidden') return labels.labels.forbidden;
     if (code === 'entity_not_found') return errors.entityNotFound;
     if (code === 'printer_not_found') return errors.printerNotFound;
+    if (code === 'printer_site_mismatch') return errors.printerSiteMismatch;
     if (code === 'unsupported_entity_type') return errors.unsupportedEntity;
     return errors.generic;
   }
 
-  async function submitPrintLabel() {
-    if (!canPrint || printPending) return;
-    setPrintPending(true);
+  function openPrintModal() {
+    if (!canPrint) return;
     setPrintError(null);
     setPrintResult(null);
-    try {
-      const result = await printLabelAction({ entityType: 'lp', entityId: detail.id });
-      if (result.status === 'failed') {
-        setPrintError(printErrorMessage(result.code));
-        return;
-      }
-      setPrintResult(result);
-    } catch {
-      setPrintError(labels.labels.errors.generic);
-    } finally {
-      setPrintPending(false);
+    setPrintModalOpen(true);
+  }
+
+  function handlePrintResult(result: LpPrintLabelResult) {
+    if (result.status === 'failed') {
+      setPrintError(printErrorMessage(result.code));
+      setPrintResult(null);
+      return;
     }
+    setPrintResult(result);
+    setPrintError(null);
   }
 
   return (
@@ -871,6 +878,34 @@ export function LpDetailClient({
                   </ul>
                 )}
               </section>
+              {/* R14-02 — reverse of the WO Genealogy tab: the WOs this LP fed.
+                  Qty is the NET sum, so a reversed consumption shows 0 and the
+                  work order still links (the trace must survive the reversal). */}
+              <section>
+                <h3 className="mb-1 text-sm font-semibold text-slate-900">{labels.genealogy.consumingWosTitle}</h3>
+                {detail.consumingWos.length === 0 ? (
+                  <p className="text-sm text-slate-500" data-testid="lp-genealogy-no-consuming-wos">
+                    {labels.genealogy.noConsumingWos}
+                  </p>
+                ) : (
+                  <ul className="flex flex-col gap-1" data-testid="lp-genealogy-consuming-wos">
+                    {detail.consumingWos.map((w) => (
+                      <li key={w.woId} className="flex items-center gap-3 text-sm">
+                        <Link
+                          href={`/${locale}/production/wos/${w.woId}`}
+                          className="font-mono text-sky-700 hover:underline"
+                        >
+                          {w.woNumber}
+                        </Link>
+                        <span className="text-slate-400">·</span>
+                        <span className="font-mono text-slate-600">
+                          {w.qty} {w.uom}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
             </Card>
           ) : null}
 
@@ -882,10 +917,10 @@ export function LpDetailClient({
               </p>
               <button
                 type="button"
-                disabled={!canPrint || printPending}
+                disabled={!canPrint}
                 title={canPrint ? undefined : labels.labels.forbidden}
                 aria-label={canPrint ? labels.labels.printAction : `${labels.labels.printAction} — ${labels.labels.forbidden}`}
-                onClick={() => void submitPrintLabel()}
+                onClick={openPrintModal}
                 data-testid="lp-labels-print"
                 className={
                   canPrint
@@ -893,7 +928,7 @@ export function LpDetailClient({
                     : 'w-fit cursor-not-allowed rounded-md border border-slate-200 px-2.5 py-1 text-xs text-slate-400'
                 }
               >
-                {printPending ? labels.labels.printing : labels.labels.printAction}
+                {labels.labels.printAction}
               </button>
               {printResult ? (
                 <div
@@ -1143,7 +1178,9 @@ export function LpDetailClient({
         />
       ) : null}
 
-      {/* WH-R3 — Split modal. Wires splitLp with a fresh clientOpId per open. */}
+      {/* WH-R3 — Split modal. Wires splitLp with a fresh clientOpId per open.
+          R08-02: it now also collects a REQUIRED destination for the child pallet, from the
+          same listLocations read the Move modal uses. */}
       {canSplit ? (
         <LpSplitModal
           open={splitModalOpen}
@@ -1153,6 +1190,7 @@ export function LpDetailClient({
           availableQty={detail.availableQty}
           uom={detail.uom}
           labels={labels.actions.split}
+          listLocationsAction={listLocationsAction}
           splitAction={splitLpAction}
           onSuccess={() => router.refresh()}
         />
@@ -1184,6 +1222,18 @@ export function LpDetailClient({
           onSuccess={() => router.refresh()}
         />
       ) : null}
+
+      <LpPrintLabelModal
+        open={printModalOpen}
+        onOpenChange={setPrintModalOpen}
+        lpId={detail.id}
+        lpNumber={detail.lpNumber}
+        printers={sitePrinters}
+        printersLoadError={sitePrintersLoadError}
+        labels={labels.labels.printModal}
+        printAction={printLabelAction}
+        onSuccess={handlePrintResult}
+      />
     </div>
   );
 }

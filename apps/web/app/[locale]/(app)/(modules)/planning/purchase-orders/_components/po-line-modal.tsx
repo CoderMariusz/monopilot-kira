@@ -29,10 +29,13 @@ import { ItemPicker } from '../../../../(npd)/_components/item-picker';
 import type { ItemPickerOption, SearchItemsInput } from '../../../../../../(npd)/fa/actions/search-items-types';
 import { UomSelect, type UomOptionLabels } from '../../../../../../../components/forms/uom-select';
 import type { GetItemSupplierPriceAction } from './create-po-modal';
-
-const QTY_PATTERN = /^\d+(?:\.\d{1,6})?$/;
-const PRICE_PATTERN = /^\d+(?:\.\d{1,4})?$/;
-const PCT_PATTERN = /^\d+(?:\.\d{1,4})?$/;
+import {
+  getPoLineFieldErrors,
+  isPoLineComplete,
+  isPoLineStarted,
+  type LineField,
+  type LineFieldErrorReason,
+} from './po-line-form-validation';
 
 export type PoLineModalLabels = {
   addTitle: string;
@@ -62,6 +65,14 @@ export type PoLineModalLabels = {
   errors: {
     itemRequired: string;
     qtyRequired: string;
+    /**
+     * R07-01 — shown AT the price field when the typed value cannot be stored
+     * exactly in purchase_order_lines.unit_price numeric(12,4). The line is
+     * refused; the price is NEVER silently coerced to 0.
+     */
+    priceInvalid: string;
+    /** Shown when the line has no unit price (blank is not consent to zero). */
+    priceRequired: string;
     invalid_input: string;
     forbidden: string;
     not_found: string;
@@ -152,6 +163,26 @@ export function PoLineModal({
   const [pending, setPending] = React.useState(false);
   const [formError, setFormError] = React.useState<string | null>(null);
 
+  const draft = React.useMemo(
+    () => ({ item: isEdit ? ({} as object) : item, qty, uom, unitPrice, taxPct }),
+    [isEdit, item, qty, uom, unitPrice, taxPct],
+  );
+  const lineStarted = isEdit || isPoLineStarted(draft);
+  const fieldErrors = lineStarted ? getPoLineFieldErrors(draft, 1) : [];
+  const hasFieldErrors = fieldErrors.length > 0;
+
+  function fieldError(field: LineField, reason?: LineFieldErrorReason) {
+    return fieldErrors.find((e) => e.field === field && (reason == null || e.reason === reason));
+  }
+
+  function priceErrorMessage(): string | null {
+    const required = fieldError('unitPrice', 'required');
+    if (required) return labels.errors.priceRequired;
+    const invalid = fieldError('unitPrice', 'invalid');
+    if (invalid) return labels.errors.priceInvalid;
+    return null;
+  }
+
   // BUG2 — scope the picker to the parent PO's supplier (re-runs if supplier changes).
   const searchSupplierItems = React.useCallback(
     (input: SearchItemsInput) =>
@@ -194,20 +225,20 @@ export function PoLineModal({
     e.preventDefault();
     setFormError(null);
 
-    if (!QTY_PATTERN.test(qty.trim()) || Number(qty) <= 0) {
-      setFormError(labels.errors.qtyRequired);
-      return;
-    }
-    if (!uom.trim()) {
-      setFormError(labels.errors.qtyRequired);
-      return;
-    }
-    if (!PCT_PATTERN.test(taxPct.trim()) || Number(taxPct) < 0 || Number(taxPct) > 100) {
-      setFormError(labels.errors.qtyRequired);
+    if (!isEdit && !item) {
+      setFormError(labels.errors.itemRequired);
       return;
     }
 
-    const price = PRICE_PATTERN.test(unitPrice.trim()) ? unitPrice.trim() : '0';
+    // Submit is disabled while hasFieldErrors, but implicit (Enter) submission can
+    // still reach here — refuse before any write rather than coerce to '0'.
+    if (hasFieldErrors || !isPoLineComplete(draft)) {
+      if (!item && !isEdit) setFormError(labels.errors.itemRequired);
+      else if (fieldError('qty')) setFormError(labels.errors.qtyRequired);
+      return;
+    }
+
+    const price = unitPrice.trim();
     const tax = taxPct.trim() || '0';
 
     setPending(true);
@@ -329,7 +360,13 @@ export function PoLineModal({
                 setUnitPrice(e.target.value);
                 setPriceSource(null);
               }}
+              aria-invalid={fieldError('unitPrice') ? true : undefined}
             />
+            {priceErrorMessage() ? (
+              <span role="alert" className="text-xs text-red-600" data-testid="po-line-price-error">
+                {priceErrorMessage()}
+              </span>
+            ) : null}
             {priceSource && labels.priceSource ? (
               <span className="text-[10px] text-slate-500" data-testid="po-line-price-source">
                 {labels.priceSource[priceSource]}
@@ -359,7 +396,7 @@ export function PoLineModal({
           form="po-line-form"
           className="btn--primary"
           data-testid="po-line-submit"
-          disabled={pending}
+          disabled={pending || hasFieldErrors}
           aria-busy={pending}
         >
           {pending ? labels.submitting : isEdit ? labels.submitEdit : labels.submitAdd}

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { moveScannerLp, WarehouseScannerError } from './movement';
+import { moveScannerLp, suggestPutawayLocations, WarehouseScannerError } from './movement';
 import type { QueryClient } from '../../scanner/db';
 import type { ScannerSessionRow } from '../../scanner/session';
 
@@ -128,5 +128,127 @@ describe('scanner warehouse movement', () => {
     });
     const scope = client.query.mock.calls.find(([sql]) => normalize(String(sql)).startsWith('select loc.warehouse_id::text'));
     expect(normalize(String(scope?.[0]))).toContain('coalesce(loc.is_active, true)');
+  });
+
+  // R17-02 / C101 cross-surface — a putaway into the bay the LP already occupies
+  // is a no-op: it must be rejected, and above all must not write a stock_move
+  // (fake movement history) nor promote received→available.
+  it('rejects a putaway into the LP CURRENT location and writes no stock_move (R17-02)', async () => {
+    const client = makeClient();
+
+    await expect(
+      moveScannerLp(client, session, {
+        clientOpId: 'putaway-same-location',
+        lpId: LP_ID,
+        toLocationId: FROM_LOCATION_ID,
+        moveType: 'putaway',
+      }),
+    ).rejects.toMatchObject({
+      code: 'same_location',
+      status: 409,
+    } satisfies Partial<WarehouseScannerError>);
+
+    const sql = client.query.mock.calls.map(([q]) => normalize(String(q)));
+    expect(sql.some((q) => q.startsWith('insert into public.stock_moves'))).toBe(false);
+    expect(sql.some((q) => q.startsWith('update public.license_plates'))).toBe(false);
+    // no audit row either — a rejected no-op is not an operation
+    expect(sql.some((q) => q.startsWith('insert into public.scanner_audit_log'))).toBe(false);
+  });
+
+  it('rejects a same-location TRANSFER too — the guard is on the shared write path', async () => {
+    const client = makeClient();
+
+    await expect(
+      moveScannerLp(client, session, {
+        clientOpId: 'transfer-same-location',
+        lpId: LP_ID,
+        toLocationId: FROM_LOCATION_ID,
+        moveType: 'transfer',
+      }),
+    ).rejects.toMatchObject({ code: 'same_location', status: 409 });
+  });
+
+  it('ANTI-REGRESSION: a putaway into a DIFFERENT location still writes its stock_move', async () => {
+    const client = makeClient();
+
+    await moveScannerLp(client, session, {
+      clientOpId: 'putaway-ok',
+      lpId: LP_ID,
+      toLocationId: TO_LOCATION_ID,
+      moveType: 'putaway',
+    });
+
+    const insert = client.query.mock.calls.find(([sql]) => normalize(String(sql)).startsWith('insert into public.stock_moves'));
+    expect(insert).toBeDefined();
+    // from = the LP's previous bay, to = the scanned destination
+    expect(insert?.[1]).toEqual(expect.arrayContaining([FROM_LOCATION_ID, TO_LOCATION_ID]));
+  });
+});
+
+// R17-02 — the suggestion list is the other half of the fix: the LP's current
+// location must never be offered (it was ranked #1 as "Same product", because
+// the LP itself is a same-product LP held in that location).
+const WAREHOUSE_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const PRODUCT_ID = '88888888-8888-4888-8888-888888888888';
+
+function makeSuggestClient(opts: { locationId: string | null; suggestions?: unknown[] }) {
+  return {
+    query: vi.fn(async (sql: string) => {
+      const q = normalize(sql);
+      if (q.startsWith('select warehouse_id::text')) {
+        return {
+          rows: [{ warehouse_id: WAREHOUSE_ID, product_id: PRODUCT_ID, location_id: opts.locationId }],
+          rowCount: 1,
+        };
+      }
+      if (q.startsWith('with same_product as')) {
+        return { rows: opts.suggestions ?? [], rowCount: (opts.suggestions ?? []).length };
+      }
+      return { rows: [], rowCount: 0 };
+    }),
+  } as unknown as QueryClient & { query: ReturnType<typeof vi.fn> };
+}
+
+describe('suggestPutawayLocations — current location exclusion (R17-02)', () => {
+  it('reads the LP current location and passes it as the exclusion parameter', async () => {
+    const client = makeSuggestClient({ locationId: FROM_LOCATION_ID });
+    await suggestPutawayLocations(client, LP_ID);
+
+    const lookup = client.query.mock.calls.find(([sql]) => normalize(String(sql)).startsWith('select warehouse_id::text'));
+    expect(normalize(String(lookup?.[0]))).toContain('location_id::text');
+
+    const suggest = client.query.mock.calls.find(([sql]) => normalize(String(sql)).startsWith('with same_product as'));
+    expect(suggest?.[1]).toEqual([WAREHOUSE_ID, PRODUCT_ID, FROM_LOCATION_ID]);
+  });
+
+  it('excludes the current location in EVERY suggestion CTE (same_product / empty / default)', async () => {
+    const client = makeSuggestClient({ locationId: FROM_LOCATION_ID });
+    await suggestPutawayLocations(client, LP_ID);
+
+    const suggest = normalize(String(client.query.mock.calls.find(([sql]) =>
+      normalize(String(sql)).startsWith('with same_product as'))?.[0]));
+    // one guard per CTE — a single outer filter would break `default_locations`,
+    // which is `limit 1` INSIDE the CTE (the excluded row would eat the slot).
+    const guards = suggest.split('loc.id is distinct from $3::uuid').length - 1;
+    expect(guards).toBe(3);
+  });
+
+  it('ANTI-REGRESSION: every candidate excluded → empty list, not a throw', async () => {
+    const client = makeSuggestClient({ locationId: FROM_LOCATION_ID, suggestions: [] });
+    await expect(suggestPutawayLocations(client, LP_ID)).resolves.toEqual([]);
+  });
+
+  it('an LP with no location yet passes NULL — `is distinct from` keeps every candidate', async () => {
+    const client = makeSuggestClient({
+      locationId: null,
+      suggestions: [
+        { location_id: TO_LOCATION_ID, location_code: 'A-01', location_name: 'Aisle 1', reason: 'empty', priority: 2 },
+      ],
+    });
+    const out = await suggestPutawayLocations(client, LP_ID);
+
+    const suggest = client.query.mock.calls.find(([sql]) => normalize(String(sql)).startsWith('with same_product as'));
+    expect(suggest?.[1]?.[2]).toBeNull();
+    expect(out).toHaveLength(1);
   });
 });

@@ -137,7 +137,7 @@ const DATA: WorkOrderDetailData = {
     { id: 'd1', categoryName: 'Material wait', startedAt: '2026-06-10T06:44:00.000Z', endedAt: '2026-06-10T06:50:00.000Z', durationMin: 6, reasonNotes: 'Casings delayed' },
   ],
   genealogyInputs: [
-    { id: 'g1', componentId: 'p1', lpId: 'lp111111-1111-1111-1111-111111111111', qtyKg: 200, fefoAdherence: true, consumedAt: '2026-06-10T06:30:00.000Z' },
+    { id: 'g1', componentId: 'p1', lpId: 'lp111111-1111-1111-1111-111111111111', lpNumber: 'LP-1784355388076-524S', qtyKg: 200, fefoAdherence: true, consumedAt: '2026-06-10T06:30:00.000Z' },
   ],
   history: [
     { id: 'h1', occurredAt: '2026-06-10T06:10:00.000Z', source: 'execution', action: 'start', fromStatus: 'planned', toStatus: 'in_progress', reason: null },
@@ -286,6 +286,59 @@ describe('WoDetailScreen (parity: wo-detail.jsx:4-530)', () => {
     renderScreen();
     await user.click(screen.getByTestId('wo-detail-tab-genealogy'));
     expect(screen.getAllByTestId('wo-genealogy-input')).toHaveLength(1);
+  });
+
+  // R14-02 — genealogy is a traceability surface: it showed a bare 8-char uuid
+  // prefix with no way to reach the pallet.
+  it('R14-02: renders the LP NUMBER (not a uuid prefix) and links to the LP detail', async () => {
+    const user = userEvent.setup();
+    renderScreen();
+    await user.click(screen.getByTestId('wo-detail-tab-genealogy'));
+
+    const link = screen.getByTestId('wo-genealogy-lp-g1');
+    expect(link).toHaveTextContent('LP-1784355388076-524S');
+    expect(link).toHaveAttribute('href', '/en/warehouse/license-plates/lp111111-1111-1111-1111-111111111111');
+    expect(screen.queryByText('lp111111')).not.toBeInTheDocument();
+  });
+
+  it('R14-02: a reversal counter-row also shows the LP number, not the uuid', async () => {
+    const user = userEvent.setup();
+    renderScreen({
+      ...DATA,
+      genealogyInputs: [
+        ...DATA.genealogyInputs,
+        {
+          id: 'g2',
+          componentId: 'p1',
+          lpId: 'lp111111-1111-1111-1111-111111111111',
+          lpNumber: 'LP-1784355388076-524S',
+          qtyKg: -200,
+          fefoAdherence: true,
+          consumedAt: '2026-06-10T09:00:00.000Z',
+          correctionOfId: 'g1',
+        },
+      ],
+    });
+    await user.click(screen.getByTestId('wo-detail-tab-genealogy'));
+
+    expect(screen.getByTestId('wo-genealogy-lp-g2')).toHaveTextContent('LP-1784355388076-524S');
+    // the original stays visible and labelled as reversed — the trace survives
+    expect(screen.getByTestId('wo-genealogy-lp-g1')).toHaveTextContent('LP-1784355388076-524S');
+    expect(screen.getByTestId('wo-genealogy-reversed-g1')).toBeInTheDocument();
+  });
+
+  it('R14-02 FALLBACK: no lp_number (deleted / nil-sentinel LP) → uuid prefix, no link, no crash', async () => {
+    const user = userEvent.setup();
+    renderScreen({
+      ...DATA,
+      genealogyInputs: [
+        { ...DATA.genealogyInputs[0]!, lpNumber: null },
+      ],
+    });
+    await user.click(screen.getByTestId('wo-detail-tab-genealogy'));
+
+    expect(screen.queryByTestId('wo-genealogy-lp-g1')).not.toBeInTheDocument();
+    expect(screen.getByTestId('wo-genealogy-input')).toHaveTextContent('lp111111');
   });
 
   it('switching to History renders the merged event log', async () => {

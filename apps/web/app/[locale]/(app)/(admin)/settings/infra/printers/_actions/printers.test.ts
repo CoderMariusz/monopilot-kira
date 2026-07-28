@@ -98,6 +98,7 @@ describe('printer server actions', () => {
     expect(insert.params[4]).toBe(LP_ID);
     expect(insert.params[5]).toBe(2);
     expect(insert.params[7]).toBe('sent');
+    expect(insert.params[9]).toBe('pdf');
     expect(insertedPayload.gs1_raw).toBe(`010061414112345210LOTA${GS}172607313103012500`);
     expect(insertedPayload.gs1_human).toBe('(01)00614141123452(10)LOTA(17)260731(3103)012500');
   });
@@ -150,9 +151,11 @@ describe('printer server actions', () => {
     expect(result.id).toBe(NEW_JOB_ID);
     expect(result.id).not.toBe(SOURCE_JOB_ID);
     expect(result.status).toBe('sent');
+    expect(result.result_url).toMatch(/^data:text\/plain;charset=utf-8,/);
     expect(result.payload).toEqual({ lp_code: 'LP-0001', original: true });
 
     const select = callContaining('from public.print_jobs pj');
+    expect(select.sql).toContain('pj.printer_type');
     expect(select.sql).toContain('app.current_org_id()');
     const insert = callContaining('insert into public.print_jobs');
     expect(insert.params[1]).toBe(PRINTER_ID);
@@ -160,6 +163,34 @@ describe('printer server actions', () => {
     expect(insert.params[3]).toBe('lp');
     expect(insert.params[4]).toBe(LP_ID);
     expect(insert.params[7]).toBe('sent');
+    expect(insert.params[9]).toBe('pdf');
+  });
+
+  it('reprintFromHistory preserves PDF output when the printer row is gone', async () => {
+    currentClient = makeClient({ sourceJobPrinterType: 'pdf' });
+    const { reprintFromHistory } = await loadActions();
+
+    const result = await reprintFromHistory(SOURCE_JOB_ID);
+
+    expect(result.status).toBe('sent');
+    expect(result.result_url).toMatch(/^data:text\/plain;charset=utf-8,/);
+    const insert = callContaining('insert into public.print_jobs');
+    expect(insert.params[7]).toBe('sent');
+    expect(insert.params[9]).toBe('pdf');
+  });
+
+  it('reprintFromHistory keeps ZPL jobs queued', async () => {
+    currentClient = makeClient({ sourceJobPrinterType: 'zpl' });
+    const { reprintFromHistory } = await loadActions();
+
+    const result = await reprintFromHistory(SOURCE_JOB_ID);
+
+    expect(result.status).toBe('queued');
+    expect(result.result_url).toBeNull();
+    const insert = callContaining('insert into public.print_jobs');
+    expect(insert.params[7]).toBe('queued');
+    expect(insert.params[8]).toBeNull();
+    expect(insert.params[9]).toBe('zpl');
   });
 
   it('deletePrinter blocks deletion when print jobs exist and deletes when clear', async () => {
@@ -178,19 +209,18 @@ describe('printer server actions', () => {
   });
 });
 
+type ReprintResult = {
+  id: string;
+  status: string;
+  printer_type: 'pdf' | 'zpl' | null;
+  result_url: string | null;
+  payload: Record<string, unknown>;
+};
+
 type ActionsModule = {
   upsertPrinter(input: unknown): Promise<{ id: string; name: string }>;
-  printLabel(input: unknown): Promise<{
-    id: string;
-    status: string;
-    result_url: string | null;
-    payload: Record<string, unknown>;
-  }>;
-  reprintFromHistory(jobId: string): Promise<{
-    id: string;
-    status: string;
-    payload: Record<string, unknown>;
-  }>;
+  printLabel(input: unknown): Promise<ReprintResult>;
+  reprintFromHistory(jobId: string): Promise<ReprintResult>;
   deletePrinter(input: { id: string }): Promise<void>;
 };
 
@@ -198,7 +228,14 @@ async function loadActions(): Promise<ActionsModule> {
   return (await import('./printers')) as ActionsModule;
 }
 
-function makeClient(options: { gs1Gtin?: string | null; batchLot?: string; printerType?: 'pdf' | 'zpl'; canEdit?: boolean; printJobCount?: number } = {}): FakeClient {
+function makeClient(options: {
+  gs1Gtin?: string | null;
+  batchLot?: string;
+  printerType?: 'pdf' | 'zpl';
+  sourceJobPrinterType?: 'pdf' | 'zpl';
+  canEdit?: boolean;
+  printJobCount?: number;
+} = {}): FakeClient {
   const client: FakeClient = {
     calls: [],
     canEdit: options.canEdit ?? true,
@@ -272,7 +309,7 @@ function makeClient(options: { gs1Gtin?: string | null; batchLot?: string; print
         };
       }
 
-      if (n.includes('from public.print_jobs pj') && n.includes('p.printer_type')) {
+      if (n.includes('from public.print_jobs pj') && n.includes('pj.printer_type')) {
         return {
           rows: [
             {
@@ -286,12 +323,12 @@ function makeClient(options: { gs1Gtin?: string | null; batchLot?: string; print
               copies: 3,
               payload: { lp_code: 'LP-0001', original: true },
               status: 'sent',
+              printer_type: options.sourceJobPrinterType ?? client.printerType,
               error_text: null,
               result_url: 'data:text/plain;charset=utf-8,old',
               created_by: USER_ID,
               created_at: '2026-06-23T09:00:00.000Z',
               updated_at: '2026-06-23T09:00:00.000Z',
-              printer_type: client.printerType,
               printer_site_id: SITE_ID,
             },
           ],
@@ -315,9 +352,10 @@ function makeClient(options: { gs1Gtin?: string | null; batchLot?: string; print
               copies: params[5],
               payload,
               status: params[7],
+              printer_type: params[9],
               error_text: null,
               result_url: params[8],
-              created_by: params[9],
+              created_by: params[10],
               created_at: '2026-06-23T10:05:00.000Z',
               updated_at: '2026-06-23T10:05:00.000Z',
             },

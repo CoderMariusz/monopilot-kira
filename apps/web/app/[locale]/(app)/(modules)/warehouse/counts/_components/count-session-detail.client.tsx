@@ -99,7 +99,7 @@ export type CountSessionDetailLabels = {
     intro: string;
     empty: string;
     blind: string;
-    columns: { location: string; item: string; counted: string; actions: string };
+    columns: { location: string; item: string; lp: string; counted: string; actions: string };
     qtyPlaceholder: string;
     save: string;
     saving: string;
@@ -115,6 +115,7 @@ export type CountSessionDetailLabels = {
     columns: {
       location: string;
       item: string;
+      lp: string;
       system: string;
       counted: string;
       variance: string;
@@ -191,6 +192,13 @@ type Tab = 'entry' | 'review';
 
 function fmtVariance(v: number): string {
   return v > 0 ? `+${v}` : String(v);
+}
+
+/** Build a unique counted-qty field label (includes LP when present). */
+function entryQtyAriaLabel(line: CountLine, labels: CountSessionDetailLabels): string {
+  const parts = [labels.entry.columns.counted, line.locationCode, line.itemCode];
+  if (line.lpNumber) parts.push(line.lpNumber);
+  return parts.filter(Boolean).join(' — ');
 }
 
 export function CountSessionDetailClient({
@@ -361,6 +369,8 @@ function BlindCountEntry({
   onRecorded: () => void;
   dash: string;
 }) {
+  const showLpColumn = lines.some((line) => line.lpNumber);
+
   return (
     <section data-testid="count-entry" className="flex flex-col gap-3">
       <div>
@@ -378,6 +388,7 @@ function BlindCountEntry({
               <TableRow>
                 <TableHead scope="col">{labels.entry.columns.location}</TableHead>
                 <TableHead scope="col">{labels.entry.columns.item}</TableHead>
+                {showLpColumn ? <TableHead scope="col">{labels.entry.columns.lp}</TableHead> : null}
                 <TableHead scope="col" className="w-64">{labels.entry.columns.counted}</TableHead>
               </TableRow>
             </TableHeader>
@@ -390,6 +401,7 @@ function BlindCountEntry({
                   recordAction={recordAction}
                   onRecorded={onRecorded}
                   dash={dash}
+                  showLpColumn={showLpColumn}
                 />
               ))}
             </TableBody>
@@ -406,12 +418,14 @@ function BlindCountRow({
   recordAction,
   onRecorded,
   dash,
+  showLpColumn,
 }: {
   line: CountLine;
   labels: CountSessionDetailLabels;
   recordAction: RecordAction;
   onRecorded: () => void;
   dash: string;
+  showLpColumn: boolean;
 }) {
   const counted = line.countedQty !== null;
   const [value, setValue] = useState(counted ? String(line.countedQty) : '');
@@ -453,6 +467,14 @@ function BlindCountRow({
           {line.itemCode ? <span className="font-mono text-[11px] text-slate-500">{line.itemCode}</span> : null}
         </div>
       </TableCell>
+      {showLpColumn ? (
+        <TableCell
+          className="font-mono text-sm text-slate-700"
+          data-testid={`count-entry-lp-${line.id}`}
+        >
+          {line.lpNumber ?? ''}
+        </TableCell>
+      ) : null}
       <TableCell>
         {/* BLIND: no systemQty shown here. */}
         {counted && !editing ? (
@@ -482,7 +504,7 @@ function BlindCountRow({
                 onChange={(e) => setValue(e.target.value)}
                 placeholder={labels.entry.qtyPlaceholder}
                 disabled={isPending}
-                aria-label={`${labels.entry.columns.counted} — ${line.locationCode} ${line.itemCode}`}
+                aria-label={entryQtyAriaLabel(line, labels)}
                 className="w-28 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-400 focus:outline-none disabled:opacity-50"
               />
               <span className="text-xs text-slate-500">{line.uom}</span>
@@ -527,6 +549,7 @@ function VarianceReview({
   dash: string;
 }) {
   const [target, setTarget] = useState<CountLine | null>(null);
+  const showLpColumn = lines.some((line) => line.lpNumber);
 
   return (
     <section data-testid="count-review" className="flex flex-col gap-3">
@@ -549,6 +572,7 @@ function VarianceReview({
               <TableRow>
                 <TableHead scope="col">{labels.review.columns.location}</TableHead>
                 <TableHead scope="col">{labels.review.columns.item}</TableHead>
+                {showLpColumn ? <TableHead scope="col">{labels.review.columns.lp}</TableHead> : null}
                 <TableHead scope="col" className="text-right">{labels.review.columns.system}</TableHead>
                 <TableHead scope="col" className="text-right">{labels.review.columns.counted}</TableHead>
                 <TableHead scope="col" className="text-right">{labels.review.columns.variance}</TableHead>
@@ -586,6 +610,14 @@ function VarianceReview({
                         ) : null}
                       </div>
                     </TableCell>
+                    {showLpColumn ? (
+                      <TableCell
+                        className="font-mono text-sm text-slate-700"
+                        data-testid={`count-review-lp-${line.id}`}
+                      >
+                        {line.lpNumber ?? ''}
+                      </TableCell>
+                    ) : null}
                     <TableCell className="text-right font-mono text-sm tabular-nums text-slate-600">
                       {systemQty(line)} {uom}
                     </TableCell>

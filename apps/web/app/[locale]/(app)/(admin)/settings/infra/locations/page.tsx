@@ -115,6 +115,8 @@ type LocationTreeLabels = {
   parentInactiveHint: string;
   parentInactiveLegacyHint: string;
   hasActiveChildrenError: string;
+  hasStockError: string;
+  lpsElsewhere: string;
 };
 
 type TreeNode = LocationRow & { children: TreeNode[] };
@@ -201,6 +203,9 @@ const DEFAULT_LABELS: LocationTreeLabels = {
   // ponytail: one {parent} placeholder only — formatLabel replaces the FIRST occurrence.
   parentInactiveLegacyHint: 'This location is active even though its parent is inactive. Editing it here keeps its current status — reactivate {parent} to repair the hierarchy.',
   hasActiveChildrenError: 'This location still has active child locations. Deactivate them first, or leave this location active.',
+  // ponytail: one {count} placeholder each — formatLabel/replace hit the FIRST occurrence only.
+  hasStockError: 'This location still holds {count} live license plate(s). Move or consume that stock first — an inactive location cannot be scanned as a move target.',
+  lpsElsewhere: '{count} live LP(s) are parked here. Open the full LP list to see them.',
 };
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof LocationTreeLabels>;

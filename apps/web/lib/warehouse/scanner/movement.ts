@@ -210,8 +210,12 @@ export async function getScannerLpDetail(client: QueryClient, code: string): Pro
 }
 
 export async function suggestPutawayLocations(client: QueryClient, lpId: string): Promise<PutawaySuggestion[]> {
-  const lp = await client.query<{ warehouse_id: string; product_id: string }>(
-    `select warehouse_id::text, product_id::text
+  // C101 (cross-surface) — location_id is read so the LP's CURRENT bay can be
+  // excluded from every suggestion CTE: suggesting it produced a RECV→RECV
+  // "putaway" with no physical movement (fake stock_moves + received→available
+  // promotion). The authoritative rejection lives in moveScannerLp.
+  const lp = await client.query<{ warehouse_id: string; product_id: string; location_id: string | null }>(
+    `select warehouse_id::text, product_id::text, location_id::text
        from public.license_plates
       where org_id = app.current_org_id()
         and id = $1::uuid
@@ -243,6 +247,7 @@ export async function suggestPutawayLocations(client: QueryClient, lpId: string)
         where loc.org_id = app.current_org_id()
           and loc.warehouse_id = $1::uuid
           and coalesce(loc.is_active, true)
+          and loc.id is distinct from $3::uuid
       ),
       empty_locations as (
        select loc.id::text as location_id,
@@ -254,6 +259,7 @@ export async function suggestPutawayLocations(client: QueryClient, lpId: string)
         where loc.org_id = app.current_org_id()
           and loc.warehouse_id = $1::uuid
           and coalesce(loc.is_active, true)
+          and loc.id is distinct from $3::uuid
           and not exists (
             select 1
               from public.license_plates held
@@ -272,6 +278,7 @@ export async function suggestPutawayLocations(client: QueryClient, lpId: string)
         where loc.org_id = app.current_org_id()
           and loc.warehouse_id = $1::uuid
           and coalesce(loc.is_active, true)
+          and loc.id is distinct from $3::uuid
         order by case when loc.location_type in ('receiving', 'default') then 0 else 1 end,
                  loc.level asc,
                  loc.code asc
@@ -291,7 +298,7 @@ export async function suggestPutawayLocations(client: QueryClient, lpId: string)
         ) deduped
        order by priority asc, location_code asc
        limit 5`,
-    [target.warehouse_id, target.product_id],
+    [target.warehouse_id, target.product_id, target.location_id],
   );
 
   return rows
@@ -444,6 +451,20 @@ export async function moveScannerLp(
     const lp = await loadMovableLpForUpdate(client, session, input.lpId);
     if (!lp) throw new WarehouseScannerError('lp_not_found', 404, 'Pallet not found. Scan the barcode again or contact a supervisor.');
     assertLpMovable(lp);
+    // C101 (cross-surface) — reject no-op moves (from === to); never write a fake
+    // stock_move row. Mirrors the desktop guard in warehouse/_actions/stock-move-actions.ts.
+    // Must stay BEFORE insertStockMove: a same-location putaway otherwise writes a
+    // real movement AND (status='received') promotes to available + lp_state_history
+    // + outbox, i.e. a full history of a move that never physically happened.
+    // The unique (org_id, transaction_id) index does NOT catch this — it dedupes
+    // replays of one clientOpId, and every "Start next LP" mints a fresh one.
+    if (lp.location_id && lp.location_id === input.toLocationId) {
+      throw new WarehouseScannerError(
+        'same_location',
+        409,
+        'This pallet is already in that location. Scan a different location.',
+      );
+    }
 
     const destination = await loadLocationScope(client, input.toLocationId);
     const moveId = await insertStockMove(client, session, {

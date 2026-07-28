@@ -1,4 +1,5 @@
 import { EventType } from '../../../../packages/outbox/src/events.enum';
+import { microToDecimal, toMicro } from '../shared/decimal';
 import { pieceUomToWacEach } from '../uom/piece';
 
 type QueryClient = {
@@ -34,9 +35,44 @@ export const WAC_VALUATION_CURRENCY_CODE = 'GBP';
 
 const DEFAULT_WAC_CURRENCY_CODE = WAC_VALUATION_CURRENCY_CODE;
 
-/** Coherent clamp: zero value only when qty is zero; keep positive qty even at zero value. */
+/**
+ * Stored scale of `item_wac_state.total_qty_kg` — numeric(14,3), i.e. 1 g.
+ *
+ * The pool keeps quantity at 3 dp, value at 4 dp and avg_cost at 6 dp, so the
+ * quantity is the FIRST to quantize away. Coherence has to be judged on the
+ * quantity Postgres will actually store, not on the unrounded sum: judging the
+ * unrounded sum is what let a gram-scale receipt write total_qty_kg = 0.000
+ * while its value stayed behind. avg_cost is generated as
+ * `case when total_qty_kg = 0 then 0 else round(total_value / total_qty_kg, 6) end`,
+ * so that row does not divide by zero — it reports the stranded value as costing
+ * NOTHING, and then the next receipt of even 1 g divides the whole stranded
+ * value by that gram and the average cost explodes.
+ *
+ * Widening the column to numeric(18,6) is a separate, already-backlogged track.
+ * This keeps the invariant true AT THE CURRENT SCALE.
+ */
+const WAC_QTY_STORED_SCALE = 3;
+
+/**
+ * Coherent clamp: zero value only when qty is zero; keep positive qty even at
+ * zero value. `round(raw_qty_kg, 3)` mirrors the column cast that happens after
+ * this CTE, so "is the quantity zero?" is asked of the stored number. Rounding
+ * here does not change what is stored (the cast would round identically) — it
+ * changes which branch the coherence test takes.
+ *
+ * BE CLEAR ABOUT THE TRADE-OFF: when the rounded quantity is zero this DISCARDS
+ * the value outright. A receipt under 0.5 g into an empty pool contributes
+ * nothing at all, and the only surviving record of its value is the
+ * FINANCE_WAC_UNDERFLOW anomaly raised from `clamped` (which carries delta_* and
+ * attempted_post_*). That is deliberate: the alternative — keeping the value —
+ * is what left the pool holding money it reported as weightless, and the other
+ * alternative — rejecting the receipt — makes physical goods unreceivable over
+ * a fraction of a gram. Dropped-and-reported beats stranded-and-silent here.
+ * Widening total_qty_kg to numeric(18,6) removes the trade-off entirely and is
+ * a separate backlogged track; WAC_QTY_STORED_SCALE must move with it.
+ */
 const WAC_COHERENT_FINAL_CTE = `coherent as (
-       select greatest(raw_qty_kg, 0) as coerced_qty,
+       select greatest(round(raw_qty_kg, ${WAC_QTY_STORED_SCALE}), 0) as coerced_qty,
               greatest(raw_value, 0) as coerced_value,
               raw_qty_kg,
               raw_value
@@ -48,7 +84,7 @@ const WAC_COHERENT_FINAL_CTE = `coherent as (
               (
                 raw_qty_kg < 0
                 or raw_value < 0
-                or (greatest(raw_qty_kg, 0) = 0 and greatest(raw_value, 0) > 0)
+                or (greatest(round(raw_qty_kg, ${WAC_QTY_STORED_SCALE}), 0) = 0 and greatest(raw_value, 0) > 0)
               ) as clamped
          from coherent
      )`;
@@ -59,7 +95,7 @@ const WAC_COHERENT_CONFLICT_QTY = `(
                 public.item_wac_state.total_value + $4::numeric as raw_value
        ),
        coherent as (
-         select greatest(raw_qty_kg, 0) as coerced_qty,
+         select greatest(round(raw_qty_kg, ${WAC_QTY_STORED_SCALE}), 0) as coerced_qty,
                 greatest(raw_value, 0) as coerced_value
            from computed
        )
@@ -73,7 +109,7 @@ const WAC_COHERENT_CONFLICT_VALUE = `(
                 public.item_wac_state.total_value + $4::numeric as raw_value
        ),
        coherent as (
-         select greatest(raw_qty_kg, 0) as coerced_qty,
+         select greatest(round(raw_qty_kg, ${WAC_QTY_STORED_SCALE}), 0) as coerced_qty,
                 greatest(raw_value, 0) as coerced_value
            from computed
        )
@@ -90,6 +126,15 @@ type WacUpdateResult = {
   availableValue?: string;
   rawQtyKg?: string;
   rawValue?: string;
+  /**
+   * What this call ACTUALLY moved the pool by (post-state − pre-state), at the
+   * stored scale. Differs from the requested delta whenever the clamp or the 3-dp
+   * quantization swallowed part of it. Callers that persist a reversal snapshot
+   * must record THIS, never the amount they asked for — a snapshot that claims a
+   * contribution the pool never received subtracts real value on cancellation.
+   */
+  appliedQtyKg?: string;
+  appliedValue?: string;
 };
 
 export async function upsertWac(
@@ -108,7 +153,12 @@ export async function upsertWac(
           and currency_id = (select id from public.currencies where code = $3::text)`,
       [orgId, itemId, currencyCode],
     );
-    return { ...(rows[0] ?? { totalQtyKg: '0', totalValue: '0', clamped: false }), excluded: 'unresolved_uom' };
+    return {
+      ...(rows[0] ?? { totalQtyKg: '0', totalValue: '0', clamped: false }),
+      excluded: 'unresolved_uom',
+      appliedQtyKg: '0',
+      appliedValue: '0',
+    };
   }
 
   const { rows } = await client.query<WacUpdateResult>(
@@ -157,7 +207,18 @@ export async function upsertWac(
        cross join final`,
     [orgId, itemId, deltaQtyKg, deltaValue, updatedBy, siteId, currencyCode],
   );
-  const result = rows[0] ?? { totalQtyKg: '0', totalValue: '0', clamped: false };
+  const base = rows[0] ?? { totalQtyKg: '0', totalValue: '0', clamped: false };
+  // Post minus pre, in exact micro-units — both columns (3 dp qty, 4 dp value)
+  // sit inside scale 6, so this never round-trips through a float.
+  const result: WacUpdateResult = {
+    ...base,
+    appliedQtyKg: microToDecimal(
+      toMicro(base.totalQtyKg ?? '0') - toMicro(base.availableQtyKg ?? '0'),
+    ),
+    appliedValue: microToDecimal(
+      toMicro(base.totalValue ?? '0') - toMicro(base.availableValue ?? '0'),
+    ),
+  };
   if (result.clamped) {
     await recordWacUnderflowAnomaly(client, {
       orgId,
@@ -190,9 +251,21 @@ export type WacSnapshotQtyKgInput = {
   eachPerBox: string | null;
 };
 
+/**
+ * Grams → kg is an exact decimal shift (÷1000), done in Postgres `numeric`, never in float
+ * (R07-03). Rounded to 6 dp = 1 mg, which is the scale every source column already carries
+ * (`purchase_order_lines.qty`, `items.net_qty_per_each` are both numeric(18,6)), so a 6-dp
+ * gram input can never produce a 9-dp quantity that only the DB would silently truncate.
+ * Note the real ceiling is lower: `item_wac_state.total_qty_kg` is numeric(14,3), so the pool
+ * quantizes to 1 g on store — the same rounding the each/box paths have always had.
+ */
+const WAC_GRAMS_PER_KG = 1000;
+const WAC_QTY_KG_SCALE = 6;
+
 const WAC_SNAPSHOT_QTY_KG_SQL = `select (
        case
          when lower($2::text) = 'kg' then $1::numeric
+         when lower($2::text) = 'g' then round($1::numeric / ${WAC_GRAMS_PER_KG}, ${WAC_QTY_KG_SCALE})
          when lower($2::text) = 'base' and lower(coalesce($3::text, '')) = 'kg' then $1::numeric
          when lower($2::text) = lower(coalesce($3::text, '')) and lower(coalesce($3::text, '')) = 'kg' then $1::numeric
          when lower($2::text) = 'each' and $4::numeric is not null then $1::numeric * $4::numeric
@@ -204,6 +277,7 @@ const WAC_SNAPSHOT_QTY_KG_SQL = `select (
      (
        case
          when lower($2::text) = 'kg' then true
+         when lower($2::text) = 'g' then true
          when lower($2::text) = 'base' and lower(coalesce($3::text, '')) = 'kg' then true
          when lower($2::text) = lower(coalesce($3::text, '')) and lower(coalesce($3::text, '')) = 'kg' then true
          when lower($2::text) = 'each' and $4::numeric is not null then true
@@ -242,6 +316,7 @@ export async function resolveWacDeltaQtyKg(
     `select (
        case
          when lower($2::text) = 'kg' then $1::numeric
+         when lower($2::text) = 'g' then round($1::numeric / ${WAC_GRAMS_PER_KG}, ${WAC_QTY_KG_SCALE})
          when lower($2::text) = 'base' and lower(coalesce(i.uom_base, '')) = 'kg' then $1::numeric
          when lower($2::text) = lower(coalesce(i.uom_base, '')) and lower(coalesce(i.uom_base, '')) = 'kg' then $1::numeric
          when lower($2::text) = 'each' and i.net_qty_per_each is not null then $1::numeric * i.net_qty_per_each
@@ -253,6 +328,7 @@ export async function resolveWacDeltaQtyKg(
      (
        case
          when lower($2::text) = 'kg' then true
+         when lower($2::text) = 'g' then true
          when lower($2::text) = 'base' and lower(coalesce(i.uom_base, '')) = 'kg' then true
          when lower($2::text) = lower(coalesce(i.uom_base, '')) and lower(coalesce(i.uom_base, '')) = 'kg' then true
          when lower($2::text) = 'each' and i.net_qty_per_each is not null then true
@@ -506,7 +582,7 @@ function negateDecimalString(value: string): string {
   return `-${trimmed}`;
 }
 
-function isZeroDecimalString(value: string): boolean {
+export function isZeroDecimalString(value: string): boolean {
   return /^-?0+(?:\.0+)?$/.test(value.trim());
 }
 

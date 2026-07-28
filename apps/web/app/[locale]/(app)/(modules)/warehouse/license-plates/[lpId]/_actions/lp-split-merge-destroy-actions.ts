@@ -1,6 +1,6 @@
 'use server';
 
-import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
+import { NoActiveSiteError, withSiteContext } from '../../../../../../../../lib/auth/with-site-context';
 import { debitWac } from '../../../../../../../../lib/finance/upsert-wac';
 import {
   asTrimmed,
@@ -63,8 +63,25 @@ function failure(error: string): LpMutationResult {
 }
 
 function mapFailure(error: unknown): LpMutationResult {
+  // withSiteContext fails CLOSED when no site is bound. That is a state the operator can fix
+  // (pick a site in the switcher), not a bug — name it instead of logging it as one.
+  if (error instanceof NoActiveSiteError) return failure('no_active_site');
   console.error('[warehouse] lp split/merge/destroy action failed', error);
   return failure('error');
+}
+
+/**
+ * FALA 7 handover — split/merge/destroy never compared the LP's site with the ACTIVE one. The UI
+ * path is closed (you cannot navigate to another site's LP), but a direct Server-Action POST
+ * carrying someone else's `lpId` still mutated the row. Same shape as the Move path's
+ * `cross_site_move` check (warehouse/_actions/stock-move-actions.ts:273-278).
+ *
+ * A NULL `lp.site_id` is legacy data, not another tenant's row, so it is deliberately NOT
+ * blocked here — org scoping still applies and blocking it would freeze pre-multi-site pallets.
+ * `siteId === null` is the explicit ALL-sites (super_admin) bind, which also must not block.
+ */
+function isForeignSite(lp: { site_id: string | null }, siteId: string | null): boolean {
+  return Boolean(siteId && lp.site_id && lp.site_id !== siteId);
 }
 
 function asPositiveQuantity(value: number): string | null {
@@ -274,30 +291,97 @@ async function findSplitReplay(ctx: WarehouseContext, childSeed: string, childMo
   return rows[0]?.id ?? null;
 }
 
-export async function splitLp(lpIdInput: string, splitQtyInput: number, reasonInput: string, clientOpIdInput: string): Promise<LpMutationResult> {
+/**
+ * Split a quantity off an LP into a NEW child pallet at an explicitly chosen destination.
+ *
+ * R08-02 — `toLocationId` is REQUIRED. The child used to inherit `source.location_id` silently,
+ * so a split of a pallet in RECV minted a second pallet in RECV without anyone saying where the
+ * new pallet had gone. Where a physical pallet lives is a decision, not a default. Splitting
+ * back into the SOURCE location is allowed (two pallets in one bin is normal) — it just has to
+ * be chosen.
+ */
+export async function splitLp(
+  lpIdInput: string,
+  splitQtyInput: number,
+  reasonInput: string,
+  clientOpIdInput: string,
+  toLocationIdInput: string,
+): Promise<LpMutationResult> {
   const lpId = asTrimmed(lpIdInput);
   const splitQty = asPositiveQuantity(splitQtyInput);
   const reason = asTrimmed(reasonInput);
   const clientOpId = asTrimmed(clientOpIdInput);
+  const toLocationId = asTrimmed(toLocationIdInput);
   if (!lpId || !splitQty || !reason || !clientOpId) return failure('invalid_input');
+  if (!toLocationId) return failure('destination_required');
 
   try {
-    return await withOrgContext(async ({ userId, orgId, client }): Promise<LpMutationResult> => {
+    return await withSiteContext(async ({ userId, orgId, client, siteId }): Promise<LpMutationResult> => {
       const ctx: WarehouseContext = { userId, orgId, client: client as QueryClient };
       await lockClientOperation(ctx, 'lp-split', clientOpId);
       if (!(await hasWarehousePermission(ctx, WAREHOUSE_LP_SPLIT_PERMISSION))) return failure('forbidden');
 
-      const splitTransactionId = uuidFromSeed(`warehouse.lp.split:${clientOpId}`);
+      // The idempotency identity covers the OUTCOME-BEARING payload, not just the client's key.
+      // The modal mints one clientOpId per modal OPEN and keeps it across retries, while quantity
+      // and destination stay editable — so keying on clientOpId alone meant: submit 4 kg to bin A,
+      // lose the response, change the destination to B, retry → the replay short-circuit below
+      // answered `ok: true` and the modal closed reporting B for a pallet that is physically in A.
+      // A WMS may under-report; it must never state a location that was not written.
+      // `reason` is deliberately NOT in the seed: it is metadata, and fixing a typo must not mint
+      // a second pallet.
+      const payloadSeed = `${clientOpId}:${splitQty}:${toLocationId}`;
+      const splitTransactionId = uuidFromSeed(`warehouse.lp.split:${payloadSeed}`);
       const childHistoryTransactionId = uuidFromSeed(`${splitTransactionId}:child-history`);
       const childMoveTransactionId = uuidFromSeed(`${splitTransactionId}:child-move`);
-      const childSeed = `${orgId}:lp-split:${clientOpId}`;
+      const childSeed = `${orgId}:lp-split:${payloadSeed}`;
       const replayChildId = await findSplitReplay(ctx, childSeed, childMoveTransactionId, childHistoryTransactionId);
       if (replayChildId) return { ok: true };
 
       const source = await lockLp(ctx, lpId);
       if (!source) return failure('not_found');
+      if (isForeignSite(source, siteId)) return failure('cross_site_lp');
       if (!SPLIT_MERGE_STATES.has(source.status)) return failure('LP status does not allow split');
       if ((await activeHeldLpIds(ctx, [source.id])).size > 0) return failure('LP is under an active quality hold');
+
+      // R08-02 — resolve and validate the destination INSIDE the transaction, before the child
+      // row exists. This combines the two patterns the repo already had, neither of which was
+      // complete on its own:
+      //   · site scope   — from the Move path (stock-move-actions.ts:256-278): join
+      //                    locations → warehouses and match `w.site_id` against the bound site,
+      //                    then reject `destination_site_required` / `cross_site_destination`.
+      //                    That path never looks at `is_active`, and neither does listLocations.
+      //   · activity     — from the scanner (lib/warehouse/scanner/movement.ts:749-770):
+      //                    `coalesce(loc.is_active, true)`, the ONLY active-location filter in
+      //                    the repo. It lives behind the scanner API and is unreachable from a
+      //                    Server Action.
+      // Both matter here: an inactive destination would put the child pallet somewhere the
+      // scanner then refuses as a move target (R08-01's "unhandleable stock", freshly minted).
+      const destinationRes = await ctx.client.query<{ id: string; warehouse_id: string; site_id: string | null; is_active: boolean }>(
+        `select loc.id::text,
+                loc.warehouse_id::text as warehouse_id,
+                w.site_id::text as site_id,
+                coalesce(loc.is_active, true) as is_active
+           from public.locations loc
+           join public.warehouses w
+             on w.org_id = app.current_org_id()
+            and w.id = loc.warehouse_id
+          where loc.org_id = app.current_org_id()
+            and ($2::uuid is null or w.site_id is null or w.site_id = $2::uuid)
+            and loc.id = $1::uuid
+          limit 1`,
+        [toLocationId, siteId],
+      );
+      const destination = destinationRes.rows[0];
+      if (!destination) return failure('destination_not_found');
+      if (!destination.is_active) return failure('destination_inactive');
+      if (!destination.site_id) return failure('destination_site_required');
+      if (source.site_id && source.site_id !== destination.site_id) return failure('cross_site_destination');
+      // Redundant BY CONSTRUCTION — the WHERE clause above already restricts a resolved row to
+      // `w.site_id is null or w.site_id = $2`, and the null case was just consumed. Kept as the
+      // backstop for the day someone loosens that predicate: this is a cross-tenant boundary, and
+      // one unreachable line is cheaper than discovering the hole from a leaked pallet. Do not
+      // delete it as dead code.
+      if (siteId && destination.site_id !== siteId) return failure('cross_site_destination');
 
       // Strict `<`: a split must leave the source with positive quantity. Splitting the
       // entire available amount is just a relabel — reject it so we never mislabel the
@@ -350,9 +434,13 @@ export async function splitLp(lpIdInput: string, splitQtyInput: number, reasonIn
         on conflict (id) do nothing
         returning id::text`,
         [
-          source.site_id,
-          source.warehouse_id,
-          source.location_id,
+          // R08-02 — site/warehouse/location all come from the RESOLVED DESTINATION, not from the
+          // source. A location belongs to exactly one warehouse and one site; stamping the child
+          // with the source's warehouse while parking it in the destination's bin would put the
+          // row in two places at once. Mirrors what createStockMove writes on a transfer.
+          destination.site_id,
+          destination.warehouse_id,
+          destination.id,
           source.product_id,
           splitQty,
           source.uom,
@@ -398,13 +486,13 @@ export async function splitLp(lpIdInput: string, splitQtyInput: number, reasonIn
       });
       await insertLpStateHistory(ctx, {
         lpId: childId,
-        siteId: source.site_id,
+        siteId: destination.site_id,
         fromState: null,
         toState: 'available',
         reasonCode: 'lp_split_genesis',
         reasonText: reason,
         transactionId: uuidFromSeed(`${splitTransactionId}:child-history`),
-        ext: { source: 'warehouse_lp_split', parent_lp_id: source.id, quantity: splitQty },
+        ext: { source: 'warehouse_lp_split', parent_lp_id: source.id, quantity: splitQty, to_location_id: destination.id },
       });
       await insertStockMove(ctx, {
         lpId: source.id,
@@ -420,19 +508,22 @@ export async function splitLp(lpIdInput: string, splitQtyInput: number, reasonIn
         referenceType: 'license_plate',
         ext: { split_qty: splitQty, child_lp_id: childId },
       });
+      // The child's move lands the positive quantity IN the chosen destination (insertStockMove
+      // writes a positive qty to `to_location_id`), so the ledger now records where the new
+      // pallet went instead of echoing the source bin back.
       await insertStockMove(ctx, {
         lpId: childId,
-        siteId: source.site_id,
+        siteId: destination.site_id,
         moveType: 'split',
         quantity: splitQty,
         uom: source.uom,
-        locationId: source.location_id,
+        locationId: destination.id,
         reasonCode: 'lp_split',
         reasonText: reason,
         transactionId: uuidFromSeed(`${splitTransactionId}:child-move`),
         referenceId: source.id,
         referenceType: 'license_plate',
-        ext: { parent_lp_id: source.id },
+        ext: { parent_lp_id: source.id, to_location_id: destination.id },
       });
 
       return { ok: true };
@@ -444,14 +535,15 @@ export async function splitLp(lpIdInput: string, splitQtyInput: number, reasonIn
 
 /**
  * Candidate source for LP merge — siblings that match the same product/UOM/lot/
- * location predicate `mergeLps` re-enforces. org-scoped; requires warehouse.lp.merge.
+ * location predicate `mergeLps` re-enforces. Site-scoped (read mode: no site resolves ⇒
+ * ALL-sites, same as listLocations); requires warehouse.lp.merge.
  */
 export async function listSiblingLpsForMerge(primaryLpIdInput: string): Promise<ListSiblingLpsForMergeResult> {
   const primaryLpId = asTrimmed(primaryLpIdInput);
   if (!primaryLpId) return { ok: false, error: 'invalid_input' };
 
   try {
-    return await withOrgContext(async ({ userId, orgId, client }): Promise<ListSiblingLpsForMergeResult> => {
+    return await withSiteContext({ mode: 'read' }, async ({ userId, orgId, client }): Promise<ListSiblingLpsForMergeResult> => {
       const ctx: WarehouseContext = { userId, orgId, client: client as QueryClient };
       if (!(await hasWarehousePermission(ctx, WAREHOUSE_LP_MERGE_PERMISSION))) return { ok: false, error: 'forbidden' };
 
@@ -522,7 +614,7 @@ export async function mergeLps(primaryLpIdInput: string, secondaryLpIdsInput: st
   if (!primaryLpId || secondaryLpIds.length === 0 || !reason || secondaryLpIds.includes(primaryLpId)) return failure('invalid_input');
 
   try {
-    return await withOrgContext(async ({ userId, orgId, client }): Promise<LpMutationResult> => {
+    return await withSiteContext(async ({ userId, orgId, client, siteId }): Promise<LpMutationResult> => {
       const ctx: WarehouseContext = { userId, orgId, client: client as QueryClient };
       if (!(await hasWarehousePermission(ctx, WAREHOUSE_LP_MERGE_PERMISSION))) return failure('forbidden');
 
@@ -552,6 +644,10 @@ export async function mergeLps(primaryLpIdInput: string, secondaryLpIdsInput: st
         [allIds],
       );
       if (locked.rows.length !== allIds.length) return failure('not_found');
+      // Every LP in the merge — primary AND secondaries — must belong to the bound site. The
+      // same-site check below only proves they match EACH OTHER, so without this a caller could
+      // merge two of another site's pallets together.
+      if (locked.rows.some((lp) => isForeignSite(lp, siteId))) return failure('cross_site_lp');
 
       const byId = new Map(locked.rows.map((lp) => [lp.id, lp]));
       const primary = byId.get(primaryLpId);
@@ -686,13 +782,16 @@ export async function destroyLp(lpIdInput: string, reasonInput: string, clientOp
   if (!lpId || !reason || !clientOpId) return failure('invalid_input');
 
   try {
-    return await withOrgContext(async ({ userId, orgId, client }): Promise<LpMutationResult> => {
+    return await withSiteContext(async ({ userId, orgId, client, siteId }): Promise<LpMutationResult> => {
       const ctx: WarehouseContext = { userId, orgId, client: client as QueryClient };
       await lockClientOperation(ctx, 'lp-destroy', clientOpId);
       if (!(await hasWarehousePermission(ctx, WAREHOUSE_LP_DESTROY_PERMISSION))) return failure('forbidden');
 
       const lp = await lockLp(ctx, lpId);
       if (!lp) return failure('not_found');
+      // Before the already-destroyed short-circuit on purpose: an `ok: true` for another site's
+      // LP would confirm that the id exists and is terminal.
+      if (isForeignSite(lp, siteId)) return failure('cross_site_lp');
       if (lp.status === 'destroyed') return { ok: true };
       if (DESTROY_BLOCKED_STATES.has(lp.status)) {
         return failure('LP is already consumed/shipped/merged/destroyed and cannot be destroyed');

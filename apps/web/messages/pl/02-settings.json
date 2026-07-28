@@ -637,7 +637,9 @@
       "noBarcode": "Brak kodu kreskowego",
       "parentInactiveHint": "Lokalizacja nadrzędna jest nieaktywna, więc ta lokalizacja zostanie zapisana jako nieaktywna. Aby pozostała aktywna, najpierw aktywuj lokalizację nadrzędną.",
       "parentInactiveLegacyHint": "Ta lokalizacja jest aktywna, choć jej lokalizacja nadrzędna jest nieaktywna. Edycja tutaj zachowuje jej bieżący status — aktywuj {parent}, aby naprawić hierarchię.",
-      "hasActiveChildrenError": "Ta lokalizacja ma jeszcze aktywne lokalizacje podrzędne. Najpierw je dezaktywuj albo pozostaw tę lokalizację aktywną."
+      "hasActiveChildrenError": "Ta lokalizacja ma jeszcze aktywne lokalizacje podrzędne. Najpierw je dezaktywuj albo pozostaw tę lokalizację aktywną.",
+      "hasStockError": "Na tej lokalizacji stoi jeszcze {count} żywych nośników LP. Najpierw przenieś lub zużyj ten zapas — nieaktywnej lokalizacji nie da się zeskanować jako celu.",
+      "lpsElsewhere": "Stoi tu {count} żywych LP. Otwórz pełną listę LP, aby je zobaczyć."
     }
   },
   "schema": {

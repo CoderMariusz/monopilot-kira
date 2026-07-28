@@ -31,6 +31,8 @@ describe('toMicro', () => {
     expect(toMicro('abc')).toBe(0n);
     expect(toMicro('')).toBe(0n);
     expect(toMicro(Number.NaN)).toBe(0n);
+    expect(toMicro(undefined)).toBe(0n);
+    expect(toMicro(null)).toBe(0n);
   });
 
   it('accepts plain numbers (12.5 → 12500000 micros)', () => {

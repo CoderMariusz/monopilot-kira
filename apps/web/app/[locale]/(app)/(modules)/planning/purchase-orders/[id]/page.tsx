@@ -116,6 +116,17 @@ function uomFallbackLabels(locale: string): {
   };
 }
 
+/**
+ * Messages carrying `{placeholders}` are fetched with `t.raw()`, NOT `t()`.
+ *
+ * These labels are handed to the client component, which fills them in itself
+ * (`labels.transitions.confirmPrompt.replace('{po}', …)`) because the values are
+ * only known at click time. `t()` runs the ICU formatter immediately, and a
+ * template invoked with no values is an ICU error — next-intl reports it and
+ * yields the key path instead of the message, so the user would see
+ * "Planning.purchaseOrders.detail.transitions.confirmPrompt" in a confirm dialog.
+ * `t.raw()` returns the template untouched, which is exactly what the client wants.
+ */
 function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: string, uoms: UomDropdown): PoDetailLabels {
   return {
     status: {
@@ -158,7 +169,7 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
     },
     receivedSummary: {
       title: t('detail.receivedSummary.title'),
-      lines: t('detail.receivedSummary.lines'),
+      lines: t.raw('detail.receivedSummary.lines'),
     },
     transitions: {
       title: t('detail.transitions.title'),
@@ -168,8 +179,8 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
       receive: t('detail.transitions.receive'),
       cancel: t('detail.transitions.cancel'),
       pending: t('detail.transitions.pending'),
-      confirmPrompt: t('detail.transitions.confirmPrompt'),
-      cancelConfirmTitle: t('detail.transitions.cancelConfirmTitle'),
+      confirmPrompt: t.raw('detail.transitions.confirmPrompt'),
+      cancelConfirmTitle: t.raw('detail.transitions.cancelConfirmTitle'),
       cancelConfirmBody: t('detail.transitions.cancelConfirmBody'),
       cancelSuccess: t('detail.transitions.cancelSuccess'),
       cancelPoHasReceipts: t('detail.transitions.cancelPoHasReceipts'),
@@ -177,8 +188,8 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
     reopen: {
       button: t('detail.reopen.button'),
       pending: t('detail.reopen.pending'),
-      confirmPrompt: t('detail.reopen.confirmPrompt'),
-      confirmTitle: t('detail.reopen.confirmTitle'),
+      confirmPrompt: t.raw('detail.reopen.confirmPrompt'),
+      confirmTitle: t.raw('detail.reopen.confirmTitle'),
       confirmBody: t('detail.reopen.confirmBody'),
       success: t('detail.reopen.success'),
       error: t('detail.reopen.error'),
@@ -196,6 +207,10 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
       // Contract: reopenPurchaseOrder returns 'po_has_receipts' when the PO already
       // has GRN receipts — surfaced honestly rather than swallowed.
       po_has_receipts: t('errors.po_has_receipts'),
+      // Contract: transitionPurchaseOrderStatus returns 'line_uom_not_convertible' when a
+      // priced line's UoM cannot be costed in kg — name the missing item-master field
+      // instead of degrading to the generic persistence_failed copy (R07-03).
+      line_uom_not_convertible: t('errors.line_uom_not_convertible'),
       persistence_failed: t('errors.persistence_failed'),
     },
     edit: {
@@ -203,7 +218,7 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
       addLine: t('edit.addLine'),
       editLine: t('edit.editLine'),
       deleteLine: t('edit.deleteLine'),
-      deleteLinePrompt: t('edit.deleteLinePrompt'),
+      deleteLinePrompt: t.raw('edit.deleteLinePrompt'),
       lastLineRefused: t('edit.lastLineRefused'),
       modal: {
         title: t('edit.modal.title'),
@@ -250,6 +265,8 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
         errors: {
           itemRequired: t('create.errors.linesRequired'),
           qtyRequired: t('edit.lineModal.qtyRequired'),
+          priceInvalid: t('create.errors.priceInvalid'),
+          priceRequired: t('edit.lineModal.priceRequired'),
           invalid_input: t('errors.invalid_input'),
           forbidden: t('errors.forbidden'),
           not_found: t('errors.not_found'),
@@ -271,9 +288,9 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
       button: t('receive.button'),
       modal: {
         title: t('receive.modal.title'),
-        forLine: t('receive.modal.forLine'),
+        forLine: t.raw('receive.modal.forLine'),
         qtyLabel: t('receive.modal.qtyLabel'),
-        qtyHelp: t('receive.modal.qtyHelp'),
+        qtyHelp: t.raw('receive.modal.qtyHelp'),
         qtyPlaceholder: t('receive.modal.qtyPlaceholder'),
         batchLabel: t('receive.modal.batchLabel'),
         batchPlaceholder: t('receive.modal.batchPlaceholder'),
@@ -283,7 +300,7 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
         submit: t('receive.modal.submit'),
         submitting: t('receive.modal.submitting'),
         cancel: t('receive.modal.cancel'),
-        success: t('receive.modal.success'),
+        success: t.raw('receive.modal.success'),
         overReceivedNote: t('receive.modal.overReceivedNote'),
         qcRaisedNote: t('receive.modal.qcRaisedNote'),
         errors: {
@@ -292,10 +309,12 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
           not_found: t('receive.modal.errors.not_found'),
           invalid_qty: t('receive.modal.errors.invalid_qty'),
           over_receive_cap: t('receive.modal.errors.over_receive_cap'),
+          over_receive_confirm_required: t('receive.modal.errors.over_receive_confirm_required'),
           no_warehouse: t('receive.modal.errors.no_warehouse'),
           invalid_location: t('receive.modal.errors.invalid_location'),
           location_inactive: t('receive.modal.errors.location_inactive'),
           invalid_state: t('receive.modal.errors.invalid_state'),
+          wac_unresolved_uom: t.raw('receive.modal.errors.wac_unresolved_uom'),
           wac_unsupported_currency: t('receive.modal.errors.wac_unsupported_currency'),
           error: t('receive.modal.errors.error'),
         },

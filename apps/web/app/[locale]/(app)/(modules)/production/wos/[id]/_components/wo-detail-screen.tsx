@@ -1361,7 +1361,21 @@ export function WoDetailScreen({
                       ].filter(Boolean).join(' ')}
                     >
                       <span className="flex flex-wrap items-center gap-2">
-                        <span className="font-mono text-slate-700">{g.lpId.slice(0, 8)}</span>
+                        {/* R14-02 — LP number + deep link to the LP detail (the reverse
+                            direction lives on the LP genealogy tab). No lp_number means
+                            the LP row is gone or is the nil sentinel: fall back to the
+                            uuid prefix WITHOUT a link (same shape as the outputs cell). */}
+                        {g.lpNumber ? (
+                          <Link
+                            href={`/${locale}/warehouse/license-plates/${g.lpId}`}
+                            data-testid={`wo-genealogy-lp-${g.id}`}
+                            className="font-mono text-slate-700 underline decoration-dotted hover:text-sky-700"
+                          >
+                            {g.lpNumber}
+                          </Link>
+                        ) : (
+                          <span className="font-mono text-slate-700" title={g.lpId}>{g.lpId.slice(0, 8)}</span>
+                        )}
                         {isReversed ? (
                           <Badge variant="danger" className="text-[10px]" data-testid={`wo-genealogy-reversed-${g.id}`}>
                             {labels.genealogy.reversedBadge}
@@ -1382,7 +1396,7 @@ export function WoDetailScreen({
                           <button
                             type="button"
                             data-testid={`wo-genealogy-reverse-${g.id}`}
-                            onClick={() => setReverseTarget({ consumptionId: g.id, lpLabel: g.lpId.slice(0, 8) })}
+                            onClick={() => setReverseTarget({ consumptionId: g.id, lpLabel: g.lpNumber ?? g.lpId.slice(0, 8) })}
                             className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50"
                           >
                             {labels.genealogy.reverseAction}

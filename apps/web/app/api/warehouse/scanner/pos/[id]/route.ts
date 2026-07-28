@@ -5,7 +5,7 @@ import { requireScannerSession } from '../../../../../../lib/scanner/guard';
 import { jsonError, jsonOk } from '../../../../../../lib/scanner/route-utils';
 import { withTxnOrgContext } from '../../../../../../lib/scanner/txn-org-context';
 import { withScannerOrg } from '../../../../../../lib/scanner/with-scanner-org';
-import { getScannerPurchaseOrder } from '../../../../../../lib/warehouse/scanner/receive-po';
+import { lookupScannerPurchaseOrder } from '../../../../../../lib/warehouse/scanner/receive-po';
 import { auditAttempt } from '../../../../production/scanner/_support';
 
 const WAREHOUSE_READ_PERMISSION = 'warehouse.inventory.read';
@@ -29,11 +29,12 @@ export async function GET(request: NextRequest, context: RouteContext) {
         });
       }
 
-      const po = await withTxnOrgContext(scopedClient, session.org_id, session.user_id, () =>
-        getScannerPurchaseOrder(scopedClient, session, id),
+      const lookup = await withTxnOrgContext(scopedClient, session.org_id, session.user_id, () =>
+        lookupScannerPurchaseOrder(scopedClient, session, id),
       );
-      if (!po) return jsonError('po_not_found', 404);
-      return jsonOk({ po });
+      if (lookup.kind === 'not_found') return jsonError('po_not_found', 404);
+      if (lookup.kind === 'already_received') return jsonOk({ po: lookup.po, alreadyReceived: true });
+      return jsonOk({ po: lookup.po });
     }),
   );
 

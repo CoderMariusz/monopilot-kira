@@ -50,6 +50,7 @@ const BUNDLE = {
       },
       errors: {
         qtyRequired: 'Enter a quantity greater than zero.',
+        qtyTooManyDecimals: 'Use at most 6 decimal places — that quantity is finer than stock is recorded.',
         forbidden: "You don't have permission to receive into stock.",
         not_found: 'That purchase order line no longer exists.',
         invalid_qty: "That quantity isn't valid.",
@@ -58,6 +59,9 @@ const BUNDLE = {
         no_warehouse: 'No warehouse is configured — set one up in Settings before receiving.',
         invalid_location: 'That destination location is invalid.',
         location_inactive: 'That location has been deactivated and cannot receive stock.',
+        invalid_state: "This purchase order is closed and can't be received.",
+        wac_unresolved_uom:
+          "Receipt is blocked: {item} has no unit conversion defined for {uom}, so this receipt can't be valued. Add a conversion for {uom} (or set the item's base unit) in the item's master data — retrying will not help until that is fixed.",
         wac_unsupported_currency:
           'Receipt is blocked because this purchase order is not in GBP. Inventory valuation currently requires GBP — change the PO currency to GBP before receiving, or recreate the order in GBP.',
         error: 'Something went wrong receiving. Please retry.',
@@ -120,6 +124,7 @@ const BUNDLE = {
       },
       errors: {
         qtyRequired: 'Wpisz ilość większą od zera.',
+        qtyTooManyDecimals: 'Podaj maksymalnie 6 miejsc po przecinku — ta ilość jest dokładniejsza niż zapis stanu.',
         forbidden: 'Brak uprawnień do przyjęcia na magazyn.',
         not_found: 'Ta linia zamówienia już nie istnieje.',
         invalid_qty: 'Ta ilość jest nieprawidłowa.',
@@ -128,6 +133,9 @@ const BUNDLE = {
         no_warehouse: 'Brak skonfigurowanego magazynu — skonfiguruj go w Ustawieniach.',
         invalid_location: 'Ta lokalizacja docelowa jest nieprawidłowa.',
         location_inactive: 'Ta lokalizacja została dezaktywowana i nie może przyjmować towaru.',
+        invalid_state: 'To zamówienie zakupu jest zamknięte i nie można go przyjąć.',
+        wac_unresolved_uom:
+          'Przyjęcie zablokowane: pozycja {item} nie ma zdefiniowanego przelicznika dla jednostki {uom}, więc nie można wycenić tego przyjęcia. Uzupełnij przelicznik dla {uom} (lub ustaw jednostkę bazową pozycji) w danych podstawowych — ponawianie nic nie da, dopóki tego nie poprawisz.',
         wac_unsupported_currency:
           'Przyjęcie jest zablokowane, ponieważ to zamówienie nie jest w GBP. Wycena zapasów wymaga obecnie GBP — zmień walutę ZZ na GBP przed przyjęciem lub utwórz zamówienie ponownie w GBP.',
         error: 'Coś poszło nie tak podczas przyjęcia. Spróbuj ponownie.',
@@ -141,6 +149,37 @@ const BUNDLE = {
     },
     inbound: {
       receiveDesktop: 'Przyjmij na pulpicie',
+    },
+  },
+  /**
+   * `ro` / `uk` carry ONLY the strings that are genuinely translated in
+   * i18n/{ro,uk}.json — every other key resolves through the en fallback in
+   * `getWhReceiveTranslator`, exactly as the rest of the repo leaves partially
+   * translated locales in English.
+   *
+   * These two messages had translations sitting in i18n/{ro,uk}.json under
+   * Planning.purchaseOrders.receive.modal.errors.* and this screen could never
+   * reach them: it reads this bundle, and the bundle had no ro/uk at all, so a
+   * Romanian or Ukrainian receiver silently got English.
+   */
+  ro: {
+    receivePo: {
+      errors: {
+        wac_unresolved_uom:
+          'Recepție blocată: articolul {item} nu are nicio conversie definită pentru unitatea {uom}, deci această recepție nu poate fi evaluată. Adăugați o conversie pentru {uom} (sau setați unitatea de bază a articolului) în datele de bază ale articolului — reîncercarea nu va ajuta până când acest lucru nu este corectat.',
+        wac_unsupported_currency:
+          'Recepția este blocată deoarece această comandă de achiziție nu este în GBP. Evaluarea stocurilor necesită în prezent GBP — schimbați moneda comenzii în GBP înainte de recepție sau recreați comanda în GBP.',
+      },
+    },
+  },
+  uk: {
+    receivePo: {
+      errors: {
+        wac_unresolved_uom:
+          'Прийом заблоковано: для позиції {item} не визначено переведення для одиниці {uom}, тому цей прийом неможливо оцінити. Додайте переведення для {uom} (або встановіть базову одиницю позиції) в основних даних позиції — повторна спроба не допоможе, доки це не буде виправлено.',
+        wac_unsupported_currency:
+          'Прийом заблоковано, оскільки це замовлення на закупівлю не в GBP. Оцінка запасів наразі вимагає GBP — змініть валюту замовлення на GBP перед прийомом або створіть замовлення наново в GBP.',
+      },
     },
   },
 } as const;
@@ -165,7 +204,10 @@ function interpolate(template: string, values?: Record<string, string | number>)
 }
 
 export function getWhReceiveTranslator(locale: string) {
-  const primary = locale === 'pl' ? BUNDLE.pl : BUNDLE.en;
+  // Every locale present in BUNDLE is reachable — hard-coding `pl` here is what
+  // made the ro/uk translations dead on this screen. Missing keys still fall
+  // back to en per-key, so a partial locale bundle is safe.
+  const primary = (BUNDLE as unknown as Record<string, MsgTree | undefined>)[locale] ?? BUNDLE.en;
   const fallback = BUNDLE.en;
 
   const t = (key: string, values?: Record<string, string | number>): string => {

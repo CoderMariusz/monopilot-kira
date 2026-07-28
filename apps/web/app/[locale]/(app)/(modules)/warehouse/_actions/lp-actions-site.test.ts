@@ -11,12 +11,53 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { maxSqlPlaceholderIndex } from '../../../../../../lib/shared/sql-placeholders';
-import { listLPs } from './lp-actions';
+import { getLpDetail, listLPs } from './lp-actions';
 import type { QueryClient } from './shared';
+
+const { getActiveSiteIdMock } = vi.hoisted(() => ({ getActiveSiteIdMock: vi.fn() }));
+
+vi.mock('../../../../../../lib/site/site-context', () => ({
+  getActiveSiteId: getActiveSiteIdMock,
+}));
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
 const SITE_ID = '99999999-9999-4999-8999-999999999999';
+const LP_ID = '77777777-7777-4777-8777-777777777777';
+
+const DETAIL_HEADER_ROW = {
+  id: LP_ID,
+  lp_number: 'LP-ALL-SITES',
+  product_id: 'prod-1',
+  item_code: 'RM-001',
+  item_name: 'Raw material',
+  quantity: '10',
+  reserved_qty: '0',
+  available_qty: '10',
+  uom: 'kg',
+  catch_weight_kg: null,
+  status: 'available',
+  qa_status: 'released',
+  batch_number: 'B-001',
+  supplier_batch_number: null,
+  expiry_date: '2026-08-01T00:00:00.000Z',
+  best_before_date: null,
+  location_id: null,
+  location_code: null,
+  location_name: null,
+  warehouse_id: 'wh-1',
+  warehouse_code: 'WH1',
+  warehouse_name: 'Main',
+  origin: 'receipt',
+  grn_id: null,
+  wo_id: null,
+  reserved_for_wo_id: null,
+  reserved_for_wo_number: null,
+  parent_lp_id: null,
+  parent_lp_number: null,
+  created_at: '2026-07-01T00:00:00.000Z',
+  has_active_hold: false,
+};
 
 type QueryCall = { sql: string; params: unknown[] };
 
@@ -41,6 +82,21 @@ const client: QueryClient = {
     if (normalized.includes('limit $4::integer offset $5::integer')) {
       expectSqlArity(normalized, bound);
     }
+    if (normalized.includes('from public.license_plates lp') && normalized.includes('lp.id = $1::uuid')) {
+      const siteParam = bound[1];
+      if (siteParam === null) {
+        return { rows: [DETAIL_HEADER_ROW], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    }
+    if (
+      normalized.includes('from public.license_plates')
+      && (normalized.includes('parent_lp_id = $1::uuid')
+        || normalized.includes('lp_id = $1::uuid')
+        || normalized.includes('and sm.lp_id = $1::uuid'))
+    ) {
+      return { rows: [], rowCount: 0 };
+    }
     return { rows: [], rowCount: 0 };
   }),
 } as unknown as QueryClient;
@@ -54,6 +110,8 @@ vi.mock('../../../../../../lib/auth/with-org-context', () => ({
 
 beforeEach(() => {
   calls = [];
+  getActiveSiteIdMock.mockReset();
+  getActiveSiteIdMock.mockResolvedValue(null);
 });
 
 describe('listLPs site filter (14-multi-site CL4)', () => {
@@ -87,5 +145,64 @@ describe('listLPs site filter (14-multi-site CL4)', () => {
     expect(result.ok).toBe(true);
     const dataCall = calls.find((call) => call.sql.includes('limit $4::integer offset $5::integer'));
     expect(dataCall?.sql).toContain('$3::uuid is null or lp.site_id = $3::uuid or lp.site_id is null');
+  });
+});
+
+/**
+ * R08-09 — the site selector was list-only: a direct
+ * /warehouse/license-plates/<id> URL rendered an LP belonging to another site,
+ * with Split / Merge / Destroy live. The scope now lives in the loader, and its
+ * predicate is character-for-character the one listLPs uses, so the detail can
+ * never refuse an LP the list still offers.
+ */
+describe('getLpDetail site scope (R08-09)', () => {
+  function detailHeader() {
+    return calls.find((call) => call.sql.includes('from public.license_plates lp') && call.sql.includes('lp.id = $1::uuid'));
+  }
+
+  it('scopes the detail read to the active site, matching the list predicate', async () => {
+    getActiveSiteIdMock.mockResolvedValue(SITE_ID);
+
+    const result = await getLpDetail(LP_ID);
+
+    // The mock client returns no row for the scoped read → the LP is refused.
+    expect(result).toEqual({ ok: false, reason: 'not_found' });
+    const header = detailHeader();
+    expect(header?.sql).toContain('$2::uuid is null or lp.site_id = $2::uuid or lp.site_id is null');
+    expect(header?.params).toEqual([LP_ID, SITE_ID]);
+    expect(header?.params).toHaveLength(maxSqlPlaceholderIndex(header!.sql));
+  });
+
+  it('binds NULL for All sites and returns the LP (no over-blocking)', async () => {
+    getActiveSiteIdMock.mockResolvedValue(null);
+
+    const result = await getLpDetail(LP_ID);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected ok');
+    expect(result.data.id).toBe(LP_ID);
+    expect(result.data.lpNumber).toBe('LP-ALL-SITES');
+    expect(detailHeader()?.params).toEqual([LP_ID, null]);
+    expect(calls.some((call) => call.sql.includes('from public.lp_state_history'))).toBe(true);
+  });
+
+  it('resolves the site cookie-only — a client would add an org-default fallback the list does not apply', async () => {
+    getActiveSiteIdMock.mockResolvedValue(SITE_ID);
+
+    await getLpDetail(LP_ID);
+
+    // license-plates/page.tsx calls getActiveSiteId() with no arguments; passing
+    // a client here would make the detail STRICTER than the list (over-blocking).
+    expect(getActiveSiteIdMock).toHaveBeenCalledWith();
+  });
+
+  it('does not read children, history or moves for an out-of-site LP', async () => {
+    getActiveSiteIdMock.mockResolvedValue(SITE_ID);
+
+    await getLpDetail(LP_ID);
+
+    expect(calls).toHaveLength(1);
+    expect(calls.some((call) => call.sql.includes('from public.lp_state_history'))).toBe(false);
+    expect(calls.some((call) => call.sql.includes('from public.stock_moves'))).toBe(false);
   });
 });

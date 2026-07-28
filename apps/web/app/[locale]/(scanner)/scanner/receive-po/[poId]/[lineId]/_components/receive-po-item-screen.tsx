@@ -15,13 +15,14 @@ import {
 import { useScannerSession } from "../../../../../_components/scanner-session";
 import type { ScannerLabels } from "../../../../../_components/scanner-labels";
 import { StateText } from "../../../_components/receive-po-list-screen";
+import { compareDecimal, remainingQty } from "../../../_components/scanner-po-decimal";
+import { toMicro } from "../../../../../../../../lib/shared/decimal";
 import type {
   LocationListResponse,
   LocationLookupResponse,
   ReceiveResponse,
   ScannerLocation,
   ScannerPoDetail,
-  ScannerPoLine,
 } from "../../../_components/types";
 
 const DESTINATION_NO_LOCATIONS_KEY = "scanner.receivePo.destinationNoLocations";
@@ -29,6 +30,15 @@ const DESTINATION_NO_LOCATIONS_EN =
   "No receiving location is configured for this scanner site. Ask a supervisor to add a location before receiving.";
 const DESTINATION_NO_LOCATIONS_PL =
   "Dla tej lokalizacji skanera nie skonfigurowano lokalizacji przyjęcia. Poproś przełożonego o dodanie lokalizacji przed przyjęciem.";
+
+type ScreenState = "loading" | "ready" | "already_received" | "error" | "denied" | "not_found";
+
+type PoDetailResponse = {
+  ok?: boolean;
+  po?: ScannerPoDetail;
+  alreadyReceived?: boolean;
+  error?: string;
+};
 
 export function ReceivePoItemScreen({
   locale,
@@ -44,7 +54,8 @@ export function ReceivePoItemScreen({
   const router = useRouter();
   const { session, ready, scannerFetch } = useScannerSession();
   const [po, setPo] = useState<ScannerPoDetail | null>(null);
-  const [state, setState] = useState<"loading" | "ready" | "error" | "denied">("loading");
+  const [state, setState] = useState<"loading" | "ready" | "error" | "denied" | "not_found">("loading");
+  const [alreadyReceived, setAlreadyReceived] = useState(false);
   const [batchNumber, setBatchNumber] = useState("");
   const [bestBefore, setBestBefore] = useState("");
   const [qty, setQty] = useState("");
@@ -72,6 +83,7 @@ export function ReceivePoItemScreen({
     if (!ready || !session) return;
     let cancelled = false;
     setState("loading");
+    setAlreadyReceived(false);
     scannerFetch(`/api/warehouse/scanner/pos/${poId}`, undefined, { method: "GET", namespace: "absolute" })
       .then(async (res) => {
         if (cancelled) return;
@@ -79,11 +91,16 @@ export function ReceivePoItemScreen({
           setState("denied");
           return;
         }
-        const body = (await res.json()) as { ok?: boolean; po?: ScannerPoDetail };
+        const body = (await res.json()) as PoDetailResponse;
+        if (res.status === 404 && body.error === "po_not_found") {
+          setState("not_found");
+          return;
+        }
         if (!res.ok || !body.ok || !body.po) throw new Error("load_failed");
         setPo(body.po);
+        setAlreadyReceived(body.alreadyReceived === true);
         const line = body.po.lines.find((candidate) => candidate.id === lineId);
-        if (line) setQty(remainingQty(line));
+        if (line && !body.alreadyReceived) setQty(remainingQty(line.qty, line.receivedQty));
         setState("ready");
       })
       .catch(() => {
@@ -94,8 +111,14 @@ export function ReceivePoItemScreen({
     };
   }, [ready, session, scannerFetch, poId, lineId]);
 
+  const poLoaded = state === "ready" && po != null;
+  const line = useMemo(() => po?.lines.find((candidate) => candidate.id === lineId) ?? null, [po, lineId]);
+  const lineComplete = line ? compareDecimal(line.receivedQty, line.qty) >= 0 : false;
+  const readOnlyReceipt = alreadyReceived || lineComplete;
+  const receiveMode = poLoaded && line != null && !readOnlyReceipt;
+
   useEffect(() => {
-    if (!ready || !session) return;
+    if (!ready || !session || !receiveMode) return;
     let cancelled = false;
     setLocationOptionsState("loading");
     setLocationOptions([]);
@@ -126,18 +149,18 @@ export function ReceivePoItemScreen({
     return () => {
       cancelled = true;
     };
-  }, [ready, session, scannerFetch]);
+  }, [ready, session, scannerFetch, receiveMode]);
 
-  const line = useMemo(() => po?.lines.find((candidate) => candidate.id === lineId) ?? null, [po, lineId]);
-  const remaining = line ? remainingQty(line) : "0";
-  const overReceive = line ? Number(qty || "0") > Number(remaining) : false;
+  const remaining = line ? remainingQty(line.qty, line.receivedQty) : "0";
+  const overReceive = line ? toMicro(qty || "0") > toMicro(remaining) : false;
   // Typed-but-unresolved destination blocks Receive — never silently fall back
   // to the default location when the operator clearly asked for one.
   const destPending = destVal.trim() !== "" && (!destLocation || destResolving);
   const destinationUnavailable = locationOptionsState === "ready" && locationOptions.length === 0;
   const destinationRequired =
-    locationOptionsState === "loading" || destinationUnavailable || (locationOptions.length > 0 && !destLocation);
-  const canReceive = Boolean(line && qty && !submitting && !destPending && !destinationRequired);
+    receiveMode &&
+    (locationOptionsState === "loading" || destinationUnavailable || (locationOptions.length > 0 && !destLocation));
+  const canReceive = Boolean(line && qty && !submitting && !destPending && !destinationRequired && !readOnlyReceipt);
 
   const resolveDestination = useCallback(
     async (raw: string) => {
@@ -231,10 +254,33 @@ export function ReceivePoItemScreen({
       />
       <Content>
         {state === "loading" && <StateText>{L.loadingLines}</StateText>}
-        {state === "denied" && <Banner kind="err" title={L.permissionDenied}>{L.permissionDenied}</Banner>}
-        {state === "error" && <Banner kind="err" title={L.errorLoad}>{L.errorLoad}</Banner>}
-        {state === "ready" && !line && <Banner kind="err" title={L.errorLoad}>{L.errorLoad}</Banner>}
-        {state === "ready" && line && !done && (
+        {state === "denied" && <Banner kind="err" title={L.permissionDenied} />}
+        {state === "not_found" && <Banner kind="err" title={L.poNotFound} />}
+        {state === "error" && <Banner kind="err" title={L.errorLoad} />}
+        {state === "ready" && !line && <Banner kind="err" title={L.poNotFound} />}
+        {state === "ready" && line && readOnlyReceipt && !done && (
+          <div style={{ padding: 16 }}>
+            <Banner kind="info" title={L.alreadyReceivedTitle}>{L.alreadyReceivedSub}</Banner>
+            <div style={productStyle}>
+              <div style={{ color: T.txt, fontWeight: 900 }}>{line.itemName}</div>
+              <div style={{ color: T.mute, fontSize: 12, marginTop: 4 }}>{line.itemCode}</div>
+              <div style={metricsStyle}>
+                <Metric label={L.ordered} value={`${line.qty} ${line.uom}`} />
+                <Metric label={L.received} value={`${line.receivedQty} ${line.uom}`} />
+                <Metric label={L.remaining} value={`0 ${line.uom}`} />
+              </div>
+            </div>
+            <div style={lpCardStyle}>
+              <div style={{ fontFamily: "'Courier New', monospace", color: T.txt, fontSize: 20, fontWeight: 900 }}>
+                {line.receiptLpNumber ?? "—"}
+              </div>
+              <div style={{ marginTop: 8, color: T.mute, fontSize: 12 }}>
+                {L.newLp} · {line.receiptLpQty ?? line.receivedQty} {line.uom}
+              </div>
+            </div>
+          </div>
+        )}
+        {state === "ready" && line && !readOnlyReceipt && !done && (
           <div style={{ padding: 16 }}>
             <div style={productStyle}>
               <div style={{ color: T.txt, fontWeight: 900 }}>{line.itemName}</div>
@@ -323,9 +369,7 @@ export function ReceivePoItemScreen({
             {overReceive && <Banner kind="warn" title={L.overTitle}>{L.overBody}</Banner>}
             {error && (
               <div data-testid="receive-po-error">
-                <Banner kind="err" title={error}>
-                  {error}
-                </Banner>
+                <Banner kind="err" title={error} />
               </div>
             )}
           </div>
@@ -355,10 +399,16 @@ export function ReceivePoItemScreen({
         )}
       </Content>
       <BottomActions>
-        {!done && (
+        {!done && !readOnlyReceipt && (
           <Btn onClick={submit} disabled={!canReceive}>
             {submitting ? L.receiving : L.receive}
           </Btn>
+        )}
+        {readOnlyReceipt && !done && (
+          <>
+            <Btn onClick={() => router.push(`/${locale}/scanner/receive-po/${poId}`)}>{L.nextLine}</Btn>
+            <Btn variant="sec" onClick={() => router.push(`/${locale}/scanner/receive-po`)}>{L.backToList}</Btn>
+          </>
         )}
         {done && (
           <>
@@ -418,11 +468,6 @@ function Metric({ label, value }: { label: string; value: string }) {
       <div style={{ color: T.txt, fontSize: 13, fontWeight: 900, marginTop: 4 }}>{value}</div>
     </div>
   );
-}
-
-function remainingQty(line: ScannerPoLine): string {
-  const remaining = Math.max(0, Number(line.qty) - Number(line.receivedQty));
-  return Number.isInteger(remaining) ? String(remaining) : String(Number(remaining.toFixed(6)));
 }
 
 const productStyle = {

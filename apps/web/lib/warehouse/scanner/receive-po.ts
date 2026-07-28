@@ -46,6 +46,11 @@ export type ScannerPoLine = {
   qty: DecimalString;
   uom: string;
   receivedQty: DecimalString;
+  /** Latest receipt LP for a fully received line (read-only revisit). */
+  receiptLpId?: string | null;
+  receiptLpNumber?: string | null;
+  /** Qty on the latest receipt LP — not the line rollup sum. */
+  receiptLpQty?: string | null;
 };
 
 export type ScannerPoDetail = {
@@ -57,6 +62,11 @@ export type ScannerPoDetail = {
   status: string;
   lines: ScannerPoLine[];
 };
+
+export type ScannerPoLookupResult =
+  | { kind: 'open'; po: ScannerPoDetail }
+  | { kind: 'already_received'; po: ScannerPoDetail }
+  | { kind: 'not_found' };
 
 export type ReceiveLineInput = {
   clientOpId: string;
@@ -129,6 +139,9 @@ type PoLineRow = {
   qty: string;
   uom: string;
   received_qty: string | null;
+  receipt_lp_id: string | null;
+  receipt_lp_number: string | null;
+  receipt_qty: string | null;
 };
 
 const NO_WAREHOUSE_FOR_SITE_MESSAGE =
@@ -184,10 +197,39 @@ export async function listScannerPurchaseOrders(
   }));
 }
 
+export async function lookupScannerPurchaseOrder(
+  client: QueryClient,
+  session: ScannerSessionRow,
+  poId: string,
+): Promise<ScannerPoLookupResult> {
+  const open = await getScannerPurchaseOrder(client, session, poId);
+  if (open) return { kind: 'open', po: open };
+  const completed = await getScannerCompletedPurchaseOrder(client, session, poId);
+  if (completed) return { kind: 'already_received', po: completed };
+  return { kind: 'not_found' };
+}
+
 export async function getScannerPurchaseOrder(
   client: QueryClient,
   session: ScannerSessionRow,
   poId: string,
+): Promise<ScannerPoDetail | null> {
+  return queryScannerPurchaseOrder(client, session, poId, OPEN_PO_STATUSES);
+}
+
+async function getScannerCompletedPurchaseOrder(
+  client: QueryClient,
+  session: ScannerSessionRow,
+  poId: string,
+): Promise<ScannerPoDetail | null> {
+  return queryScannerPurchaseOrder(client, session, poId, ['received']);
+}
+
+async function queryScannerPurchaseOrder(
+  client: QueryClient,
+  session: ScannerSessionRow,
+  poId: string,
+  statuses: readonly string[],
 ): Promise<ScannerPoDetail | null> {
   const { rows } = await client.query<PoSummaryRow & PoLineRow>(
     `select po.id as po_id,
@@ -203,6 +245,9 @@ export async function getScannerPurchaseOrder(
             pol.qty::text as qty,
             pol.uom,
             coalesce(rec.received_qty, 0)::text as received_qty,
+            receipt.receipt_lp_id,
+            receipt.receipt_lp_number,
+            receipt.receipt_qty,
             0::int as line_count,
             0::int as received_line_count
        from public.purchase_orders po
@@ -223,12 +268,27 @@ export async function getScannerPurchaseOrder(
             and cancelled_at is null
           group by po_line_id
        ) rec on rec.po_line_id = pol.id
+       left join lateral (
+         select lp.id::text as receipt_lp_id,
+                lp.lp_number as receipt_lp_number,
+                gi.received_qty::text as receipt_qty
+           from public.grn_items gi
+           join public.license_plates lp
+             on lp.id = gi.lp_id
+            and lp.org_id = gi.org_id
+          where gi.po_line_id = pol.id
+            and gi.org_id = pol.org_id
+            and gi.cancelled_at is null
+            and gi.lp_id is not null
+          order by gi.created_at desc, gi.id desc
+          limit 1
+       ) receipt on true
       where po.org_id = $1::uuid
         and po.id = $2::uuid
         and po.status = any($3::text[])
         and app.user_can_see_site(po.site_id)
       order by pol.line_no asc`,
-    [session.org_id, poId, OPEN_PO_STATUSES],
+    [session.org_id, poId, statuses],
   );
 
   if (!rows[0]) return null;
@@ -247,6 +307,9 @@ export async function getScannerPurchaseOrder(
       qty: normalizeDecimal(row.qty),
       uom: row.uom,
       receivedQty: normalizeDecimal(row.received_qty ?? '0'),
+      receiptLpId: row.receipt_lp_id,
+      receiptLpNumber: row.receipt_lp_number,
+      receiptLpQty: row.receipt_qty ? normalizeDecimal(row.receipt_qty) : null,
     })),
   };
 }

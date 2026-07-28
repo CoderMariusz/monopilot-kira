@@ -20,7 +20,7 @@ function pathResolveEvidence(name: string): string {
   return resolve(__dirname, '../../../../../../../../../e2e/artifacts', name);
 }
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -47,7 +47,13 @@ const releaseQaActionStub: any = async () => ({
   ok: true,
   data: { lpId: 'lp-1', lpNumber: 'LP-0001', status: 'available', qaStatus: 'released' },
 });
-const listLocationsActionStub: any = async () => ({ ok: true, data: [] });
+// R08-02 — the split modal now needs a destination to submit, so the shared stub returns real
+// options. SPLIT_DEST_ID is NOT the LP's own location: picking it proves the choice travelled.
+const SPLIT_DEST_ID = 'loc-staging-1';
+const listLocationsActionStub: any = async () => ({
+  ok: true,
+  data: [{ id: SPLIT_DEST_ID, code: 'B-02', name: 'Bay 02', warehouseId: 'wh-1', warehouseCode: 'WH1', warehouseName: 'Warehouse 1', siteCode: 'S1', siteName: 'Site One' }],
+});
 const createStockMoveActionStub: any = async () => ({
   ok: true,
   data: {
@@ -98,6 +104,7 @@ function makeDetail(over: Partial<LicensePlateDetail> = {}): LicensePlateDetail 
     hasActiveHold: false,
     parentLp: null,
     childLps: [],
+    consumingWos: [],
     stateHistory: [],
     moves: [],
     ...over,
@@ -110,6 +117,7 @@ const mergeLpActionStub: any = async () => ({ ok: true });
 const listSiblingLpsForMergeActionStub: any = async () => ({ ok: true, siblings: [] });
 const destroyLpActionStub: any = async () => ({ ok: true });
 const printLabelActionStub: any = async () => ({ status: 'sent', result_url: 'data:text/plain;charset=utf-8,label' });
+const SITE_PRINTERS = [{ id: 'printer-1', name: 'Direct PDF', printerType: 'pdf' as const }];
 const blockLpActionStub: any = async () => ({
   ok: true,
   data: { lpId: 'lp-1', lpNumber: 'LP-0001', status: 'blocked', qaStatus: 'on_hold', holdId: 'hold-1', holdNumber: 'HLD-00000001' },
@@ -170,9 +178,16 @@ function renderDetail(
       updateLpMetadataAction: updateLpMetadataStub,
       printLabelAction: printLabelActionStub,
       canPrint: true,
+      sitePrinters: SITE_PRINTERS,
+      sitePrintersLoadError: false,
       ...actionOverrides,
     }),
   );
+}
+
+function selectPrintPrinter() {
+  fireEvent.click(screen.getByTestId('lp-print-printer-trigger'));
+  fireEvent.click(screen.getByTestId('lp-print-printer-option'));
 }
 
 describe('LpDetailClient (WH-003 parity)', () => {
@@ -286,21 +301,30 @@ describe('LpDetailClient (WH-003 parity)', () => {
     expect(screen.getByTestId('lp-split-confirm')).toBeDisabled();
     expect(splitLpAction).not.toHaveBeenCalled();
 
-    // Valid split (40 < 120): confirm enables and the action is called WITH a clientOpId.
+    // R08-02: a valid quantity + reason is no longer enough — with no destination picked the
+    // confirm stays disabled, so the child pallet can never inherit the source bin by default.
     await user.clear(screen.getByTestId('lp-split-qty'));
     await user.type(screen.getByTestId('lp-split-qty'), '40');
     expect(screen.queryByTestId('lp-split-validation')).not.toBeInTheDocument();
+    expect(screen.getByTestId('lp-split-confirm')).toBeDisabled();
+    expect(splitLpAction).not.toHaveBeenCalled();
+
+    // Pick a destination → confirm enables and the action is called WITH a clientOpId.
+    await user.click((await screen.findByTestId('lp-split-destination')).querySelector('[role="combobox"]')!);
+    await user.click(await screen.findByText('WH1 · B-02 — Bay 02'));
     const confirm = screen.getByTestId('lp-split-confirm');
     expect(confirm).toBeEnabled();
     await user.click(confirm);
     await waitFor(() => expect(splitLpAction).toHaveBeenCalledTimes(1));
-    const [calledLpId, calledQty, calledReason, calledOpId] = splitLpAction.mock.calls[0];
+    const [calledLpId, calledQty, calledReason, calledOpId, calledDestination] = splitLpAction.mock.calls[0];
     expect(calledLpId).toBe('lp-1');
     expect(calledQty).toBe(40);
     expect(calledReason).toBe('rework');
     // clientOpId is a fresh, non-empty UUID minted on open.
     expect(typeof calledOpId).toBe('string');
     expect(calledOpId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    // The chosen destination reaches the action — not the LP's current location.
+    expect(calledDestination).toBe(SPLIT_DEST_ID);
   });
 
   it('WH-R3: destroy modal requires acknowledgement + reason and submits with a clientOpId', async () => {
@@ -335,8 +359,26 @@ describe('LpDetailClient (WH-003 parity)', () => {
     await user.click(screen.getByTestId('lp-action-split'));
     await user.type(await screen.findByTestId('lp-split-qty'), '40');
     await user.type(screen.getByTestId('lp-split-reason'), 'rework');
+    await user.click((await screen.findByTestId('lp-split-destination')).querySelector('[role="combobox"]')!);
+    await user.click(await screen.findByText('WH1 · B-02 — Bay 02'));
     await user.click(screen.getByTestId('lp-split-confirm'));
     expect(await screen.findByTestId('lp-split-error')).toHaveTextContent(EN.actions.split.errors.qtyTooLarge);
+  });
+
+  it('R08-02: split modal maps every destination refusal to one actionable instruction', async () => {
+    const user = userEvent.setup();
+    // The server rejects the picked location — deactivated between the list load and the submit.
+    const splitLpAction = vi.fn(async () => ({ ok: false, error: 'destination_inactive' }) as const);
+    renderDetail({ status: 'available', quantity: '120', reservedQty: '0', availableQty: '120' }, EN, { splitLpAction });
+
+    await user.click(screen.getByTestId('lp-action-split'));
+    await user.type(await screen.findByTestId('lp-split-qty'), '40');
+    await user.type(screen.getByTestId('lp-split-reason'), 'rework');
+    await user.click((await screen.findByTestId('lp-split-destination')).querySelector('[role="combobox"]')!);
+    await user.click(await screen.findByText('WH1 · B-02 — Bay 02'));
+    await user.click(screen.getByTestId('lp-split-confirm'));
+
+    expect(await screen.findByTestId('lp-split-error')).toHaveTextContent(EN.actions.split.errors.destinationInvalid);
   });
 
   it('WH-R3 PARITY EVIDENCE: captures split/destroy modal states + gated buttons + a11y report', async () => {
@@ -531,6 +573,36 @@ describe('LpDetailClient (WH-003 parity)', () => {
     fireEvent.click(screen.getByTestId('lp-detail-tab-genealogy'));
     expect(screen.getByTestId('lp-genealogy-no-parent')).toHaveTextContent(EN.genealogy.noParent);
     expect(screen.getByTestId('lp-genealogy-no-children')).toHaveTextContent(EN.genealogy.noChildren);
+    expect(screen.getByTestId('lp-genealogy-no-consuming-wos')).toHaveTextContent(EN.genealogy.noConsumingWos);
+  });
+
+  // R14-02 — the reverse direction: Movements showed `consume_to_wo` but never the
+  // WO number, so the LP → WO half of the trace was unreachable from this screen.
+  it('R14-02: lists the consuming work orders with a link to the WO detail', () => {
+    renderDetail({
+      consumingWos: [{ woId: 'wo-9', woNumber: 'WO-202607-0036-W1', qty: '0.480', uom: 'kg' }],
+    });
+    fireEvent.click(screen.getByTestId('lp-detail-tab-genealogy'));
+
+    const list = screen.getByTestId('lp-genealogy-consuming-wos');
+    expect(list).toHaveTextContent('WO-202607-0036-W1');
+    expect(list).toHaveTextContent('0.480 kg');
+    expect(within(list).getByRole('link', { name: 'WO-202607-0036-W1' })).toHaveAttribute(
+      'href',
+      '/en/production/wos/wo-9',
+    );
+  });
+
+  it('R14-02: a fully reversed consumption keeps the WO listed at net 0 (trace survives)', () => {
+    renderDetail({
+      consumingWos: [{ woId: 'wo-9', woNumber: 'WO-202607-0036-W1', qty: '0.000', uom: 'kg' }],
+    });
+    fireEvent.click(screen.getByTestId('lp-detail-tab-genealogy'));
+
+    const list = screen.getByTestId('lp-genealogy-consuming-wos');
+    expect(list).toHaveTextContent('WO-202607-0036-W1');
+    expect(list).toHaveTextContent('0.000 kg');
+    expect(screen.queryByTestId('lp-genealogy-no-consuming-wos')).not.toBeInTheDocument();
   });
 
   it('shows history + movements + reservations empty states', () => {
@@ -557,6 +629,58 @@ describe('LpDetailClient (WH-003 parity)', () => {
     expect(row).toHaveTextContent('50 kg');
   });
 
+  it('E1 — opens the print modal on Print click and does not call the action until confirmed', async () => {
+    const printLabelAction = vi.fn(async () => ({ status: 'sent' as const, result_url: 'data:text/plain;charset=utf-8,label' }));
+    renderDetail({}, EN, { printLabelAction });
+    fireEvent.click(screen.getByTestId('lp-detail-tab-labels'));
+    fireEvent.click(screen.getByTestId('lp-labels-print'));
+    expect(screen.getByTestId('lp-print-label-modal')).toBeInTheDocument();
+    expect(printLabelAction).not.toHaveBeenCalled();
+  });
+
+  it('E1 — label printing submits copies and printerId through the modal', async () => {
+    const printLabelAction = vi.fn(async () => ({ status: 'sent' as const, result_url: 'data:text/plain;charset=utf-8,label' }));
+    renderDetail({}, EN, { printLabelAction });
+    fireEvent.click(screen.getByTestId('lp-detail-tab-labels'));
+    fireEvent.click(screen.getByTestId('lp-labels-print'));
+    fireEvent.change(screen.getByTestId('lp-print-copies'), { target: { value: '3' } });
+    selectPrintPrinter();
+    fireEvent.click(screen.getByTestId('lp-print-submit'));
+    await waitFor(() => expect(printLabelAction).toHaveBeenCalledTimes(1));
+    expect(printLabelAction).toHaveBeenCalledWith({
+      entityType: 'lp',
+      entityId: 'lp-1',
+      copies: 3,
+      printerId: 'printer-1',
+    });
+    expect(await screen.findByTestId('lp-labels-print-result')).toBeInTheDocument();
+    expect(screen.getByTestId('lp-labels-download')).toHaveAttribute('href', expect.stringMatching(/^data:text\/plain/));
+  });
+
+  it('rejects non-integer, zero, and over-limit copies in the print modal', async () => {
+    const printLabelAction = vi.fn();
+    renderDetail({}, EN, { printLabelAction });
+    fireEvent.click(screen.getByTestId('lp-detail-tab-labels'));
+    fireEvent.click(screen.getByTestId('lp-labels-print'));
+
+    const submit = screen.getByTestId('lp-print-submit');
+    const copies = screen.getByTestId('lp-print-copies');
+
+    fireEvent.change(copies, { target: { value: '1.5' } });
+    expect(screen.getByTestId('lp-print-copies-error')).toHaveTextContent(EN.labels.printModal.validation.copiesInteger);
+    expect(submit).toBeDisabled();
+
+    fireEvent.change(copies, { target: { value: '0' } });
+    expect(screen.getByTestId('lp-print-copies-error')).toHaveTextContent(EN.labels.printModal.validation.copiesMin);
+    expect(submit).toBeDisabled();
+
+    fireEvent.change(copies, { target: { value: '101' } });
+    expect(screen.getByTestId('lp-print-copies-error')).toHaveTextContent(EN.labels.printModal.validation.copiesMax);
+    expect(submit).toBeDisabled();
+
+    expect(printLabelAction).not.toHaveBeenCalled();
+  });
+
   it('E1 — label printing is LIVE: the Print button is enabled, calls printLabel({entityType:"lp", entityId}) and surfaces the result + download', async () => {
     const printLabelAction = vi.fn(async () => ({ status: 'sent' as const, result_url: 'data:text/plain;charset=utf-8,label' }));
     renderDetail({}, EN, { printLabelAction });
@@ -564,8 +688,15 @@ describe('LpDetailClient (WH-003 parity)', () => {
     const print = screen.getByTestId('lp-labels-print');
     expect(print).toBeEnabled();
     fireEvent.click(print);
+    selectPrintPrinter();
+    fireEvent.click(screen.getByTestId('lp-print-submit'));
     await waitFor(() => expect(printLabelAction).toHaveBeenCalledTimes(1));
-    expect(printLabelAction).toHaveBeenCalledWith({ entityType: 'lp', entityId: 'lp-1' });
+    expect(printLabelAction).toHaveBeenCalledWith({
+      entityType: 'lp',
+      entityId: 'lp-1',
+      copies: 1,
+      printerId: 'printer-1',
+    });
     expect(await screen.findByTestId('lp-labels-print-result')).toBeInTheDocument();
     expect(screen.getByTestId('lp-labels-download')).toHaveAttribute('href', expect.stringMatching(/^data:text\/plain/));
   });
@@ -591,6 +722,8 @@ describe('LpDetailClient (WH-003 parity)', () => {
     renderDetail({}, EN, { printLabelAction });
     fireEvent.click(screen.getByTestId('lp-detail-tab-labels'));
     fireEvent.click(screen.getByTestId('lp-labels-print'));
+    selectPrintPrinter();
+    fireEvent.click(screen.getByTestId('lp-print-submit'));
     expect(await screen.findByTestId('lp-labels-print-error')).toHaveTextContent(EN.labels.errors.entityNotFound);
     expect(screen.queryByTestId('lp-labels-print-result')).not.toBeInTheDocument();
   });

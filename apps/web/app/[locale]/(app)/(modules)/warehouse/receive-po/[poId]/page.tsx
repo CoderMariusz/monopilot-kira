@@ -55,6 +55,7 @@ function buildLabels(t: ReturnType<typeof getWhReceiveTranslator>): PoReceiveLab
     },
     errors: {
       qtyRequired: t('receivePo.errors.qtyRequired'),
+      qtyTooManyDecimals: t('receivePo.errors.qtyTooManyDecimals'),
       forbidden: t('receivePo.errors.forbidden'),
       not_found: t('receivePo.errors.not_found'),
       invalid_qty: t('receivePo.errors.invalid_qty'),
@@ -63,6 +64,8 @@ function buildLabels(t: ReturnType<typeof getWhReceiveTranslator>): PoReceiveLab
       no_warehouse: t('receivePo.errors.no_warehouse'),
       invalid_location: t('receivePo.errors.invalid_location'),
       location_inactive: t('receivePo.errors.location_inactive'),
+      invalid_state: t('receivePo.errors.invalid_state'),
+      wac_unresolved_uom: t('receivePo.errors.wac_unresolved_uom'),
       wac_unsupported_currency: t('receivePo.errors.wac_unsupported_currency'),
       error: t('receivePo.errors.error'),
     },

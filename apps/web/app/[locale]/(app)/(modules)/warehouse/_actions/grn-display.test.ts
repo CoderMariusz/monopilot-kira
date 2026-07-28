@@ -41,27 +41,41 @@ function makeClient(): QueryClient {
         return { rows: [{ ok: true }], rowCount: 1 };
       }
       if (q.startsWith('select count(*)::int as total') && q.includes('from public.grns g')) {
-        return { rows: [{ total: 1 }], rowCount: 1 };
+        return { rows: [{ total: 2 }], rowCount: 1 };
       }
       if (q.includes('from public.grns g') && q.includes('left join lateral') && q.includes('limit $5::integer offset $6::integer')) {
         return {
           rows: [
             {
               id: GRN_ID,
-              grn_number: 'GRN-20260715-0001',
+              grn_number: 'GRN-20260717-0002',
               source_type: 'po',
               status: 'completed',
               supplier_id: 'sup-1',
-              supplier_name: 'Acme',
+              supplier_name: 'Web Foods Ltd.',
               warehouse_id: 'wh-1',
               warehouse_code: 'WH1',
-              receipt_date: '2026-07-15',
-              completed_at: '2026-07-15T12:00:00.000Z',
+              receipt_date: '2026-07-17',
+              completed_at: '2026-07-17T14:00:00.000Z',
               po_id: 'po-1',
+              item_count: 1,
+            },
+            {
+              id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+              grn_number: 'GRN-20260716-0001',
+              source_type: 'po',
+              status: 'completed',
+              supplier_id: 'sup-2',
+              supplier_name: 'Other Supplier',
+              warehouse_id: 'wh-1',
+              warehouse_code: 'WH1',
+              receipt_date: '2026-07-16',
+              completed_at: '2026-07-16T12:00:00.000Z',
+              po_id: 'po-2',
               item_count: 3,
             },
           ],
-          rowCount: 1,
+          rowCount: 2,
         };
       }
       if (q.includes('from public.grns g') && q.includes('and g.id = $1::uuid') && q.includes('limit 1') && !q.includes('grn_items')) {
@@ -98,7 +112,8 @@ function makeClient(): QueryClient {
               ordered_qty: '10',
               received_qty: '10',
               uom: 'kg',
-              batch_number: 'B-1',
+              batch_number: 'NIGHT-R08-SB-1400',
+              supplier_batch_number: null,
               expiry_date: '2026-08-30T00:00:00.000Z',
               lp_id: 'lp-1',
               lp_number: 'LP-0001',
@@ -108,8 +123,29 @@ function makeClient(): QueryClient {
               cancelled_at: null,
               cancellation_reason_code: null,
             },
+            {
+              id: 'line-2',
+              line_number: 2,
+              product_id: 'prod-2',
+              item_code: 'ING-SUGAR',
+              item_name: 'Sugar',
+              po_line_id: 'pol-2',
+              ordered_qty: '5',
+              received_qty: '5',
+              uom: 'kg',
+              batch_number: 'VOID-BATCH',
+              supplier_batch_number: null,
+              expiry_date: null,
+              lp_id: 'lp-2',
+              lp_number: 'LP-0002',
+              lp_qa_status: 'released',
+              can_cancel: false,
+              cancel_block_reason: 'already_cancelled',
+              cancelled_at: '2026-07-15T12:00:00.000Z',
+              cancellation_reason_code: 'entry_error',
+            },
           ],
-          rowCount: 1,
+          rowCount: 2,
         };
       }
       if (q.includes('from public.license_plates') && q.includes('and grn_id = $1::uuid')) {
@@ -140,6 +176,20 @@ describe('GRN display fixes (C054/C055)', () => {
     expect(listQuery?.sql).toContain('coalesce(ic.item_count, 0)::int as item_count');
   });
 
+  it('R08-04 — listGrns itemCount comes from SQL rollup, not Array.map row index', async () => {
+    const result = await listGrns();
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected ok');
+    // Newest row is index 0 in the result set; pre-fix mapGrn(row, 0) forced itemCount=0.
+    expect(result.data.items[0]).toEqual(
+      expect.objectContaining({ grnNumber: 'GRN-20260717-0002', itemCount: 1 }),
+    );
+    expect(result.data.items[1]).toEqual(
+      expect.objectContaining({ grnNumber: 'GRN-20260716-0001', itemCount: 3 }),
+    );
+  });
+
   it('C055 — getGrnDetail selects coalesced expiry from line + LP sources', async () => {
     const result = await getGrnDetail(GRN_ID);
 
@@ -149,5 +199,59 @@ describe('GRN display fixes (C054/C055)', () => {
 
     const itemsQuery = queryLog.find((entry) => normalize(entry.sql).includes('order by gi.line_number asc'));
     expect(itemsQuery?.sql).toContain('coalesce(gi.expiry_date, lp.expiry_date, gi.best_before_date, lp.best_before_date)');
+  });
+
+  it('R07-06 — getGrnDetail exposes supplierBatchNumber separately from internal batch', async () => {
+    const result = await getGrnDetail(GRN_ID);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected ok');
+    expect(result.data.items[0]).toEqual(
+      expect.objectContaining({
+        batchNumber: 'NIGHT-R08-SB-1400',
+        supplierBatchNumber: null,
+      }),
+    );
+
+    const itemsQuery = queryLog.find((entry) => normalize(entry.sql).includes('order by gi.line_number asc'));
+    expect(itemsQuery?.sql).toContain('coalesce(gi.supplier_batch_number, lp.supplier_batch_number)');
+  });
+
+  it('R08-04 — getGrnDetail itemCount matches live (non-cancelled) lines for a completed PO GRN', async () => {
+    const result = await getGrnDetail(GRN_ID);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected ok');
+    expect(result.data.itemCount).toBe(1);
+    expect(result.data.items).toHaveLength(2);
+    expect(result.data.items.filter((item) => !item.cancelled)).toHaveLength(1);
+  });
+
+  it('R08-09 — getGrnDetail hard-filters on site like listGrns (no site_id IS NULL bypass)', async () => {
+    await getGrnDetail(GRN_ID);
+
+    const headerQuery = queryLog.find(
+      (entry) =>
+        normalize(entry.sql).includes('from public.grns g')
+        && normalize(entry.sql).includes('and g.id = $1::uuid')
+        && normalize(entry.sql).includes('limit 1')
+        && !normalize(entry.sql).includes('grn_items'),
+    );
+    expect(headerQuery?.sql).toContain('g.site_id = $2::uuid');
+    expect(headerQuery?.sql).not.toContain('g.site_id is null');
+    expect(headerQuery?.params).toEqual([GRN_ID, SITE_ID]);
+  });
+
+  it('R08-04 — list and detail itemCount agree when a cancelled line is present', async () => {
+    const listResult = await listGrns();
+    const detailResult = await getGrnDetail(GRN_ID);
+
+    expect(listResult.ok).toBe(true);
+    expect(detailResult.ok).toBe(true);
+    if (!listResult.ok || !detailResult.ok) throw new Error('expected ok');
+
+    expect(listResult.data.items[0]?.itemCount).toBe(1);
+    expect(detailResult.data.itemCount).toBe(1);
+    expect(detailResult.data.items.some((item) => item.cancelled)).toBe(true);
   });
 });

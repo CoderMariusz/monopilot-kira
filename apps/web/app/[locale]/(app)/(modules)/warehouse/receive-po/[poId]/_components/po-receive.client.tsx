@@ -10,10 +10,37 @@ import Input from '@monopilot/ui/Input';
 import { Select, type SelectOption } from '@monopilot/ui/Select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
-import type { DesktopReceiveInput, DesktopReceiveResult, PoReceiveDetail, PoReceiveLine } from '../../../_actions/receive-po-line.types';
+import { DECIMAL_QTY_RE, microToDecimal, toMicro } from '../../../../../../../../lib/shared/decimal';
 
-const QTY_PATTERN = /^\d+(?:\.\d{1,3})?$/;
+import type {
+  DesktopReceiveError,
+  DesktopReceiveInput,
+  DesktopReceiveResult,
+  PoReceiveDetail,
+  PoReceiveLine,
+} from '../../../_actions/receive-po-line.types';
+
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * A well-formed POSITIVE decimal carrying more decimals than the NUMERIC(_,6)
+ * column can store. It fails DECIMAL_QTY_RE for a reason that has nothing to do
+ * with being zero, so it must not be reported as "enter a quantity greater than
+ * zero" — that told the receiver something untrue about their own number.
+ */
+// Same shape as DECIMAL_QTY_RE apart from the decimal count, so a value rejected
+// for a DIFFERENT reason (leading zero: `01.1234567`) does not get told the
+// decimals are at fault — that would be the very lie this message exists to stop.
+const OVER_PRECISE_QTY_RE = /^(?:0|[1-9]\d*)\.\d{7,}$/;
+
+/**
+ * Fill every `{placeholder}`, not just the first. `String.replace(string, …)`
+ * substitutes ONE occurrence, so `wac_unresolved_uom` — which names {uom} twice —
+ * rendered its second copy raw as literal "{uom}" on screen.
+ */
+function fill(template: string, values: Record<string, string>): string {
+  return template.replace(/\{(\w+)\}/g, (match, key: string) => values[key] ?? match);
+}
 
 export type ReceiveLocationOption = {
   id: string;
@@ -52,19 +79,34 @@ export type PoReceiveLabels = {
     overNote: string;
     qcNote: string;
   };
-  errors: Record<string, string>;
+  /**
+   * Keyed by server error code, NOT `Record<string, string>` — a missing key
+   * (`wac_unresolved_uom` was missing everywhere) used to fall through to the
+   * generic "please retry" message instead of failing typecheck.
+   * `{item}` / `{uom}` are interpolated from the line being received.
+   */
+  errors: Record<DesktopReceiveError, string> & {
+    /** Local form validation, not a server code. */
+    qtyRequired: string;
+    /** Local form validation: positive, but finer than the NUMERIC(_,6) column. */
+    qtyTooManyDecimals: string;
+  };
 };
 
+/**
+ * Exact micro-unit (scale 6) arithmetic — qty columns are NUMERIC(18,6). The
+ * float version rounded to 3 dp, so an outstanding 0.000600 displayed (and
+ * prefilled) as 0.001, i.e. more than was actually outstanding.
+ */
 function outstandingQty(ordered: string, received: string): string {
-  const rem = Number(ordered) - Number(received);
-  if (!(rem > 0)) return '0';
-  return String(Number(rem.toFixed(3)));
+  const rem = toMicro(ordered) - toMicro(received);
+  return rem > 0n ? microToDecimal(rem) : '0';
 }
 
 function lineReceiptStatus(ordered: string, received: string): 'open' | 'partial' | 'full' | 'over' {
-  const o = Number(ordered);
-  const r = Number(received);
-  if (!(r > 0)) return 'open';
+  const o = toMicro(ordered);
+  const r = toMicro(received);
+  if (r <= 0n) return 'open';
   if (r > o) return 'over';
   if (r >= o) return 'full';
   return 'partial';
@@ -125,7 +167,7 @@ export function PoReceiveClient({
   }
 
   const wouldOverReceive =
-    activeLine != null && Number(qty || '0') > Number(outstandingQty(activeLine.orderedQty, activeLine.receivedQty));
+    activeLine != null && toMicro(qty || '0') > toMicro(outstandingQty(activeLine.orderedQty, activeLine.receivedQty));
 
   async function submitLine(e: React.FormEvent) {
     e.preventDefault();
@@ -134,7 +176,14 @@ export function PoReceiveClient({
     setSuccess(null);
 
     const trimmedQty = qty.trim();
-    if (!QTY_PATTERN.test(trimmedQty) || Number(trimmedQty) <= 0) {
+    if (!DECIMAL_QTY_RE.test(trimmedQty)) {
+      // Name the ACTUAL reason: a positive 7-dp number is not "zero or less".
+      setFormError(
+        OVER_PRECISE_QTY_RE.test(trimmedQty) ? labels.errors.qtyTooManyDecimals : labels.errors.qtyRequired,
+      );
+      return;
+    }
+    if (toMicro(trimmedQty) <= 0n) {
       setFormError(labels.errors.qtyRequired);
       return;
     }
@@ -160,17 +209,23 @@ export function PoReceiveClient({
       });
 
       if (!result.ok) {
-        setFormError(labels.errors[result.error] ?? labels.errors.error);
+        setFormError(
+          fill(labels.errors[result.error], {
+            item: activeLine.itemCode ?? activeLine.itemName ?? '—',
+            uom: activeLine.uom,
+          }),
+        );
         setPending(false);
         return;
       }
 
       const parts = [
-        labels.form.success
-          .replace('{grn}', result.grnNumber)
-          .replace('{lp}', result.lpNumber)
-          .replace('{qty}', result.qty)
-          .replace('{uom}', result.uom),
+        fill(labels.form.success, {
+          grn: result.grnNumber,
+          lp: result.lpNumber,
+          qty: result.qty,
+          uom: result.uom,
+        }),
       ];
       if (result.overReceived) parts.push(labels.form.overNote);
       if (result.qcInspectionRequired) parts.push(labels.form.qcNote);
@@ -188,7 +243,7 @@ export function PoReceiveClient({
       <Card className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 px-4 py-3">
           <h2 className="text-sm font-semibold text-slate-900">
-            {labels.linesTitle.replace('{count}', String(openLines.length))}
+            {fill(labels.linesTitle, { count: String(openLines.length) })}
           </h2>
         </div>
         {openLines.length === 0 ? (
@@ -291,10 +346,11 @@ export function PoReceiveClient({
                     aria-label={labels.form.qty}
                   />
                   <span className="text-xs text-slate-500">
-                    {labels.form.qtyHelp
-                      .replace('{ordered}', `${activeLine.orderedQty} ${activeLine.uom}`)
-                      .replace('{received}', `${activeLine.receivedQty} ${activeLine.uom}`)
-                      .replace('{outstanding}', `${outstandingQty(activeLine.orderedQty, activeLine.receivedQty)} ${activeLine.uom}`)}
+                    {fill(labels.form.qtyHelp, {
+                      ordered: `${activeLine.orderedQty} ${activeLine.uom}`,
+                      received: `${activeLine.receivedQty} ${activeLine.uom}`,
+                      outstanding: `${outstandingQty(activeLine.orderedQty, activeLine.receivedQty)} ${activeLine.uom}`,
+                    })}
                   </span>
                 </label>
 

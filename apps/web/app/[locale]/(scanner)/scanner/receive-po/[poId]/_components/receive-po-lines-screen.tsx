@@ -13,7 +13,17 @@ import {
 import { useScannerSession } from "../../../../_components/scanner-session";
 import type { ScannerLabels } from "../../../../_components/scanner-labels";
 import { MiniPill, StateText, StatusChip, iconStyle, monoTitleStyle, rowStyle, subStyle } from "../../_components/receive-po-list-screen";
+import { compareDecimal, receiptPercent } from "../../_components/scanner-po-decimal";
 import type { ScannerPoDetail } from "../../_components/types";
+
+type ScreenState = "loading" | "ready" | "already_received" | "error" | "denied" | "not_found";
+
+type PoDetailResponse = {
+  ok?: boolean;
+  po?: ScannerPoDetail;
+  alreadyReceived?: boolean;
+  error?: string;
+};
 
 export function ReceivePoLinesScreen({
   locale,
@@ -27,7 +37,7 @@ export function ReceivePoLinesScreen({
   const router = useRouter();
   const { session, ready, scannerFetch } = useScannerSession();
   const [po, setPo] = useState<ScannerPoDetail | null>(null);
-  const [state, setState] = useState<"loading" | "ready" | "error" | "denied">("loading");
+  const [state, setState] = useState<ScreenState>("loading");
   const L = labels.receivePo;
 
   useEffect(() => {
@@ -45,10 +55,14 @@ export function ReceivePoLinesScreen({
           setState("denied");
           return;
         }
-        const body = (await res.json()) as { ok?: boolean; po?: ScannerPoDetail };
+        const body = (await res.json()) as PoDetailResponse;
+        if (res.status === 404 && body.error === "po_not_found") {
+          setState("not_found");
+          return;
+        }
         if (!res.ok || !body.ok || !body.po) throw new Error("load_failed");
         setPo(body.po);
-        setState("ready");
+        setState(body.alreadyReceived ? "already_received" : "ready");
       })
       .catch(() => {
         if (!cancelled) setState("error");
@@ -57,6 +71,8 @@ export function ReceivePoLinesScreen({
       cancelled = true;
     };
   }, [ready, session, scannerFetch, poId]);
+
+  const showLines = state === "ready" || state === "already_received";
 
   return (
     <ScannerScreen>
@@ -68,8 +84,12 @@ export function ReceivePoLinesScreen({
       <Content>
         {state === "loading" && <StateText>{L.loadingLines}</StateText>}
         {state === "denied" && <Banner kind="err" title={L.permissionDenied}>{L.permissionDenied}</Banner>}
+        {state === "not_found" && <Banner kind="err" title={L.poNotFound}>{L.poNotFound}</Banner>}
         {state === "error" && <Banner kind="err" title={L.errorLoad}>{L.errorLoad}</Banner>}
-        {state === "ready" && po && (
+        {state === "already_received" && (
+          <Banner kind="info" title={L.alreadyReceivedTitle}>{L.alreadyReceivedSub}</Banner>
+        )}
+        {showLines && po && (
           <>
             <div style={cardStyle}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
@@ -90,7 +110,7 @@ export function ReceivePoLinesScreen({
             </div>
             <div style={sectionTitleStyle}>{L.linesTitle}</div>
             {po.lines.map((line) => {
-              const pct = percent(line.receivedQty, line.qty);
+              const pct = receiptPercent(line.receivedQty, line.qty);
               const done = compareDecimal(line.receivedQty, line.qty) >= 0;
               return (
                 <button
@@ -105,6 +125,9 @@ export function ReceivePoLinesScreen({
                   <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
                     <div style={{ color: T.txt, fontWeight: 800 }}>{line.itemName}</div>
                     <div style={subStyle}>{line.itemCode}</div>
+                    {state === "already_received" && line.receiptLpNumber ? (
+                      <div style={{ ...subStyle, marginTop: 4, color: T.mute }}>{line.receiptLpNumber}</div>
+                    ) : null}
                   </div>
                   <div style={{ textAlign: "right" }}>
                     <div style={{ color: done ? T.green : T.amber, fontWeight: 900 }}>{line.receivedQty}</div>
@@ -119,18 +142,6 @@ export function ReceivePoLinesScreen({
       </Content>
     </ScannerScreen>
   );
-}
-
-function percent(received: string, ordered: string): number {
-  const o = Number(ordered);
-  if (!Number.isFinite(o) || o <= 0) return 0;
-  return Math.min(999, Math.round((Number(received) / o) * 100));
-}
-
-function compareDecimal(a: string, b: string): number {
-  const aa = Number(a);
-  const bb = Number(b);
-  return aa === bb ? 0 : aa > bb ? 1 : -1;
 }
 
 const cardStyle = {

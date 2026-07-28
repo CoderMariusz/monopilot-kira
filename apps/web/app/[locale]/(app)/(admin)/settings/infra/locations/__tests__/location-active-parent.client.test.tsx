@@ -16,14 +16,16 @@ import type { LocationRow, UpsertLocationResult } from '../location-types';
 
 const WAREHOUSE_ID = 'wh-1';
 
-const ZONE: LocationRow = { id: 'zone-1', warehouseId: WAREHOUSE_ID, parentId: null, code: 'R02-ZONE', name: 'Zone', level: 1, path: 'R02-ZONE', isActive: true };
-const BIN1: LocationRow = { id: 'bin-1', warehouseId: WAREHOUSE_ID, parentId: 'zone-1', code: 'R02-BIN1', name: 'Bin 1', level: 2, path: 'R02-ZONE.R02-BIN1', isActive: false };
+// R08-01 — lpCount is REQUIRED on LocationRow now; ZONE deliberately carries live stock so the
+// save path can be pinned against zeroing it.
+const ZONE: LocationRow = { id: 'zone-1', warehouseId: WAREHOUSE_ID, parentId: null, code: 'R02-ZONE', name: 'Zone', level: 1, path: 'R02-ZONE', isActive: true, lpCount: 3, siteCode: 'S1', siteName: 'Site One' };
+const BIN1: LocationRow = { id: 'bin-1', warehouseId: WAREHOUSE_ID, parentId: 'zone-1', code: 'R02-BIN1', name: 'Bin 1', level: 2, path: 'R02-ZONE.R02-BIN1', isActive: false, lpCount: 0 };
 // Pre-existing non-compliant row: active child of an inactive parent, legal before this change.
-const SUB1: LocationRow = { id: 'sub-1', warehouseId: WAREHOUSE_ID, parentId: 'bin-1', code: 'R02-SUB1', name: 'Sub 1', level: 3, path: 'R02-ZONE.R02-BIN1.R02-SUB1', isActive: true };
+const SUB1: LocationRow = { id: 'sub-1', warehouseId: WAREHOUSE_ID, parentId: 'bin-1', code: 'R02-SUB1', name: 'Sub 1', level: 3, path: 'R02-ZONE.R02-BIN1.R02-SUB1', isActive: true, lpCount: 0 };
 // [L-1] The same violation one level up: an active INTERMEDIATE node with an active child.
-const L1: LocationRow = { id: 'l1', warehouseId: WAREHOUSE_ID, parentId: null, code: 'R02-L1', name: 'L1', level: 1, path: 'R02-L1', isActive: false };
-const L2: LocationRow = { id: 'l2', warehouseId: WAREHOUSE_ID, parentId: 'l1', code: 'R02-L2', name: 'L2', level: 2, path: 'R02-L1.R02-L2', isActive: true };
-const L3: LocationRow = { id: 'l3', warehouseId: WAREHOUSE_ID, parentId: 'l2', code: 'R02-L3', name: 'L3', level: 3, path: 'R02-L1.R02-L2.R02-L3', isActive: true };
+const L1: LocationRow = { id: 'l1', warehouseId: WAREHOUSE_ID, parentId: null, code: 'R02-L1', name: 'L1', level: 1, path: 'R02-L1', isActive: false, lpCount: 0 };
+const L2: LocationRow = { id: 'l2', warehouseId: WAREHOUSE_ID, parentId: 'l1', code: 'R02-L2', name: 'L2', level: 2, path: 'R02-L1.R02-L2', isActive: true, lpCount: 0 };
+const L3: LocationRow = { id: 'l3', warehouseId: WAREHOUSE_ID, parentId: 'l2', code: 'R02-L3', name: 'L3', level: 3, path: 'R02-L1.R02-L2.R02-L3', isActive: true, lpCount: 0 };
 
 const LABEL_OVERRIDES: Partial<LocationTreeLabels> = {
   title: 'Locations',
@@ -50,6 +52,11 @@ const LABEL_OVERRIDES: Partial<LocationTreeLabels> = {
   parentInactiveHint: 'The parent location is inactive, so this location is saved as inactive.',
   parentInactiveLegacyHint: 'This location stays active although its parent is inactive. Reactivate {parent} to repair the hierarchy.',
   hasActiveChildrenError: 'This location still has active child locations.',
+  hasStockError: 'This location still holds {count} live license plate(s).',
+  lpsHere: 'LPs here',
+  lpsTableTitle: 'LPs at this location',
+  lpsElsewhere: '{count} live LP(s) are parked here.',
+  noLpsAtLocation: 'No LPs at this location.',
   upsertError: 'Location save failed.',
 };
 
@@ -229,5 +236,57 @@ describe('R02-03 · Location dialog: activity must agree with the parent', () =>
 
     await waitFor(() => expect(upsertLocation).toHaveBeenCalledWith(expect.objectContaining({ id: ZONE.id, active: false })));
     expect(await within(dialog()).findByRole('alert')).toHaveTextContent(/still has active child locations/i);
+  });
+});
+
+// ── R08-01 · the LP count must survive a save and be named in the refusal ──────────────────────
+describe('R08-01 · Location panel: the LP count must not evaporate on save', () => {
+  it('keeps lpCount after a successful save instead of resetting the panel to 0', async () => {
+    const user = userEvent.setup();
+    // A plain rename. The screen used to rebuild the row from the dialog input alone, so the
+    // server-derived lpCount was dropped and the panel showed "LPs here: 0" for stock that had
+    // not moved anywhere.
+    const upsertLocation = vi.fn(
+      async (): Promise<UpsertLocationResult> => ({ ok: true, data: { id: ZONE.id, path: ZONE.path, level: ZONE.level, active: true } }),
+    );
+    renderScreen({ selectedLocationId: ZONE.id, upsertLocation });
+
+    expect(screen.getByText('LPs here').nextElementSibling).toHaveTextContent('3');
+
+    await user.click(screen.getByRole('button', { name: /^edit$/i }));
+    await user.clear(within(dialog()).getByLabelText(/^name$/i));
+    await user.type(within(dialog()).getByLabelText(/^name$/i), 'Renamed zone');
+    await user.click(within(dialog()).getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => expect(upsertLocation).toHaveBeenCalledTimes(1));
+    // Scoped to the heading: the name also lands in the tree node, and a bare getByText would
+    // match both.
+    await waitFor(() => expect(screen.getByRole('heading', { name: /Renamed zone/ })).toBeInTheDocument());
+    expect(screen.getByText('LPs here').nextElementSibling).toHaveTextContent('3');
+    // The site label is server-derived too and was lost by the same rebuild.
+    expect(screen.getByText('Site One', { exact: false })).toBeInTheDocument();
+  });
+
+  it('does not contradict itself: the LP table header shows the same count as the summary tile', () => {
+    renderScreen({ selectedLocationId: ZONE.id });
+
+    // The observed defect: "LPs here: 1" next to "LPs at this location (0)" and "No LPs here."
+    expect(screen.getByText('LPs here').nextElementSibling).toHaveTextContent('3');
+    expect(screen.getByRole('heading', { name: 'LPs at this location (3)' })).toBeInTheDocument();
+    expect(screen.queryByText('No LPs at this location.')).not.toBeInTheDocument();
+  });
+
+  it('surfaces the exact dependency count when the server refuses the deactivation', async () => {
+    const user = userEvent.setup();
+    const upsertLocation = vi.fn(async (): Promise<UpsertLocationResult> => ({ ok: false, error: 'has_stock', lpCount: 3 }));
+    renderScreen({ selectedLocationId: ZONE.id, upsertLocation });
+
+    await user.click(screen.getByRole('button', { name: /^edit$/i }));
+    await user.click(within(dialog()).getByLabelText(/is active/i));
+    await user.click(within(dialog()).getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => expect(upsertLocation).toHaveBeenCalledWith(expect.objectContaining({ id: ZONE.id, active: false })));
+    // "3", not a vague "this location has stock" — the operator needs to know how much to move.
+    expect(await within(dialog()).findByRole('alert')).toHaveTextContent('This location still holds 3 live license plate(s).');
   });
 });

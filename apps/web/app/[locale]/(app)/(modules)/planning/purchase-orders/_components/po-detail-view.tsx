@@ -202,10 +202,6 @@ function fmtDate(iso: string | null, locale: string): string {
   );
 }
 
-function money(value: number, currency: string): string {
-  return `${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`;
-}
-
 export function PoDetailView({
   po,
   labels,
@@ -360,8 +356,23 @@ export function PoDetailView({
     po.lines.map((l) => ({ qty: l.qty, unitPrice: l.unitPrice, taxPct: l.taxPct })),
   );
 
+  /**
+   * R07-07 — money is shown to 4 dp, the scale unit_price / the line money columns
+   * actually persist (numeric(12,4)); trailing zeros below 2 dp are dropped. A
+   * price stored as 0.0199 must NOT read back as 0.02 on an auditable document.
+   *
+   * The locale is passed EXPLICITLY (never `undefined`): this is a 'use client'
+   * component that Next also renders on the server, where Node's ICU default
+   * locale differs from the browser's — that mismatch was producing React
+   * hydration error #418 on every money cell. Same rule as fmtDate above.
+   */
   function formatMoney(amount: string): string {
-    return `${Number(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} ${po.currency}`;
+    return `${Number(amount).toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} ${po.currency}`;
+  }
+
+  /** Unit price always shows 4 dp — the scale numeric(12,4) persists. */
+  function formatUnitPrice(amount: string): string {
+    return `${Number(amount).toLocaleString(locale, { minimumFractionDigits: 4, maximumFractionDigits: 4 })} ${po.currency}`;
   }
 
   // Receipt rollup. Lines can carry mixed UoMs, so the header progress is
@@ -516,7 +527,7 @@ export function PoDetailView({
                       </td>
                       <td className="px-3 py-2 text-right font-mono tabular-nums">{l.qty}</td>
                       <td className="px-3 py-2 font-mono text-xs">{l.uom}</td>
-                      <td className="px-3 py-2 text-right font-mono tabular-nums">{money(Number(l.unitPrice), po.currency)}</td>
+                      <td className="px-3 py-2 text-right font-mono tabular-nums">{formatUnitPrice(l.unitPrice)}</td>
                       <td className="px-3 py-2 text-right font-mono tabular-nums text-slate-600">{l.taxPct}%</td>
                       <td className="px-3 py-2 text-right font-mono tabular-nums font-semibold">
                         {formatMoney(computePoLineGross(l.qty, l.unitPrice, l.taxPct))}

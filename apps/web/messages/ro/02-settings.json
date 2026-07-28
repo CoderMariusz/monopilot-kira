@@ -637,7 +637,9 @@
       "noBarcode": "No barcode",
       "parentInactiveHint": "Locația părinte este inactivă, deci această locație este salvată ca inactivă. Reactivați mai întâi locația părinte pentru a o păstra activă.",
       "parentInactiveLegacyHint": "Această locație este activă deși locația părinte este inactivă. Editarea aici îi păstrează statusul curent — reactivați {parent} pentru a repara ierarhia.",
-      "hasActiveChildrenError": "Această locație are încă locații subordonate active. Dezactivați-le mai întâi sau păstrați această locație activă."
+      "hasActiveChildrenError": "Această locație are încă locații subordonate active. Dezactivați-le mai întâi sau păstrați această locație activă.",
+      "hasStockError": "Această locație conține încă {count} plăci de înmatriculare (LP) active. Mutați sau consumați mai întâi acel stoc — o locație inactivă nu poate fi scanată ca destinație.",
+      "lpsElsewhere": "{count} LP-uri active sunt parcate aici. Deschideți lista completă de LP pentru a le vedea."
     }
   },
   "schema": {

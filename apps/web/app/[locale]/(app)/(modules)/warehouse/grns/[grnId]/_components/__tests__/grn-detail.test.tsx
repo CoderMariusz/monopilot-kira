@@ -207,6 +207,57 @@ describe('GrnDetailClient QA release affordance', () => {
   });
 });
 
+describe('GrnDetailClient — supplier batch + line count (R07-06 / R08-04)', () => {
+  it('shows em-dash in supplier-batch column when supplierBatchNumber is absent', () => {
+    renderGrn({
+      grn: {
+        ...GRN,
+        items: [
+          {
+            ...GRN.items[0],
+            id: 'line-1',
+            batchNumber: 'NIGHT-R07-BATCH-1300-A',
+            supplierBatchNumber: null,
+          },
+        ],
+      },
+    });
+    expect(screen.getByText('NIGHT-R07-BATCH-1300-A')).toBeInTheDocument();
+    expect(screen.getByTestId('grn-item-supplier-batch-line-1')).toHaveTextContent('—');
+  });
+
+  it('shows distinct supplier batch when supplierBatchNumber is present', () => {
+    renderGrn({
+      grn: {
+        ...GRN,
+        items: [
+          {
+            ...GRN.items[0],
+            batchNumber: 'INTERNAL-BATCH',
+            supplierBatchNumber: 'SUP-LOT-99',
+          },
+        ],
+      },
+    });
+    expect(screen.getByText('INTERNAL-BATCH')).toBeInTheDocument();
+    expect(screen.getByText('SUP-LOT-99')).toBeInTheDocument();
+  });
+
+  it('header line count uses itemCount (live lines), not items.length', () => {
+    renderGrn({
+      grn: {
+        ...GRN,
+        itemCount: 1,
+        items: [
+          { ...GRN.items[0], cancelled: false },
+          { ...GRN.items[1], cancelled: true },
+        ],
+      },
+    });
+    expect(screen.getByRole('heading', { name: 'Receipt lines (1)' })).toBeInTheDocument();
+  });
+});
+
 describe('GrnDetailClient — print labels (E1)', () => {
   it('renders an enabled [Print labels] button on every received line when permitted', () => {
     renderGrn();

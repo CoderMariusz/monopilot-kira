@@ -34,7 +34,7 @@ import { blockLp, listOpenWorkOrdersForLpReserve, reserveLp, unblockLp } from '.
 import { destroyLp, listSiblingLpsForMerge, mergeLps, splitLp } from './_actions/lp-split-merge-destroy-actions';
 import { updateLpMetadataAction } from './lp-metadata-adapter';
 // E1 — label printing wired through the printers settings actions (mig 304).
-import { printLabel } from '../../../../(admin)/settings/infra/printers/_actions/printers';
+import { listPrinters, printLabel } from '../../../../(admin)/settings/infra/printers/_actions/printers';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { getLpTranslator } from '../lp-labels';
 // RSC boundary: runtime VALUES must come from server-safe modules — never import
@@ -45,6 +45,7 @@ import {
   buildLpDetailLabels,
   type LpPrintLabelInput,
   type LpPrintLabelResult,
+  type LpPrinterOption,
 } from './_components/lp-detail-labels';
 
 // Org-scoped DB read per request — never statically prerendered.
@@ -106,6 +107,40 @@ async function resolveCanPrint(): Promise<boolean> {
   }
 }
 
+async function resolveLpSiteId(lpId: string): Promise<string | null> {
+  try {
+    return await withOrgContext(async (rawCtx) => {
+      const ctx = rawCtx as OrgContextLike;
+      const { rows } = await ctx.client.query<{ site_id: string | null }>(
+        `select site_id::text as site_id
+           from public.license_plates
+          where org_id = app.current_org_id()
+            and id = $1::uuid
+          limit 1`,
+        [lpId],
+      );
+      return rows[0]?.site_id ?? null;
+    });
+  } catch {
+    return null;
+  }
+}
+
+async function loadSitePrinters(lpId: string): Promise<{ printers: LpPrinterOption[]; loadError: boolean }> {
+  try {
+    const siteId = await resolveLpSiteId(lpId);
+    const all = await listPrinters();
+    return {
+      printers: all
+        .filter((p) => p.is_active && (!siteId || !p.site_id || p.site_id === siteId))
+        .map((p) => ({ id: p.id, name: p.name, printerType: p.printer_type })),
+      loadError: false,
+    };
+  } catch {
+    return { printers: [], loadError: true };
+  }
+}
+
 /**
  * E1 — Server Action adapter: maps the printers `printLabel` PrintJobRow down to
  * the minimal {status, result_url} the labels tab renders. The action itself
@@ -114,7 +149,12 @@ async function resolveCanPrint(): Promise<boolean> {
 async function printLpLabel(input: LpPrintLabelInput): Promise<LpPrintLabelResult> {
   'use server';
   try {
-    const job = await printLabel({ entityType: input.entityType, entityId: input.entityId });
+    const job = await printLabel({
+      entityType: input.entityType,
+      entityId: input.entityId,
+      copies: input.copies,
+      printerId: input.printerId,
+    });
     if (job.status === 'failed') {
       return { status: 'failed', result_url: null, code: job.error_text ?? 'print_failed' };
     }
@@ -172,6 +212,9 @@ async function DetailContent({ locale, lpId }: { locale: string; lpId: string })
   }
 
   const canPrint = await resolveCanPrint();
+  const { printers: sitePrinters, loadError: sitePrintersLoadError } = canPrint
+    ? await loadSitePrinters(lpId)
+    : { printers: [], loadError: false };
 
   return (
     <div className="flex flex-col gap-4">
@@ -193,6 +236,8 @@ async function DetailContent({ locale, lpId }: { locale: string; lpId: string })
         updateLpMetadataAction={updateLpMetadataAction}
         printLabelAction={printLpLabel}
         canPrint={canPrint}
+        sitePrinters={sitePrinters}
+        sitePrintersLoadError={sitePrintersLoadError}
       />
       <LpAuditTimelineSection entityType="license_plate" entityId={result.data.id} />
     </div>

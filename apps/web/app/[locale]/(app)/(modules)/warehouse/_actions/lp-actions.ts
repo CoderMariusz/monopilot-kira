@@ -7,6 +7,7 @@ import {
   toPaginatedResult,
   type PaginatedResult,
 } from '../../../../../../lib/shared/pagination';
+import { getActiveSiteId } from '../../../../../../lib/site/site-context';
 import {
   WAREHOUSE_READ_PERMISSION,
   asTrimmed,
@@ -146,6 +147,17 @@ export async function listLPs(
 
 export async function getLpDetail(lpId: string): Promise<WarehouseResult<LicensePlateDetail>> {
   try {
+    // R08-09 — the site selector is in scope for license plates (its own tooltip
+    // says so), but only the LIST honoured it: a direct /warehouse/license-plates/<id>
+    // URL rendered an LP from another site, with every mutating action live.
+    // Scoped here in the loader, not in the page, so no caller can skip it and
+    // there is no site parameter for a caller to spoof.
+    //
+    // Resolved cookie-only (no `client`), exactly like the list page
+    // (license-plates/page.tsx). Passing a client would add the org-default-site
+    // fallback, which the list does NOT apply — detail would then hide rows the
+    // list still shows.
+    const siteId = await getActiveSiteId();
     return await withOrgContext(async ({ userId, orgId, client }): Promise<WarehouseResult<LicensePlateDetail>> => {
       const ctx: WarehouseContext = { userId, orgId, client: client as QueryClient };
       if (!(await hasWarehousePermission(ctx, WAREHOUSE_READ_PERMISSION))) return { ok: false, reason: 'forbidden' };
@@ -215,13 +227,14 @@ export async function getLpDetail(lpId: string): Promise<WarehouseResult<License
            left join public.license_plates parent on parent.org_id = app.current_org_id() and parent.id = lp.parent_lp_id
           where lp.org_id = app.current_org_id()
             and lp.id = $1::uuid
+            and ($2::uuid is null or lp.site_id = $2::uuid or lp.site_id is null)
           limit 1`,
-        [lpId],
+        [lpId, siteId],
       );
       const row = header.rows[0];
       if (!row) return { ok: false, reason: 'not_found' };
 
-      const [children, history, moves] = await Promise.all([
+      const [children, history, moves, consumingWos] = await Promise.all([
         ctx.client.query<{ id: string; lp_number: string; status: string; quantity: string; uom: string }>(
           `select id::text, lp_number, status, quantity::text, uom
              from public.license_plates
@@ -277,6 +290,25 @@ export async function getLpDetail(lpId: string): Promise<WarehouseResult<License
             order by sm.move_date desc, sm.created_at desc`,
           [lpId],
         ),
+        // R14-02 — reverse genealogy: which WOs consumed from this LP. The
+        // Movements tab shows `consume_to_wo` rows but no WO number, so the trail
+        // dead-ended here. Reversal rows carry a NEGATIVE qty_consumed
+        // (corrections-actions negateDecimalString), so the sum is the NET
+        // remaining consumption and a fully reversed WO stays visible at 0.
+        ctx.client.query<{ wo_id: string; wo_number: string; qty: string; uom: string }>(
+          `select mc.wo_id::text as wo_id,
+                  wo.wo_number,
+                  sum(mc.qty_consumed)::text as qty,
+                  min(mc.uom) as uom
+             from public.wo_material_consumption mc
+             join public.work_orders wo
+               on wo.id = mc.wo_id and wo.org_id = mc.org_id
+            where mc.org_id = app.current_org_id()
+              and mc.lp_id = $1::uuid
+            group by mc.wo_id, wo.wo_number
+            order by max(mc.consumed_at) desc`,
+          [lpId],
+        ),
       ]);
 
       const base = mapLpListRow(row);
@@ -305,6 +337,12 @@ export async function getLpDetail(lpId: string): Promise<WarehouseResult<License
             status: child.status,
             quantity: String(child.quantity),
             uom: child.uom,
+          })),
+          consumingWos: consumingWos.rows.map((w) => ({
+            woId: w.wo_id,
+            woNumber: w.wo_number,
+            qty: String(w.qty),
+            uom: w.uom,
           })),
           stateHistory: history.rows.map((h) => ({
             id: h.id,

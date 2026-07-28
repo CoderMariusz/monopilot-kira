@@ -250,7 +250,7 @@ export function GrnDetailClient({
       it.orderedQty == null ? dash : `${it.orderedQty} ${it.uom}`,
       `${it.receivedQty} ${it.uom}`,
       it.batchNumber ?? dash,
-      dash,
+      it.supplierBatchNumber ?? dash,
       it.expiryDate ? it.expiryDate.slice(0, 10) : dash,
       it.lpNumber ?? dash,
       it.lpQaStatus ?? dash,
@@ -366,7 +366,7 @@ export function GrnDetailClient({
       >
         <div className="flex items-center gap-3 border-b border-slate-200 px-4 py-3">
           <h2 className="text-sm font-semibold text-slate-900">
-            {labels.itemsTitle.replace('{count}', String(grn.items.length))}
+            {labels.itemsTitle.replace('{count}', String(grn.itemCount))}
           </h2>
           <div className="ml-auto flex items-center gap-2">
             <Link
@@ -394,7 +394,7 @@ export function GrnDetailClient({
             {labels.emptyItems}
           </p>
         ) : (
-          <Table aria-label={labels.itemsTitle.replace('{count}', String(grn.items.length))}>
+          <Table aria-label={labels.itemsTitle.replace('{count}', String(grn.itemCount))}>
             <TableHeader>
               <TableRow>
                 <TableHead scope="col">{labels.col.line}</TableHead>
@@ -483,7 +483,12 @@ export function GrnDetailClient({
                   <TableCell className="font-mono text-[11px] text-slate-600">
                     {it.batchNumber ?? dash}
                   </TableCell>
-                  <TableCell className="font-mono text-[11px] text-slate-500">{it.batchNumber ?? dash}</TableCell>
+                  <TableCell
+                    className="font-mono text-[11px] text-slate-500"
+                    data-testid={`grn-item-supplier-batch-${it.id}`}
+                  >
+                    {it.supplierBatchNumber ?? dash}
+                  </TableCell>
                   <TableCell className="font-mono text-xs text-slate-600">
                     {it.expiryDate ? it.expiryDate.slice(0, 10) : dash}
                   </TableCell>

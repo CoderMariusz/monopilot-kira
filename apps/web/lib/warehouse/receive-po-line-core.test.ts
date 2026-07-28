@@ -1,10 +1,15 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import {
   executeReceivePoLineCore,
   OPEN_PO_STATUSES,
+  parseDecimal,
   type ReceivePoLineCoreInput,
 } from './receive-po-line-core';
+import { DECIMAL_QTY_RE } from '../shared/decimal';
 import { BookReceiptWacError, preflightReceiptWacResolvability } from '../finance/book-receipt-wac';
 import type { QueryClient } from '../scanner/db';
 
@@ -573,3 +578,45 @@ function makeClient(options: {
 function findCall(client: FakeClient, fragment: string) {
   return client.calls.find((call) => call.sql.includes(fragment));
 }
+
+/**
+ * R07-02 was caused by TWO copies of the quantity pattern — this server guard and
+ * the receiving forms — drifting apart (server 6 dp, forms 3 dp), which made the
+ * last 0.000600 of a line impossible to receive. The previous round lifted the
+ * pattern into lib/shared/decimal but left this copy in place, so the drift could
+ * simply happen again. These tests assert the copy is GONE, not merely equal today.
+ */
+describe('parseDecimal — one shared pattern, no second copy', () => {
+  const SOURCE = readFileSync(fileURLToPath(new URL('./receive-po-line-core.ts', import.meta.url)), 'utf8');
+
+  const ACCEPTED = ['0', '1', '10', '0.5', '0.000600', '12.345600', '0.000001', '999999.999999'];
+  const REJECTED = ['', ' ', ' 1', '1 ', '1.', '.5', '01.5', '00', '-1', '+1', '1.1234567', '1e3', '1,5', 'abc', 'NaN'];
+
+  it('agrees with the shared DECIMAL_QTY_RE on every input, in both directions', () => {
+    for (const value of [...ACCEPTED, ...REJECTED]) {
+      let serverAccepts = true;
+      try {
+        parseDecimal(value);
+      } catch {
+        serverAccepts = false;
+      }
+      // Compared as objects so a failure names the offending input.
+      expect({ value, serverAccepts }).toEqual({ value, serverAccepts: DECIMAL_QTY_RE.test(value) });
+    }
+  });
+
+  it('accepts the six-decimal remainder whose rejection by the drifted copy WAS the bug', () => {
+    expect(DECIMAL_QTY_RE.test('0.000600')).toBe(true);
+    expect(parseDecimal('0.000600')).toBe(600n);
+  });
+
+  /**
+   * The structural guarantee. Behavioural agreement above only proves the two are
+   * equal TODAY; drift is a future event. This proves there is no second pattern
+   * left in the module that COULD drift.
+   */
+  it('imports the shared symbol and declares no decimal pattern of its own', () => {
+    expect(SOURCE).toMatch(/import\s*\{[^}]*\bDECIMAL_QTY_RE\b[^}]*\}\s*from\s*'\.\.\/shared\/decimal'/);
+    expect(SOURCE.match(/\/\^.*\\d\{1,\d\}.*\$\//g) ?? []).toEqual([]);
+  });
+});

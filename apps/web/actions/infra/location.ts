@@ -61,7 +61,10 @@ export type UpsertLocationResult =
         | 'depth_exceeded'
         | 'duplicate_code'
         | 'has_active_children'
+        | 'has_stock'
         | 'persistence_failed';
+      /** R08-01 — how many live LPs block the deactivation. Set only with 'has_stock'. */
+      lpCount?: number;
     };
 
 export type DeleteLocationResult =
@@ -175,6 +178,38 @@ export async function upsertLocation(rawInput: unknown): Promise<UpsertLocationR
           [existing.id],
         );
         if (Number(activeChildRows[0]?.active_children ?? 0) > 0) return { ok: false, error: 'has_active_children' };
+
+        // R08-01 — stock guard is scoped NARROWER than has_active_children. The children probe
+        // must run for every path that lands inactive (including parent clamp on a MOVE), because
+        // clamping an active intermediate under an inactive parent strands its active subtree.
+        // Stock, by contrast, blocks only an EXPLICIT deactivation request (input.active=false):
+        // a move that merely changes parent_id arrives with active:true and is clamped to
+        // inactive without the operator asking to switch the row off — probing license_plates there
+        // both over-blocks legal metadata/parent edits and steals the error slot from
+        // has_active_children in the parent-row serialisation race below.
+        //
+        // Deactivating a location that still holds live license plates makes that stock
+        // UNHANDLEABLE: the scanner refuses an inactive location as a move target
+        // (lib/warehouse/scanner/movement.ts loadLocationScope → location_inactive 422), so the
+        // LPs sitting there can no longer be moved out.
+        //
+        // "Live" is the definition this screen already counts with — the lp_counts CTE in
+        // settings/infra/locations/page.tsx — and the one stock-move-actions.ts and scanner
+        // movement.ts use: every status except the terminal three. Keep the three in sync.
+        if (input.active === false) {
+          const { rows: liveLpRows } = await client.query<{ live_lps: number | string }>(
+            `select count(*)::integer as live_lps
+               from public.license_plates
+              where org_id = app.current_org_id()
+                and location_id = $1::uuid
+                and status not in ('consumed', 'shipped', 'destroyed')`,
+            [existing.id],
+          );
+          const liveLps = Number(liveLpRows[0]?.live_lps ?? 0);
+          // The exact dependency count travels with the error: "move 3 pallets first" is actionable,
+          // "this location has stock" is not.
+          if (liveLps > 0) return { ok: false, error: 'has_stock', lpCount: liveLps };
+        }
       }
 
       const { rows } = await client.query<LocationRow>(

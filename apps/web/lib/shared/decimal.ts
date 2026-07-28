@@ -17,11 +17,26 @@ export const MICRO_SCALE = 1_000_000n;
 
 const DECIMAL_RE = /^-?\d+(\.\d+)?$/;
 
+/**
+ * Canonical quantity-input guard for forms writing a NUMERIC(_,6) column: 1-6
+ * decimals, no leading zeros (`01.5`), no bare `.5`, no trailing `1.`, no sign.
+ *
+ * Deliberately identical to the server guard (`parseDecimal` in
+ * lib/warehouse/receive-po-line-core.ts) so a form can never accept a value the
+ * action rejects — nor reject one it would have accepted. It lives here because
+ * the receiving UIs each kept a private copy that drifted to 3 decimals while
+ * the columns and the server stayed at 6, making the last 0.000600 of a line
+ * impossible to receive.
+ */
+export const DECIMAL_QTY_RE = /^(?:0|[1-9]\d*)(?:\.\d{1,6})?$/;
+
 /** Parse a decimal string (or number) into exact micro-units. */
-export function toMicro(value: string | number): bigint {
+export function toMicro(value: string | number | null | undefined): bigint {
+  if (value == null) return 0n;
   const text = typeof value === 'number' ? String(value) : value.trim();
-  // Scientific notation (only reachable via extreme JS numbers) and garbage are
-  // out of the NUMERIC 3-4dp domain — treat as 0, never NaN-poison the math.
+  // Scientific notation (only reachable via extreme JS numbers), null/undefined,
+  // and garbage are out of the NUMERIC 3-4dp domain — treat as 0, never
+  // NaN-poison the math.
   if (!DECIMAL_RE.test(text)) return 0n;
   const neg = text.startsWith('-');
   const body = neg ? text.slice(1) : text;

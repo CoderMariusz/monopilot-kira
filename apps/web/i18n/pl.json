@@ -8057,7 +8057,8 @@
         "already_exists": "Zamówienie zakupu o tym numerze już istnieje.",
         "invalid_state": "Ta akcja nie jest dozwolona w bieżącym statusie.",
         "persistence_failed": "Coś poszło nie tak podczas zapisu. Spróbuj ponownie.",
-        "po_has_receipts": "To zamówienie ma już przyjęcia i nie można przywrócić go do wersji roboczej."
+        "po_has_receipts": "To zamówienie ma już przyjęcia i nie można przywrócić go do wersji roboczej.",
+        "line_uom_not_convertible": "Wyceniona linia używa jednostki, której nie da się przeliczyć na kilogramy do wyceny, więc towaru nie dałoby się przyjąć. Uzupełnij w kartotece pozycji masę netto sztuki (i liczbę sztuk w kartonie) albo zamów tę linię w kg."
       },
       "create": {
         "title": "Utwórz zamówienie zakupu",
@@ -8099,7 +8100,14 @@
           "persistence_failed": "Coś poszło nie tak podczas zapisu. Spróbuj ponownie.",
           "no_active_site": "Wybierz zakład przed utworzeniem zamówienia zakupu. Ta organizacja nie ma jeszcze aktywnego zakładu — dodaj go w Ustawienia → Zakłady.",
           "ambiguous_site": "Wybierz zakład na górnym pasku przed utworzeniem zamówienia zakupu.",
-          "warehouse_site_mismatch": "Destination warehouse must belong to the purchase order's site."
+          "warehouse_site_mismatch": "Magazyn docelowy musi należeć do zakładu zamówienia zakupu.",
+          "priceInvalid": "Podaj cenę jednostkową z maksymalnie 4 miejscami po przecinku, używając kropki (np. 0.0199).",
+          "priceRequired": "Linia {line}: podaj cenę jednostkową (wpisz 0 dla linii gratisowej).",
+          "linePriceInvalid": "Linia {line}: podaj cenę jednostkową z maksymalnie 4 miejscami po przecinku, używając kropki (np. 0.0199).",
+          "lineItemRequired": "Linia {line}: wybierz pozycję.",
+          "lineQtyInvalid": "Linia {line}: podaj dodatnią ilość (do 6 miejsc po przecinku).",
+          "lineUomRequired": "Linia {line}: wybierz jednostkę miary.",
+          "lineTaxInvalid": "Linia {line}: podatek musi być od 0 do 100 (do 4 miejsc po przecinku)."
         },
         "picker": {
           "trigger": "+ Dodaj pozycję",
@@ -8207,7 +8215,8 @@
           "editTitle": "Edytuj pozycję ZZ",
           "submitAdd": "Dodaj pozycję",
           "submitEdit": "Zapisz pozycję",
-          "qtyRequired": "Podaj ilość większą od zera i wybierz jednostkę."
+          "qtyRequired": "Podaj ilość większą od zera i wybierz jednostkę.",
+          "priceRequired": "Podaj cenę jednostkową (wpisz 0 dla linii gratisowej)."
         }
       },
       "receive": {
@@ -8235,10 +8244,12 @@
             "not_found": "Ta pozycja zamówienia już nie istnieje.",
             "invalid_qty": "Ta ilość jest nieprawidłowa.",
             "over_receive_cap": "Nie można przekroczyć 110% zamówionej ilości.",
+            "over_receive_confirm_required": "To przyjęcie przekracza pozostałą ilość. Nadprzyjęcie trzeba potwierdzić na ekranie Magazyn → Przyjęcie ZZ — przyjmij tutaj pozostałą ilość albo potwierdź nadprzyjęcie tam.",
             "no_warehouse": "Brak skonfigurowanego magazynu — skonfiguruj go w Ustawieniach przed przyjęciem.",
             "invalid_location": "Ta lokalizacja docelowa jest nieprawidłowa.",
             "location_inactive": "Ta lokalizacja została dezaktywowana i nie może przyjmować towaru.",
             "invalid_state": "Tego zamówienia nie można przyjąć w obecnym statusie.",
+            "wac_unresolved_uom": "Przyjęcie zablokowane: pozycja {item} nie ma zdefiniowanego przelicznika dla jednostki {uom}, więc nie można wycenić tego przyjęcia. Uzupełnij przelicznik dla {uom} (lub ustaw jednostkę bazową pozycji) w danych podstawowych — ponawianie nic nie da, dopóki tego nie poprawisz.",
             "wac_unsupported_currency": "Przyjęcie jest zablokowane, ponieważ to zamówienie nie jest w GBP. Wycena zapasów wymaga obecnie GBP — zmień walutę ZZ na GBP przed przyjęciem lub utwórz zamówienie ponownie w GBP. Zamówienia w obcej walucie można nadal tworzyć i edytować, ale nie można ich przyjąć, dopóki nie będzie obsługiwana konwersja FX.",
             "error": "Coś poszło nie tak podczas przyjmowania. Spróbuj ponownie."
           }

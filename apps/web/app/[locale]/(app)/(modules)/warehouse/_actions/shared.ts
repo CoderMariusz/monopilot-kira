@@ -134,6 +134,12 @@ export type LicensePlateDetail = LicensePlateListItem & {
   hasActiveHold: boolean;
   parentLp: { id: string; lpNumber: string } | null;
   childLps: Array<{ id: string; lpNumber: string; status: string; quantity: string; uom: string }>;
+  /**
+   * R14-02 — work orders that CONSUMED from this LP (wo_material_consumption),
+   * the reverse of the WO genealogy tab. `qty` is the NET sum, so a reversed
+   * consumption nets to 0 and the WO stays listed (the trace must not vanish).
+   */
+  consumingWos: Array<{ woId: string; woNumber: string; qty: string; uom: string }>;
   stateHistory: Array<{
     id: string;
     fromState: string | null;
@@ -199,6 +205,8 @@ export type GrnDetail = GrnListItem & {
     receivedQty: string;
     uom: string;
     batchNumber: string | null;
+    /** Distinct supplier lot; null when only internal batch_number was captured at receipt. */
+    supplierBatchNumber: string | null;
     expiryDate: string | null;
     lpId: string | null;
     lpNumber: string | null;
@@ -305,12 +313,17 @@ export type ExpiryDashboard = {
     tier: 'red' | 'amber';
     itemCode: string | null;
     itemName: string | null;
+    batchNumber: string | null;
     locationCode: string | null;
     warehouseCode: string | null;
     quantity: string;
     uom: string;
     expiryDate: string;
+    daysLeft: number;
     warningDays: number;
+    status: string;
+    qaStatus: string;
+    siteTimezone: string;
   }>;
 };
 

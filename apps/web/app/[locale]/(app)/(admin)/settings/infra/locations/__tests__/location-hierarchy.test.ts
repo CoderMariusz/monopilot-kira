@@ -51,6 +51,8 @@ describe('mapUpsertLocationError (C016)', () => {
     upsertError: 'Location save failed.',
     duplicateCodeError: 'A location with this code already exists in this warehouse.',
     depthExceeded: 'Maximum location depth for this tenant is 3 levels (warehouse → zone → bin).',
+    hasActiveChildrenError: 'This location still has active child locations.',
+    hasStockError: 'This location still holds {count} live license plate(s).',
   };
 
   it('maps duplicate_code to the warehouse-scoped duplicate message', () => {
@@ -60,5 +62,16 @@ describe('mapUpsertLocationError (C016)', () => {
   it('maps depth_exceeded and falls back to the generic save failure', () => {
     expect(mapUpsertLocationError('depth_exceeded', labels)).toBe(labels.depthExceeded);
     expect(mapUpsertLocationError('persistence_failed', labels)).toBe(labels.upsertError);
+  });
+
+  // R08-01 — the count is the whole point of the named error: "move 3 pallets" is actionable,
+  // "this location has stock" is not.
+  it('interpolates the live-LP count into has_stock', () => {
+    expect(mapUpsertLocationError('has_stock', labels, 3)).toBe('This location still holds 3 live license plate(s).');
+    expect(mapUpsertLocationError('has_active_children', labels)).toBe(labels.hasActiveChildrenError);
+  });
+
+  it('degrades to 0 rather than printing a raw {count} when the server sent no number', () => {
+    expect(mapUpsertLocationError('has_stock', labels)).toBe('This location still holds 0 live license plate(s).');
   });
 });

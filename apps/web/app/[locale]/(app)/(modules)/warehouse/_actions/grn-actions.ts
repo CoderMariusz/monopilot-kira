@@ -145,7 +145,7 @@ export async function listGrns(input: GrnListInput = {}): Promise<WarehouseResul
 
       return {
         ok: true,
-        data: toPaginatedResult(dataResult.rows.map(mapGrn), Number(countResult.rows[0]?.total ?? 0), page),
+        data: toPaginatedResult(dataResult.rows.map((r) => mapGrn(r)), Number(countResult.rows[0]?.total ?? 0), page),
       };
     });
   } catch (error) {
@@ -159,6 +159,16 @@ export async function getGrnDetail(grnId: string): Promise<WarehouseResult<GrnDe
     return await withOrgContext(async ({ userId, orgId, client }): Promise<WarehouseResult<GrnDetail>> => {
       const ctx: WarehouseContext = { userId, orgId, client: client as QueryClient };
       if (!(await hasWarehousePermission(ctx, WAREHOUSE_READ_PERMISSION))) return { ok: false, reason: 'forbidden' };
+
+      // R08-09 — same leak as getLpDetail: listGrns hard-filters on site, the
+      // detail read did not, so a direct /warehouse/grns/<id> URL rendered a GRN
+      // from another site. Resolved the same way listGrns resolves it (with the
+      // client, so the org-default fallback matches), then applied below.
+      // null = "All sites" → no site predicate (list still fails closed with
+      // noActiveSite). When a site resolves, match listGrns' hard filter exactly —
+      // no `site_id IS NULL` bypass, or a NULL-site GRN is visible on detail but
+      // absent from the list.
+      const siteId = await getActiveSiteId({ client: ctx.client });
 
       const header = await ctx.client.query<GrnRow>(
         `select g.id::text,
@@ -182,8 +192,9 @@ export async function getGrnDetail(grnId: string): Promise<WarehouseResult<GrnDe
             and po.id = g.po_id
           where g.org_id = app.current_org_id()
             and g.id = $1::uuid
+            and ($2::uuid is null or g.site_id = $2::uuid)
           limit 1`,
-        [grnId],
+        [grnId, siteId],
       );
       const row = header.rows[0];
       if (!row) return { ok: false, reason: 'not_found' };
@@ -200,6 +211,7 @@ export async function getGrnDetail(grnId: string): Promise<WarehouseResult<GrnDe
           received_qty: string;
           uom: string;
           batch_number: string | null;
+          supplier_batch_number: string | null;
           expiry_date: string | Date | null;
           lp_id: string | null;
           lp_number: string | null;
@@ -219,6 +231,7 @@ export async function getGrnDetail(grnId: string): Promise<WarehouseResult<GrnDe
                   gi.received_qty::text,
                   gi.uom,
                   gi.batch_number,
+                  coalesce(gi.supplier_batch_number, lp.supplier_batch_number) as supplier_batch_number,
                   ${GRN_LINE_EXPIRY_SQL} as expiry_date,
                   gi.lp_id::text,
                   lp.lp_number,
@@ -306,6 +319,7 @@ export async function getGrnDetail(grnId: string): Promise<WarehouseResult<GrnDe
             receivedQty: String(item.received_qty),
             uom: item.uom,
             batchNumber: item.batch_number,
+            supplierBatchNumber: item.supplier_batch_number,
             expiryDate: toIso(item.expiry_date),
             lpId: item.lp_id,
             lpNumber: item.lp_number,
