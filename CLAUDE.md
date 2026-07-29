@@ -34,7 +34,12 @@ review (`/kira:review`).
 ## Common commands
 
 ```bash
-pnpm --filter web vitest run <path>                       # web unit / RTL
+pnpm --filter web exec vitest run --config ../../vitest.config.ts <path>   # web unit
+pnpm --filter web exec vitest run --config vitest.ui.config.ts <path>      # web RTL/UI
+# UWAGA: bez `exec` pnpm szuka SKRYPTU o nazwie "vitest" i kończy się
+# ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT (rc=1) NIE URUCHAMIAJĄC ani jednego testu.
+# UWAGA 2: `pnpm --filter web test` spina obie suity operatorem `&&`, więc gdy suita
+# node jest czerwona, suita UI NIGDY się nie wykonuje. Uruchamiaj je OSOBNO.
 pnpm --filter web exec playwright test <spec> --trace on  # E2E
 pnpm db:up && pnpm db:test                                # schema/RLS tests (needs local Postgres)
 pnpm lint && pnpm typecheck && pnpm test:smoke            # repo guards
