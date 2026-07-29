@@ -304,3 +304,48 @@ hydracja w harnessie E2E · wybór persony · 5 defektów fixture'ów
 ## Świadomie NIENAPRAWIONE
 **27 potwierdzonych defektów kodu.** Zlecenie brzmiało „przelicz katalog", nie „napraw".
 Każdy jest opisany z `plik:linia` i gotowy do decyzji.
+
+---
+
+# ⚠️ KOREKTY WERDYKTÓW (po deduplikacji, 2026-07-30)
+
+Analiza deduplikacyjna (`DEFEKTY-DO-DECYZJI.md`) zakwestionowała dwa werdykty. Sprawdziłem
+pierwszy sam i **korygenda dotyczy mojego własnego zapisu**.
+
+## `TEC-049` — z „FAIL: defekt kodu" na **ROZBIEŻNOŚĆ KONTRAKTU**
+
+Zapisałem wcześniej: *„FAIL — defekt kodu, zweryfikowane przeze mnie niezależnie"*.
+Zweryfikowałem, że **test pada** — a to nie to samo co „kod jest zły". Przeceniłem swój dowód.
+
+Fakty z kodu:
+- `technical/items/_actions/shared.ts:495-506` **jawnie dopuszcza** `blocked → active`,
+  z komentarzem: *„Reactivate after deactivate — edit wizard + updateItem"*
+- `transition-item-status.test.ts:93-97` asertuje, że ma być **odrzucone**,
+  z komentarzem: *„blocked → active stays owned by the deactivate flow (no reactivation here)"*
+
+**Obie strony mają jawny, celowy komentarz stwierdzający coś przeciwnego.** To nie defekt kodu
+i nie „zły test" — to spór o kontrakt, ta sama klasa co `E2E-054-10`.
+**Wymaga decyzji produktowej:** czy reaktywacja zablokowanej pozycji należy do tej akcji,
+czy wyłącznie do przepływu deaktywacji.
+
+## `PRD-083` — zakwestionowane, **nie zweryfikowane przeze mnie**
+Analiza twierdzi, że opisywana wartość jest zabroniona przez aktualny `CHECK` po migracji 280,
+czyli werdykt „defekt kodu" byłby błędny. **Nie sprawdziłem tego samodzielnie** — przekazuję
+jako twierdzenie analizy wymagające potwierdzenia, nie jako ustalenie.
+
+## Skorygowany bilans Fazy 1
+
+| Werdykt | było | jest |
+|---|---:|---:|
+| FAIL — potwierdzony defekt kodu | 27 | **25** (‑2 zakwestionowane) |
+| rozbieżność kontraktu (decyzja produktowa) | 1 | **2** (+`TEC-049`) |
+| do potwierdzenia | 0 | **1** (`PRD-083`) |
+
+**Unikalnych przyczyn źródłowych: 21** (nie 27 — katalog liczy kontrakty, nie miejsca w kodzie).
+Podział kosztu: **8 trywialnych, 8 średnich, 5 dużych.** Z otwartym nettingiem WAC spoza
+katalogu: **22 miejsca**.
+
+## 🔴 Osiem anchorów `plik:linia` było nieaktualnych albo wskazywało niewłaściwą linię
+Werdykty pisało sześć różnych torów. To znaczy, że **dokumenty werdyktów wymagają weryfikacji
+anchorów przed użyciem ich jako podstawy naprawy** — inaczej naprawa trafi w niewłaściwe miejsce.
+Do wzorców kampanii: *anchor z raportu toru jest hipotezą, nie faktem, dopóki go nie otworzysz*.
