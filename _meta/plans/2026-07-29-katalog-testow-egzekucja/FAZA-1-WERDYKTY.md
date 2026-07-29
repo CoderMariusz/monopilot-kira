@@ -178,3 +178,68 @@ To jest, w jednym zdaniu, uzasadnienie całej tej kampanii.
 
 **Anty-testy wykryte łącznie: 8.**
 **Defekty znalezione poza katalogiem: 2** (konwersja g→kg, netting WAC po anulowaniu).
+
+---
+
+## Partia 5 — 11 ID domeny `UI` (dowody W PRZEGLĄDARCE)
+
+Pierwsza partia dowodzona **pełnym E2E**: realne kliknięcia, hydracja potwierdzona asercją
+`__reactContainer$`, stan sprawdzany w bazie. **11/11 rozstrzygniętych, 0 nieosiągalnych.**
+
+| ID | dziś | dowód |
+|---|---|---|
+| `UI-003` | **FAIL — brak funkcji** | pole wyszukiwania ma `readonly=""`, `fill()` → `TimeoutError`, brak opakowującego `<form>`. Nie ma czego testować (`app-topbar.tsx:106-113`) |
+| `UI-005` | **FAIL (profil/PIN) + PASS (logout)** | menu otwarte realnym klikiem; **0 linków**, brak profilu i zmiany PIN-u. Logout: → `/en/login`, back-button → `/en/login`, cookies `auth` = `[]` |
+| `UI-008` | **FAIL — defekt kodu** | próg ING-SUGAR utworzony → licznik KPI `1`→`2` **dokładnie o +1**, ale podpis nadal „Stock thresholds not live yet" (`dashboard/page.tsx:129` renderuje hint także przy `notLive===false`) |
+| `UI-011` | **FAIL — defekt kodu** | link karty PO prowadzi poprawnie (`/planning/purchase-orders/<id>`, h1 „Purchase order"), 2 przeterminowane PO = 2 wiersze — ale **etykieta to „View WO →"** (`planning/page.tsx:211`) |
+| `UI-012` | **FAIL — defekt kodu** | klik → `transfer_orders.status='cancelled'` w bazie → alerty TO `1`→`0`, a empty-state mówi **„No work-order alerts"**. Obie strony kontroli zaobserwowane |
+| `UI-017` | **FAIL (etykieta) + PASS (akcja)** | dwie pozycje nawigacji o **identycznej** etykiecie `Stock adjustments`. Akcja działa: +25,0005 kg → `stock_adjustments`=1, LP widoczne w historii (`warehouse/page.tsx:314-322` — zahardkodowany `<li>` poza pętlą) |
+| `UI-018` | **FAIL — wyciek notatek deweloperskich do UI** | na `/en/warehouse` w **`innerText`**: „KPI omitted", „no valuation/costing field is exposed", „FEFO-override telemetry". Źródło: **`_meta/i18n-staging/warehouse-d.json:46-47`** — trzeci katalog tłumaczeń |
+| `UI-020` | **FAIL — defekt kodu** | „Spend by supplier" = `$260.00`; `sum(qty*unit_price)` = 260.0000 (liczba poprawna), ale symbol `$` przy domenie GBP (`Intl.NumberFormat('en-US',{currency:'USD'})`) |
+| `UI-021` | **FAIL (zaokrąglenie) + PASS (UoM)** | po dodaniu LP 25,0005 kg agregat = `25.000500 kg`, `SELECT` potwierdza. Rozbicie per UoM **naprawione**, 6 miejsc po przecinku **nie** (`network-inventory-kpi.ts:9`) |
+| `UI-022` | **FAIL (country) + PASS (timezone)** | `country='uk'` **przyjęte bez normalizacji** → w bazie `PL` i `uk` obok siebie (`sites.ts:269` free text). `timezone='CET+1'` **odrzucone** z czytelnym komunikatem |
+| `UI-039` | **FAIL — defekt kodu, nowy** | przełączenie `scanner.pwa.enabled` → alert `persistence_failed`, **wiersz w bazie NIEZMIENIONY** |
+
+### 🔴 `UI-039` — przełączanie flag funkcji jest niemożliwe NIGDZIE, nie tylko lokalnie
+Dwa błędy w łańcuchu, odtworzone na SQL (`apps/web/actions/flags/set-core.ts`):
+1. `:80` — `set … updated_by = $2::uuid`, a `public.feature_flags_core` **nie ma kolumny `updated_by`**;
+   żadna z 506 zastosowanych migracji jej nie dodaje → `42703`
+2. `:94` — `insert into public.outbox_events (… aggregate_id …) values (…, null, …)`,
+   a kolumna jest `NOT NULL` → `23502`; odpali się natychmiast po naprawie (1)
+
+Oba w `try` zwracającym `persistence_failed` (`:116`), a `withOrgContext` robi ROLLBACK —
+ginie także sam UPDATE flagi. **Objaw generyczny, przyczyna podwójna.**
+
+### Wzorzec tej partii: „naprawione dane, niezmienione copy"
+Inny niż anty-test z partii 2-4. Warstwa danych została naprawiona, tekst dla użytkownika nie:
+licznik KPI reaguje o +1, a podpis kłamie; link prowadzi poprawnie, a etykieta mówi o innym
+obiekcie; UoM naprawione, zaokrąglenie nie; timezone waliduje, `country` nie.
+
+### Uczciwe ograniczenia
+- `UI-005` „stary cookie → 401": **nieosiągalne** — fałszywy GoTrue nie unieważnia tokenów,
+  więc odpowiedź 401 nic by nie znaczyła.
+- **E-podpis przy korektach (`UI-017`/`UI-021`) nie posłużył jako dowód czegokolwiek** —
+  lokalny serwer auth przyjmuje dowolne hasło. Użyty wyłącznie do przepuszczenia mutacji;
+  dowodem są wiersze `stock_adjustments`/`license_plates`.
+
+### Znaleziska poboczne
+- `/en/settings/features` renderuje **surowy klucz** `settings.features.planNotice` —
+  ta sama klasa `FORMATTING_ERROR` co `/en/dashboard`; dotyczy też `XC-047`
+- org Apex miała **0 wierszy w `public.locations`** (jedyna należała do sentinela GDPR)
+- `public.modules` jest **puste** → `/settings/features` może pokazać tylko empty-state
+
+**Uwaga o artefaktach:** `faza1-ui-recheck-b/-c.spec.ts` są **nieidempotentne** — zużywają stan.
+`-a` jest read-only i bezpieczny do powtórzeń.
+
+---
+
+## Bilans Fazy 1 po pięciu partiach: 48 z 55 ID
+
+| Werdykt | Ile |
+|---|---|
+| **PASS** | 7 (+3 częściowe: `UI-005`, `UI-017`, `UI-021`, `UI-022` mają stronę PASS) |
+| **FAIL — potwierdzony defekt kodu** | 24 |
+| **brak testu kontraktowego** | 17 |
+| Pozostało | **7** (domena `E2E`) |
+
+**Anty-testy: 8. Defekty poza katalogiem: 3** (konwersja g→kg, netting WAC, `UI-039` flagi).
