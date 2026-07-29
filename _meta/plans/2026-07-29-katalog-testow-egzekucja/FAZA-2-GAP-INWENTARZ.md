@@ -305,3 +305,43 @@ trzeba je oznaczyć jako **nieosiągalne lokalnie**, nie jako FAIL.
 Dodatkowo: `_meta/i18n-staging/` to **trzeci** katalog tłumaczeń importowany przez ~20 modułów etykiet —
 przy każdej zmianie komunikatów sprawdzaj importy **spoza** `apps/web`.
 
+
+---
+
+# Szard P1 — wynik pierwszej próby (2026-07-30, ~00:50)
+
+**0 DOMKNIĘTYCH, 1 ANTY-TEST, 1 DEFEKT KODU, 10 NIEZWERYFIKOWANYCH.**
+
+Tor napisał testy dla wszystkich 12 ID, z poprawną odpowiedzią na pytanie kontrolne dla każdego
+(„czy przeszedłby także bez sprawdzanego zachowania?" — dla każdego „nie", z uzasadnieniem).
+**Ale żaden nie został wykonany przeciw bazie**, więc zgodnie z kryterium domknięcia
+nie przyznano ani jednego DOMKNIĘTEGO. To była właściwa decyzja toru.
+
+## Dwa realne znaleziska (nie wymagały bazy)
+| ID | werdykt | co |
+|---|---|---|
+| `NSA-023` | **ANTY-TEST** | zielony test podstawia `ok:true` dla zapytania RBAC i oczekuje sukcesu zwykłego aktora. Dodatkowo test „RBAC denial" w integracji sprawdza **inną akcję** (`advanceProjectGate`, nie `revertNpdGate`) — czyli jest mylący. Kod też wymaga `npd.gate.advance` zamiast admina (`revert-npd-gate.ts:49`) |
+| `NSA-027` | **DEFEKT KODU** | akcja release materializuje BOM i zatwierdzony factory spec **PRZED** preflightem (`release-npd-project-to-factory.ts:65`, `materialize-npd-bom.ts:370,1668`), więc ich początkowy brak może zostać **samoczynnie usunięty** — blocker cicho znika |
+
+## 🔴 BLOKER ŚRODOWISKOWY do naprawy PRZED następną falą Fazy 2
+Klony `monopilot_t1..t3` **nie mają** ani migracji 544, ani zaseedowanych person. Trzeba je
+dosiewać ręcznie po każdym `clone`/`reset`, więc **każdy tor Fazy 2 uderzy w tę samą ścianę**.
+Zaobserwowane objawy przy próbie uruchomienia P1 na `t1`:
+```
+Canonical no_module_access and second_signer personas must be seeded in the same test org
+duplicate key value violates unique constraint "items_org_item_code_unique"
+update or delete on table "users" violates foreign key constraint "product_created_by_user_fkey"
+there is no unique or exclusion constraint matching the ON CONFLICT specification
+insert or update on table "session_org_contexts" violates foreign key constraint ..._org_id_fkey
+```
+Pierwszy to brak person (dosianie pomogło). Pozostałe to **zabrudzony stan klonu** po wielu
+przebiegach — klon `t1` obsługiwał tej nocy pięć różnych torów.
+
+**Do zrobienia w `scripts/test-db.sh`:** podkomenda `clone`/`reset` musi po utworzeniu klonu
+zastosować migrację 544 **i** zasiać persony. Bez tego każda fala Fazy 2 traci pierwsze
+kilkanaście minut na diagnozę tego samego. Dodatkowo `reset` powinien być używany **między
+szardami**, nie tylko między falami — pięć torów na jednym klonie produkuje kolizje fixture'ów.
+
+## Wniosek metodyczny
+Faza 2 jest wykonalna, ale **jej przepustowość zależy od higieny klonów**, nie od tempa pisania
+testów. Tor napisał 308 linii testów w kilkanaście minut; weryfikacja rozbiła się o środowisko.

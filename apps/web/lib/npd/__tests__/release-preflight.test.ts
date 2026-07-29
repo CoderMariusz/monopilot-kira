@@ -11,6 +11,7 @@ const ORG_ID = '22222222-2222-4222-8222-222222222222';
 const USER_ID = '33333333-3333-4333-8333-333333333333';
 const BOM_HEADER_ID = '44444444-4444-4444-8444-444444444444';
 const FACTORY_SPEC_ID = '55555555-5555-4555-8555-555555555555';
+const FACTORY_SPEC_APPROVED_AT = '2026-07-29T12:00:00.000Z';
 
 function normalize(sql: string): string {
   return sql.replace(/\s+/g, ' ').trim().toLowerCase();
@@ -44,6 +45,9 @@ function createContext(options: {
       }
       if (n.includes('from public.bom_headers')) {
         return { rows: [{ id: BOM_HEADER_ID, version: 3, line_count: '1' }] as T[] };
+      }
+      if (n.includes('select fs.approved_at::text as approved_at')) {
+        return { rows: [{ approved_at: FACTORY_SPEC_APPROVED_AT }] as T[] };
       }
       // F1 — caller-supplied spec validation (distinguished by the fs.id predicate).
       if (n.includes('from public.factory_specs') && n.includes('fs.id = $1::uuid')) {
@@ -82,6 +86,7 @@ describe('NPD release preflight V18 open high-risk gate', () => {
       productCode: 'FG-5101',
       activeBomHeaderId: BOM_HEADER_ID,
       activeFactorySpecId: FACTORY_SPEC_ID,
+      factorySpecApprovedAt: FACTORY_SPEC_APPROVED_AT,
     });
   });
 });
@@ -130,6 +135,7 @@ describe('NPD release preflight supplied factory_spec validation (F1)', () => {
       productCode: 'FG-5101',
       activeBomHeaderId: BOM_HEADER_ID,
       activeFactorySpecId: FACTORY_SPEC_ID,
+      factorySpecApprovedAt: FACTORY_SPEC_APPROVED_AT,
     });
     expect(suppliedSpecQueries).toHaveLength(1);
   });

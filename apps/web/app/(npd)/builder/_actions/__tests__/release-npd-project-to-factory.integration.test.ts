@@ -22,6 +22,7 @@ const nonG4ProjectId = randomUUID();
 const activeBomHeaderId = randomUUID();
 const inactiveBomHeaderId = randomUUID();
 const factorySpecId = randomUUID();
+const fgItemId = randomUUID();
 const productCode = `FG-T096-${randomUUID().slice(0, 8)}`;
 const nonG4ProductCode = `FG-T096-${randomUUID().slice(0, 8)}`;
 
@@ -104,13 +105,29 @@ async function seed(): Promise<void> {
         and id = $2`,
     [orgId, activeBomHeaderId, userId],
   );
+  await owner.query(
+    `insert into public.items
+       (id, org_id, item_code, item_type, name, uom_base, status, created_by)
+     values ($1, $2, $3, 'fg', 'T-096 factory release item', 'kg', 'active', $4)`,
+    [fgItemId, orgId, productCode, userId],
+  );
+  await owner.query(
+    `insert into public.factory_specs
+       (id, org_id, fg_item_id, spec_code, version, status, source,
+        bom_header_id, bom_version, approved_by, approved_at, created_by)
+     values ($1, $2, $3, $4, 1, 'approved_for_factory', 'technical',
+             $5, 1, $6, now(), $6)`,
+    [factorySpecId, orgId, fgItemId, `FS-${productCode}`, activeBomHeaderId, userId],
+  );
 }
 
 async function cleanup(): Promise<void> {
   await owner.query(`delete from public.outbox_events where org_id = $1`, [orgId]).catch(() => undefined);
   await owner.query(`delete from public.factory_release_status where org_id = $1`, [orgId]).catch(() => undefined);
+  await owner.query(`delete from public.factory_specs where org_id = $1`, [orgId]).catch(() => undefined);
   await owner.query(`delete from public.bom_headers where org_id = $1`, [orgId]);
   await owner.query(`delete from public.npd_projects where org_id = $1`, [orgId]);
+  await owner.query(`delete from public.items where org_id = $1`, [orgId]).catch(() => undefined);
   await owner.query(`delete from public.product where org_id = $1`, [orgId]);
   await owner.query(`delete from public.user_roles where org_id = $1`, [orgId]).catch(() => undefined);
   await owner.query(`delete from public.role_permissions where role_id = $1`, [roleId]).catch(() => undefined);
@@ -155,6 +172,44 @@ run('releaseNpdProjectToFactory — REAL DB integration', () => {
     );
     const statusRows = await owner.query(`select 1 from public.factory_release_status where org_id = $1`, [orgId]);
     expect(statusRows.rowCount).toBe(0);
+  });
+
+  it('rejects a forged supplied factorySpecId and persists no release state (NSA-028)', async () => {
+    const { releaseNpdProjectToFactory } = await import('../release-npd-project-to-factory');
+    const forgedFactorySpecId = randomUUID();
+
+    const result = await releaseNpdProjectToFactory({
+      projectId,
+      activeFactorySpecId: forgedFactorySpecId,
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: 'PRECONDITION_BLOCKERS',
+      status: 409,
+      blockers: [
+        expect.objectContaining({
+          code: 'FACTORY_SPEC_MISMATCH',
+        }),
+      ],
+    });
+    const persisted = await owner.query<{ release_rows: string; events: string; real_spec_status: string }>(
+      `select
+         (select count(*)::text from public.factory_release_status
+           where org_id = $1 and project_id = $2) as release_rows,
+         (select count(*)::text from public.outbox_events
+           where org_id = $1
+             and aggregate_id = $2::text
+             and event_type = 'fg.released_to_factory') as events,
+         (select status from public.factory_specs
+           where org_id = $1 and id = $3::uuid) as real_spec_status`,
+      [orgId, projectId, factorySpecId],
+    );
+    expect(persisted.rows[0]).toEqual({
+      release_rows: '0',
+      events: '0',
+      real_spec_status: 'approved_for_factory',
+    });
   });
 
   it('releases a G4 project only when an active shared BOM and factory spec evidence exist', async () => {

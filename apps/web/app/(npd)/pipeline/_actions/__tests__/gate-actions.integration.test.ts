@@ -12,6 +12,7 @@ import {
   withActionActor,
   withAppOrg,
 } from '../../../brief/actions/__tests__/brief-integration-helpers';
+import { ownerQueryWithInferredOrgContext } from '../../../../../tests/helpers/owner-org-context.js';
 
 if (!databaseUrl) {
   throw new Error('gate-actions.integration.test.ts requires DATABASE_URL (no silent describe.skip)');
@@ -32,9 +33,15 @@ const rejectProjectId = randomUUID();
 const approveProjectId = randomUUID();
 const approvalProjectId = randomUUID();
 const handoffProjectId = randomUUID();
+const launchWithoutProductProjectId = randomUUID();
+const launchWithoutDocsProjectId = randomUUID();
+const gateMismatchProjectId = randomUUID();
+const g3WrongStageProjectId = randomUUID();
+const g4WrongStageProjectId = randomUUID();
 const formulationId = randomUUID();
 const formulationVersionId = randomUUID();
 const productCode = `FG-T095-${randomUUID().slice(0, 8).toUpperCase()}`;
+const launchProductCode = `FG-T095-LAUNCH-${randomUUID().slice(0, 8).toUpperCase()}`;
 const pin = '123456';
 
 let owner: pg.Pool;
@@ -97,7 +104,12 @@ async function seedGateFixtures(): Promise<void> {
        ($11, $2, 'NPD-T058-J', 'Reject project', 'standard', 'G3', 'trial', $3),
        ($12, $2, 'NPD-T058-P', 'Approval project', 'standard', 'G4', 'approval', $3),
        ($13, $2, 'NPD-T058-G3', 'G3 approval e-sign project', 'standard', 'G3', 'pilot', $3),
-       ($14, $2, 'NPD-T058-H', 'Handoff e-sign project', 'standard', 'G4', 'approval', $3)
+       ($14, $2, 'NPD-T058-H', 'Handoff e-sign project', 'standard', 'G4', 'approval', $3),
+       ($15, $2, 'NPD-T058-L0', 'Launch without FG project', 'standard', 'G4', 'handoff', $3),
+       ($16, $2, 'NPD-T058-L7', 'Launch without compliance docs', 'standard', 'G4', 'handoff', $3),
+       ($17, $2, 'NPD-T058-M', 'Gate mismatch project', 'standard', 'G3', 'trial', $3),
+       ($18, $2, 'NPD-T058-W3', 'G3 non-pilot approval project', 'standard', 'G3', 'trial', $3),
+       ($19, $2, 'NPD-T058-W4', 'G4 non-approval project', 'standard', 'G4', 'handoff', $3)
      on conflict (id) do nothing`,
     [
       projectId,
@@ -114,7 +126,33 @@ async function seedGateFixtures(): Promise<void> {
       approveProjectId,
       approvalProjectId,
       handoffProjectId,
+      launchWithoutProductProjectId,
+      launchWithoutDocsProjectId,
+      gateMismatchProjectId,
+      g3WrongStageProjectId,
+      g4WrongStageProjectId,
     ],
+  );
+  await ownerQueryWithInferredOrgContext(
+    owner,
+    `insert into public.product
+       (product_code, org_id, product_name, built, schema_version, created_by_user,
+        allergens, may_contain, allergens_declaration_accepted)
+     values ($1, $2, 'Launch compliance product', false, 1, $3, '{}'::text[], '{}'::text[], true)
+     on conflict (org_id, product_code) do nothing`,
+    [launchProductCode, seed.orgAId, seed.userAId],
+  );
+  await owner.query(
+    `update public.npd_projects
+        set product_code = $2
+      where id = $1`,
+    [launchWithoutDocsProjectId, launchProductCode],
+  );
+  await owner.query(
+    `insert into public.npd_approval_criterion_config (org_id, criterion_key, required)
+     values ($1, 'C7', false)
+     on conflict (org_id, criterion_key) do update set required = excluded.required`,
+    [seed.orgAId],
   );
   await owner.query(
     `insert into public.gate_checklist_items
@@ -156,12 +194,14 @@ async function seedGateFixtures(): Promise<void> {
 
 async function cleanup(): Promise<void> {
   await owner.query(`delete from public.e_sign_log where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
+  await owner.query(`delete from public.audit_log where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
   await owner.query(`delete from public.audit_events where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
   await owner.query(`delete from public.outbox_events where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
   await owner.query(`delete from public.gate_approvals where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
   await owner.query(`delete from public.formulation_ingredients where version_id = $1`, [formulationVersionId]);
   await owner.query(`delete from public.formulations where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
   await owner.query(`delete from public.gate_checklist_items where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
+  await owner.query(`delete from public.npd_approval_criterion_config where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
   await owner.query(`delete from public.npd_projects where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
   await owner.query(`delete from public.product where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
   await owner.query(`delete from public.user_pins where user_id in ($1, $2, $3)`, [
@@ -406,6 +446,37 @@ run('T-058 + T-095 gate actions — REAL DB integration', () => {
       [seed.orgAId, productCode],
     );
     expect(dedup.rows[0]).toEqual({ product_count: '1', fg_created_events: '1' });
+
+    const overrideAudit = await owner.query<{
+      action: string;
+      after_state: {
+        fromStage: string;
+        toStage: string;
+        missing: string[];
+        note: string;
+        actor: string;
+      };
+    }>(
+      `select action, after_state
+         from public.audit_log
+        where org_id = $1::uuid
+          and resource_type = 'npd_project'
+          and resource_id = $2
+          and action = 'npd.stage.gate_overridden'
+        order by created_at desc
+        limit 1`,
+      [seed.orgAId, projectId],
+    );
+    expect(overrideAudit.rows[0]).toEqual({
+      action: 'npd.stage.gate_overridden',
+      after_state: {
+        fromStage: 'costing_nutrition',
+        toStage: 'trial',
+        missing: ['Cost breakdown computed', 'Nutrition computed'],
+        note: 'integration: costing/nutrition readiness not seeded in FG-dedup fixture',
+        actor: seed.userAId,
+      },
+    });
   });
 
   it('approves with e-sign and stores deterministic gate_approvals esign_hash', async () => {
@@ -508,6 +579,181 @@ run('T-058 + T-095 gate actions — REAL DB integration', () => {
       } as unknown as Parameters<typeof approveProjectGate>[0]),
     );
     expect(missingPassword).toMatchObject({ ok: false, error: 'INVALID_INPUT', status: 400 });
+
+    const persisted = await owner.query<{ approved_count: string; current_stage: string }>(
+      `select
+         (select count(*)::text
+            from public.gate_approvals ga
+           where ga.org_id = p.org_id
+             and ga.project_id = p.id
+             and ga.decision = 'approved') as approved_count,
+         p.current_stage
+       from public.npd_projects p
+       where p.id = $1::uuid`,
+      [rejectProjectId],
+    );
+    expect(persisted.rows[0]).toEqual({ approved_count: '0', current_stage: 'trial' });
+  });
+
+  it('blocks handoff→launched when product_code is missing and leaves durable project state unchanged (NSA-016)', async () => {
+    const { advanceProjectGate } = await import('../advance-project-gate');
+
+    const result = await withActionActor(seed.userAId, seed.orgAId, () =>
+      advanceProjectGate({ projectId: launchWithoutProductProjectId, targetStage: 'launched' }),
+    );
+    expect(result).toMatchObject({
+      ok: false,
+      error: 'BLOCKERS_PRESENT',
+      status: 409,
+      blockers: [
+        expect.objectContaining({
+          code: 'LAUNCH_COMPLIANCE_BLOCKED',
+          message: 'Map a finished-good product before launch.',
+        }),
+      ],
+    });
+
+    const persisted = await owner.query<{ current_stage: string; launch_events: string }>(
+      `select p.current_stage,
+              (select count(*)::text
+                 from public.outbox_events oe
+                where oe.org_id = p.org_id
+                  and oe.aggregate_id = p.id::text
+                  and oe.event_type = 'npd.gate.advanced') as launch_events
+         from public.npd_projects p
+        where p.id = $1::uuid`,
+      [launchWithoutProductProjectId],
+    );
+    expect(persisted.rows[0]).toEqual({ current_stage: 'handoff', launch_events: '0' });
+  });
+
+  it('blocks launch with zero valid docs even when persisted C7 config is not_required (NSA-017)', async () => {
+    const { advanceProjectGate } = await import('../advance-project-gate');
+
+    const result = await withActionActor(seed.userAId, seed.orgAId, () =>
+      advanceProjectGate({ projectId: launchWithoutDocsProjectId, targetStage: 'launched' }),
+    );
+    expect(result).toMatchObject({
+      ok: false,
+      error: 'BLOCKERS_PRESENT',
+      status: 409,
+      blockers: [expect.objectContaining({ code: 'LAUNCH_COMPLIANCE_BLOCKED' })],
+    });
+    const pendingCriteria =
+      result.ok === false
+        ? result.blockers?.find((blocker) => blocker.code === 'LAUNCH_COMPLIANCE_BLOCKED')?.pendingCriteria
+        : undefined;
+    expect(pendingCriteria?.split(',')).toContain('C7');
+
+    const persisted = await owner.query<{
+      current_stage: string;
+      c7_required: boolean;
+      valid_docs: string;
+      launch_events: string;
+    }>(
+      `select p.current_stage,
+              (select required
+                 from public.npd_approval_criterion_config c
+                where c.org_id = p.org_id and c.criterion_key = 'C7') as c7_required,
+              (select count(*)::text
+                 from public.compliance_docs d
+                where d.org_id = p.org_id
+                  and d.product_code = p.product_code
+                  and d.deleted_at is null
+                  and coalesce(d.expiry_state, 'Valid') = 'Valid'
+                  and (d.expires_at is null or d.expires_at >= current_date)) as valid_docs,
+              (select count(*)::text
+                 from public.outbox_events oe
+                where oe.org_id = p.org_id
+                  and oe.aggregate_id = p.id::text
+                  and oe.event_type = 'npd.gate.advanced') as launch_events
+         from public.npd_projects p
+        where p.id = $1::uuid`,
+      [launchWithoutDocsProjectId],
+    );
+    expect(persisted.rows[0]).toEqual({
+      current_stage: 'handoff',
+      c7_required: false,
+      valid_docs: '0',
+      launch_events: '0',
+    });
+  });
+
+  it('returns GATE_MISMATCH before persistence when G4 is submitted for a G3 project (NSA-019)', async () => {
+    const { approveProjectGate } = await import('../approve-project-gate');
+
+    await expect(
+      withActionActor(seed.userAId, seed.orgAId, () =>
+        approveProjectGate({
+          projectId: gateMismatchProjectId,
+          gateCode: 'G4',
+          decision: 'rejected',
+          notes: 'The submitted gate does not match the project.',
+        }),
+      ),
+    ).resolves.toMatchObject({ ok: false, error: 'GATE_MISMATCH', status: 409 });
+
+    const persisted = await owner.query<{ current_stage: string; approvals: string; events: string }>(
+      `select p.current_stage,
+              (select count(*)::text from public.gate_approvals ga
+                where ga.org_id = p.org_id and ga.project_id = p.id) as approvals,
+              (select count(*)::text from public.outbox_events oe
+                where oe.org_id = p.org_id
+                  and oe.aggregate_id = p.id::text
+                  and oe.event_type = 'npd.gate.approved') as events
+         from public.npd_projects p
+        where p.id = $1::uuid`,
+      [gateMismatchProjectId],
+    );
+    expect(persisted.rows[0]).toEqual({ current_stage: 'trial', approvals: '0', events: '0' });
+  });
+
+  it('records G3/G4 approval but never advances a non-checkpoint stage (NSA-022)', async () => {
+    const { approveProjectGate } = await import('../approve-project-gate');
+
+    await expect(
+      withActionActor(seed.userAId, seed.orgAId, () =>
+        approveProjectGate({
+          projectId: g3WrongStageProjectId,
+          gateCode: 'G3',
+          decision: 'approved',
+          notes: 'Approve G3 evidence without skipping trial to approval.',
+          password: pin,
+        }),
+      ),
+    ).resolves.toMatchObject({ ok: true, data: { currentGate: 'G3', currentStage: 'trial' } });
+
+    await expect(
+      withActionActor(seed.userAId, seed.orgAId, () =>
+        approveProjectGate({
+          projectId: g4WrongStageProjectId,
+          gateCode: 'G4',
+          decision: 'approved',
+          notes: 'Approve G4 evidence without moving handoff again.',
+          password: pin,
+        }),
+      ),
+    ).resolves.toMatchObject({ ok: true, data: { currentGate: 'G4', currentStage: 'handoff' } });
+
+    const persisted = await owner.query<{ id: string; current_stage: string; approvals: string }>(
+      `select p.id::text as id,
+              p.current_stage,
+              (select count(*)::text
+                 from public.gate_approvals ga
+                where ga.org_id = p.org_id
+                  and ga.project_id = p.id
+                  and ga.decision = 'approved') as approvals
+         from public.npd_projects p
+        where p.id = any($1::uuid[])
+        order by p.id`,
+      [[g3WrongStageProjectId, g4WrongStageProjectId]],
+    );
+    expect(new Map(persisted.rows.map((row) => [row.id, row]))).toEqual(
+      new Map([
+        [g3WrongStageProjectId, { id: g3WrongStageProjectId, current_stage: 'trial', approvals: '1' }],
+        [g4WrongStageProjectId, { id: g4WrongStageProjectId, current_stage: 'handoff', approvals: '1' }],
+      ]),
+    );
   });
 
   it('reverts one gate with audit/outbox via revertNpdGate and enforces RBAC denial', async () => {
