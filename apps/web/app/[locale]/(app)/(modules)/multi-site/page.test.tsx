@@ -26,6 +26,7 @@ function translateQualityTrace(key: string): string {
 
 const gate = vi.hoisted(() => ({
   allowCrossSiteRead: true,
+  inventoryQtyByUom: [] as Array<{ uom: string; qty: string }>,
   sites: [] as Array<{
     id: string;
     site_code: string;
@@ -72,8 +73,13 @@ vi.mock('../../../../../lib/auth/with-org-context', () => ({
           if (normalized.includes('in_transit_count')) {
             return { rows: [{ in_transit_count: '0' }] };
           }
-          if (normalized.includes('inventory_total_qty')) {
-            return { rows: [{ inventory_total_qty: '100' }] };
+          if (normalized.includes('group by lp.uom')) {
+            return {
+              rows: gate.inventoryQtyByUom.map((row) => ({
+                uom: row.uom,
+                total_qty: row.qty,
+              })),
+            };
           }
           return { rows: [] };
         }),
@@ -90,6 +96,10 @@ async function renderPage() {
 
 beforeEach(() => {
   gate.allowCrossSiteRead = true;
+  gate.inventoryQtyByUom = [
+    { uom: 'kg', qty: '120.500' },
+    { uom: 'pcs', qty: '45' },
+  ];
   gate.sites = [
     {
       id: 'site-1',
@@ -121,5 +131,7 @@ describe('MultiSiteRoutePage RBAC', () => {
     expect(screen.queryByTestId('multi-site-denied')).not.toBeInTheDocument();
     expect(screen.getByLabelText('Network KPIs')).toBeInTheDocument();
     expect(screen.getByText('Headquarters')).toBeInTheDocument();
+    expect(screen.getByText('120.500 kg · 45 pcs')).toBeInTheDocument();
+    expect(screen.queryByText('165.5')).not.toBeInTheDocument();
   });
 });

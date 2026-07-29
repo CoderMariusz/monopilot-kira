@@ -43,6 +43,9 @@ const THRESHOLD_ITEM_TYPES = ['rm', 'ingredient', 'intermediate', 'packaging'] a
 export type ReorderThresholdRow = {
   id: string;
   itemId: string;
+  /** null = org-global threshold (visible from every bound site). */
+  siteId: string | null;
+  siteName: string | null;
   itemCode: string | null;
   itemName: string | null;
   uomBase: string | null;
@@ -79,6 +82,8 @@ const nonNegQtySchema = z
   .regex(/^\d+(?:\.\d{1,6})?$/);
 
 const UpsertThresholdInput = z.object({
+  /** When editing, update this row in place (preserves site_id — avoids global→site duplicates). */
+  id: uuidSchema.optional(),
   itemId: uuidSchema,
   minQty: nonNegQtySchema,
   reorderQty: nonNegQtySchema,
@@ -105,6 +110,8 @@ async function hasPlanningReadPermission(ctx: OrgActionContext): Promise<boolean
 type ThresholdSqlRow = {
   id: string;
   item_id: string;
+  site_id: string | null;
+  site_name: string | null;
   item_code: string | null;
   item_name: string | null;
   uom_base: string | null;
@@ -121,6 +128,8 @@ function mapThreshold(row: ThresholdSqlRow): ReorderThresholdRow {
   return {
     id: row.id,
     itemId: row.item_id,
+    siteId: row.site_id,
+    siteName: row.site_name,
     itemCode: row.item_code,
     itemName: row.item_name,
     uomBase: row.uom_base,
@@ -134,13 +143,16 @@ function mapThreshold(row: ThresholdSqlRow): ReorderThresholdRow {
   };
 }
 
-const THRESHOLD_SELECT = `select rt.id, rt.item_id, i.item_code, i.name as item_name, i.uom_base,
+const THRESHOLD_SELECT = `select rt.id, rt.item_id, rt.site_id, st.name as site_name,
+        i.item_code, i.name as item_name, i.uom_base,
         rt.min_qty::text as min_qty, rt.reorder_qty::text as reorder_qty,
         rt.preferred_supplier_id, s.code as supplier_code, s.name as supplier_name,
         s.lead_time_days, rt.updated_at
    from public.reorder_thresholds rt
    left join public.items i
      on i.org_id = app.current_org_id() and i.id = rt.item_id
+   left join public.sites st
+     on st.org_id = app.current_org_id() and st.id = rt.site_id
    left join public.suppliers s
      on s.org_id = app.current_org_id() and s.id = rt.preferred_supplier_id`;
 
@@ -209,26 +221,46 @@ export async function upsertReorderThreshold(
         if (supplier.rows.length === 0) return { ok: false as const, error: 'not_found' as const };
       }
 
-      const { rows } = await ctx.client.query<{ id: string }>(
-        `insert into public.reorder_thresholds
-           (org_id, item_id, site_id, min_qty, reorder_qty, preferred_supplier_id, updated_by)
-         values
-           (app.current_org_id(), $1::uuid, app.current_site_id(), $2::numeric, $3::numeric, $4::uuid, $5::uuid)
-         on conflict on constraint reorder_thresholds_org_item_unique
-         do update set min_qty = excluded.min_qty,
-                       reorder_qty = excluded.reorder_qty,
-                       preferred_supplier_id = excluded.preferred_supplier_id,
-                       updated_by = excluded.updated_by
-         returning id`,
-        [input.itemId, input.minQty, input.reorderQty, supplierId, userId],
-      );
-      const upserted = rows[0];
-      if (!upserted) return { ok: false as const, error: 'persistence_failed' as const };
+      let upsertedId: string;
+      if (input.id) {
+        const updated = await ctx.client.query<{ id: string }>(
+          `update public.reorder_thresholds
+              set min_qty = $2::numeric,
+                  reorder_qty = $3::numeric,
+                  preferred_supplier_id = $4::uuid,
+                  updated_by = $5::uuid
+            where org_id = app.current_org_id()
+              and id = $1::uuid
+              and (site_id is null or site_id is not distinct from app.current_site_id())
+            returning id`,
+          [input.id, input.minQty, input.reorderQty, supplierId, userId],
+        );
+        const row = updated.rows[0];
+        if (!row) return { ok: false as const, error: 'not_found' as const };
+        upsertedId = row.id;
+      } else {
+        const { rows } = await ctx.client.query<{ id: string }>(
+          `insert into public.reorder_thresholds
+             (org_id, item_id, site_id, min_qty, reorder_qty, preferred_supplier_id, updated_by)
+           values
+             (app.current_org_id(), $1::uuid, app.current_site_id(), $2::numeric, $3::numeric, $4::uuid, $5::uuid)
+           on conflict on constraint reorder_thresholds_org_item_unique
+           do update set min_qty = excluded.min_qty,
+                         reorder_qty = excluded.reorder_qty,
+                         preferred_supplier_id = excluded.preferred_supplier_id,
+                         updated_by = excluded.updated_by
+           returning id`,
+          [input.itemId, input.minQty, input.reorderQty, supplierId, userId],
+        );
+        const upserted = rows[0];
+        if (!upserted) return { ok: false as const, error: 'persistence_failed' as const };
+        upsertedId = upserted.id;
+      }
 
       await writeProcurementAudit(ctx, {
         action: 'planning.reorder_threshold.upserted',
         resourceType: 'reorder_threshold',
-        resourceId: upserted.id,
+        resourceId: upsertedId,
         afterState: {
           itemId: input.itemId,
           minQty: input.minQty,
@@ -241,7 +273,7 @@ export async function upsertReorderThreshold(
         `${THRESHOLD_SELECT}
           where rt.org_id = app.current_org_id() and rt.id = $1::uuid
           limit 1`,
-        [upserted.id],
+        [upsertedId],
       );
       const row = detail.rows[0];
       if (!row) return { ok: false as const, error: 'persistence_failed' as const };

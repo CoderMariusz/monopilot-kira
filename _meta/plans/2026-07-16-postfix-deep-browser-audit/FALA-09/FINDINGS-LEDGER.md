@@ -161,3 +161,25 @@ Po drugiej turze: **5/5 plików rdzenia i 2/2 UI zielone, typecheck czysty.**
 - **[P1] Guard lokalizacji liczył nośniki `merged`** — fizycznie nieistniejące. Zawyżona liczba
   (26 na prodzie) mogła trwale zablokować dezaktywację lokalizacji, która jest pusta.
 - **[P2] Nagłówek „Lines to receive (2)" przy 3 wierszach** — licznik liczył inny zbiór niż tabela.
+
+### ✅ KOREKTA O-4 — okno wdrożeniowe NIE ISTNIEJE (i to nie ja je zamknąłem)
+
+Zapisałem wcześniej, że przyjmuję ~3,5-minutowe okno, w którym stary kod woła ograniczenie po
+nazwie, którą migracja właśnie skasowała. **Druga runda poprawek rozwiązała to lepiej, niż
+zdecydowałem.** Migracja 528 w wersji finalnej **zachowuje STARE nazwy** ograniczeń, zmieniając
+tylko ich definicje:
+
+```
+demand_forecasts_org_item_week_unique  →  UNIQUE NULLS NOT DISTINCT (org_id, item_id, iso_week, site_id)
+reorder_thresholds_org_item_unique     →  UNIQUE NULLS NOT DISTINCT (org_id, item_id, site_id)
+```
+
+Kod wrócił do wołania tych samych, starych nazw. `drop` i `add` dzieją się w jednej transakcji
+migracji, więc **nazwa nigdy nie znika** — stary kod działa nieprzerwanie przez całe wdrożenie.
+Zero okna, zero błędów `42704`.
+
+Stan zweryfikowany na produkcji po wdrożeniu `20988b30` — definicje nowe, nazwy stare, kod spójny.
+
+**Moja pomyłka przy okazji:** odpytywałem produkcję o `demand_forecasts_org_item_week_site_unique`
+i przez 9 minut myślałem, że migracja nie weszła. Ta nazwa nigdy nie miała powstać. **Sprawdzaj
+stan po DEFINICJI, nie po nazwie, którą sam założyłeś** — nazwa jest hipotezą, definicja faktem.

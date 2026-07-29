@@ -51,6 +51,8 @@ export default async function ReorderThresholdsPage({ params }: ThresholdsPagePr
     noSupplier: t('reorderThresholds.noSupplier'),
     columns: {
       item: t('reorderThresholds.columns.item'),
+      site: t('reorderThresholds.columns.site'),
+      allSites: t('reorderThresholds.columns.allSites'),
       minQty: t('reorderThresholds.columns.minQty'),
       reorderQty: t('reorderThresholds.columns.reorderQty'),
       supplier: t('reorderThresholds.columns.supplier'),

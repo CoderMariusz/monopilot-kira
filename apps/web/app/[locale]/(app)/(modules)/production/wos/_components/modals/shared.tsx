@@ -255,21 +255,33 @@ export function ResumeModal({ open, woId, labels, run, onClose }: BaseModalProps
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  function parseActualDurationMin(raw: string): number | null | 'invalid' {
+    const trimmed = raw.trim();
+    if (trimmed === '') return null;
+    const parsed = Number(trimmed);
+    if (!Number.isInteger(parsed) || parsed <= 0) return 'invalid';
+    return parsed;
+  }
+
   async function handleConfirm() {
     setBusy(true);
     setError(null);
-    const trimmed = duration.trim();
-    const parsed = trimmed === '' ? null : Number(trimmed);
+    const parsed = parseActualDurationMin(duration);
+    if (parsed === 'invalid') {
+      setBusy(false);
+      setError(labels.errors.invalid_input ?? labels.errorFallback);
+      return;
+    }
     const result = await run('resume', {
       transactionId: freshTransactionId(),
-      actualDurationMin: parsed !== null && Number.isInteger(parsed) && parsed > 0 ? parsed : null,
+      actualDurationMin: parsed,
     });
     setBusy(false);
     if (result.ok) {
       setDuration('');
       onClose();
     } else {
-      setError(mapError(labels, result.errorCode));
+      setError(mapError(labels, result.errorCode, result.message));
     }
   }
 

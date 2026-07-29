@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { maxSqlPlaceholderIndex } from '../../../../../../../lib/shared/sql-placeholders';
 import { getPlanningWorkOrder } from './getPlanningWorkOrder';
 import type { QueryClient } from './shared';
 
@@ -9,8 +10,13 @@ const WO_ID = '33333333-3333-4333-8333-333333333333';
 const PRODUCT_ID = '44444444-4444-4444-8444-444444444444';
 const BOM_HEADER_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const FACTORY_SPEC_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const SITE_ID = '77777777-7777-4777-8777-777777777777';
 
 let client: QueryClient;
+
+const { getActiveSiteIdMock } = vi.hoisted(() => ({
+  getActiveSiteIdMock: vi.fn(),
+}));
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -18,8 +24,13 @@ vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   ),
 }));
 
+vi.mock('../../../../../../../lib/site/site-context', () => ({
+  getActiveSiteId: getActiveSiteIdMock,
+}));
+
 describe('getPlanningWorkOrder', () => {
   beforeEach(() => {
+    getActiveSiteIdMock.mockResolvedValue(null);
     client = {
       query: vi.fn(async (sql: string) => {
         const normalized = sql.replace(/\s+/g, ' ').toLowerCase();
@@ -231,5 +242,42 @@ describe('getPlanningWorkOrder', () => {
     expect(result.workOrder.productionLineCode).toBe('LINE01');
     expect(result.workOrder.productionLineName).toBe('Tester line');
     expect(result.workOrder.productionLineId).toBe(lineId);
+  });
+
+  it('PF-R11-03: scopes the detail read to the active site, matching listPlanningWorkOrders', async () => {
+    getActiveSiteIdMock.mockResolvedValue(SITE_ID);
+    client.query = vi.fn(async () => ({ rows: [], rowCount: 0 }));
+
+    const result = await getPlanningWorkOrder({ id: WO_ID });
+
+    expect(result).toEqual({ ok: false, error: 'not_found' });
+    const headerCall = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      String(sql).includes('from public.work_orders wo') && String(sql).includes('wo.id = $1::uuid'),
+    );
+    expect(headerCall?.[1]).toEqual([WO_ID, SITE_ID]);
+    expect(String(headerCall?.[0])).toContain('coalesce(wo.site_id, pl.site_id) = $2::uuid');
+    expect(headerCall?.[1]).toHaveLength(maxSqlPlaceholderIndex(String(headerCall?.[0])));
+    expect(vi.mocked(client.query).mock.calls).toHaveLength(1);
+  });
+
+  it('PF-R11-03: binds NULL for All sites and still returns the WO', async () => {
+    getActiveSiteIdMock.mockResolvedValue(null);
+
+    const result = await getPlanningWorkOrder({ id: WO_ID });
+
+    expect(result.ok).toBe(true);
+    const headerCall = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      String(sql).includes('from public.work_orders wo'),
+    );
+    expect(headerCall?.[1]).toEqual([WO_ID, null]);
+  });
+
+  it('PF-R11-03: resolves active site with the org client, matching the list action', async () => {
+    getActiveSiteIdMock.mockResolvedValue(SITE_ID);
+    client.query = vi.fn(async () => ({ rows: [], rowCount: 0 }));
+
+    await getPlanningWorkOrder({ id: WO_ID });
+
+    expect(getActiveSiteIdMock).toHaveBeenCalledWith({ client });
   });
 });

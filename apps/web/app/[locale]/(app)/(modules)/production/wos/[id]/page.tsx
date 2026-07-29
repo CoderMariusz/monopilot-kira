@@ -388,6 +388,21 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
         formIncomplete: t('consumption.record.formIncomplete'),
         warningOver: rec('warningOver', 'Over required quantity by {pct}% — recorded and flagged.'),
         warningClose: rec('warningClose', 'Close'),
+        fefoDeviationTitle: rec('fefoDeviationTitle', 'FEFO deviation approval required'),
+        fefoDeviationIntro: rec(
+          'fefoDeviationIntro',
+          'The selected license plate is not the earliest-expiry stock. Enter a deviation reason and sign to record this consumption.',
+        ),
+        fefoDeviationReason: rec('fefoDeviationReason', 'Deviation reason'),
+        fefoDeviationReasonPlaceholder: rec(
+          'fefoDeviationReasonPlaceholder',
+          'Explain why an earlier-expiry lot cannot be used',
+        ),
+        fefoDeviationSubmit: rec('fefoDeviationSubmit', 'Sign and record consumption'),
+        esignTitle: rec('esignTitle', 'Electronic signature'),
+        esignHelp: rec('esignHelp', 'Re-enter your account password to authorize this FEFO deviation.'),
+        esignPassword: rec('esignPassword', 'Password'),
+        esignPasswordPlaceholder: rec('esignPasswordPlaceholder', 'Account password'),
         errors: {
           forbidden: rec('errors.forbidden', 'You do not have permission to record consumption.'),
           lp_unavailable: rec(
@@ -411,6 +426,11 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
           error: detailError('error', 'Unable to record consumption.'),
           invalid_material: rec('errors.invalid_material', 'This component is no longer valid for this work order.'),
           invalid_qty: rec('errors.invalid_qty', 'Enter a quantity greater than zero.'),
+          fefo_deviation_approval_required: rec(
+            'errors.fefo_deviation_approval_required',
+            'FEFO deviation requires a reason and electronic signature.',
+          ),
+          esign_failed: rec('errors.esign_failed', 'Electronic signature failed — check your password and try again.'),
           unknown: detailError('unknown', 'The action could not be completed.'),
           generic: rec('errors.generic', 'Unable to record consumption.'),
         },

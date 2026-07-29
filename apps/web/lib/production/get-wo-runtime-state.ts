@@ -24,6 +24,7 @@ import {
   hasPermission,
 } from './shared';
 import { summarizeConsumptionProgress } from './consumption-progress';
+import { computeWoElapsedMin } from './wo-elapsed';
 
 export type WoComponentProgress = {
   componentId: string;
@@ -68,8 +69,10 @@ export async function getWoRuntimeState(
     planned_quantity: string;
     started_at: string | Date | null;
     completed_at: string | Date | null;
+    cancelled_at: string | Date | null;
+    closed_at: string | Date | null;
   }>(
-    `select w.id, w.planned_quantity, e.started_at, e.completed_at
+    `select w.id, w.planned_quantity, e.started_at, e.completed_at, e.cancelled_at, e.closed_at
        from public.work_orders w
        left join public.wo_executions e
          on e.org_id = w.org_id and e.wo_id = w.id
@@ -155,12 +158,13 @@ export async function getWoRuntimeState(
 
   const startedAt = toIso(woRow.started_at);
   const completedAt = toIso(woRow.completed_at);
-  const elapsedMin =
-    startedAt != null
-      ? Math.round(
-          ((completedAt ? Date.parse(completedAt) : Date.now()) - Date.parse(startedAt)) / 60000,
-        )
-      : null;
+  const elapsedMin = computeWoElapsedMin({
+    startedAt,
+    completedAt,
+    cancelledAt: toIso(woRow.cancelled_at),
+    closedAt: toIso(woRow.closed_at),
+    status,
+  });
 
   return {
     ok: true,

@@ -90,6 +90,24 @@ describe('correction framework authorization', () => {
     ).resolves.toEqual({});
   });
 
+  it('normalizes legacy planning CLOSED status for closed-WO tier permission', async () => {
+    await expect(
+      assertCorrectionAllowed(ctx, {
+        permission: 'production.output.correct',
+        woStatus: 'CLOSED',
+      }),
+    ).rejects.toMatchObject({ code: 'forbidden' });
+
+    granted.add(CLOSED_WO_CORRECTION_PERMISSION);
+
+    await expect(
+      assertCorrectionAllowed(ctx, {
+        permission: 'production.output.correct',
+        woStatus: 'CLOSED',
+      }),
+    ).resolves.toEqual({});
+  });
+
   it('denies corrections against cancelled WOs even when the base permission is present', async () => {
     await expect(
       assertCorrectionAllowed(ctx, {

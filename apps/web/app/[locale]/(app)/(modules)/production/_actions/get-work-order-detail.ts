@@ -29,6 +29,7 @@
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { findOpenLineChangeover } from '../../../../../../lib/production/start-wo';
 import { summarizeConsumptionProgress } from '../../../../../../lib/production/consumption-progress';
+import { computeWoElapsedMin } from '../../../../../../lib/production/wo-elapsed';
 import {
   hasPermission,
   type ProductionContext,
@@ -329,6 +330,8 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
         scheduled_end_time: string | Date | null;
         started_at: string | Date | null;
         completed_at: string | Date | null;
+        cancelled_at: string | Date | null;
+        closed_at: string | Date | null;
         output_kg: string | number | null;
         output_pct: string | number | null;
         weight_mode: string | null;
@@ -367,6 +370,8 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
                 w.scheduled_end_time,
                 coalesce(e.started_at, w.started_at) as started_at,
                 coalesce(e.completed_at, w.completed_at) as completed_at,
+                e.cancelled_at,
+                e.closed_at,
                 (select coalesce(sum(o.qty_kg), 0) from public.wo_outputs o
                   where o.wo_id = w.id and o.org_id = app.current_org_id()) as output_kg,
                 (select case when coalesce(w.planned_quantity, 0) > 0
@@ -760,12 +765,13 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
 
       const startedAt = toIso(h.started_at);
       const completedAt = toIso(h.completed_at);
-      const elapsedMin =
-        startedAt != null
-          ? Math.round(
-              ((completedAt ? Date.parse(completedAt) : Date.now()) - Date.parse(startedAt)) / 60000,
-            )
-          : null;
+      const elapsedMin = computeWoElapsedMin({
+        startedAt,
+        completedAt,
+        cancelledAt: toIso(h.cancelled_at),
+        closedAt: toIso(h.closed_at),
+        status,
+      });
 
       const header: WoDetailHeader = {
         id: h.id,

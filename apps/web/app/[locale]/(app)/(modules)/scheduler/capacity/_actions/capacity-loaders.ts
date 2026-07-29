@@ -2,7 +2,10 @@
 
 /**
  * F4 / P1-16 — read-only line/day capacity occupancy for /scheduler/capacity.
- * Occupancy = RELEASED/IN_PROGRESS WO scheduled windows + draft assignments.
+ * Occupancy = RELEASED/IN_PROGRESS WO scheduled windows, except when a draft
+ * from the latest completed scheduler run exists for the same wo_id — then that
+ * draft's horizon replaces the WO slot on the WO's committed line (never both;
+ * stale runs keep the committed slot).
  * Capacity hours from scheduler_config (org default + per-line overrides).
  */
 
@@ -153,7 +156,15 @@ export async function loadSchedulerCapacity(): Promise<LoadCapacityResult> {
       );
 
       const intervals = await ctx.client.query<IntervalRow>(
-        `select line_id, start_at, end_at, source, alternative_key
+        `with active_run as (
+           select run_id
+             from public.scheduler_runs
+            where org_id = app.current_org_id()
+              and status = 'completed'
+            order by completed_at desc nulls last, created_at desc
+            limit 1
+         )
+         select line_id, start_at, end_at, source, alternative_key
            from (
              select
                wo.production_line_id::text as line_id,
@@ -163,7 +174,7 @@ export async function loadSchedulerCapacity(): Promise<LoadCapacityResult> {
                  wo.scheduled_start_time + interval '1 hour'
                ) as end_at,
                'wo'::text as source,
-               null::text as alternative_key
+               wo.id::text as alternative_key
              from public.work_orders wo
              join public.production_lines pl
                on pl.org_id = wo.org_id
@@ -194,6 +205,7 @@ export async function loadSchedulerCapacity(): Promise<LoadCapacityResult> {
               and pl.id::text = sa.line_id
             where sa.org_id = app.current_org_id()
               and sa.status = 'draft'
+              and sa.run_id = (select run_id from active_run)
               and sa.line_id is not null
               and sa.planned_start_at is not null
               and sa.planned_start_at < $2::timestamptz
@@ -214,14 +226,14 @@ export async function loadSchedulerCapacity(): Promise<LoadCapacityResult> {
 
       type Acc = { wo: Map<string, number>; draft: Map<string, number> };
       const byLine = new Map<string, Acc>();
-      const occupancyRows: IntervalRow[] = [];
+      const committedWoLineByKey = new Map<string, string>();
       const selectedDrafts = new Map<string, { row: IntervalRow; occupiedMs: number }>();
 
       for (const row of intervals.rows) {
-        if (row.source !== 'draft' || row.alternative_key === null) {
-          occupancyRows.push(row);
-          continue;
+        if (row.source === 'wo' && row.alternative_key !== null) {
+          committedWoLineByKey.set(row.alternative_key, row.line_id);
         }
+        if (row.source !== 'draft' || row.alternative_key === null) continue;
         const bounds = intervalMs(row.start_at, row.end_at);
         if (!bounds) continue;
         const occupiedMs = Math.max(
@@ -233,7 +245,28 @@ export async function loadSchedulerCapacity(): Promise<LoadCapacityResult> {
           selectedDrafts.set(row.alternative_key, { row, occupiedMs });
         }
       }
-      occupancyRows.push(...Array.from(selectedDrafts.values(), ({ row }) => row));
+
+      const occupancyRows: IntervalRow[] = [];
+      for (const row of intervals.rows) {
+        if (row.source === 'draft') continue;
+        if (row.source === 'wo') {
+          // Draft assignments are alternative placements for the same WO — never
+          // count the released slot alongside its draft (PF-R12-02).
+          if (row.alternative_key !== null && selectedDrafts.has(row.alternative_key)) {
+            continue;
+          }
+        }
+        occupancyRows.push(row);
+      }
+      for (const { row: draftRow } of selectedDrafts.values()) {
+        const committedLine =
+          draftRow.alternative_key !== null
+            ? committedWoLineByKey.get(draftRow.alternative_key)
+            : undefined;
+        occupancyRows.push(
+          committedLine ? { ...draftRow, line_id: committedLine } : draftRow,
+        );
+      }
 
       for (const row of occupancyRows) {
         const bounds = intervalMs(row.start_at, row.end_at);

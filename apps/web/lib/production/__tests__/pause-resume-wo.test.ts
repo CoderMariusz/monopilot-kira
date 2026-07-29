@@ -50,7 +50,7 @@ describe('resumeWo actualDurationMin validation (N-PRD-4)', () => {
       ok: false,
       error: 'invalid_input',
       status: 422,
-      message: 'actualDurationMin must be a non-negative integer',
+      message: 'actualDurationMin must be a positive integer',
       details: { code: 'invalid_actual_duration_min', actualDurationMin: -5 },
     });
     expect(applyTransition).not.toHaveBeenCalled();
@@ -72,19 +72,71 @@ describe('resumeWo actualDurationMin validation (N-PRD-4)', () => {
     expect(clientQuery).not.toHaveBeenCalled();
   });
 
-  it('accepts zero actualDurationMin and closes downtime', async () => {
-    const clientQuery = vi.fn(async () => ({
-      rows: [{ id: 'dt-1', duration_min: 0 }],
-      rowCount: 1,
-    }));
+  it('rejects zero actualDurationMin with invalid_input before any write', async () => {
+    const clientQuery = vi.fn();
     const result = await resumeWo(makeCtx(clientQuery), {
       woId: WO_ID,
       transactionId: TX_ID,
       actualDurationMin: 0,
     });
 
+    expect(result).toMatchObject({
+      ok: false,
+      error: 'invalid_input',
+      message: 'actualDurationMin must be a positive integer',
+      details: { code: 'invalid_actual_duration_min', actualDurationMin: 0 },
+    });
+    expect(applyTransition).not.toHaveBeenCalled();
+    expect(clientQuery).not.toHaveBeenCalled();
+  });
+
+  it('keeps sub-minute downtime rows and annotates actualDurationSec in ext_jsonb', async () => {
+    const clientQuery = vi.fn(async (sql: string) => {
+      const normalized = sql.replace(/\s+/g, ' ').trim().toLowerCase();
+      if (normalized.includes('set ended_at = case')) {
+        return { rows: [{ id: 'dt-1', duration_min: 0 }], rowCount: 1 };
+      }
+      if (normalized.includes('durationbelowminute')) {
+        return {
+          rows: [{ id: 'dt-1', duration_min: 0, actual_duration_sec: 42 }],
+          rowCount: 1,
+        };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+
+    const result = await resumeWo(makeCtx(clientQuery), {
+      woId: WO_ID,
+      transactionId: TX_ID,
+      actualDurationMin: null,
+    });
+
     expect(result.ok).toBe(true);
-    expect(applyTransition).toHaveBeenCalled();
-    expect(clientQuery).toHaveBeenCalled();
+    if (!result.ok) throw new Error('expected ok');
+    expect(result.data.downtimeEventId).toBe('dt-1');
+    expect(result.data.durationMin).toBe(0);
+    expect(result.data.durationBelowMinute).toBe(true);
+    expect(result.data.actualDurationSec).toBe(42);
+    expect(clientQuery).toHaveBeenCalledTimes(2);
+    expect(String(clientQuery.mock.calls[1]?.[0])).toContain('durationBelowMinute');
+    expect(String(clientQuery.mock.calls[1]?.[0])).not.toContain('delete from');
+  });
+
+  it('keeps positive-duration downtime rows on resume', async () => {
+    const clientQuery = vi.fn(async () => ({
+      rows: [{ id: 'dt-1', duration_min: 6 }],
+      rowCount: 1,
+    }));
+    const result = await resumeWo(makeCtx(clientQuery), {
+      woId: WO_ID,
+      transactionId: TX_ID,
+      actualDurationMin: 6,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected ok');
+    expect(result.data.downtimeEventId).toBe('dt-1');
+    expect(result.data.durationMin).toBe(6);
+    expect(clientQuery).toHaveBeenCalledTimes(1);
   });
 });

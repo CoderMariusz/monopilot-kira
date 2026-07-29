@@ -21,6 +21,63 @@ export const CLOSED_WO_CORRECTION_PERMISSION = 'production.corrections.closed_wo
 export type CorrectionReasonCode = (typeof CORRECTION_REASON_CODES)[number];
 export type CorrectionWoStatus = 'planned' | 'in_progress' | 'paused' | 'completed' | 'closed' | 'cancelled' | string | null;
 
+export type NormalizedCorrectionWoStatus =
+  | 'planned'
+  | 'in_progress'
+  | 'paused'
+  | 'completed'
+  | 'closed'
+  | 'cancelled';
+
+/** planning `work_orders.status` (UPPERCASE) → runtime `wo_executions.status` (lowercase). */
+const PLANNING_TO_RUNTIME_WO_STATUS: Record<string, NormalizedCorrectionWoStatus> = {
+  DRAFT: 'planned',
+  RELEASED: 'planned',
+  IN_PROGRESS: 'in_progress',
+  ON_HOLD: 'paused',
+  COMPLETED: 'completed',
+  CLOSED: 'closed',
+  CANCELLED: 'cancelled',
+};
+
+const RUNTIME_WO_STATUSES = new Set<NormalizedCorrectionWoStatus>([
+  'planned',
+  'in_progress',
+  'paused',
+  'completed',
+  'closed',
+  'cancelled',
+]);
+
+/**
+ * Normalize coalesce(wo_executions.status, work_orders.status) to the runtime
+ * vocabulary. Legacy rows with only work_orders.status='CLOSED' must not
+ * fail-open through case-sensitive string compares.
+ */
+export function normalizeCorrectionWoStatus(
+  status: CorrectionWoStatus,
+): NormalizedCorrectionWoStatus | null {
+  if (status == null) return null;
+  const trimmed = String(status).trim();
+  if (trimmed.length === 0) return null;
+
+  const fromPlanning = PLANNING_TO_RUNTIME_WO_STATUS[trimmed.toUpperCase()];
+  if (fromPlanning) return fromPlanning;
+
+  const lower = trimmed.toLowerCase();
+  if (RUNTIME_WO_STATUSES.has(lower as NormalizedCorrectionWoStatus)) {
+    return lower as NormalizedCorrectionWoStatus;
+  }
+
+  return null;
+}
+
+/** PF-R15-01 — output void on a terminal WO needs a full reopen/compensation workflow. */
+export function isTerminalOutputVoidForbiddenStatus(status: CorrectionWoStatus): boolean {
+  const normalized = normalizeCorrectionWoStatus(status);
+  return normalized === 'completed' || normalized === 'closed';
+}
+
 export type CorrectionSignature = {
   pin: string;
   intent: string;
@@ -76,11 +133,13 @@ export async function assertCorrectionAllowed(
     throw new CorrectionForbiddenError();
   }
 
-  if (input.woStatus === 'closed' && !(await hasPermission(ctx, CLOSED_WO_CORRECTION_PERMISSION))) {
+  const woStatus = normalizeCorrectionWoStatus(input.woStatus ?? null);
+
+  if (woStatus === 'closed' && !(await hasPermission(ctx, CLOSED_WO_CORRECTION_PERMISSION))) {
     throw new CorrectionForbiddenError('closed_wo_correction_forbidden');
   }
 
-  if (input.woStatus === 'cancelled') {
+  if (woStatus === 'cancelled') {
     throw new CorrectionForbiddenError('cancelled_wo_correction_forbidden');
   }
 

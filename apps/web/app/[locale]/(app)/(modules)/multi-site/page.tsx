@@ -2,6 +2,10 @@ import { getTranslations } from "next-intl/server";
 
 import { hasPermission } from "../../../../../lib/auth/has-permission";
 import { withOrgContext } from "../../../../../lib/auth/with-org-context";
+import {
+  formatInventoryQtyByUom,
+  type InventoryQtyByUomRow,
+} from "./_lib/network-inventory-kpi";
 
 /** Cross-site aggregate read — seeded in packages/db/migrations/258-cross-cutting-admin-read-permission-seed.sql:27 */
 const MULTI_SITE_CROSS_SITE_READ_PERMISSION = "multi_site.cross_site.read";
@@ -23,7 +27,7 @@ type SiteRow = {
 type NetworkKpis = {
   siteCount: number | null;
   inTransitTransferOrders: number | null;
-  inventoryTotalQty: string | null;
+  inventoryQtyByUom: InventoryQtyByUomRow[] | null;
 };
 
 type SitesOverviewResult =
@@ -33,7 +37,7 @@ type SitesOverviewResult =
 const EMPTY_NETWORK_KPIS: NetworkKpis = {
   siteCount: null,
   inTransitTransferOrders: null,
-  inventoryTotalQty: null,
+  inventoryQtyByUom: null,
 };
 
 function countFromRow(value: string | number | null | undefined): number | null {
@@ -90,24 +94,32 @@ async function listSitesOverview(): Promise<SitesOverviewResult> {
           return null;
         });
 
-      const inventoryTotalQtyPromise = queryClient
-        .query<{ inventory_total_qty: string | null }>(
-          `select coalesce(sum(lp.quantity), 0)::text as inventory_total_qty
+      const inventoryQtyByUomPromise = queryClient
+        .query<{ uom: string; total_qty: string }>(
+          `select lp.uom,
+                  sum(lp.quantity)::text as total_qty
              from public.license_plates lp
             where lp.org_id = app.current_org_id()
-              and lp.status not in ('consumed', 'shipped', 'destroyed', 'merged', 'returned')`,
+              and lp.status not in ('consumed', 'shipped', 'destroyed', 'merged', 'returned')
+            group by lp.uom
+            order by lp.uom`,
         )
-        .then(({ rows }) => rows[0]?.inventory_total_qty ?? null)
+        .then(({ rows }) =>
+          rows.map((row) => ({
+            uom: row.uom,
+            qty: row.total_qty,
+          })),
+        )
         .catch((error) => {
-          console.error("[multi-site] failed to load inventory aggregate", error);
+          console.error("[multi-site] failed to load inventory aggregate by UoM", error);
           return null;
         });
 
-      const [sitesResult, siteCount, inTransitTransferOrders, inventoryTotalQty] = await Promise.all([
+      const [sitesResult, siteCount, inTransitTransferOrders, inventoryQtyByUom] = await Promise.all([
         sitesPromise,
         siteCountPromise,
         inTransitTransferOrdersPromise,
-        inventoryTotalQtyPromise,
+        inventoryQtyByUomPromise,
       ]);
 
       return {
@@ -116,7 +128,7 @@ async function listSitesOverview(): Promise<SitesOverviewResult> {
         kpis: {
           siteCount,
           inTransitTransferOrders,
-          inventoryTotalQty,
+          inventoryQtyByUom,
         },
       };
     });
@@ -132,6 +144,7 @@ export default async function MultiSiteRoutePage() {
   const t = await getTranslations("MultiSite");
   const denied = await getTranslations("quality.trace");
   const result = await listSitesOverview();
+  const inventoryDisplay = formatInventoryQtyByUom(result.kpis.inventoryQtyByUom ?? []);
 
   return (
     <section data-testid="module-landing-multi-site" className="p-8" aria-labelledby="module-landing-multi-site-title">
@@ -163,7 +176,7 @@ export default async function MultiSiteRoutePage() {
               </div>
               <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
                 <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Aggregated inventory</div>
-                <div className="mt-2 text-2xl font-semibold text-slate-950">{result.kpis.inventoryTotalQty ?? "—"}</div>
+                <div className="mt-2 text-2xl font-semibold text-slate-950">{inventoryDisplay ?? "—"}</div>
               </div>
             </div>
             {!result.ok ? (

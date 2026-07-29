@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getProductionDashboard } from './dashboard-data';
+import { PRODUCTION_DASHBOARD_WO_LIST_SQL } from '../_lib/dashboard-queries';
 import { formatDashboardKg } from '../_lib/dashboard-format';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
@@ -71,6 +72,13 @@ describe('getProductionDashboard', () => {
     expect(outputSql!).toContain("date_trunc('day', now() at time zone 'utc') at time zone 'utc'");
     expect(outputSql!).not.toContain("date_trunc('day', now())");
     expect(outputSql!).toContain("interval '1 day'");
+  });
+
+  it('keeps produced qty numeric in the lateral subquery so progress_pct division is valid', async () => {
+    await getProductionDashboard();
+
+    expect(PRODUCTION_DASHBOARD_WO_LIST_SQL).toContain('coalesce(sum(o.qty_kg), 0) as qty_kg');
+    expect(PRODUCTION_DASHBOARD_WO_LIST_SQL).not.toContain('coalesce(sum(o.qty_kg), 0)::text as qty_kg');
   });
 
   it('preserves exact decimal produced/planned kg strings from the WO list query', async () => {

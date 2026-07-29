@@ -631,7 +631,7 @@ describe('cancelPlannedOrder', () => {
     expect(cancelUpdates[0][1]).toEqual(['pending', 'suggested', 'firm', 'released']);
     const cancelSql = executed.find((sql) => sql.startsWith('update public.mrp_planned_orders') && sql.includes("set release_status = 'cancelled'"))!;
     expect(cancelSql).toContain('app.current_org_id()');
-    expect(cancelSql).toContain('app.current_site_id() is null or po.site_id = app.current_site_id()');
+    expect(cancelSql).toContain('app.current_site_id() is null or po.site_id is null or po.site_id = app.current_site_id()');
     expect(cancelSql).toContain('not exists');
     expect(auditInserts).toHaveLength(1);
     expect(auditInserts[0][2]).toBe('planning.mrp_planned_order.cancelled');
@@ -1455,8 +1455,10 @@ describe('listMrpRuns', () => {
     });
     const sql = executed.find((s) => s.includes('from public.mrp_runs'))!;
     expect(sql).toContain('app.current_org_id()');
-    expect(sql).toContain('app.current_site_id() is null or site_id = app.current_site_id()');
-    expect(sql).not.toContain('site_id is null or site_id = app.current_site_id()');
+    expect(sql).toContain('app.current_site_id() is null or site_id is null or site_id = app.current_site_id()');
+    expect(sql).not.toMatch(
+      /app\.current_site_id\(\) is null or site_id = app\.current_site_id\(\)(?!.*site_id is null)/,
+    );
     expect(sql).toContain('order by created_at desc');
     expect(sql).toContain('created_at');
   });
@@ -1577,7 +1579,7 @@ describe('convertPlannedToPo', () => {
       client,
     });
     const conversionSelect = executed.find((sql) => sql.includes('from public.mrp_planned_orders') && sql.includes('for update of po'))!;
-    expect(conversionSelect).toContain('app.current_site_id() is null or po.site_id = app.current_site_id()');
+    expect(conversionSelect).toContain('app.current_site_id() is null or po.site_id is null or po.site_id = app.current_site_id()');
   });
 
   it('skips buy planned orders without a supplier', async () => {
@@ -1769,10 +1771,10 @@ describe('convertPlannedToWo', () => {
     expect(releasedUpdates).toEqual([[[WO_PLANNED_ID], woId]]);
     const conversionSelect = executed.find((sql) => sql.includes('from public.mrp_planned_orders') && sql.includes('for update of po'))!;
     expect(conversionSelect).toContain('po.site_id');
-    expect(conversionSelect).toContain('app.current_site_id() is null or po.site_id = app.current_site_id()');
+    expect(conversionSelect).toContain('app.current_site_id() is null or po.site_id is null or po.site_id = app.current_site_id()');
     const releaseUpdate = executed.find((sql) => sql.startsWith('update public.mrp_planned_orders'))!;
     expect(releaseUpdate).toContain("release_status in ('suggested', 'firm')");
-    expect(releaseUpdate).toContain('app.current_site_id() is null or site_id = app.current_site_id()');
+    expect(releaseUpdate).toContain('app.current_site_id() is null or site_id is null or site_id = app.current_site_id()');
     expect(executed.find((sql) => sql.startsWith('insert into public.work_orders'))).toContain('site_id');
     expect(executed.find((sql) => sql.startsWith('insert into public.schedule_outputs'))).toContain('site_id');
     expect(createBomSnapshotMock).toHaveBeenCalledTimes(1);
@@ -1865,6 +1867,8 @@ describe('getMrpRunRequirements', () => {
     });
     const sql = executed.find((s) => s.includes('from public.mrp_requirements'))!;
     expect(sql).toContain('app.current_org_id()');
+    const runCheck = executed.find((s) => s.includes('from public.mrp_runs') && s.includes('limit 1'))!;
+    expect(runCheck).toContain('site_id is null or site_id = app.current_site_id()');
   });
 
   it('returns forbidden without the read permission', async () => {

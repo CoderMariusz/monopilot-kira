@@ -33,7 +33,7 @@ function normalize(sql: string): string {
   return sql.replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
-function makeHeaderRow() {
+function makeHeaderRow(overrides: Partial<ReturnType<typeof makeHeaderRow>> = {}) {
   return {
     id: WO_ID,
     wo_number: 'E2E-A-C5-FG',
@@ -52,6 +52,8 @@ function makeHeaderRow() {
     scheduled_end_time: null,
     started_at: null,
     completed_at: null,
+    cancelled_at: null,
+    closed_at: null,
     output_kg: '0',
     output_pct: '0',
     weight_mode: 'fixed',
@@ -59,6 +61,7 @@ function makeHeaderRow() {
     bom_header_id: null,
     over_production_flagged: false,
     over_production_flagged_at: null,
+    ...overrides,
   };
 }
 
@@ -164,5 +167,40 @@ describe('getWorkOrderDetail', () => {
       .find((sql) => sql.includes('from public.wo_dependencies d'));
     expect(depSql).toContain('rw.wo_number');
     expect(depSql).toContain('ri.item_code');
+  });
+
+  it('freezes elapsedMin at cancelled_at for cancelled WOs (PF-R13-02)', async () => {
+    const startedAt = '2026-07-18T05:47:00.000Z';
+    const cancelledAt = '2026-07-18T05:56:00.000Z';
+    (client.query as ReturnType<typeof vi.fn>).mockImplementation(async (sql: string) => {
+      const n = normalize(sql);
+      if (n.includes('from public.user_roles')) {
+        return { rows: [{ ok: true }] as never[], rowCount: 1 };
+      }
+      if (n.includes('from public.work_orders w') && n.includes('where w.org_id = app.current_org_id()')) {
+        return {
+          rows: [
+            makeHeaderRow({
+              status: 'cancelled',
+              started_at: startedAt,
+              completed_at: null,
+              cancelled_at: cancelledAt,
+              closed_at: null,
+            }),
+          ] as never[],
+          rowCount: 1,
+        };
+      }
+      return { rows: [] as never[], rowCount: 0 };
+    });
+
+    const first = await getWorkOrderDetail(WO_ID);
+    const second = await getWorkOrderDetail(WO_ID);
+
+    expect(first.ok).toBe(true);
+    expect(second.ok).toBe(true);
+    if (!first.ok || !second.ok) throw new Error('expected ok');
+    expect(first.data.header.elapsedMin).toBe(9);
+    expect(second.data.header.elapsedMin).toBe(9);
   });
 });

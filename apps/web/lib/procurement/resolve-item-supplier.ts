@@ -16,7 +16,10 @@ export type ItemSupplierResolution = {
   source: 'preferred' | 'open_po' | 'supplier_spec';
 };
 
-const NON_BLOCKED_SUPPLIER_FILTER = `s.status <> 'blocked'`;
+/** Supplier alias varies per join (`s`, `s_by_id`, `s_by_code`) — never hardcode one alias. */
+export function nonBlockedSupplierFilter(alias: string): string {
+  return `${alias}.status <> 'blocked'`;
+}
 
 /**
  * Resolve suppliers for many items in two org-scoped reads. Callers merge with
@@ -43,7 +46,7 @@ export async function resolveProcurementSuppliersForItems(
        join public.suppliers s
          on s.id = po.supplier_id
         and s.org_id = po.org_id
-        and ${NON_BLOCKED_SUPPLIER_FILTER}
+        and ${nonBlockedSupplierFilter('s')}
       where l.org_id = app.current_org_id()
         and l.item_id = any($1::uuid[])
       order by l.item_id, po.updated_at desc nulls last, po.created_at desc nulls last`,
@@ -70,12 +73,12 @@ export async function resolveProcurementSuppliersForItems(
        left join public.suppliers s_by_id
          on s_by_id.org_id = ss.org_id
         and s_by_id.id = ss.supplier_id
-        and ${NON_BLOCKED_SUPPLIER_FILTER}
+        and ${nonBlockedSupplierFilter('s_by_id')}
        left join public.suppliers s_by_code
          on s_by_code.org_id = ss.org_id
         and s_by_code.code = ss.supplier_code
         and ss.supplier_id is null
-        and ${NON_BLOCKED_SUPPLIER_FILTER}
+        and ${nonBlockedSupplierFilter('s_by_code')}
       where ss.org_id = app.current_org_id()
         and ss.item_id = any($1::uuid[])
         and ss.lifecycle_status = 'active'
@@ -125,7 +128,7 @@ export async function fetchNonBlockedSupplierIds(
        from public.suppliers s
       where s.org_id = app.current_org_id()
         and s.id = any($1::uuid[])
-        and ${NON_BLOCKED_SUPPLIER_FILTER}`,
+        and ${nonBlockedSupplierFilter('s')}`,
     [uniqueIds],
   );
   return new Set(rows.map((row) => row.id));

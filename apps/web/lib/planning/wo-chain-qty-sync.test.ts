@@ -226,11 +226,20 @@ describe('propagateParentWoChainQuantities', () => {
             rowCount: 1,
           };
         }
+        if (n.includes('from public.work_orders') && n.includes('planned_quantity::text as planned_quantity')) {
+          return {
+            rows: [{ planned_quantity: '10.370', status: 'DRAFT' }],
+            rowCount: 1,
+          };
+        }
         if (n.startsWith('update public.wo_dependencies') && n.includes('material_link')) {
           return { rows: [], rowCount: 1 };
         }
         if (n.startsWith('update public.work_orders')) {
           return { rows: [{ id: CHILD_WO_ID }], rowCount: 1 };
+        }
+        if (n.startsWith('insert into public.wo_status_history')) {
+          return { rows: [], rowCount: 1 };
         }
         if (n.startsWith('update public.schedule_outputs')) {
           return { rows: [], rowCount: 1 };
@@ -278,6 +287,132 @@ describe('propagateParentWoChainQuantities', () => {
 
     const childUpdate = calls.find((c) => c.sql.replace(/\s+/g, ' ').trim().toLowerCase().startsWith('update public.work_orders'));
     expect(childUpdate?.params).toEqual([CHILD_WO_ID, '10.710', USER_ID]);
+
+    const historyInsert = calls.find((c) => c.sql.replace(/\s+/g, ' ').trim().toLowerCase().startsWith('insert into public.wo_status_history'));
+    expect(historyInsert?.params?.[0]).toBe(CHILD_WO_ID);
+    expect(historyInsert?.params?.[1]).toBe('DRAFT');
+    expect(historyInsert?.params?.[2]).toBe(USER_ID);
+    expect(JSON.parse(String(historyInsert?.params?.[3]))).toEqual(expect.objectContaining({
+      propagation: 'parent_planned_quantity',
+      parent_wo_id: PARENT_WO_ID,
+      planned_quantity_old: '10.370',
+      planned_quantity_new: '10.710',
+      material_link_id: NEW_MATERIAL_ID,
+      required_qty: '10.710',
+    }));
+  });
+
+  it('PF-R11-02: writes child history only when propagated qty changes (two children, one pass)', async () => {
+    const BOM_LINE_ID_2 = '99999999-9999-4999-8999-999999999999';
+    const NEW_MATERIAL_ID_2 = '88888888-8888-4888-8888-888888888888';
+    const calls: Array<{ sql: string; params: readonly unknown[] }> = [];
+    const client = {
+      query: vi.fn(async (sql: string, params: readonly unknown[] = []) => {
+        calls.push({ sql, params });
+        const n = sql.replace(/\s+/g, ' ').trim().toLowerCase();
+        if (n.includes('from public.wo_materials') && n.includes('and wo_id = $1::uuid')) {
+          return {
+            rows: [
+              {
+                id: NEW_MATERIAL_ID,
+                product_id: CHILD_PRODUCT_ID,
+                bom_item_id: BOM_LINE_ID,
+                required_qty: '10.710',
+              },
+              {
+                id: NEW_MATERIAL_ID_2,
+                product_id: CHILD_PRODUCT_ID,
+                bom_item_id: BOM_LINE_ID_2,
+                required_qty: '5.000',
+              },
+            ],
+            rowCount: 2,
+          };
+        }
+        if (n.includes('from public.work_orders') && n.includes('planned_quantity::text as planned_quantity')) {
+          const childId = String(params[0]);
+          if (childId === CHILD_WO_ID) {
+            return { rows: [{ planned_quantity: '10.370', status: 'DRAFT' }], rowCount: 1 };
+          }
+          if (childId === CHILD_WO_ID_2) {
+            return { rows: [{ planned_quantity: '5.000', status: 'DRAFT' }], rowCount: 1 };
+          }
+        }
+        if (n.startsWith('update public.wo_dependencies') && n.includes('material_link')) {
+          return { rows: [], rowCount: 1 };
+        }
+        if (n.startsWith('update public.work_orders')) {
+          return { rows: [{ id: String(params[0]) }], rowCount: 1 };
+        }
+        if (n.startsWith('insert into public.wo_status_history')) {
+          return { rows: [], rowCount: 1 };
+        }
+        if (n.startsWith('update public.schedule_outputs')) {
+          return { rows: [], rowCount: 1 };
+        }
+        if (n.startsWith('select id, item_code, output_uom')) {
+          return {
+            rows: [{
+              id: CHILD_PRODUCT_ID,
+              item_code: 'WIP-1',
+              output_uom: 'base',
+              uom_base: 'kg',
+              net_qty_per_each: null,
+              each_per_box: null,
+              boxes_per_pallet: null,
+              weight_mode: 'fixed',
+            }],
+            rowCount: 1,
+          };
+        }
+        if (n.includes('from public.bom_headers')) {
+          return { rows: [], rowCount: 0 };
+        }
+        if (n.startsWith('delete from public.wo_materials') || n.startsWith('delete from public.wo_operations')) {
+          return { rows: [], rowCount: 1 };
+        }
+        if (n.startsWith('insert into public.wo_operations')) {
+          return { rows: [], rowCount: 0 };
+        }
+        return { rows: [], rowCount: 0 };
+      }),
+    };
+
+    const edges: ChainEdgeSnapshot[] = [
+      edgeSnapshot,
+      {
+        childWoId: CHILD_WO_ID_2,
+        childStatus: 'DRAFT',
+        childProductId: CHILD_PRODUCT_ID,
+        linkProductId: CHILD_PRODUCT_ID,
+        linkBomItemId: BOM_LINE_ID_2,
+        childScheduledStartTime: null,
+        childScheduledEndTime: null,
+      },
+    ];
+
+    await propagateParentWoChainQuantities(
+      { userId: USER_ID, orgId: 'org', client },
+      PARENT_WO_ID,
+      USER_ID,
+      edges,
+    );
+
+    const historyInserts = calls.filter((c) =>
+      c.sql.replace(/\s+/g, ' ').trim().toLowerCase().startsWith('insert into public.wo_status_history'),
+    );
+    expect(historyInserts).toHaveLength(1);
+    expect(historyInserts[0]?.params?.[0]).toBe(CHILD_WO_ID);
+    expect(JSON.parse(String(historyInserts[0]?.params?.[3]))).toEqual(expect.objectContaining({
+      propagation: 'parent_planned_quantity',
+      planned_quantity_old: '10.370',
+      planned_quantity_new: '10.710',
+    }));
+
+    const childUpdates = calls.filter((c) =>
+      c.sql.replace(/\s+/g, ' ').trim().toLowerCase().startsWith('update public.work_orders'),
+    );
+    expect(childUpdates.map((c) => c.params[0])).toEqual(expect.arrayContaining([CHILD_WO_ID, CHILD_WO_ID_2]));
   });
 
   it('B1a: throws before mutating when a later child is IN_PROGRESS (two-phase preflight)', async () => {

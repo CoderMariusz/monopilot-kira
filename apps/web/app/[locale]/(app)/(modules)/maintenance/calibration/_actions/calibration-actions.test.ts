@@ -240,6 +240,42 @@ describe('createInstrument', () => {
       USER_ID,
     ]);
   });
+
+  it('rejects inverted measurement range before insert', async () => {
+    const result = await createInstrument({
+      instrumentCode: 'SCALE-BAD',
+      instrumentType: 'scale',
+      standard: 'NIST',
+      calibrationIntervalDays: 365,
+      rangeMin: '10.0000',
+      rangeMax: '0.0000',
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.reason).toBe('validation_error');
+    const insertCall = client.query.mock.calls.find(([sql]) =>
+      normalize(String(sql)).includes('insert into public.calibration_instruments'),
+    );
+    expect(insertCall).toBeUndefined();
+  });
+
+  it('rejects over-precise range bounds before insert (numeric 12,4 scale)', async () => {
+    const result = await createInstrument({
+      instrumentCode: 'SCALE-PREC',
+      instrumentType: 'scale',
+      standard: 'NIST',
+      calibrationIntervalDays: 365,
+      rangeMin: '0.00004',
+      rangeMax: '0.000049',
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.reason).toBe('validation_error');
+    const insertCall = client.query.mock.calls.find(([sql]) =>
+      normalize(String(sql)).includes('insert into public.calibration_instruments'),
+    );
+    expect(insertCall).toBeUndefined();
+  });
 });
 
 describe('updateInstrument', () => {
@@ -253,6 +289,26 @@ describe('updateInstrument', () => {
       calibrationIntervalDays: 180,
     });
     expect(result).toEqual({ ok: false, reason: 'not_found' });
+  });
+
+  it('rejects inverted measurement range before update', async () => {
+    const result = await updateInstrument({
+      instrumentId: INSTRUMENT_ID,
+      instrumentCode: 'SCALE-02',
+      instrumentType: 'scale',
+      standard: 'NIST',
+      calibrationIntervalDays: 180,
+      rangeMin: '10.0000',
+      rangeMax: '0.0000',
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.reason).toBe('validation_error');
+    const updateCall = client.query.mock.calls.find(([sql]) =>
+      normalize(String(sql)).includes('update public.calibration_instruments') &&
+      normalize(String(sql)).includes('instrument_code'),
+    );
+    expect(updateCall).toBeUndefined();
   });
 });
 

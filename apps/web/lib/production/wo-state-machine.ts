@@ -155,7 +155,7 @@ export async function loadOrInitExecution(
 }
 
 /** Timestamp column on wo_executions stamped for a given verb. */
-const VERB_TIMESTAMP: Record<WoTransition, string> = {
+const VERB_TIMESTAMP: Partial<Record<WoTransition, string>> = {
   start: 'started_at',
   pause: 'paused_at',
   resume: 'resumed_at',

@@ -8752,6 +8752,8 @@
       "noSupplier": "Brak preferowanego dostawcy",
       "columns": {
         "item": "Pozycja",
+        "site": "Zakład",
+        "allSites": "Wszystkie zakłady",
         "minQty": "Ilość min.",
         "reorderQty": "Ilość uzupełnienia",
         "supplier": "Preferowany dostawca",
@@ -9420,6 +9422,17 @@
             "submitting": "Rejestrowanie…",
             "cancel": "Anuluj",
             "formIncomplete": "Uzupełnij wszystkie wymagane pola, aby kontynuować.",
+            "warningOver": "Powyżej wymaganej ilości o {pct}% — zarejestrowano i oznaczono.",
+            "warningClose": "Zamknij",
+            "fefoDeviationTitle": "Wymagane zatwierdzenie odstępstwa od FEFO",
+            "fefoDeviationIntro": "Wybrany nośnik nie jest partią o najwcześniejszej dacie ważności. Wpisz uzasadnienie odstępstwa i podpisz, aby zarejestrować zużycie.",
+            "fefoDeviationReason": "Uzasadnienie odstępstwa",
+            "fefoDeviationReasonPlaceholder": "Wyjaśnij, dlaczego nie można użyć partii o wcześniejszej dacie ważności",
+            "fefoDeviationSubmit": "Podpisz i zarejestruj zużycie",
+            "esignTitle": "Podpis elektroniczny",
+            "esignHelp": "Wpisz ponownie hasło do konta, aby autoryzować to odstępstwo od FEFO.",
+            "esignPassword": "Hasło",
+            "esignPasswordPlaceholder": "Hasło do konta",
             "errors": {
               "forbidden": "Nie masz uprawnień do rejestrowania zużycia.",
               "lp_unavailable": "Ten nośnik nie ma już wystarczającego wolnego stanu dla tej ilości.",
@@ -9430,6 +9443,8 @@
               "reason_required": "Wpisz kod powodu przy rejestracji bez nośnika.",
               "invalid_material": "Ten komponent nie jest już prawidłowy dla tego zlecenia produkcyjnego.",
               "invalid_qty": "Wpisz ilość większą od zera.",
+              "fefo_deviation_approval_required": "Odstępstwo od FEFO wymaga uzasadnienia i podpisu elektronicznego.",
+              "esign_failed": "Podpis elektroniczny nieudany — sprawdź hasło i spróbuj ponownie.",
               "generic": "Nie można zarejestrować zużycia."
             }
           }

@@ -810,7 +810,7 @@ async function listPlannedOrdersForRun(c: QueryClient, runId: string): Promise<M
         and i.id = po.item_id
       where po.org_id = app.current_org_id()
         and po.run_id = $1::uuid
-        and (app.current_site_id() is null or po.site_id = app.current_site_id())
+        and (app.current_site_id() is null or po.site_id is null or po.site_id = app.current_site_id())
       order by po.due_date asc, i.item_code asc`,
     [runId],
   );
@@ -851,7 +851,7 @@ export async function listMrpRuns(): Promise<MrpRunsListResult> {
                 requirement_count, exception_count, created_at
            from public.mrp_runs
           where org_id = app.current_org_id()
-            and (app.current_site_id() is null or site_id = app.current_site_id())
+            and (app.current_site_id() is null or site_id is null or site_id = app.current_site_id())
           order by created_at desc
           limit 20`,
       );
@@ -892,7 +892,7 @@ export async function getMrpRunRequirements(runId: string): Promise<MrpRunRequir
            from public.mrp_runs
           where org_id = app.current_org_id()
             and id = $1::uuid
-            and (app.current_site_id() is null or site_id = app.current_site_id())
+            and (app.current_site_id() is null or site_id is null or site_id = app.current_site_id())
           limit 1`,
         [runId],
       );
@@ -922,7 +922,7 @@ export async function getMrpRunRequirements(runId: string): Promise<MrpRunRequir
             and i.id = r.item_id
           where r.org_id = app.current_org_id()
             and r.run_id = $1::uuid
-            and (app.current_site_id() is null or r.site_id = app.current_site_id())
+            and (app.current_site_id() is null or r.site_id is null or r.site_id = app.current_site_id())
           order by (r.exception_type is null) asc, r.net_requirement desc, i.item_code asc`,
         [runId],
       );
@@ -1022,7 +1022,7 @@ async function fetchPlannedOrdersForConversion(
         and i.id = po.item_id
       where po.org_id = app.current_org_id()
         and po.id = any($1::uuid[])
-        and (app.current_site_id() is null or po.site_id = app.current_site_id())
+        and (app.current_site_id() is null or po.site_id is null or po.site_id = app.current_site_id())
       order by po.due_date asc, i.item_code asc
       for update of po`,
     [ids],
@@ -1109,7 +1109,7 @@ async function markPlannedOrdersReleased(
       where org_id = app.current_org_id()
         and id = any($1::uuid[])
         and release_status in ('suggested', 'firm')
-        and (app.current_site_id() is null or site_id = app.current_site_id())`,
+        and (app.current_site_id() is null or site_id is null or site_id = app.current_site_id())`,
     [ids, releasedOrderId],
   );
 }
@@ -1144,7 +1144,7 @@ async function fetchPlannedOrderForCancel(
         and work_orders.id = po.released_order_id
       where po.org_id = app.current_org_id()
         and po.id = $1::uuid
-        and (app.current_site_id() is null or po.site_id = app.current_site_id())
+        and (app.current_site_id() is null or po.site_id is null or po.site_id = app.current_site_id())
       limit 1
       for update of po`,
     [plannedOrderId],
@@ -1183,7 +1183,7 @@ export async function cancelPlannedOrder(plannedOrderId: string): Promise<MrpCan
             set release_status = 'cancelled'
           where po.org_id = app.current_org_id()
             and po.id = $1::uuid
-            and (app.current_site_id() is null or po.site_id = app.current_site_id())
+            and (app.current_site_id() is null or po.site_id is null or po.site_id = app.current_site_id())
             and po.release_status = any($2::text[])
             and not exists (
               select 1

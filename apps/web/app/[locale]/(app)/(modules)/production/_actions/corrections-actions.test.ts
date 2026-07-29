@@ -337,6 +337,58 @@ function makeClient(): QueryClient {
         return { rows: [], rowCount: 1 };
       }
 
+      if (n.includes('from public.wo_events') && n.startsWith('select')) {
+        return { rows: [], rowCount: 0 };
+      }
+
+      if (n.includes('from public.work_orders') && n.startsWith('select id')) {
+        return { rows: [{ id: WO_ID }], rowCount: 1 };
+      }
+
+      if (n.includes('from public.wo_executions') && n.startsWith('select')) {
+        return {
+          rows: [{
+            id: 'exec-0001',
+            wo_id: WO_ID,
+            status: state.woStatus,
+            version: 3,
+            started_at: '2026-06-12T08:00:00.000Z',
+            paused_at: null,
+            resumed_at: null,
+            completed_at: '2026-06-12T10:00:00.000Z',
+            closed_at: state.woStatus === 'closed' ? '2026-06-12T11:00:00.000Z' : null,
+            cancelled_at: null,
+          }],
+          rowCount: 1,
+        };
+      }
+
+      if (n.startsWith('insert into public.wo_events')) {
+        return { rows: [], rowCount: 1 };
+      }
+
+      if (n.startsWith('update public.wo_executions')) {
+        return {
+          rows: [{
+            id: 'exec-0001',
+            wo_id: WO_ID,
+            status: 'in_progress',
+            version: 4,
+            started_at: '2026-06-12T08:00:00.000Z',
+            paused_at: null,
+            resumed_at: null,
+            completed_at: null,
+            closed_at: null,
+            cancelled_at: null,
+          }],
+          rowCount: 1,
+        };
+      }
+
+      if (n.startsWith('update public.work_orders') && n.includes('actual_qty')) {
+        return { rows: [], rowCount: 1 };
+      }
+
       throw new Error(`unexpected query: ${n}`);
     }),
   };
@@ -948,6 +1000,55 @@ describe('voidWoOutput', () => {
     );
   });
 
+  it('recomputes output rollups after output void on an in-progress WO', async () => {
+    state.woStatus = 'in_progress';
+
+    const result = await voidWoOutput({
+      outputId: OUTPUT_ID,
+      reasonCode: 'wrong_quantity',
+      signature: { password: '123456' },
+    });
+
+    expect(result).toEqual({ ok: true });
+
+    const rollup = queries.find(
+      (q) =>
+        normalize(q.sql).startsWith('update public.work_orders') &&
+        normalize(q.sql).includes('actual_qty') &&
+        normalize(q.sql).includes('produced_quantity'),
+    );
+    expect(rollup).toBeDefined();
+    expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.wo_events'))).toBe(false);
+  });
+
+  it('rejects output void on a completed WO (PF-R15-01 terminal guard)', async () => {
+    state.woStatus = 'completed';
+
+    const result = await voidWoOutput({
+      outputId: OUTPUT_ID,
+      reasonCode: 'wrong_quantity',
+      signature: { password: '123456' },
+    });
+
+    expect(result).toEqual({ ok: false, error: 'invalid_state' });
+    expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.wo_outputs'))).toBe(false);
+    expect(signEvent).not.toHaveBeenCalled();
+  });
+
+  it('rejects output void on a legacy CLOSED work_orders row without wo_executions', async () => {
+    state.woStatus = 'CLOSED';
+
+    const result = await voidWoOutput({
+      outputId: OUTPUT_ID,
+      reasonCode: 'wrong_quantity',
+      signature: { password: '123456' },
+    });
+
+    expect(result).toEqual({ ok: false, error: 'invalid_state' });
+    expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.wo_outputs'))).toBe(false);
+    expect(signEvent).not.toHaveBeenCalled();
+  });
+
   it('void counter-entries are stamped PASSED so LP-less corrections never re-enter QA pending', async () => {
     const result = await voidWoOutput({
       outputId: OUTPUT_ID,
@@ -1118,12 +1219,13 @@ describe('voidWoOutput', () => {
     expect(audits).toHaveLength(1);
   });
 
-  it('forbids closed-WO output correction without the closed-WO tier permission', async () => {
+  it('rejects closed-WO output void even with the closed-WO tier permission', async () => {
     state.woStatus = 'closed';
+    state.granted.add('production.corrections.closed_wo');
 
     const result = await voidWoOutput({ outputId: OUTPUT_ID, reasonCode: 'other', signature: { password: '123456' } });
 
-    expect(result).toEqual({ ok: false, error: 'forbidden' });
+    expect(result).toEqual({ ok: false, error: 'invalid_state' });
     expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.wo_outputs'))).toBe(false);
   });
 

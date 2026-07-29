@@ -146,6 +146,9 @@ export type ResumeWoData = {
   resumedAt: string | null;
   downtimeEventId: string | null;
   durationMin: number | null;
+  /** Set when GENERATED duration_min truncates a real sub-minute pause to 0. */
+  durationBelowMinute?: boolean;
+  actualDurationSec?: number;
 };
 
 export async function resumeWo(
@@ -155,9 +158,9 @@ export async function resumeWo(
   if (!(await hasPermission(ctx, 'production.wo.resume'))) return fail('forbidden');
 
   if (input.actualDurationMin != null) {
-    if (!Number.isInteger(input.actualDurationMin) || input.actualDurationMin < 0) {
+    if (!Number.isInteger(input.actualDurationMin) || input.actualDurationMin <= 0) {
       return fail('invalid_input', {
-        message: 'actualDurationMin must be a non-negative integer',
+        message: 'actualDurationMin must be a positive integer',
         details: { code: 'invalid_actual_duration_min', actualDurationMin: input.actualDurationMin },
       });
     }
@@ -188,7 +191,42 @@ export async function resumeWo(
       returning id, duration_min`,
     [input.woId, input.actualDurationMin ?? null],
   );
-  const row = closed.rows[0] ?? null;
+  // Explicit annotation: `rows[0]` is typed non-optional, so `?? null` alone does
+  // not widen the inferred type and the sub-minute annotate branch below needs null.
+  let row: { id: string; duration_min: number | null } | null = closed.rows[0] ?? null;
+  let actualDurationSec: number | null = null;
+
+  // Sub-minute pauses truncate to 0 in GENERATED duration_min — that is NOT "no
+  // downtime"; the pause/resume fact is real. Keep the row and record seconds in
+  // ext_jsonb so Downtime tab and frequency analytics retain category + reason.
+  // (Explicit actualDurationMin = 0 is rejected above — operator-declared zero,
+  // not timestamp truncation; PF-R13-03.)
+  if (row?.duration_min === 0) {
+    const annotated = await ctx.client.query<{
+      id: string;
+      duration_min: number | null;
+      actual_duration_sec: number;
+    }>(
+      `update public.downtime_events
+          set ext_jsonb = ext_jsonb || jsonb_build_object(
+                'durationBelowMinute', true,
+                'actualDurationSec',
+                  greatest(0, floor(extract(epoch from (ended_at - started_at))))::integer
+              )
+        where org_id = app.current_org_id() and id = $1::uuid
+        returning id, duration_min,
+                  (ext_jsonb->>'actualDurationSec')::integer as actual_duration_sec`,
+      [row.id],
+    );
+    const annotatedRow = annotated.rows[0];
+    if (annotatedRow) {
+      row = annotatedRow;
+      actualDurationSec = annotatedRow.actual_duration_sec;
+    }
+  }
+
+  const subMinute =
+    actualDurationSec != null ? { durationBelowMinute: true as const, actualDurationSec } : {};
 
   await writeOutbox(ctx, {
     eventType: EventType.PRODUCTION_DOWNTIME_RECORDED,
@@ -200,6 +238,7 @@ export async function resumeWo(
       source: 'wo_pause',
       state: 'closed',
       durationMin: row?.duration_min ?? null,
+      ...subMinute,
     },
   });
 
@@ -211,6 +250,7 @@ export async function resumeWo(
       resumedAt: transition.data.resumedAt,
       downtimeEventId: row ? String(row.id) : null,
       durationMin: row?.duration_min ?? null,
+      ...subMinute,
     },
   };
 }

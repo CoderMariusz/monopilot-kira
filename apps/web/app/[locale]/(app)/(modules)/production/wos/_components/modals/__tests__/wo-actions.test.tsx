@@ -47,6 +47,7 @@ const LABELS: WoModalLabels = {
   submitting: 'Submitting…',
   errorFallback: 'The action could not be completed.',
   errors: {
+    invalid_input: 'Invalid input — check the fields and try again.',
     invalid_state_transition: 'This action is not valid for the work order’s current state.',
     quality_hold_active: 'Blocked by an active quality hold on this work order.',
     forbidden: 'You do not have permission to perform this action.',
@@ -310,6 +311,68 @@ describe('WO action payloads (mock fetch)', () => {
 
     await waitFor(() => expect(captured.url).toBeDefined());
     expect(captured.body).toMatchObject({ lineId: 'LINE-1' });
+  });
+
+  it('Resume rejects zero downtime minutes client-side without posting', async () => {
+    const captured: { url?: string; body?: any } = {};
+    vi.stubGlobal('fetch', mockFetchOk(captured));
+    const user = userEvent.setup();
+    render(<Harness status="paused" />);
+
+    await user.click(screen.getByTestId('wo-action-resume'));
+    await user.type(screen.getByTestId('wo-resume-duration'), '0');
+    await user.click(screen.getByTestId('wo-resume-confirm'));
+
+    expect(await screen.findByTestId('wo-resume-error')).toHaveTextContent(
+      'Invalid input — check the fields and try again.',
+    );
+    expect(captured.url).toBeUndefined();
+  });
+
+  it('Resume rejects negative downtime minutes client-side without posting', async () => {
+    const captured: { url?: string; body?: any } = {};
+    vi.stubGlobal('fetch', mockFetchOk(captured));
+    const user = userEvent.setup();
+    render(<Harness status="paused" />);
+
+    await user.click(screen.getByTestId('wo-action-resume'));
+    await user.type(screen.getByTestId('wo-resume-duration'), '-1');
+    await user.click(screen.getByTestId('wo-resume-confirm'));
+
+    expect(await screen.findByTestId('wo-resume-error')).toHaveTextContent(
+      'Invalid input — check the fields and try again.',
+    );
+    expect(captured.url).toBeUndefined();
+  });
+
+  it('Resume rejects fractional downtime minutes client-side without posting', async () => {
+    const captured: { url?: string; body?: any } = {};
+    vi.stubGlobal('fetch', mockFetchOk(captured));
+    const user = userEvent.setup();
+    render(<Harness status="paused" />);
+
+    await user.click(screen.getByTestId('wo-action-resume'));
+    await user.type(screen.getByTestId('wo-resume-duration'), '1.5');
+    await user.click(screen.getByTestId('wo-resume-confirm'));
+
+    expect(await screen.findByTestId('wo-resume-error')).toHaveTextContent(
+      'Invalid input — check the fields and try again.',
+    );
+    expect(captured.url).toBeUndefined();
+  });
+
+  it('Resume posts null actualDurationMin when the downtime field is left blank', async () => {
+    const captured: { url?: string; body?: any } = {};
+    vi.stubGlobal('fetch', mockFetchOk(captured));
+    const user = userEvent.setup();
+    render(<Harness status="paused" />);
+
+    await user.click(screen.getByTestId('wo-action-resume'));
+    await user.click(screen.getByTestId('wo-resume-confirm'));
+
+    await waitFor(() => expect(captured.url).toBeDefined());
+    expect(captured.url).toContain('/resume');
+    expect(captured.body).toMatchObject({ actualDurationMin: null });
   });
 
   it('Register output posts snake_case { transaction_id, output_type, product_id, qty_kg }', async () => {

@@ -29,6 +29,8 @@ const LABELS: ThresholdsLabels = {
   noSupplier: 'No preferred supplier',
   columns: {
     item: 'Item',
+    site: 'Site',
+    allSites: 'All sites',
     minQty: 'Min qty',
     reorderQty: 'Reorder qty',
     supplier: 'Preferred supplier',
@@ -71,6 +73,8 @@ const LABELS: ThresholdsLabels = {
 const ROW: ReorderThresholdRow = {
   id: 'th-1',
   itemId: 'i1',
+  siteId: null,
+  siteName: null,
   itemCode: 'RM-FLOUR',
   itemName: 'Wheat flour',
   uomBase: 'kg',
@@ -108,8 +112,9 @@ describe('/planning/reorder-thresholds — ThresholdsView', () => {
     renderView();
     await waitFor(() => expect(screen.getByTestId('thresholds-table')).toBeInTheDocument());
 
-    const row = screen.getByTestId('threshold-row-RM-FLOUR');
+    const row = screen.getByTestId('threshold-row-th-1');
     expect(row).toHaveTextContent('RM-FLOUR');
+    expect(row).toHaveTextContent('All sites');
     expect(row).toHaveTextContent('Wheat flour');
     expect(row).toHaveTextContent('20.000000 kg');
     expect(row).toHaveTextContent('50.000000 kg');
@@ -158,7 +163,7 @@ describe('/planning/reorder-thresholds — ThresholdsView', () => {
     renderView({ upsertAction, listAction });
     await waitFor(() => expect(screen.getByTestId('thresholds-table')).toBeInTheDocument());
 
-    fireEvent.click(screen.getByTestId('threshold-edit-RM-FLOUR'));
+    fireEvent.click(screen.getByTestId('threshold-edit-th-1'));
     await waitFor(() => expect(screen.getByTestId('threshold-form')).toBeInTheDocument());
 
     // Prefilled from the row; the item is locked while editing (no clear button).
@@ -172,6 +177,7 @@ describe('/planning/reorder-thresholds — ThresholdsView', () => {
 
     await waitFor(() =>
       expect(upsertAction).toHaveBeenCalledWith({
+        id: 'th-1',
         itemId: 'i1',
         minQty: '25.5',
         reorderQty: '50.000000',
@@ -188,7 +194,7 @@ describe('/planning/reorder-thresholds — ThresholdsView', () => {
     renderView({ upsertAction });
     await waitFor(() => expect(screen.getByTestId('thresholds-table')).toBeInTheDocument());
 
-    fireEvent.click(screen.getByTestId('threshold-edit-RM-FLOUR'));
+    fireEvent.click(screen.getByTestId('threshold-edit-th-1'));
     await waitFor(() => expect(screen.getByTestId('threshold-form')).toBeInTheDocument());
 
     fireEvent.change(screen.getByTestId('threshold-min-qty'), { target: { value: '-3' } });
@@ -203,7 +209,7 @@ describe('/planning/reorder-thresholds — ThresholdsView', () => {
     renderView({ upsertAction });
     await waitFor(() => expect(screen.getByTestId('thresholds-table')).toBeInTheDocument());
 
-    fireEvent.click(screen.getByTestId('threshold-edit-RM-FLOUR'));
+    fireEvent.click(screen.getByTestId('threshold-edit-th-1'));
     await waitFor(() => expect(screen.getByTestId('threshold-form')).toBeInTheDocument());
     fireEvent.click(screen.getByTestId('threshold-submit'));
 
@@ -221,7 +227,7 @@ describe('/planning/reorder-thresholds — ThresholdsView', () => {
     renderView({ deleteAction, listAction });
     await waitFor(() => expect(screen.getByTestId('thresholds-table')).toBeInTheDocument());
 
-    fireEvent.click(screen.getByTestId('threshold-delete-RM-FLOUR'));
+    fireEvent.click(screen.getByTestId('threshold-delete-th-1'));
     await waitFor(() => expect(deleteAction).toHaveBeenCalledWith('th-1'));
     await waitFor(() => expect(listAction).toHaveBeenCalledTimes(2));
     confirmSpy.mockRestore();

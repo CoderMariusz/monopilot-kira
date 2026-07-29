@@ -67,11 +67,20 @@ export function RecordConsumptionModal({
   // threshold (≤ approval threshold). Keep the modal open with a non-blocking
   // amber line; Close then runs the normal onRecorded refresh path.
   const [warning, setWarning] = useState<{ overPct: number; warnPct: number } | null>(null);
+  const [fefoApprovalRequired, setFefoApprovalRequired] = useState(false);
+  const [fefoDeviationReason, setFefoDeviationReason] = useState('');
+  const [esignPassword, setEsignPassword] = useState('');
 
   const selected = useMemo(
     () => components.find((c) => c.id === materialId) ?? null,
     [components, materialId],
   );
+
+  const resetFefoApproval = useCallback(() => {
+    setFefoApprovalRequired(false);
+    setFefoDeviationReason('');
+    setEsignPassword('');
+  }, []);
 
   // (Re)initialise selection whenever the modal opens.
   useEffect(() => {
@@ -84,6 +93,9 @@ export function RecordConsumptionModal({
     setLpStatus('idle');
     setError(null);
     setWarning(null);
+    setFefoApprovalRequired(false);
+    setFefoDeviationReason('');
+    setEsignPassword('');
     setBusy(false);
   }, [open, preselectId, components]);
 
@@ -91,6 +103,7 @@ export function RecordConsumptionModal({
   useEffect(() => {
     if (!open || !materialId) return;
     let cancelled = false;
+    resetFefoApproval();
     setLpStatus('loading');
     setLps([]);
     setLpId('');
@@ -107,7 +120,7 @@ export function RecordConsumptionModal({
     return () => {
       cancelled = true;
     };
-  }, [open, woId, materialId, listConsumableLpsAction]);
+  }, [open, woId, materialId, listConsumableLpsAction, resetFefoApproval]);
 
   const mapError = useCallback(
     (reason: string, message?: string): string => {
@@ -141,6 +154,10 @@ export function RecordConsumptionModal({
           return labels.errors.invalid_material;
         case 'invalid_qty':
           return labels.errors.invalid_qty;
+        case 'fefo_deviation_approval_required':
+          return labels.errors.fefo_deviation_approval_required;
+        case 'esign_failed':
+          return labels.errors.esign_failed;
         default:
           return labels.errors.unknown;
       }
@@ -153,7 +170,9 @@ export function RecordConsumptionModal({
     qty.trim() !== '' &&
     (lpId !== '' || reasonCode.trim() !== '') &&
     !busy &&
-    warning === null;
+    warning === null &&
+    (!fefoApprovalRequired ||
+      (fefoDeviationReason.trim() !== '' && esignPassword.trim() !== ''));
 
   async function handleSubmit() {
     if (!canSubmit) return;
@@ -169,6 +188,12 @@ export function RecordConsumptionModal({
       qty: qty.trim(),
       lpId: lpId || null,
       reasonCode: lpId ? null : reasonCode.trim(),
+      ...(fefoApprovalRequired
+        ? {
+            fefoDeviationReason: fefoDeviationReason.trim(),
+            signature: { password: esignPassword },
+          }
+        : {}),
       clientOpId,
     });
     setBusy(false);
@@ -180,6 +205,11 @@ export function RecordConsumptionModal({
         return;
       }
       onRecorded();
+      return;
+    }
+    if (result.reason === 'fefo_deviation_approval_required') {
+      setFefoApprovalRequired(true);
+      setError(null);
       return;
     }
     setError(mapError(result.reason, result.message));
@@ -224,6 +254,16 @@ export function RecordConsumptionModal({
             {labels.warningOver.replace('{pct}', warning.overPct.toFixed(2))}
           </div>
         ) : null}
+        {fefoApprovalRequired ? (
+          <div
+            role="status"
+            data-testid="wo-consume-fefo-approval"
+            className="mb-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"
+          >
+            <p className="font-medium">{labels.fefoDeviationTitle}</p>
+            <p className="mt-1 text-amber-800">{labels.fefoDeviationIntro}</p>
+          </div>
+        ) : null}
         <div className="space-y-3">
           <div>
             <label htmlFor="wo-consume-material" className="mb-1 block text-sm font-medium text-slate-700">
@@ -233,7 +273,10 @@ export function RecordConsumptionModal({
               id="wo-consume-material"
               aria-label={labels.material}
               value={materialId}
-              onValueChange={setMaterialId}
+              onValueChange={(value) => {
+                resetFefoApproval();
+                setMaterialId(value);
+              }}
               options={materialOptions}
               placeholder={labels.materialPlaceholder}
               disabled={busy || warning !== null}
@@ -274,7 +317,10 @@ export function RecordConsumptionModal({
                   id="wo-consume-lp"
                   aria-label={labels.lp}
                   value={lpId}
-                  onValueChange={setLpId}
+                  onValueChange={(value) => {
+                    resetFefoApproval();
+                    setLpId(value);
+                  }}
                   options={lpOptions}
                   disabled={busy || warning !== null}
                 />
@@ -301,6 +347,40 @@ export function RecordConsumptionModal({
               />
             </div>
           ) : null}
+          {fefoApprovalRequired ? (
+            <>
+              <div>
+                <label htmlFor="wo-consume-fefo-reason" className="mb-1 block text-sm font-medium text-slate-700">
+                  {labels.fefoDeviationReason}
+                </label>
+                <Input
+                  id="wo-consume-fefo-reason"
+                  data-testid="wo-consume-fefo-reason"
+                  value={fefoDeviationReason}
+                  disabled={busy || warning !== null}
+                  placeholder={labels.fefoDeviationReasonPlaceholder}
+                  onChange={(e) => setFefoDeviationReason(e.target.value)}
+                />
+              </div>
+              <div>
+                <p className="mb-1 text-sm font-medium text-slate-700">{labels.esignTitle}</p>
+                <p className="mb-2 text-xs text-slate-500">{labels.esignHelp}</p>
+                <label htmlFor="wo-consume-fefo-password" className="mb-1 block text-sm font-medium text-slate-700">
+                  {labels.esignPassword}
+                </label>
+                <Input
+                  id="wo-consume-fefo-password"
+                  data-testid="wo-consume-fefo-password"
+                  type="password"
+                  autoComplete="current-password"
+                  value={esignPassword}
+                  disabled={busy || warning !== null}
+                  placeholder={labels.esignPasswordPlaceholder}
+                  onChange={(e) => setEsignPassword(e.target.value)}
+                />
+              </div>
+            </>
+          ) : null}
         </div>
       </Modal.Body>
       <Modal.Footer>
@@ -315,7 +395,7 @@ export function RecordConsumptionModal({
               {labels.cancel}
             </Button>
             <Button type="button" data-testid="wo-consume-submit" disabled={!canSubmit} onClick={handleSubmit} title={!canSubmit ? labels.formIncomplete : undefined}>
-              {busy ? labels.submitting : labels.submit}
+              {busy ? labels.submitting : fefoApprovalRequired ? labels.fefoDeviationSubmit : labels.submit}
             </Button>
           </>
         )}

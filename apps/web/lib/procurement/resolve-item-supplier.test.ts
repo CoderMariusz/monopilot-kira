@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   fetchActiveSupplierIds,
   fetchNonBlockedSupplierIds,
+  nonBlockedSupplierFilter,
   pickProcurementSupplierId,
   resolveProcurementSuppliersForItems,
   type ItemSupplierResolution,
@@ -33,6 +34,9 @@ describe('resolveProcurementSuppliersForItems (S13)', () => {
           expect(params?.[0]).toEqual([ITEM_B]);
           expect(normalized).toContain('ss.supplier_id');
           expect(normalized).toContain('s_by_code');
+          expect(normalized).toContain(nonBlockedSupplierFilter('s_by_id').toLowerCase());
+          expect(normalized).toContain(nonBlockedSupplierFilter('s_by_code').toLowerCase());
+          expect(normalized).not.toMatch(/\bs\.status <> 'blocked'/);
           return {
             rows: [{ item_id: ITEM_B, supplier_id: SUP_SPEC }],
             rowCount: 1,
@@ -60,6 +64,34 @@ describe('resolveProcurementSuppliersForItems (S13)', () => {
     });
     expect(calls.some((sql) => sql.includes('distinct on (l.item_id)'))).toBe(true);
     expect(calls.some((sql) => sql.includes('distinct on (ss.item_id)'))).toBe(true);
+  });
+
+  it('supplier_specs fallback rejects a hardcoded s alias (42P01 regression)', async () => {
+    let specSql = '';
+    const client = {
+      query: async (sql: string) => {
+        const normalized = sql.replace(/\s+/g, ' ').trim().toLowerCase();
+        if (normalized.includes('distinct on (l.item_id)')) {
+          return { rows: [], rowCount: 0 };
+        }
+        if (normalized.includes('distinct on (ss.item_id)')) {
+          specSql = normalized;
+          if (/\bs\.status <> 'blocked'/.test(normalized)) {
+            throw Object.assign(new Error('missing FROM-clause entry for table "s"'), { code: '42P01' });
+          }
+          return {
+            rows: [{ item_id: ITEM_A, supplier_id: SUP_SPEC }],
+            rowCount: 1,
+          };
+        }
+        throw new Error(`unexpected sql: ${normalized}`);
+      },
+    };
+
+    const resolved = await resolveProcurementSuppliersForItems(client, [ITEM_A], ['sent']);
+    expect(resolved.get(ITEM_A)?.supplierId).toBe(SUP_SPEC);
+    expect(specSql).toContain(nonBlockedSupplierFilter('s_by_id').toLowerCase());
+    expect(specSql).toContain(nonBlockedSupplierFilter('s_by_code').toLowerCase());
   });
 
   it('skips blocked open-PO suppliers and falls back to an active supplier_spec link', async () => {

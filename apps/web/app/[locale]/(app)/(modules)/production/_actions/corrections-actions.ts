@@ -6,6 +6,7 @@ import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { revalidateLocalized } from '../../../../../../lib/i18n/revalidate-localized';
 import {
   assertCorrectionAllowed,
+  isTerminalOutputVoidForbiddenStatus,
   CORRECTION_REASON_CODES,
   CorrectionForbiddenError,
   CorrectionInvalidInputError,
@@ -17,6 +18,7 @@ import { CONSUMPTION_CORRECT_PERMISSION } from '../../../../../../lib/correction
 import { materialIdFromConsumptionExt } from '../../../../../../lib/corrections/material-scope';
 import { applyConsumptionWacReversal, applyOutputWacReversal } from '../../../../../../lib/finance/upsert-wac';
 import { hasLpConsumptionOrChildren } from '../../../../../../lib/production/lp-downstream-guard';
+import { syncWorkOrderOutputQuantities } from '../../../../../../lib/production/sync-work-order-output-quantities';
 import type { ProductionContext, QueryClient } from '../../../../../../lib/production/shared';
 import { makeStockMoveNumber } from '../../../../../../lib/warehouse/lp-create';
 
@@ -60,6 +62,9 @@ export type VoidWoOutputResult =
         | 'not_found'
         | 'already_corrected'
         | 'lp_not_voidable'
+        // F10 — voiding an output on a terminal WO would leave the WO Completed
+        // after its output is gone; the modal already renders this code.
+        | 'invalid_state'
         | 'invalid_input'
         | 'esign_failed'
         | 'persistence_failed';
@@ -946,6 +951,10 @@ export async function voidWoOutput(input: VoidWoOutputInput): Promise<VoidWoOutp
         return { ok: false, error: 'already_corrected' };
       }
 
+      if (isTerminalOutputVoidForbiddenStatus(original.wo_status)) {
+        return { ok: false, error: 'invalid_state' };
+      }
+
       if (!original.lp_id) {
         return { ok: false, error: 'lp_not_voidable' };
       }
@@ -1040,6 +1049,8 @@ export async function voidWoOutput(input: VoidWoOutputInput): Promise<VoidWoOutp
         reasonCode,
         note,
       });
+
+      await syncWorkOrderOutputQuantities(ctx.client, original.wo_id);
 
       // No legal correction/void event exists in the production.* outbox family; audit_events is the durable trail.
       return { ok: true, woId: original.wo_id };

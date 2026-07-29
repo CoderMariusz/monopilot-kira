@@ -1,5 +1,6 @@
 'use server';
 
+import { getActiveSiteId } from '../../../../../../../lib/site/site-context';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import {
   mapDependency,
@@ -22,6 +23,11 @@ export async function getPlanningWorkOrder(params: { id: string }): Promise<GetP
 
   try {
     return await withOrgContext(async ({ client }): Promise<GetPlanningWorkOrderResult> => {
+      // PF-R11-03 / R08-09 pattern — listPlanningWorkOrders already scopes by the active
+      // site cookie; direct /planning/work-orders/<id> must use the same predicate so a
+      // deeplink cannot render a WO the list hides under another site selector value.
+      const activeSiteId = await getActiveSiteId({ client });
+
       const header = await client.query<WorkOrderRow>(
         `select wo.id, wo.wo_number, wo.product_id, i.item_code, wo.item_type_at_creation,
                 wo.planned_quantity::text as planned_quantity, wo.produced_quantity::text as produced_quantity,
@@ -47,8 +53,9 @@ export async function getPlanningWorkOrder(params: { id: string }): Promise<GetP
             and fs.org_id = app.current_org_id()
           where wo.org_id = app.current_org_id()
             and wo.id = $1::uuid
+            and ($2::uuid is null or coalesce(wo.site_id, pl.site_id) = $2::uuid)
           limit 1`,
-        [params.id],
+        [params.id, activeSiteId],
       );
       const workOrder = header.rows[0];
       if (!workOrder) return { ok: false, error: 'not_found' };

@@ -11,6 +11,8 @@ export type ChainQtySyncError =
   | 'pack_hierarchy_incomplete'
   | 'chain_dependency_cycle';
 
+const CHAIN_QTY_SYNC_APP_VERSION = 'wo-chain-qty-sync-v1';
+
 export class ChainQtySyncRollbackError extends Error {
   readonly code: ChainQtySyncError;
 
@@ -404,6 +406,21 @@ export async function propagateParentWoChainQuantities(
 
     const childQty = parentMaterial.required_qty;
 
+    const { rows: childBeforeRows } = await ctx.client.query<{
+      planned_quantity: string;
+      status: string;
+    }>(
+      `select planned_quantity::text as planned_quantity, status
+         from public.work_orders
+        where org_id = app.current_org_id()
+          and id = $1::uuid`,
+      [edge.childWoId],
+    );
+    const childBefore = childBeforeRows[0];
+    if (!childBefore) {
+      throw new ChainQtySyncRollbackError('chain_child_not_editable');
+    }
+
     await ctx.client.query(
       `update public.wo_dependencies
           set material_link = $4::uuid,
@@ -427,6 +444,29 @@ export async function propagateParentWoChainQuantities(
     );
     if ((childUpdated.rowCount ?? 0) === 0) {
       throw new ChainQtySyncRollbackError('chain_child_not_editable');
+    }
+
+    if (childBefore.planned_quantity !== childQty) {
+      await ctx.client.query(
+        `insert into public.wo_status_history
+           (org_id, wo_id, from_status, to_status, action, user_id, context_jsonb)
+         values
+           (app.current_org_id(), $1::uuid, $2, $2, 'update', $3::uuid, $4::jsonb)`,
+        [
+          edge.childWoId,
+          childBefore.status,
+          userId,
+          JSON.stringify({
+            app_version: CHAIN_QTY_SYNC_APP_VERSION,
+            propagation: 'parent_planned_quantity',
+            parent_wo_id: parentWoId,
+            planned_quantity_old: childBefore.planned_quantity,
+            planned_quantity_new: childQty,
+            material_link_id: parentMaterial.id,
+            required_qty: childQty,
+          }),
+        ],
+      );
     }
 
     await ctx.client.query(

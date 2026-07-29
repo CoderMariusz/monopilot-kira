@@ -229,6 +229,15 @@ export type WoDetailLabels = {
       /** Warn-tier over-consumption: amber non-blocking line after a flagged success. */
       warningOver: string;
       warningClose: string;
+      fefoDeviationTitle: string;
+      fefoDeviationIntro: string;
+      fefoDeviationReason: string;
+      fefoDeviationReasonPlaceholder: string;
+      fefoDeviationSubmit: string;
+      esignTitle: string;
+      esignHelp: string;
+      esignPassword: string;
+      esignPasswordPlaceholder: string;
       errors: {
         forbidden: string;
         lp_unavailable: string;
@@ -243,6 +252,8 @@ export type WoDetailLabels = {
         error: string;
         invalid_material: string;
         invalid_qty: string;
+        fefo_deviation_approval_required: string;
+        esign_failed: string;
         unknown: string;
         generic: string;
       };

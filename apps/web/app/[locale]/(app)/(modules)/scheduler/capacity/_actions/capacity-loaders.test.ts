@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const LINE_ID = '11111111-1111-4111-8111-111111111111';
+const LINE_ID_OLD = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const LINE_ID_NEW = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const WO_ID = '22222222-2222-4222-8222-222222222222';
 const SITE_ID = '33333333-3333-4333-8333-333333333333';
 
@@ -66,7 +68,105 @@ describe('loadSchedulerCapacity', () => {
     )?.[0];
 
     expect(occupancySql).toContain('select line_id, start_at, end_at, source, alternative_key');
+    expect(occupancySql).toContain('with active_run as');
+    expect(occupancySql).toContain('sa.run_id = (select run_id from active_run)');
+    expect(occupancySql).toContain('wo.id::text as alternative_key');
     expect(result.ok && result.lines[0]?.days[0]?.sourceDraftHours).toBe(1);
+  });
+
+  it('replaces the WO slot with its draft alternative instead of double-counting', async () => {
+    query.mockImplementation(async (sql: string) => {
+      if (sql.includes('from public.scheduler_config')) {
+        return {
+          rows: [{ line_id: null, default_horizon_days: 1, capacity_hours_per_day: '8' }],
+        };
+      }
+      if (sql.includes('from public.production_lines pl')) {
+        return { rows: [{ id: LINE_ID, code: 'LINE-01', name: 'Line One' }] };
+      }
+      if (sql.includes('from public.work_orders wo')) {
+        return {
+          rows: [
+            {
+              line_id: LINE_ID,
+              start_at: '2026-07-15T13:00:00.000Z',
+              end_at: '2026-07-15T14:00:00.000Z',
+              source: 'wo',
+              alternative_key: WO_ID,
+            },
+            {
+              line_id: LINE_ID,
+              start_at: '2026-07-15T13:00:00.000Z',
+              end_at: '2026-07-15T14:00:00.000Z',
+              source: 'draft',
+              alternative_key: WO_ID,
+            },
+          ],
+        };
+      }
+      throw new Error(`Unexpected query: ${sql}`);
+    });
+
+    const result = await loadSchedulerCapacity();
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.lines[0]?.days[0]?.occupiedHours).toBe(1);
+    expect(result.lines[0]?.days[0]?.sourceWoHours).toBe(0);
+    expect(result.lines[0]?.days[0]?.sourceDraftHours).toBe(1);
+  });
+
+  it('uses the latest completed run draft instead of stale drafts from older runs', async () => {
+    const occupancyRows = [
+      {
+        line_id: LINE_ID,
+        start_at: '2026-07-15T12:00:00.000Z',
+        end_at: '2026-07-15T13:00:00.000Z',
+        source: 'wo',
+        alternative_key: WO_ID,
+      },
+      {
+        line_id: LINE_ID_OLD,
+        start_at: '2026-07-15T12:00:00.000Z',
+        end_at: '2026-07-15T20:00:00.000Z',
+        source: 'draft',
+        alternative_key: WO_ID,
+      },
+      {
+        line_id: LINE_ID_NEW,
+        start_at: '2026-07-15T13:00:00.000Z',
+        end_at: '2026-07-15T15:00:00.000Z',
+        source: 'draft',
+        alternative_key: WO_ID,
+      },
+    ];
+
+    query.mockImplementation(async (sql: string) => {
+      if (sql.includes('from public.scheduler_config')) {
+        return {
+          rows: [{ line_id: null, default_horizon_days: 1, capacity_hours_per_day: '8' }],
+        };
+      }
+      if (sql.includes('from public.production_lines pl')) {
+        return { rows: [{ id: LINE_ID, code: 'LINE-01', name: 'Line One' }] };
+      }
+      if (sql.includes('from public.work_orders wo')) {
+        const rows = sql.includes('with active_run as')
+          ? occupancyRows.filter((row) => row.source !== 'draft' || row.line_id === LINE_ID_NEW)
+          : occupancyRows;
+        return { rows };
+      }
+      throw new Error(`Unexpected query: ${sql}`);
+    });
+
+    const result = await loadSchedulerCapacity();
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // Without active_run SQL filter the mock would return the 8h stale draft and occupiedHours would be 8.
+    expect(result.lines[0]?.days[0]?.occupiedHours).toBe(2);
+    expect(result.lines[0]?.days[0]?.sourceWoHours).toBe(0);
+    expect(result.lines[0]?.days[0]?.sourceDraftHours).toBe(2);
   });
 
   it('scopes production lines and occupancy to the active site (null = all sites)', async () => {

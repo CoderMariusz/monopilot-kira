@@ -155,6 +155,16 @@ function makeClient(): QueryClient {
       if (normalized.startsWith('update public.wo_dependencies') && normalized.includes('material_link')) {
         return { rows: [], rowCount: 1 };
       }
+      if (
+        normalized.includes('from public.work_orders')
+        && normalized.includes('planned_quantity::text as planned_quantity')
+        && params[0] === CHILD_WO_ID
+      ) {
+        return {
+          rows: [{ planned_quantity: '10.370', status: chainChildStatus }],
+          rowCount: 1,
+        };
+      }
       if (normalized.startsWith('update public.work_orders') && params[0] === CHILD_WO_ID) {
         if (normalized.includes('scheduled_start_time = $2::timestamptz')) {
           return {

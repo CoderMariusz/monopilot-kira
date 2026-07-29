@@ -72,6 +72,8 @@ vi.mock('../../../../../(npd)/fa/actions/search-items', () => ({
 const THRESHOLD_ROW = {
   id: THRESHOLD_ID,
   item_id: ITEM_ID,
+  site_id: null,
+  site_name: null,
   item_code: 'RM-FLOUR',
   item_name: 'Wheat flour',
   uom_base: 'kg',
@@ -103,6 +105,10 @@ function makeClient(): QueryClient {
         throw new Error(`unexpected permission probe: ${String(permission)}`);
       }
       if (normalized.includes('insert into public.reorder_thresholds')) {
+        upsertParams = params;
+        return { rows: [{ id: THRESHOLD_ID }], rowCount: 1 };
+      }
+      if (normalized.includes('update public.reorder_thresholds')) {
         upsertParams = params;
         return { rows: [{ id: THRESHOLD_ID }], rowCount: 1 };
       }
@@ -148,6 +154,8 @@ describe('listReorderThresholds', () => {
         {
           id: THRESHOLD_ID,
           itemId: ITEM_ID,
+          siteId: null,
+          siteName: null,
           itemCode: 'RM-FLOUR',
           itemName: 'Wheat flour',
           uomBase: 'kg',
@@ -163,7 +171,26 @@ describe('listReorderThresholds', () => {
     });
     const sql = executed.find((s) => s.includes('from public.reorder_thresholds rt'))!;
     expect(sql).toContain('rt.org_id = app.current_org_id()');
-    expect(sql).toContain('left join public.suppliers');
+    expect(sql).toContain('left join public.sites');
+  });
+
+  it('updates an existing threshold by id when editing (preserves org-global site_id)', async () => {
+    const INPUT = {
+      id: THRESHOLD_ID,
+      itemId: ITEM_ID,
+      minQty: '16.5',
+      reorderQty: '4.000000',
+      preferredSupplierId: SUPPLIER_ID,
+    };
+    const result = await upsertReorderThreshold(INPUT);
+    expect(result.ok).toBe(true);
+
+    const sql = executed.find((s) => s.includes('update public.reorder_thresholds'))!;
+    expect(sql).toContain('where org_id = app.current_org_id()');
+    expect(sql).toContain('and id = $1::uuid');
+    expect(sql).not.toContain('insert into public.reorder_thresholds');
+    expect(upsertParams).toEqual([THRESHOLD_ID, '16.5', '4.000000', SUPPLIER_ID, USER_ID]);
+    expect(executed.some((s) => s.includes('insert into public.reorder_thresholds'))).toBe(false);
   });
 
   it('returns forbidden without the planning read permission', async () => {

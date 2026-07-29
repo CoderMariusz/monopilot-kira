@@ -51,6 +51,15 @@ const LABELS = {
       reasonCode: 'Manual reason code', reasonPlaceholder: 'Required without an LP',
       submitting: 'Recording…', cancel: 'Cancel',
       warningOver: 'Over required quantity by {pct}% — recorded and flagged.', warningClose: 'Close',
+      fefoDeviationTitle: 'FEFO deviation approval required',
+      fefoDeviationIntro: 'The selected license plate is not the earliest-expiry stock. Enter a deviation reason and sign to record this consumption.',
+      fefoDeviationReason: 'Deviation reason',
+      fefoDeviationReasonPlaceholder: 'Explain why an earlier-expiry lot cannot be used',
+      fefoDeviationSubmit: 'Sign and record consumption',
+      esignTitle: 'Electronic signature',
+      esignHelp: 'Re-enter your account password to authorize this FEFO deviation.',
+      esignPassword: 'Password',
+      esignPasswordPlaceholder: 'Account password',
       errors: {
         forbidden: 'No permission to record consumption.',
         lp_unavailable: 'Not enough free stock on that LP.',
@@ -61,6 +70,8 @@ const LABELS = {
         reason_required: 'Reason is required.',
         invalid_material: 'Component no longer valid.',
         invalid_qty: 'Enter a quantity greater than zero.',
+        fefo_deviation_approval_required: 'FEFO deviation requires a reason and electronic signature.',
+        esign_failed: 'Electronic signature failed.',
         generic: 'Unable to record consumption.',
       },
     },
@@ -293,5 +304,92 @@ describe('Desktop Record-consumption modal', () => {
     await openConsumptionTab(user);
     await user.click(screen.getByTestId('wo-consumption-record'));
     expect(await screen.findByTestId('wo-consume-lp-error')).toBeInTheDocument();
+  });
+
+  async function selectLp(user: ReturnType<typeof userEvent.setup>, label: RegExp) {
+    await user.click(screen.getByRole('combobox', { name: /License plate \(FEFO\)/i }));
+    await user.click(screen.getByText(label));
+  }
+
+  it('escalates to FEFO deviation reason + e-sign and resubmits with approval fields', async () => {
+    const record = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false, reason: 'fefo_deviation_approval_required' })
+      .mockResolvedValueOnce({
+        ok: true,
+        data: {
+          materialId: 'comp-1111-1111-1111-111111111111',
+          consumedQty: '0.480',
+          uom: 'kg',
+          lpId: 'lp-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+          replay: false,
+        },
+      });
+    const user = userEvent.setup();
+    renderScreen(record, makeListLps());
+    await openConsumptionTab(user);
+    await user.click(screen.getByTestId('wo-consumption-record'));
+    await waitFor(() => expect(screen.getByText(/LP-001/)).toBeInTheDocument());
+
+    await selectLp(user, /LP-002/);
+    await user.type(screen.getByTestId('wo-consume-qty'), '0.480');
+    await user.click(screen.getByTestId('wo-consume-submit'));
+
+    expect(await screen.findByTestId('wo-consume-fefo-approval')).toBeInTheDocument();
+    expect(record).toHaveBeenCalledTimes(1);
+    expect(record.mock.calls[0][0]).toMatchObject({
+      lpId: 'lp-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+    });
+    expect(record.mock.calls[0][0]).not.toHaveProperty('fefoDeviationReason');
+
+    await user.type(screen.getByTestId('wo-consume-fefo-reason'), 'batch constraint');
+    await user.type(screen.getByTestId('wo-consume-fefo-password'), 'secret-pw');
+    await user.click(screen.getByTestId('wo-consume-submit'));
+
+    await waitFor(() => expect(record).toHaveBeenCalledTimes(2));
+    expect(record.mock.calls[1][0]).toMatchObject({
+      lpId: 'lp-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+      fefoDeviationReason: 'batch constraint',
+      signature: { password: 'secret-pw' },
+    });
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+  });
+
+  it('clears FEFO approval escalation when the operator returns to the suggested LP', async () => {
+    const record = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false, reason: 'fefo_deviation_approval_required' })
+      .mockResolvedValueOnce({
+        ok: true,
+        data: {
+          materialId: 'comp-1111-1111-1111-111111111111',
+          consumedQty: '0.480',
+          uom: 'kg',
+          lpId: 'lp-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+          replay: false,
+        },
+      });
+    const user = userEvent.setup();
+    renderScreen(record, makeListLps());
+    await openConsumptionTab(user);
+    await user.click(screen.getByTestId('wo-consumption-record'));
+    await waitFor(() => expect(screen.getByText(/LP-001/)).toBeInTheDocument());
+
+    await selectLp(user, /LP-002/);
+    await user.type(screen.getByTestId('wo-consume-qty'), '0.480');
+    await user.click(screen.getByTestId('wo-consume-submit'));
+    expect(await screen.findByTestId('wo-consume-fefo-approval')).toBeInTheDocument();
+
+    await selectLp(user, /LP-001/);
+    expect(screen.queryByTestId('wo-consume-fefo-approval')).not.toBeInTheDocument();
+    expect(screen.getByTestId('wo-consume-submit')).toHaveTextContent('Record consumption');
+
+    await user.click(screen.getByTestId('wo-consume-submit'));
+    await waitFor(() => expect(record).toHaveBeenCalledTimes(2));
+    expect(record.mock.calls[1][0]).toMatchObject({
+      lpId: 'lp-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+    });
+    expect(record.mock.calls[1][0]).not.toHaveProperty('fefoDeviationReason');
+    expect(record.mock.calls[1][0]).not.toHaveProperty('signature');
   });
 });

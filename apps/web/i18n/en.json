@@ -7715,6 +7715,17 @@
             "submitting": "Recording…",
             "cancel": "Cancel",
             "formIncomplete": "Complete all required fields to continue.",
+            "warningOver": "Over required quantity by {pct}% — recorded and flagged.",
+            "warningClose": "Close",
+            "fefoDeviationTitle": "FEFO deviation approval required",
+            "fefoDeviationIntro": "The selected license plate is not the earliest-expiry stock. Enter a deviation reason and sign to record this consumption.",
+            "fefoDeviationReason": "Deviation reason",
+            "fefoDeviationReasonPlaceholder": "Explain why an earlier-expiry lot cannot be used",
+            "fefoDeviationSubmit": "Sign and record consumption",
+            "esignTitle": "Electronic signature",
+            "esignHelp": "Re-enter your account password to authorize this FEFO deviation.",
+            "esignPassword": "Password",
+            "esignPasswordPlaceholder": "Account password",
             "errors": {
               "forbidden": "You do not have permission to record consumption.",
               "lp_unavailable": "That license plate no longer has enough free stock for this quantity.",
@@ -7725,6 +7736,8 @@
               "reason_required": "Enter a reason code when recording without an LP.",
               "invalid_material": "This component is no longer valid for this work order.",
               "invalid_qty": "Enter a quantity greater than zero.",
+              "fefo_deviation_approval_required": "FEFO deviation requires a reason and electronic signature.",
+              "esign_failed": "Electronic signature failed — check your password and try again.",
               "generic": "Unable to record consumption."
             }
           }
@@ -9746,6 +9759,8 @@
       "noSupplier": "No preferred supplier",
       "columns": {
         "item": "Item",
+        "site": "Site",
+        "allSites": "All sites",
         "minQty": "Min qty",
         "reorderQty": "Reorder qty",
         "supplier": "Preferred supplier",

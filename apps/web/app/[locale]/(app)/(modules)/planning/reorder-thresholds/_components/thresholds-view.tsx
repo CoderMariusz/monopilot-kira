@@ -50,6 +50,8 @@ export type ThresholdsLabels = {
   noSupplier: string;
   columns: {
     item: string;
+    site: string;
+    allSites: string;
     minQty: string;
     reorderQty: string;
     supplier: string;
@@ -92,6 +94,7 @@ export type ThresholdsLabels = {
 const QTY_PATTERN = /^\d+(?:\.\d{1,6})?$/;
 
 type UpsertInput = {
+  id?: string;
   itemId: string;
   minQty: string;
   reorderQty: string;
@@ -146,8 +149,8 @@ export function ThresholdsView({
     load();
   }, [load]);
 
-  const onDelete = async (id: string, itemLabel: string) => {
-    if (!window.confirm(`${labels.remove} ${itemLabel}?`)) return;
+  const onDelete = async (id: string, itemLabel: string, siteLabel: string) => {
+    if (!window.confirm(`${labels.remove} ${itemLabel} (${siteLabel})?`)) return;
     setDeletingId(id);
     try {
       const result = await deleteAction(id);
@@ -226,6 +229,7 @@ export function ThresholdsView({
               <thead>
                 <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
                   <th className="px-3 py-2">{labels.columns.item}</th>
+                  <th className="px-3 py-2">{labels.columns.site}</th>
                   <th className="px-3 py-2 text-right">{labels.columns.minQty}</th>
                   <th className="px-3 py-2 text-right">{labels.columns.reorderQty}</th>
                   <th className="px-3 py-2">{labels.columns.supplier}</th>
@@ -235,11 +239,16 @@ export function ThresholdsView({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {rows.map((row) => (
-                  <tr key={row.id} data-testid={`threshold-row-${row.itemCode ?? row.itemId}`}>
+                {rows.map((row) => {
+                  const siteLabel = row.siteName ?? labels.columns.allSites;
+                  return (
+                  <tr key={row.id} data-testid={`threshold-row-${row.id}`}>
                     <td className="px-3 py-2">
                       <div className="font-mono text-xs font-semibold text-slate-800">{row.itemCode ?? row.itemId}</div>
                       <div className="text-slate-600">{row.itemName ?? ''}</div>
+                    </td>
+                    <td className="px-3 py-2 text-xs text-slate-600" data-testid={`threshold-site-${row.id}`}>
+                      {siteLabel}
                     </td>
                     <td className="px-3 py-2 text-right font-mono">
                       {row.minQty} {row.uomBase ?? ''}
@@ -272,7 +281,7 @@ export function ThresholdsView({
                         <button
                           type="button"
                           className="btn btn--secondary btn-sm"
-                          data-testid={`threshold-edit-${row.itemCode ?? row.itemId}`}
+                          data-testid={`threshold-edit-${row.id}`}
                           onClick={() => setModal({ open: true, editing: row })}
                         >
                           {labels.edit}
@@ -281,15 +290,16 @@ export function ThresholdsView({
                           type="button"
                           className="btn btn--ghost btn-sm"
                           disabled={deletingId === row.id}
-                          data-testid={`threshold-delete-${row.itemCode ?? row.itemId}`}
-                          onClick={() => onDelete(row.id, row.itemCode ?? row.itemId)}
+                          data-testid={`threshold-delete-${row.id}`}
+                          onClick={() => onDelete(row.id, row.itemCode ?? row.itemId, siteLabel)}
                         >
                           {deletingId === row.id ? labels.removing : labels.remove}
                         </button>
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -366,6 +376,7 @@ function ThresholdModal({
     setPending(true);
     try {
       const result = await upsertAction({
+        ...(editing ? { id: editing.id } : {}),
         itemId: item.id,
         minQty: minQty.trim(),
         reorderQty: reorderQty.trim(),
