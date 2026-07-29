@@ -134,7 +134,8 @@ async function seedOrg(): Promise<void> {
   await owner.query(
     `insert into public.role_permissions (role_id, permission)
      values ($1, 'mnt.loto.apply'),
-            ($1, 'mnt.loto.clear')
+            ($1, 'mnt.loto.clear'),
+            ($1, 'mnt.mwo.execute')
      on conflict (role_id, permission) do nothing`,
     [seed.roleId],
   );

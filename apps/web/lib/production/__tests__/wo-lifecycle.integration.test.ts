@@ -206,7 +206,7 @@ async function seedWorkOrder(opts?: { withSegregation?: boolean }): Promise<{ wo
   await owner.query(
     `insert into public.wo_materials
        (org_id, wo_id, product_id, material_name, required_qty, consumed_qty, uom)
-     values ($1, $2, $3, 'RM-E1-A', 50.000, 0.000, 'kg')`,
+     values ($1, $2, $3, 'RM-E1-A', 90.000, 0.000, 'kg')`,
     [orgId, woId, componentId],
   );
   return { woId, componentId };
@@ -222,6 +222,23 @@ async function markPrimaryOutputRegistered(woId: string): Promise<void> {
     `update public.wo_outputs set qty_kg = 90.000
       where org_id = $1 and wo_id = $2 and output_type = 'primary'`,
     [orgId, woId],
+  );
+}
+
+/** Post the matching 90 kg material consumption required by the strict-close gate. */
+async function postBalancedMaterialConsumption(woId: string, componentId: string): Promise<void> {
+  await owner.query(
+    `insert into public.wo_material_consumption
+       (org_id, transaction_id, wo_id, component_id, lp_id, qty_consumed, uom,
+        fefo_adherence_flag, consumed_at)
+     values ($1, $2, $3, $4, $5, 90.000, 'kg', true, pg_catalog.now())`,
+    [orgId, randomUUID(), woId, componentId, randomUUID()],
+  );
+  await owner.query(
+    `update public.wo_materials
+        set consumed_qty = 90.000
+      where org_id = $1 and wo_id = $2 and product_id = $3`,
+    [orgId, woId, componentId],
   );
 }
 
@@ -378,7 +395,7 @@ run('08-production E1 — WO lifecycle (REAL DB integration)', () => {
       [orgId, woId],
     );
     expect(wo.rows[0]).toEqual({
-      status: 'in_progress',
+      status: 'IN_PROGRESS',
       active_bom_header_id: bomHeaderId,
       active_factory_spec_id: factorySpecId,
     });
@@ -405,7 +422,7 @@ run('08-production E1 — WO lifecycle (REAL DB integration)', () => {
   });
 
   it('runs the full happy path start → pause → resume → complete → close with e-sign', async () => {
-    const { woId } = await seedWorkOrder();
+    const { woId, componentId } = await seedWorkOrder();
     const catId = await seedDowntimeCategory();
 
     const started = await withOrgContext((ctx: ProductionContext) =>
@@ -450,6 +467,7 @@ run('08-production E1 — WO lifecycle (REAL DB integration)', () => {
     expect(closedDt.rowCount).toBe(1);
 
     await markPrimaryOutputRegistered(woId);
+    await postBalancedMaterialConsumption(woId, componentId);
     const completed = await withOrgContext((ctx: ProductionContext) =>
       completeWo(ctx, { woId, transactionId: randomUUID() }),
     );
@@ -498,9 +516,10 @@ run('08-production E1 — WO lifecycle (REAL DB integration)', () => {
   });
 
   it('blocks close with a wrong PIN (esign_failed) and does not transition', async () => {
-    const { woId } = await seedWorkOrder();
+    const { woId, componentId } = await seedWorkOrder();
     await withOrgContext((ctx: ProductionContext) => startWo(ctx, { woId, transactionId: randomUUID(), lineId: 'L1' }));
     await markPrimaryOutputRegistered(woId);
+    await postBalancedMaterialConsumption(woId, componentId);
     await withOrgContext((ctx: ProductionContext) => completeWo(ctx, { woId, transactionId: randomUUID() }));
 
     const bad = await withOrgContext((ctx: ProductionContext) =>
@@ -723,15 +742,35 @@ run('08-production E1 — WO lifecycle (REAL DB integration)', () => {
 
   it('cancel requires production.wo.cancel, not production.wo.start', async () => {
     const { woId } = await seedWorkOrder();
-    await withOrgContext((ctx: ProductionContext) => startWo(ctx, { woId, transactionId: randomUUID(), lineId: 'L1' }));
-
-    await owner.query(`delete from public.role_permissions where role_id = $1 and permission = 'production.wo.cancel'`, [
-      roleId,
+    const startOnlyRoleId = randomUUID();
+    await owner.query(
+      `insert into public.roles (id, org_id, code, slug, name, permissions)
+       values ($1, $2, $3, $3, 'E1 Start-only Operator', '[]'::jsonb)`,
+      [startOnlyRoleId, orgId, `e1-start-only-${startOnlyRoleId.slice(0, 8)}`],
+    );
+    await owner.query(
+      `insert into public.role_permissions (role_id, permission)
+       values ($1, 'production.wo.start')`,
+      [startOnlyRoleId],
+    );
+    await owner.query(`update public.users set role_id = $2 where id = $1`, [
+      userId,
+      startOnlyRoleId,
     ]);
-    await owner.query(`update public.roles set permissions = coalesce(permissions, '[]'::jsonb) - 'production.wo.cancel' where id = $1`, [
-      roleId,
+    await owner.query(`delete from public.user_roles where org_id = $1 and user_id = $2`, [
+      orgId,
+      userId,
     ]);
+    await owner.query(
+      `insert into public.user_roles (org_id, user_id, role_id) values ($1, $2, $3)`,
+      [orgId, userId, startOnlyRoleId],
+    );
     try {
+      const started = await withOrgContext((ctx: ProductionContext) =>
+        startWo(ctx, { woId, transactionId: randomUUID(), lineId: 'L1' }),
+      );
+      expect(started.ok).toBe(true);
+
       const result = await withOrgContext((ctx: ProductionContext) =>
         cancelWo(ctx, { woId, transactionId: randomUUID(), reasonCode: 'missing_cancel_permission' }),
       );
@@ -739,12 +778,19 @@ run('08-production E1 — WO lifecycle (REAL DB integration)', () => {
       if (result.ok) throw new Error('expected forbidden');
       expect(result.error).toBe('forbidden');
     } finally {
+      await owner.query(`update public.users set role_id = $2 where id = $1`, [userId, roleId]);
+      await owner.query(`delete from public.user_roles where org_id = $1 and user_id = $2`, [
+        orgId,
+        userId,
+      ]);
       await owner.query(
-        `insert into public.role_permissions (role_id, permission)
-         values ($1, 'production.wo.cancel')
+        `insert into public.user_roles (org_id, user_id, role_id)
+         values ($1, $2, $3)
          on conflict do nothing`,
-        [roleId],
+        [orgId, userId, roleId],
       );
+      await owner.query(`delete from public.role_permissions where role_id = $1`, [startOnlyRoleId]);
+      await owner.query(`delete from public.roles where id = $1`, [startOnlyRoleId]);
     }
   });
 });
