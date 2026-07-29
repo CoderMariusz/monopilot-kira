@@ -204,7 +204,7 @@ describe('scanner receive PO service', () => {
 
     // LP is immediately put away but held as pending QA, never auto-released
     const lpInsert = findCall(client, 'insert into public.license_plates');
-    expect(lpInsert?.sql).toContain("'available', 'pending'");
+    expect(lpInsert?.sql).toContain("'received', 'pending'");
 
     // inspection insert: numbered via next_quality_inspection_number, org-scoped, lp-referenced,
     // site-scoped from the LP, guarded against a duplicate pending inspection for the same LP
@@ -399,7 +399,7 @@ describe('scanner receive PO service', () => {
     // org-scoped validation INSIDE the txn: lookup bound to session.org_id
     // (fragment 'and l.id =' is unique — 'pol.id = $2::uuid' must not match)
     const locLookup = findCall(client, 'and l.id = $2::uuid');
-    expect(locLookup?.params).toEqual([ORG_A, REQ_LOCATION_ID]);
+    expect(locLookup?.params).toEqual([ORG_A, REQ_LOCATION_ID, SITE_ID]);
     const sqls = client.calls.map((call) => call.sql);
     expect(sqls.indexOf('begin')).toBeLessThan(sqls.findIndex((sql) => sql.includes('and l.id = $2::uuid')));
 
@@ -516,7 +516,7 @@ describe('scanner receive PO service', () => {
     const client = makeReceiveClient({
       orderedQty: '20.000000',
       receivedQty: '0.000000',
-      warehouse: { id: WAREHOUSE_ID, default_location_id: LOCATION_ID },
+      warehouse: { id: WAREHOUSE_ID, site_id: SITE_ID, default_location_id: LOCATION_ID },
     });
 
     const result = await receiveScannerPoLine(client, session, { ...input, clientOpId: 'op-no-site-warehouse' });
@@ -819,7 +819,7 @@ function makeReceiveClient(options: {
   shelfLifeMode?: string | null;
   requestedLocation?: { id: string; warehouse_id: string };
   destinationWarehouseId?: string | null;
-  warehouse?: { id: string; default_location_id: string | null };
+  warehouse?: { id: string; site_id: string; default_location_id: string | null };
   noWarehouse?: boolean;
   grantedReceivePermission?: boolean;
   uom?: string;
@@ -863,6 +863,7 @@ function makeReceiveClient(options: {
               item_id: ITEM_ID,
               supplier_id: SUPPLIER_ID,
               destination_warehouse_id: options.destinationWarehouseId ?? null,
+              po_site_id: SITE_ID,
               line_no: 1,
               ordered_qty: options.orderedQty ?? '10.000000',
               uom: options.uom ?? 'kg',
@@ -879,20 +880,23 @@ function makeReceiveClient(options: {
       // filters by warehouse, not by id).
       if (normalized.includes('from public.locations l') && normalized.includes('l.id = $2::uuid')) {
         return {
-          rows: options.requestedLocation ? ([options.requestedLocation] as T[]) : ([] as T[]),
+          rows: options.requestedLocation ? ([{ ...options.requestedLocation, is_active: true }] as T[]) : ([] as T[]),
           rowCount: options.requestedLocation ? 1 : 0,
         };
       }
       if (normalized.includes('from public.warehouses w')) {
         if (options.noWarehouse) return { rows: [] as T[], rowCount: 0 };
         if (params[0] === WAREHOUSE_ID) {
-          return { rows: [{ id: WAREHOUSE_ID, default_location_id: LOCATION_ID }] as T[], rowCount: 1 };
+          return { rows: [{ id: WAREHOUSE_ID, site_id: SITE_ID, default_location_id: LOCATION_ID }] as T[], rowCount: 1 };
         }
         if (params[1] === PO_DEST_WAREHOUSE_ID) {
-          return { rows: [{ id: PO_DEST_WAREHOUSE_ID, default_location_id: PO_DEST_LOCATION_ID }] as T[], rowCount: 1 };
+          return {
+            rows: [{ id: PO_DEST_WAREHOUSE_ID, site_id: SITE_ID, default_location_id: PO_DEST_LOCATION_ID }] as T[],
+            rowCount: 1,
+          };
         }
         return {
-          rows: [options.warehouse ?? { id: WAREHOUSE_ID, default_location_id: LOCATION_ID }] as T[],
+          rows: [options.warehouse ?? { id: WAREHOUSE_ID, site_id: SITE_ID, default_location_id: LOCATION_ID }] as T[],
           rowCount: 1,
         };
       }

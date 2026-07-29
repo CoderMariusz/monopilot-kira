@@ -243,3 +243,64 @@ obiekcie; UoM naprawione, zaokrąglenie nie; timezone waliduje, `country` nie.
 | Pozostało | **7** (domena `E2E`) |
 
 **Anty-testy: 8. Defekty poza katalogiem: 3** (konwersja g→kg, netting WAC, `UI-039` flagi).
+
+---
+
+## Partia 6 — 7 ID domeny `E2E` (ostatnia)
+
+| ID | dziś | podstawa |
+|---|---|---|
+| `E2E-055-05` | **FAIL — defekt kodu + ANTY-TEST** | ukończenie onboardingu bez weryfikacji wymaganych kroków; akcja sprawdza tylko istniejący timestamp i bezwarunkowo wykonuje `UPDATE` (`complete-onboarding.ts:47`). Zielone mocki **wołają ukończenie bez kroków i oczekują sukcesu** (`test:95`). To ten sam defekt co `NSA-145` |
+| `E2E-055-06` | **FAIL — defekt kodu** | `completeOnboarding` **nie sprawdza uprawnień** (`:39`), podczas gdy bliźniaczy `advanceOnboarding` robi to przed odczytem i mutacją (`advance.ts:68`). Klasyczne „rodzeństwo o tej samej wadzie, naprawione tylko w jednym miejscu" |
+| `E2E-056-05` | **FAIL — defekt kodu + ANTY-TEST** | helper poprawnie rzuca `unsupported_currency`, ale desktop mapuje to na `wac_unsupported_currency`; **zielony test wymaga właśnie błędnego prefiksu** (`upsert-wac.test.ts:918`). Ten sam defekt co `SFQ-075` |
+| `E2E-054-10` | **ROZBIEŻNOŚĆ KONTRAKTU — do decyzji ownera** | maszyna stanów **celowo** dopuszcza `completed → cancelled` (`wo-state-machine.ts:46`), katalog mówi inaczej. 5/5 zielonych, bo test jawnie oczekuje sukcesu. Tor słusznie **odmówił** zaklasyfikowania jako defekt kodu |
+| `E2E-049-02` | **brak testu kontraktowego** | po naprawie fixture'u 6/6 receiving przechodzi, ale brak testu łączącego scanner receive → pick → porównanie z desktopem i stan trwały |
+| `E2E-049-07` | **brak testu kontraktowego** | fixture oczekiwał starego `status='available'`, poprawiono na `received/pending`. FEFO, blokada konsumpcji i release testowane osobno na atrapach — brak trwałego łańcucha |
+| `E2E-051-01` | **NIEROZSTRZYGNIĘTY — błąd fixture'u** | uruchomiłem po zastosowaniu mig 544: `insert or update on table "warehouses" violates foreign key constraint "warehouses_site_id_fkey"` — fixture wstawia magazyn z nieistniejącym zakładem. Test się nie wykonał, więc **nie przyznaję żadnego werdyktu o kontrakcie** |
+
+**Bilans partii: 0 PASS, 3 FAIL, 2 bez testu, 1 rozbieżność kontraktu, 1 nierozstrzygnięty.**
+
+### Trzy defekty tej partii są POWTÓRZENIAMI już znanych
+`E2E-055-05` = `NSA-145` (onboarding), `E2E-056-05` = `SFQ-075` (mapowanie waluty),
+`E2E-055-06` = wzorzec „rodzeństwo o tej samej wadzie". Katalog liczy je jako osobne ID,
+ale **do naprawy są to trzy miejsca, nie sześć**.
+
+---
+
+# 🏁 FAZA 1 ZAMKNIĘTA — 55 z 55 kontraktów
+
+| Werdykt | Ile | % |
+|---|---:|---:|
+| **FAIL — potwierdzony defekt kodu** | **27** | 49% |
+| **brak testu kontraktowego** | **19** | 35% |
+| **PASS** | 7 | 13% |
+| rozbieżność kontraktu (decyzja ownera) | 1 | 2% |
+| nierozstrzygnięty (błąd fixture'u) | 1 | 2% |
+
+## Co to znaczy
+Werdykt „FAIL" z 19.07 był **trafny w 49% przypadków** — tam kod jest realnie zepsuty.
+Ale w **35%** problem był inny, niż zapisano: **nie ma testu, który sprawdzałby kontrakt**,
+a istniejący jest zielony i mierzy coś obok. Tylko 13% werdyktów było nieaktualnych.
+
+## Anty-testy: 11 wystąpień
+Zielony test utrwalający zachowanie **sprzeczne** z kontraktem. Skrajny `XC-047`:
+**624 zielone testy i18n przy 119 brakujących kluczach** — allowlista sprawia, że suita
+mierzy własną allowlistę.
+
+## Defekty znalezione POZA katalogiem: 4
+1. **konwersja g→kg zwraca `0` i `resolved:false`** zamiast `0.100125` — średni koszt ważony
+   liczony na zerowej ilości, po cichu
+2. **WAC nie wraca do stanu sprzed outputu** po anulowaniu
+3. **`UI-039`: przełączanie flag funkcji niemożliwe w KAŻDYM środowisku** (brak kolumny
+   `updated_by`, `aggregate_id` NOT NULL) — dwa błędy zduszone do jednego generycznego komunikatu
+4. **tworzenie organizacji niemożliwe** (naprawione: mig 543 + 544) — blokowało **5 niezależnych
+   plików testowych**, w standardowej bramce niewidoczne, bo testy były pomijane
+
+## Naprawione i wdrożone w tej kampanii (commity lokalne)
+trzy crony nigdy się nie wykonujące · `42P08` w liście ruchów magazynowych ·
+`email_delivery_log` zapisujący `sent` dla niewysłanych listów · tworzenie organizacji ·
+hydracja w harnessie E2E · wybór persony · 5 defektów fixture'ów
+
+## Świadomie NIENAPRAWIONE
+**27 potwierdzonych defektów kodu.** Zlecenie brzmiało „przelicz katalog", nie „napraw".
+Każdy jest opisany z `plik:linia` i gotowy do decyzji.
