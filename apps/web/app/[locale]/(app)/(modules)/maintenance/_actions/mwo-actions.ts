@@ -573,6 +573,80 @@ async function fetchMwoListRow(ctx: MaintenanceContext, mwoId: string): Promise<
   return row ? mapRow(row) : null;
 }
 
+type ResolvedMwoEquipmentRow = {
+  id: string;
+  site_id: string | null;
+  equipment_code: string;
+  name: string;
+  active: boolean;
+};
+
+/**
+ * Resolve an equipment id from either `equipment` or an active `production_lines`
+ * row (auto-provisioning the line as equipment when needed). Shared by createMwo
+ * and createPmSchedule so listEquipmentForMwo() options and mutation validation
+ * stay aligned.
+ */
+async function resolveMwoEquipmentId(
+  ctx: MaintenanceContext,
+  equipmentId: string,
+): Promise<
+  | { ok: true; row: ResolvedMwoEquipmentRow }
+  | { ok: false; reason: 'not_found'; message: string }
+> {
+  let equipment = await ctx.client.query<ResolvedMwoEquipmentRow>(
+    `select id::text, site_id::text, equipment_code, name, active
+       from public.equipment
+      where org_id = app.current_org_id()
+        and id = $1::uuid
+      for update
+      limit 1`,
+    [equipmentId],
+  );
+  let equipmentRow = equipment.rows[0];
+
+  if (!equipmentRow) {
+    const line = await ctx.client.query<{ id: string; site_id: string | null; code: string; name: string }>(
+      `select pl.id::text, pl.site_id::text, pl.code, pl.name
+         from public.production_lines pl
+        where pl.org_id = app.current_org_id()
+          and pl.id = $1::uuid
+          and pl.status = 'active'
+        limit 1`,
+      [equipmentId],
+    );
+    const lineRow = line.rows[0];
+    if (!lineRow) return { ok: false, reason: 'not_found', message: 'equipment not found' };
+
+    await ctx.client.query(
+      `insert into public.equipment (
+         id, org_id, site_id, equipment_code, name, equipment_type,
+         parent_line_id, active, created_by, updated_by
+       ) values (
+         $1::uuid, app.current_org_id(), $2::uuid, $3, $4, 'production_line',
+         $1::uuid, true, $5::uuid, $5::uuid
+       )
+       on conflict do nothing`,
+      [lineRow.id, lineRow.site_id, lineRow.code, lineRow.name, ctx.userId],
+    );
+
+    equipment = await ctx.client.query<ResolvedMwoEquipmentRow>(
+      `select id::text, site_id::text, equipment_code, name, active
+         from public.equipment
+        where org_id = app.current_org_id()
+          and (id = $1::uuid or equipment_code = $2)
+        order by (id = $1::uuid) desc
+        for update
+        limit 1`,
+      [lineRow.id, lineRow.code],
+    );
+    equipmentRow = equipment.rows[0];
+    if (!equipmentRow) throw new Error('line equipment projection failed');
+  }
+
+  return { ok: true, row: equipmentRow };
+}
+
 async function allocateMwoNumber(ctx: MaintenanceContext): Promise<string> {
   await ctx.client.query(
     `select pg_advisory_xact_lock(hashtextextended('mwo_number:' || app.current_org_id()::text, 0))`,
@@ -919,56 +993,9 @@ export async function createMwo(input: {
         return { ok: false, reason: 'forbidden' };
       }
 
-      // Validate the equipment link inside the org scope and lock the row so a
-      // concurrent withdrawal cannot slip through before the INSERT.
-      let equipment = await ctx.client.query<{ id: string; equipment_code: string; name: string; active: boolean }>(
-        `select id::text, equipment_code, name, active
-           from public.equipment
-          where org_id = app.current_org_id()
-            and id = $1::uuid
-          for update
-          limit 1`,
-        [parsed.equipmentId],
-      );
-      let equipmentRow = equipment.rows[0];
-      if (!equipmentRow) {
-        const line = await ctx.client.query<{ id: string; site_id: string | null; code: string; name: string }>(
-          `select pl.id::text, pl.site_id::text, pl.code, pl.name
-             from public.production_lines pl
-            where pl.org_id = app.current_org_id()
-              and pl.id = $1::uuid
-              and pl.status = 'active'
-            limit 1`,
-          [parsed.equipmentId],
-        );
-        const lineRow = line.rows[0];
-        if (!lineRow) return { ok: false, reason: 'not_found', message: 'equipment not found' };
-
-        await ctx.client.query(
-          `insert into public.equipment (
-             id, org_id, site_id, equipment_code, name, equipment_type,
-             parent_line_id, active, created_by, updated_by
-           ) values (
-             $1::uuid, app.current_org_id(), $2::uuid, $3, $4, 'production_line',
-             $1::uuid, true, $5::uuid, $5::uuid
-           )
-           on conflict do nothing`,
-          [lineRow.id, lineRow.site_id, lineRow.code, lineRow.name, ctx.userId],
-        );
-
-        equipment = await ctx.client.query<{ id: string; equipment_code: string; name: string; active: boolean }>(
-          `select id::text, equipment_code, name, active
-             from public.equipment
-            where org_id = app.current_org_id()
-              and (id = $1::uuid or equipment_code = $2)
-            order by (id = $1::uuid) desc
-            for update
-            limit 1`,
-          [lineRow.id, lineRow.code],
-        );
-        equipmentRow = equipment.rows[0];
-        if (!equipmentRow) throw new Error('line equipment projection failed');
-      }
+      const resolved = await resolveMwoEquipmentId(ctx, parsed.equipmentId);
+      if (!resolved.ok) return resolved;
+      const equipmentRow = resolved.row;
       if (!equipmentRow.active) {
         return { ok: false, reason: 'error', message: 'equipment is withdrawn from service' };
       }
@@ -1628,17 +1655,9 @@ export async function createPmSchedule(input: {
         return { ok: false, reason: 'forbidden' };
       }
 
-      const equipment = await ctx.client.query<{ id: string; site_id: string | null; active: boolean }>(
-        `select id::text, site_id::text, active
-           from public.equipment
-          where org_id = app.current_org_id()
-            and id = $1::uuid
-          for update
-          limit 1`,
-        [parsed.equipmentId],
-      );
-      const equipmentRow = equipment.rows[0];
-      if (!equipmentRow) return { ok: false, reason: 'not_found', message: 'equipment not found' };
+      const resolved = await resolveMwoEquipmentId(ctx, parsed.equipmentId);
+      if (!resolved.ok) return resolved;
+      const equipmentRow = resolved.row;
       if (!equipmentRow.active) {
         return { ok: false, reason: 'error', message: 'equipment is withdrawn from service' };
       }
@@ -1675,7 +1694,7 @@ export async function createPmSchedule(input: {
                    (select name from public.equipment where id = $2::uuid) as equipment_name`,
         [
           equipmentRow.site_id,
-          parsed.equipmentId,
+          equipmentRow.id,
           parsed.scheduleType,
           parsed.intervalBasis,
           parsed.intervalValue,

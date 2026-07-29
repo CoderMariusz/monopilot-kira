@@ -221,12 +221,23 @@ function makeClient(): QueryClient {
         };
       }
 
-      // createMwo / createPmSchedule: equipment org-scope validation.
-      if (normalized.includes('from public.equipment') && normalized.includes('id = $1::uuid')) {
-        if (normalized.includes('site_id::text, active')) {
+      // createMwo / createPmSchedule: equipment org-scope validation (shared resolver).
+      if (
+        normalized.includes('from public.equipment') &&
+        (normalized.includes('id = $1::uuid') || normalized.includes('or equipment_code = $2'))
+      ) {
+        if (normalized.includes('site_id::text')) {
           return {
             rows: equipmentExists
-              ? [{ id: EQUIPMENT_ID, site_id: SITE_ID, active: true }]
+              ? [
+                  {
+                    id: EQUIPMENT_ID,
+                    site_id: SITE_ID,
+                    equipment_code: productionLineExists && !equipmentExists ? 'LINE-01' : 'EQ-01',
+                    name: productionLineExists && !equipmentExists ? 'Packing line 1' : 'Mixer 1',
+                    active: true,
+                  },
+                ]
               : [],
             rowCount: equipmentExists ? 1 : 0,
           };
@@ -1271,6 +1282,23 @@ describe('createPmSchedule', () => {
     expect(insert?.sql).toContain('pg_catalog.now()::date');
     expect(insert?.params?.[1]).toBe(EQUIPMENT_ID);
     expect(revalidateMock).toHaveBeenCalledWith('/maintenance');
+  });
+
+  it('materializes a selected production line as equipment before creating the PM schedule', async () => {
+    equipmentExists = false;
+    productionLineExists = true;
+
+    const result = await createPmSchedule({
+      equipmentId: EQUIPMENT_ID,
+      scheduleType: 'preventive',
+      intervalValue: 30,
+    });
+
+    expect(result.ok).toBe(true);
+    const equipmentInsert = calls().find((c) => c.sql.startsWith('insert into public.equipment'));
+    const scheduleInsert = calls().find((c) => c.sql.startsWith('insert into public.maintenance_schedules'));
+    expect(equipmentInsert?.params).toEqual([EQUIPMENT_ID, SITE_ID, 'LINE-01', 'Packing line 1', USER_ID]);
+    expect(scheduleInsert?.params?.[1]).toBe(EQUIPMENT_ID);
   });
 
   it('forbids callers without mnt.pm.create', async () => {
