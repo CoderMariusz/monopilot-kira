@@ -90,3 +90,45 @@ Ta sama klasa co `WH-045`: rozjazd numeracji parametrów COUNT vs zapytanie o da
 | FAIL — potwierdzony defekt kodu | 3 (`PRD-008`, `TEC-049`, `WH-066`) |
 | brak testu kontraktowego | 5 |
 | Pozostało | 41 (w tym 18 zablokowanych brakiem hydracji) |
+
+---
+
+## Partia 3 — 11 ID (domeny `NSA`, `XC`, `PLN`)
+
+| ID | 19.07 | dziś | podstawa |
+|---|---|---|---|
+| `XC-008` | FAIL (GET 405) | **PASS** | 11/11 zielonych na izolowanej bazie po naprawie cronów z `739f9223` |
+| `NSA-067` | FAIL | **FAIL — defekt kodu** | akcja pobiera wyłącznie `raw_cost_eur` i wystawia je jako `totalCost` (`get-costing-rollup.ts:37,54`). Jedyny test rollupu dostaje gotowe `totalCost: 4.25` — nie wywołuje akcji ani bazy |
+| `NSA-145` | FAIL | **FAIL — defekt kodu + ANTY-TEST** | onboarding kończy się bez sprawdzenia wymaganych kroków: akcja czyta tylko `onboarding_completed_at` i bezwarunkowo ustawia datę (`complete-onboarding.ts:47,54`). Test **mockuje organizację bez kroków i oczekuje sukcesu** (`test:102`) |
+| `NSA-150` | FAIL (3 przecieki FK) | **FAIL — defekt kodu, potwierdzony uruchomieniem** | `AssertionError: expected 3 to be +0` — usuwanie danych osobowych zostawia **3 nieprzepseudonimizowane odwołania FK**. Zweryfikowane przeze mnie na izolowanej bazie |
+| `NSA-161` | FAIL | **FAIL — defekt kodu** | precheck przed insertem, a `23505` z UNIQUE `(org_id, code)` trafia do ogólnego `persistence_failed` zamiast komunikatu o duplikacie (`create.ts:28,59`) |
+| `XC-018` | FAIL | **FAIL — potwierdzony uruchomieniem** | `null value in column "name" of relation "users" violates not-null constraint` w `Users/route.ts:138`. **SCIM odłożony decyzją ownera nr 4** — nie naprawiane |
+| `XC-047` | FAIL (21 kluczy) | **FAIL — defekt słowników + ANTY-TEST** | 624/624 testy i18n zielone, ale **allowlista wyklucza krytyczne klucze**. Pełne porównanie liści: PL brakuje **32**, UK i RO po **119** względem EN — m.in. paginacja Shipping, bramka zakończenia produkcji, edycja pozycji Technical |
+| `PLN-015` | FAIL | **FAIL — defekt kodu** | create dopuszcza 4 miejsca dziesiętne, update i modal tylko 3 (`shared.ts:275`, `update-work-order.ts:69`, `create-wo-modal.tsx:173`). 37/37 testów zielonych, bo asertują ten rozjazd |
+| `NSA-066` | FAIL | **brak testu kontraktowego** | 42/42 zielone, ale testy osobno utrwalają `setup=0` i realny setup; brak tego samego wejścia + zapisu + komunikatu |
+| `XC-003` | FAIL (405) | **brak testu kontraktowego** | wszystkie 5 tras eksportuje dziś GET (naprawa `739f9223`), ale testy są mockowane; `drift`/`outbox` nie mają testów wcale |
+| `XC-010` | FAIL (405) | **brak testu kontraktowego** | test GET zielony, ale mockuje połączenie i odświeżanie — nie dowodzi widoku zmaterializowanego ani izolacji dwóch organizacji |
+
+**Bilans partii: 1 PASS, 7 FAIL (defekty kodu), 3 bez testu kontraktowego.**
+
+### 🔴 `XC-047` — anty-test na skalę
+624 zielone testy i18n przy **119 brakujących kluczach** w UK i RO. Allowlista sprawia,
+że suita mierzy własną allowlistę, nie kompletność tłumaczeń. To najdroższy wariant anty-testu:
+duża liczba zielonych testów buduje fałszywe zaufanie proporcjonalne do swojej liczby.
+
+### 🔴 `NSA-150` — defekt zgodności z RODO
+Usuwanie danych osobowych zostawia trzy odwołania. To nie jest defekt kosmetyczny.
+
+---
+
+## Bilans Fazy 1 po trzech partiach: 25 z 55 ID
+
+| Werdykt | Ile |
+|---|---|
+| **PASS** | 7 |
+| **FAIL — potwierdzony defekt kodu** | 10 |
+| **brak testu kontraktowego** | 8 |
+| Pozostało | 30 (w tym 11 `UI-*` w toku w przeglądarce) |
+
+**Anty-testy wykryte łącznie: 6** (`WH-066`, `WH-125`, `TEC-275`, `NSA-145`, `XC-047`, oraz
+`PLN-015` w wariancie „testy asertują rozjazd").
