@@ -86,7 +86,7 @@ export function NcrCloseModal({
   ncr: NcrCloseTarget;
   labels: NcrCloseLabels;
   closeNcrAction: CloseNcrAction;
-  onClosed?: () => void;
+  onClosed?: (closed: { status: 'closed'; closedAt: string; signatureHash: string | null }) => void;
 }) {
   const [resolution, setResolution] = useState('');
   const [password, setPassword] = useState('');
@@ -131,7 +131,11 @@ export function NcrCloseModal({
       }
       reset();
       onOpenChange(false);
-      onClosed?.();
+      onClosed?.({
+        status: 'closed',
+        closedAt: result.data.closedAt,
+        signatureHash: result.data.signatureHash,
+      });
     });
   }
 

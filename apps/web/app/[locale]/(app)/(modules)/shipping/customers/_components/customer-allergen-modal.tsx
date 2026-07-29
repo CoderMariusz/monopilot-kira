@@ -29,12 +29,14 @@ export type CustomerAllergenModalLabels = {
   restrictionOptions: Record<'refuses' | 'requires_decl', string>;
   notesLabel: string;
   notesPlaceholder: string;
+  referenceUnavailable: string;
   submitCreate: string;
   submitEdit: string;
   submitting: string;
   cancel: string;
   errors: {
     allergenRequired: string;
+    referenceUnavailable: string;
     invalid_input: string;
     forbidden: string;
     not_found: string;
@@ -121,6 +123,7 @@ export function CustomerAllergenModal({
     value: option.id,
     label: option.name,
   }));
+  const referenceUnavailable = allergenSelectOptions.length === 0;
 
   return (
     <Modal open={open} onOpenChange={onOpenChange} size="lg" modalId="customer_allergen_modal">
@@ -128,12 +131,21 @@ export function CustomerAllergenModal({
       <Modal.Body>
         <div className="flex flex-col gap-4" data-testid="customer-allergen-modal">
           <p className="text-xs text-slate-500">{labels.subtitle}</p>
+          {referenceUnavailable ? (
+            <div
+              role="alert"
+              data-testid="customer-allergen-reference-unavailable"
+              className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900"
+            >
+              {labels.referenceUnavailable}
+            </div>
+          ) : null}
           <div className="flex flex-col gap-1">
             <span className="text-xs font-medium text-slate-600">{labels.allergenLabel}</span>
             <Select
               value={allergenId}
               onValueChange={setAllergenId}
-              disabled={pending || allergenSelectOptions.length === 0}
+              disabled={pending || referenceUnavailable}
               options={allergenSelectOptions}
               placeholder={labels.allergenPlaceholder}
               data-testid="customer-allergen-select"
@@ -178,7 +190,7 @@ export function CustomerAllergenModal({
               type="button"
               className="btn--primary"
               data-testid="customer-allergen-submit"
-              disabled={pending || allergenSelectOptions.length === 0}
+              disabled={pending || referenceUnavailable}
               aria-busy={pending}
               onClick={() => void onSubmit()}
             >

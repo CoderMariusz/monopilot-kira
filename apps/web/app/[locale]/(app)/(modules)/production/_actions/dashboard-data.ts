@@ -7,9 +7,11 @@
  * (production_dashboard, 6-KPI strip) + wo-list.jsx:3-104 (wo_list). The prototype's
  * LINES / EVENTS_FEED / WOS mock arrays are replaced 1:1 with real Supabase reads.
  *
- * Every read runs inside `withOrgContext`, so it executes as `app_user` with
- * `app.set_org_context(...)` applied — RLS (`org_id = app.current_org_id()`)
- * scopes every count/row/sum to the signed-in user's organization. No service-role
+ * Every read runs inside `withSiteContext({ mode: 'read' })`, composing on
+ * `withOrgContext` so it executes as `app_user` with `app.set_org_context(...)`
+ * and `app.set_site_context(...)` applied — RLS (`org_id = app.current_org_id()`)
+ * plus the active top-bar site (`app.current_site_id()`) scopes every
+ * count/row/sum to the signed-in user's organization and selected site. No service-role
  * bypass, no mocks. Canonical owners are respected (read-only here):
  *   - wo_executions / wo_outputs / downtime_events / oee_snapshots → 08-production
  *     (migrations 181-184). work_orders → 04-planning (migration 176).
@@ -22,8 +24,12 @@
  * serializable types; it is invoked directly from the Production dashboard Server
  * Component during render.
  */
-import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
-import { PRODUCTION_DASHBOARD_WO_LIST_SQL } from '../_lib/dashboard-queries';
+import { withSiteContext } from '../../../../../../lib/auth/with-site-context';
+import {
+  PRODUCTION_DASHBOARD_WO_LIST_SQL,
+  PRODUCTION_DASHBOARD_SITE_WO_PREDICATE,
+  productionDashboardSiteRowPredicate,
+} from '../_lib/dashboard-queries';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -126,7 +132,7 @@ export type ProductionDashboardResult =
  */
 export async function getProductionDashboard(): Promise<ProductionDashboardResult> {
   try {
-    return await withOrgContext(async ({ userId, orgId, client }): Promise<ProductionDashboardResult> => {
+    return await withSiteContext({ mode: 'read' }, async ({ userId, orgId, client }): Promise<ProductionDashboardResult> => {
       const c = client as QueryClient;
 
       // ── RBAC gate (server-side, never trust the client) ──────────────────────
@@ -143,9 +149,14 @@ export async function getProductionDashboard(): Promise<ProductionDashboardResul
       // KPI 1 — WOs in progress (executions materialized state).
       const woInProgress = await countOf(
         `select count(*)::int as n
-           from public.wo_executions
-          where org_id = app.current_org_id()
-            and status = 'in_progress'`,
+           from public.wo_executions e
+           join public.work_orders w
+             on w.id = e.wo_id and w.org_id = e.org_id
+           left join public.production_lines pl
+             on pl.org_id = w.org_id and pl.id = w.production_line_id
+          where e.org_id = app.current_org_id()
+            and e.status = 'in_progress'
+            and ${PRODUCTION_DASHBOARD_SITE_WO_PREDICATE}`,
       );
 
       // Denominator — active/released WOs, including released-but-unstarted
@@ -155,7 +166,10 @@ export async function getProductionDashboard(): Promise<ProductionDashboardResul
            from public.work_orders w
            left join public.wo_executions e
              on e.org_id = w.org_id and e.wo_id = w.id
+           left join public.production_lines pl
+             on pl.org_id = w.org_id and pl.id = w.production_line_id
           where w.org_id = app.current_org_id()
+            and ${PRODUCTION_DASHBOARD_SITE_WO_PREDICATE}
             and coalesce(
                   e.status,
                   case w.status
@@ -169,20 +183,26 @@ export async function getProductionDashboard(): Promise<ProductionDashboardResul
       // KPI 2 — Output today (kg): sum of canonical wo_outputs registered on the
       // UTC calendar day (matches reporting throughput MV + planning dashboard).
       const outputRes = await c.query<{ kg: string | null }>(
-        `select coalesce(sum(qty_kg), 0)::text as kg
-           from public.wo_outputs
-          where org_id = app.current_org_id()
-            and registered_at >= (date_trunc('day', now() at time zone 'UTC') at time zone 'UTC')
-            and registered_at < (date_trunc('day', now() at time zone 'UTC') at time zone 'UTC') + interval '1 day'`,
+        `select coalesce(sum(o.qty_kg), 0)::text as kg
+           from public.wo_outputs o
+           join public.work_orders w
+             on w.id = o.wo_id and w.org_id = o.org_id
+           left join public.production_lines pl
+             on pl.org_id = w.org_id and pl.id = w.production_line_id
+          where o.org_id = app.current_org_id()
+            and ${PRODUCTION_DASHBOARD_SITE_WO_PREDICATE}
+            and o.registered_at >= (date_trunc('day', now() at time zone 'UTC') at time zone 'UTC')
+            and o.registered_at < (date_trunc('day', now() at time zone 'UTC') at time zone 'UTC') + interval '1 day'`,
       );
       const outputTodayKg = String(outputRes.rows[0]?.kg ?? '0');
 
       // KPI 3 — OEE current: most recent snapshot's oee_pct (08 is the sole producer).
       const oeeRes = await c.query<{ oee_pct: string | number | null }>(
         `select oee_pct
-           from public.oee_snapshots
-          where org_id = app.current_org_id()
-          order by snapshot_minute desc
+           from public.oee_snapshots s
+          where s.org_id = app.current_org_id()
+            and ${productionDashboardSiteRowPredicate('s')}
+          order by s.snapshot_minute desc
           limit 1`,
       );
       const rawOee = oeeRes.rows[0]?.oee_pct;
@@ -191,17 +211,21 @@ export async function getProductionDashboard(): Promise<ProductionDashboardResul
       // KPI 4 — Open downtime: events with no end (V-PROD-06 open-event semantics).
       const openDowntime = await countOf(
         `select count(*)::int as n
-           from public.downtime_events
-          where org_id = app.current_org_id()
-            and ended_at is null`,
+           from public.downtime_events d
+          where d.org_id = app.current_org_id()
+            and ${productionDashboardSiteRowPredicate('d')}
+            and d.ended_at is null`,
       );
 
       // KPI 5 — Over-produced WOs: planning rows flagged by 08-production output capture.
       const overProducedCount = await countOf(
         `select count(*)::int as n
-           from public.work_orders
-          where org_id = app.current_org_id()
-            and over_production_flagged = true`,
+           from public.work_orders w
+           left join public.production_lines pl
+             on pl.org_id = w.org_id and pl.id = w.production_line_id
+          where w.org_id = app.current_org_id()
+            and ${PRODUCTION_DASHBOARD_SITE_WO_PREDICATE}
+            and w.over_production_flagged = true`,
       );
 
       // Status-tab counts from work_orders so released-but-unstarted WOs are
@@ -222,7 +246,10 @@ export async function getProductionDashboard(): Promise<ProductionDashboardResul
            from public.work_orders w
            left join public.wo_executions e
              on e.org_id = w.org_id and e.wo_id = w.id
+           left join public.production_lines pl
+             on pl.org_id = w.org_id and pl.id = w.production_line_id
           where w.org_id = app.current_org_id()
+            and ${PRODUCTION_DASHBOARD_SITE_WO_PREDICATE}
             and w.status in ('RELEASED', 'IN_PROGRESS', 'ON_HOLD', 'COMPLETED', 'CLOSED', 'CANCELLED')
           group by 1`,
       );

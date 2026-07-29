@@ -28,28 +28,11 @@ import type {
   ShipmentBoxDetail as ActionShipmentBoxDetail,
 } from '../../_actions/pack-actions-types';
 
-/**
- * View box for the pack screen. The reviewed getShipment box (ActionShipmentBoxDetail)
- * carries boxNumber + sscc + contents but NOT the raw box id (deliberately — no raw
- * UUID leaves the server). We add an OPTIONAL `boxId` the page MAY set if a future
- * getShipment surfaces it, so the Pack-LP "choose existing box" path can target a box
- * by id. Currently undefined → the reviewed packLpIntoBox opens/extends a box itself.
- */
-export type ShipmentBoxDetail = ActionShipmentBoxDetail & { boxId?: string };
+export type ShipmentBoxDetail = ActionShipmentBoxDetail;
 
-/**
- * View row for the Shipments list. The reviewed listShipments row (ActionShipmentRow)
- * carries boxCount but NO total weight (no weight column is summed in the list query,
- * and weight is NOT touched here — pack-actions is owned by the parallel lane). We add
- * an OPTIONAL `weight` the page maps from the action result (currently always null —
- * documented parity deviation: the prototype's per-shipment weight has no backing feed
- * in listShipments). The view renders boxCount as the primary metric and a "—"
- * placeholder for weight until the action surfaces it.
- */
 export type ShipmentRow = ActionShipmentRow & { weight: string | null };
 
-/** View detail mirrors the action detail but with the weight-augmented row and the
- *  boxId-augmented boxes. */
+/** View detail mirrors the action detail but with the weight-augmented row. */
 export type ShipmentDetail = Omit<ActionShipmentDetail, 'shipment' | 'boxes'> & {
   shipment: ShipmentRow;
   boxes: ShipmentBoxDetail[];

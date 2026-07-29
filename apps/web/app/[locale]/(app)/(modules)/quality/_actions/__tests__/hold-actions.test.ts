@@ -137,8 +137,22 @@ function makeClient(): QueryClient {
       if (q.includes('from public.license_plates') && q.includes('quantity::text')) {
         return {
           rows: [
-            { id: LP_ID, status: 'available', qa_status: 'released', quantity: '12.345000' },
-            { id: TERMINAL_LP_ID, status: 'shipped', qa_status: 'released', quantity: '6.000000' },
+            {
+              id: LP_ID,
+              status: 'available',
+              qa_status: 'released',
+              quantity: '12.345000',
+              uom: 'kg',
+              catch_weight_kg: null,
+            },
+            {
+              id: TERMINAL_LP_ID,
+              status: 'shipped',
+              qa_status: 'released',
+              quantity: '6.000000',
+              uom: 'kg',
+              catch_weight_kg: null,
+            },
           ],
           rowCount: 2,
         };

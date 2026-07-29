@@ -113,6 +113,27 @@ function makeClient(): QueryClient {
         };
       }
 
+      if (q.startsWith('select coalesce(qi.product_id, lp.product_id, woo.product_id)')) {
+        return { rows: [{ product_id: PRODUCT_ID, reference_type: currentReferenceType }], rowCount: 1 };
+      }
+
+      if (q.includes('from public.quality_specifications qs')) {
+        return {
+          rows: [
+            {
+              spec_id: 'spec-1',
+              parameter_name: 'Visual',
+              target_value: null,
+              min_value: null,
+              max_value: null,
+              unit: null,
+              tied_spec_count: 1,
+              tied_spec_ids: '["spec-1"]',
+            },
+          ],
+        };
+      }
+
       if (q.startsWith('update public.quality_inspections') && q.includes("set status = 'in_progress'")) {
         return {
           rows: [
@@ -121,6 +142,24 @@ function makeClient(): QueryClient {
               status: 'in_progress',
               parameters: JSON.parse(String(params[1])),
               result_notes: params[2],
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+
+      if (q.startsWith('select qi.id::text, qi.inspection_number')) {
+        return {
+          rows: [
+            {
+              id: INSPECTION_ID,
+              inspection_number: 'INSP-00000001',
+              reference_type: currentReferenceType,
+              reference_id: LP_ID,
+              status: 'in_progress',
+              parameters: [],
+              product_id: PRODUCT_ID,
+              site_id: SITE_ID,
             },
           ],
           rowCount: 1,
@@ -172,7 +211,19 @@ function makeClient(): QueryClient {
       // createHoldCore: LP data fetch for quality_hold_items (selects status +
       // qa_status alongside id and quantity).
       if (q.startsWith('select id::text, status, qa_status, quantity::text')) {
-        return { rows: [{ id: LP_ID, status: 'available', qa_status: 'pending', quantity: '10.000000' }], rowCount: 1 };
+        return {
+          rows: [
+            {
+              id: LP_ID,
+              status: 'available',
+              qa_status: 'pending',
+              quantity: '10.000000',
+              uom: 'kg',
+              catch_weight_kg: null,
+            },
+          ],
+          rowCount: 1,
+        };
       }
 
       if (q.startsWith('insert into public.quality_hold_items')) {
@@ -276,6 +327,17 @@ describe('quality inspection server actions', () => {
     });
     const updateCall = vi.mocked(client.query).mock.calls.find(([sql]) => normalize(String(sql)).includes("set status = 'in_progress'"));
     expect(updateCall?.[1]).toEqual([INSPECTION_ID, JSON.stringify(parameters), 'within spec']);
+  });
+
+  it('rejects blank actual values with a stable validation code instead of raw Zod JSON', async () => {
+    const result = await recordInspectionResult({
+      inspectionId: INSPECTION_ID,
+      parameters: [{ name: 'pH', expected: '5.0', actual: '', pass: false }],
+    });
+
+    expect(result).toEqual({ ok: false, reason: 'error', message: 'actual_required' });
+    expect(JSON.stringify(result)).not.toContain('too_small');
+    expect(JSON.stringify(result)).not.toContain('"path"');
   });
 
   it('submits hold decisions with e-signature, LP on_hold status, and quality hold rows', async () => {

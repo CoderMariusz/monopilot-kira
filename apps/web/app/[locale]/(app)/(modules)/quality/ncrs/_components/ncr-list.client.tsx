@@ -130,12 +130,20 @@ export function NcrListClient({
   labels,
   locale,
   createNcrAction,
+  searchLpsAction,
+  searchInspectionsAction,
+  searchHoldsAction,
+  searchProductsAction,
 }: {
   rows: NcrListRow[];
   pagination: PaginatedResult<NcrListRow>;
   labels: NcrListLabels;
   locale: string;
   createNcrAction: CreateNcrAction;
+  searchLpsAction: Parameters<typeof NcrCreateModal>[0]['searchLpsAction'];
+  searchInspectionsAction: Parameters<typeof NcrCreateModal>[0]['searchInspectionsAction'];
+  searchHoldsAction: Parameters<typeof NcrCreateModal>[0]['searchHoldsAction'];
+  searchProductsAction: Parameters<typeof NcrCreateModal>[0]['searchProductsAction'];
 }) {
   const router = useRouter();
   const pageHref = (page: number) =>
@@ -557,6 +565,10 @@ export function NcrListClient({
         onOpenChange={setCreateOpen}
         labels={labels.createLabels}
         createNcrAction={createNcrAction}
+        searchLpsAction={searchLpsAction}
+        searchInspectionsAction={searchInspectionsAction}
+        searchHoldsAction={searchHoldsAction}
+        searchProductsAction={searchProductsAction}
         onCreated={() => router.refresh()}
       />
     </div>

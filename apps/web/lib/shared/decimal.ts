@@ -126,3 +126,38 @@ export function formatSuggestedQty(qtyMicro: bigint): string {
   if (qtyMicro % MICRO_SCALE === 0n) return (qtyMicro / MICRO_SCALE).toString();
   return microToDecimal(qtyMicro);
 }
+
+/**
+ * Compare two decimal strings at full precision (no float, no 6dp truncation).
+ * Returns null when either operand is not a finite decimal literal.
+ * Inclusive equality: compareDecimalStrings('5.5000', '5.5') === 0.
+ */
+export function compareDecimalStrings(a: string, b: string): -1 | 0 | 1 | null {
+  const left = normalizeComparableDecimal(a);
+  const right = normalizeComparableDecimal(b);
+  if (!left || !right) return null;
+  if (left.negative !== right.negative) {
+    return left.negative ? -1 : 1;
+  }
+  const scale = Math.max(left.frac.length, right.frac.length);
+  const leftScaled = left.int * 10n ** BigInt(scale) + BigInt(left.frac.padEnd(scale, '0') || '0');
+  const rightScaled = right.int * 10n ** BigInt(scale) + BigInt(right.frac.padEnd(scale, '0') || '0');
+  if (leftScaled === rightScaled) return 0;
+  const leftGreater = leftScaled > rightScaled;
+  if (left.negative) return leftGreater ? -1 : 1;
+  return leftGreater ? 1 : -1;
+}
+
+function normalizeComparableDecimal(value: string): { negative: boolean; int: bigint; frac: string } | null {
+  const trimmed = value.trim();
+  if (!DECIMAL_RE.test(trimmed)) return null;
+  const negative = trimmed.startsWith('-');
+  const body = negative ? trimmed.slice(1) : trimmed;
+  const [intPart, fracPart = ''] = body.split('.');
+  const frac = fracPart.replace(/0+$/, '');
+  return {
+    negative,
+    int: BigInt(intPart || '0'),
+    frac,
+  };
+}

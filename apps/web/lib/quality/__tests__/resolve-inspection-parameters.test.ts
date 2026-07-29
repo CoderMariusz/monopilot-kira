@@ -29,6 +29,8 @@ describe('resolveInspectionParameters (S15)', () => {
             min_value: null,
             max_value: null,
             unit: '%',
+            tied_spec_count: 1,
+            tied_spec_ids: '["spec-1"]',
           },
         ],
       })),
@@ -65,6 +67,8 @@ describe('resolveInspectionParameters (S15)', () => {
             min_value: null,
             max_value: null,
             unit: '%',
+            tied_spec_count: 1,
+            tied_spec_ids: '["spec-rm-flour"]',
           },
         ],
       })),
@@ -74,8 +78,9 @@ describe('resolveInspectionParameters (S15)', () => {
       storedParameters: [],
     });
     expect(result.status).toBe('resolved');
-    expect(client.query).toHaveBeenCalledWith(expect.stringContaining("qs.applies_to in ('incoming', 'all')"), [
+    expect(client.query).toHaveBeenCalledWith(expect.stringContaining('qs.applies_to = any($2::text[])'), [
       '22222222-2222-4222-8222-222222222222',
+      ['incoming', 'all'],
     ]);
   });
 });

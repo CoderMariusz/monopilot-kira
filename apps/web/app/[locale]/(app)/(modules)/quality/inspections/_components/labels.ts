@@ -152,6 +152,12 @@ export function buildInspectionDetailLabels(t: QaInspectionsTranslator): Inspect
       saving: t('detail.params.saving'),
       saved: t('detail.params.saved'),
       saveError: t('detail.params.saveError'),
+      saveErrors: {
+        actualRequired: t('detail.params.saveErrors.actualRequired'),
+        parametersRequired: t.has('detail.params.saveErrors.parametersRequired')
+          ? t('detail.params.saveErrors.parametersRequired')
+          : 'At least one parameter is required before saving.',
+      },
       notes: t('detail.params.notes'),
       notesPlaceholder: t('detail.params.notesPlaceholder'),
       formIncomplete: 'Complete all required fields to continue.',
@@ -192,6 +198,10 @@ export function buildInspectionDetailLabels(t: QaInspectionsTranslator): Inspect
       submitting: t('detail.esign.submitting'),
       formIncomplete: 'Complete all required fields to continue.',
       validation: { passwordRequired: t('detail.esign.validation.passwordRequired') },
+      submitErrors: {
+        missing_spec_parameters: t('detail.esign.submitErrors.missing_spec_parameters'),
+        unknown_spec_parameters: t('detail.esign.submitErrors.unknown_spec_parameters'),
+      },
       error: t('detail.esign.error'),
       success: t('detail.esign.success'),
     },

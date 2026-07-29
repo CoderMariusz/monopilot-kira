@@ -6,6 +6,24 @@
  */
 
 /**
+ * Site scope for work_orders-driven reads — mirrors
+ * `list-work-orders.ts` (`$1::uuid is null or coalesce(w.site_id, pl.site_id) = $1`)
+ * and `mrp.ts` demand reads, but binds via `withSiteContext` →
+ * `app.current_site_id()`. `current_site_id() is null` = All sites.
+ */
+export const PRODUCTION_DASHBOARD_SITE_WO_PREDICATE =
+  '(app.current_site_id() is null or coalesce(w.site_id, pl.site_id) = app.current_site_id())';
+
+/**
+ * Site scope for rows that carry their own nullable `site_id` (forecasts/thresholds
+ * campaign semantics) — org-wide rows (`site_id is null`) stay visible from every
+ * site picker choice.
+ */
+export function productionDashboardSiteRowPredicate(alias: string): string {
+  return `(app.current_site_id() is null or ${alias}.site_id is null or ${alias}.site_id = app.current_site_id())`;
+}
+
+/**
  * WO list for SCR-08-01. The lateral `produced.qty_kg` must stay numeric so
  * `progress_pct` can divide by `work_orders.planned_quantity` (numeric).
  * Cast to text only in the output alias (`produced_quantity`).
@@ -53,6 +71,7 @@ export const PRODUCTION_DASHBOARD_WO_LIST_SQL = `select w.id::text as id,
            ) produced on true
           where w.org_id = app.current_org_id()
             and w.status in ('RELEASED', 'IN_PROGRESS', 'ON_HOLD', 'COMPLETED', 'CLOSED', 'CANCELLED')
+            and ${PRODUCTION_DASHBOARD_SITE_WO_PREDICATE}
           order by w.scheduled_start_time desc nulls last, e.created_at desc nulls last
           limit 25`;
 

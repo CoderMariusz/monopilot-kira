@@ -19,6 +19,9 @@ export const SO_LINE_PRICE_CURRENCY = 'GBP' as const;
 /** Postgres `unit_price_gbp` / `line_total_gbp` scale (numeric(14,4)). */
 export const SO_LINE_MONEY_SCALE = 4;
 
+/** GBP minor units shown to operators (invoice line + header must reconcile). */
+export const SO_CURRENCY_DISPLAY_DP = 2;
+
 const DECIMAL_RE = /^-?\d+(\.\d+)?$/;
 
 type QueryClient = {
@@ -78,12 +81,30 @@ export function sumSoLineTotalsGbp(totals: readonly string[]): string {
   return microToFixed(sumMicros, SO_LINE_MONEY_SCALE);
 }
 
+/** Round a stored line/money fact to the currency minor unit (half away from zero). */
+export function roundSoMoneyToDisplayDp(value: string): string {
+  return Dec.from(value).toFixed(SO_CURRENCY_DISPLAY_DP);
+}
+
+/**
+ * Order header total for display and `total_amount_gbp`: sum each line at the
+ * posted minor unit, then aggregate — matches invoice-style reconciliation.
+ */
+export function sumSoLineTotalsForDisplay(totals: readonly string[]): string {
+  const sumMicros = totals.reduce(
+    (sum, total) => sum + toMicro(roundSoMoneyToDisplayDp(total)),
+    0n,
+  );
+  return microToFixed(sumMicros, SO_CURRENCY_DISPLAY_DP);
+}
+
 export function formatSoGbpDisplay(value: string): string {
   return formatSoCurrencyDisplay(value, 'GBP');
 }
 
 export function formatSoCurrencyDisplay(value: string, currency: string = 'GBP'): string {
-  const amount = Number(value);
+  const rounded = roundSoMoneyToDisplayDp(value);
+  const amount = Number(rounded);
   if (!Number.isFinite(amount)) return '—';
   const code = /^[A-Z]{3}$/.test(currency.trim().toUpperCase()) ? currency.trim().toUpperCase() : 'GBP';
   try {

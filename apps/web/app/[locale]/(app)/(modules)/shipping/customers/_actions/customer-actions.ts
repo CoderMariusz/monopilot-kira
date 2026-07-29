@@ -206,17 +206,9 @@ export async function getCustomer(customerId: unknown): Promise<CustomerResult<C
       >(
         `select ${ALLERGEN_RESTRICTION_SELECT}
            from public.customer_allergen_restrictions car
-           left join public.reference_tables rt
-             on rt.org_id = car.org_id
-            and rt.table_code = 'reference.allergens_reference'
-            and rt.is_active
-            and (
-              rt.row_data->>'id' = car.allergen_id::text
-              or rt.row_key = car.allergen_id::text
-            )
            left join "Reference"."Allergens" ra
-             on ra.org_id = app.current_org_id()
-            and ra.allergen_code = coalesce(nullif(trim(rt.row_data->>'allergen_code'), ''), rt.row_key)
+             on ra.org_id = car.org_id
+            and public.shipping_allergen_reference_id(ra.org_id, ra.allergen_code) = car.allergen_id
           where car.org_id = app.current_org_id()
             and car.customer_id = $1::uuid
             and car.deleted_at is null

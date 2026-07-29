@@ -63,6 +63,8 @@ export type ShipmentPackLabels = {
     customer: string;
     status: string;
     boxes: string;
+    packedQty: string;
+    requiredQty: string;
   };
   boxes: {
     title: string;
@@ -96,6 +98,10 @@ export type ShipmentPackLabels = {
     noPermission: string;
     needsBox: string;
     invalidState: string;
+    /** Tooltip when picked qty is not fully packed; {remaining} = per-UoM qty still to pack. */
+    incompletePack: string;
+    /** Appended when {skipped} lines lack inventory UoM and are omitted from {remaining}. */
+    incompletePackSkipped: string;
   };
   errors: Record<string, string>;
   /** Ship / BOL / POD rail labels (added by the ship-controls lane). */
@@ -141,11 +147,13 @@ export function ShipmentPackView({
   cancelShipmentAction,
 }: ShipmentPackViewProps) {
   const router = useRouter();
-  const { shipment, boxes } = detail;
+  const { shipment, boxes, packing } = detail;
 
   const [lp, setLp] = React.useState('');
   const [packQty, setPackQty] = React.useState('');
   const [boxNumber, setBoxNumber] = React.useState(''); // '' = new box
+  const lpInputRef = React.useRef<HTMLInputElement>(null);
+  const qtyInputRef = React.useRef<HTMLInputElement>(null);
   const [pending, setPending] = React.useState(false);
   const [sealPending, setSealPending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -169,6 +177,18 @@ export function ShipmentPackView({
     [boxes, labels.pack.newBox, labels.boxes.boxLabel],
   );
 
+  const formatSealIncompleteMessage = React.useCallback(
+    (remainingQty: string) => {
+      let message = labels.seal.incompletePack.replace('{remaining}', remainingQty);
+      const skipped = packing.skippedLineCount ?? 0;
+      if (skipped > 0) {
+        message += ` ${labels.seal.incompletePackSkipped.replace('{skipped}', String(skipped))}`;
+      }
+      return message;
+    },
+    [labels.seal.incompletePack, labels.seal.incompletePackSkipped, packing.skippedLineCount],
+  );
+
   const disabled = !caps.canPack || pending;
   const tooltip = !caps.canPack ? labels.pack.noPermission : undefined;
   const sealDisabledReason = !caps.canPack
@@ -177,12 +197,15 @@ export function ShipmentPackView({
       ? labels.seal.needsBox
       : shipment.status !== 'packing'
         ? labels.seal.invalidState
-        : null;
+        : !packing.packComplete
+          ? formatSealIncompleteMessage(packing.remainingQty)
+          : null;
   const sealDisabled = sealPending || Boolean(sealDisabledReason);
 
   async function onSubmit() {
     if (disabled) return;
-    const code = lp.trim();
+    const code = (lpInputRef.current?.value ?? lp).trim();
+    const qty = (qtyInputRef.current?.value ?? packQty).trim();
     if (!code) {
       setError(labels.errors.invalid_input);
       setSuccess(null);
@@ -203,8 +226,8 @@ export function ShipmentPackView({
       const result = await packLpIntoBoxAction({
         shipmentId: shipment.id,
         lpId: code,
-        ...(packQty.trim() ? { quantity: packQty.trim() } : {}),
-        ...(chosen && chosen.boxId ? { boxId: chosen.boxId } : {}),
+        ...(qty ? { quantity: qty } : {}),
+        ...(chosen?.boxId ? { boxId: chosen.boxId } : {}),
       });
       if (!result.ok) {
         setError(labels.errors[result.error] ?? labels.errors.persistence_failed);
@@ -214,6 +237,8 @@ export function ShipmentPackView({
       setLp('');
       setPackQty('');
       setBoxNumber('');
+      if (lpInputRef.current) lpInputRef.current.value = '';
+      if (qtyInputRef.current) qtyInputRef.current.value = '';
       router.refresh();
     } catch {
       setError(labels.errors.persistence_failed);
@@ -234,7 +259,9 @@ export function ShipmentPackView({
         setSealError(
           result.error === 'invalid_state'
             ? labels.seal.invalidState
-            : labels.errors[result.error] ?? labels.errors.persistence_failed,
+            : result.error === 'incomplete_pack'
+              ? formatSealIncompleteMessage(packing.remainingQty)
+              : labels.errors[result.error] ?? labels.errors.persistence_failed,
         );
         setSealPending(false);
         return;
@@ -272,6 +299,7 @@ export function ShipmentPackView({
                 </label>
                 <Input
                   id="pack-lp-input"
+                  ref={lpInputRef}
                   data-testid="pack-lp-input"
                   value={lp}
                   placeholder={labels.pack.lpPlaceholder}
@@ -292,6 +320,7 @@ export function ShipmentPackView({
                 </label>
                 <Input
                   id="pack-qty-input"
+                  ref={qtyInputRef}
                   data-testid="pack-qty-input"
                   value={packQty}
                   placeholder={labels.pack.qtyPlaceholder}
@@ -445,6 +474,18 @@ export function ShipmentPackView({
                 <dt className="font-semibold text-slate-700">{labels.summary.boxes}</dt>
                 <dd className="font-mono font-semibold text-slate-900" data-testid="shipment-box-count">
                   {boxes.length}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-2">
+                <dt className="text-slate-500">{labels.summary.packedQty}</dt>
+                <dd className="font-mono text-slate-800" data-testid="shipment-packed-qty">
+                  {packing.packedQty}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-2">
+                <dt className="text-slate-500">{labels.summary.requiredQty}</dt>
+                <dd className="font-mono text-slate-800" data-testid="shipment-required-qty">
+                  {packing.requiredQty}
                 </dd>
               </div>
             </dl>

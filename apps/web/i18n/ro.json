@@ -11776,7 +11776,9 @@
           "salesOrder": "Sales order",
           "customer": "Customer",
           "status": "Status",
-          "boxes": "Boxes"
+          "boxes": "Boxes",
+          "packedQty": "Cantitate ambalată",
+          "requiredQty": "Cantitate pickuită"
         },
         "boxes": {
           "title": "Boxes",
@@ -11805,12 +11807,15 @@
           "sealSubmitting": "Sealing…",
           "sealNoPermission": "You do not have permission to seal this shipment.",
           "sealNeedsBox": "Pack at least one box before sealing.",
-          "sealInvalidState": "This shipment cannot be sealed in its current status."
+          "sealInvalidState": "This shipment cannot be sealed in its current status.",
+          "sealIncompletePack": "Ambalați cantitatea rămasă {remaining} înainte de sigilare.",
+          "sealIncompletePackSkipped": "({skipped} linii nu au unitate de inventar și sunt omise din acest total.)"
         },
         "errors": {
-          "invalid_input": "Enter a license plate code.",
-          "invalid_state": "This shipment cannot be packed in its current status.",
-          "no_boxes": "Pack at least one box before sealing the shipment.",
+          "invalid_input": "Introduceți codul paletului (LP).",
+          "invalid_state": "Această expediere nu poate fi ambalată în starea curentă.",
+          "no_boxes": "Ambalați cel puțin un colet înainte de sigilare.",
+          "incomplete_pack": "Cantitatea ambalată nu corespunde cu cea pickuită — finalizați ambalarea înainte de sigilare.",
           "lp_not_found": "That license plate was not found.",
           "lp_not_allocated": "That license plate is not allocated to this sales order.",
           "already_packed": "That license plate is already packed.",
@@ -12249,6 +12254,7 @@
             "subtitle": "Define how this customer restricts allergens on shipped products.",
             "allergenLabel": "Allergen",
             "allergenPlaceholder": "Select an allergen",
+            "referenceUnavailable": "No allergen reference data is available for this organization. Ask an administrator to seed the EU-14 allergen master before adding customer restrictions.",
             "restrictionLabel": "Restriction type",
             "notesLabel": "Notes",
             "notesPlaceholder": "Optional context for operators and QA",
@@ -12256,7 +12262,8 @@
             "submitEdit": "Save changes",
             "submitting": "Saving…",
             "errors": {
-              "allergenRequired": "Select an allergen."
+              "allergenRequired": "Select an allergen.",
+              "referenceUnavailable": "Allergen reference data is not configured for this organization."
             }
           }
         },

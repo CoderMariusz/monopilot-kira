@@ -25,6 +25,12 @@ import { Suspense } from 'react';
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
 import { listNcrs, createNcr } from '../_actions/ncr-actions';
+import {
+  searchHoldsForNcr,
+  searchInspectionsForNcr,
+  searchLps,
+  searchProductsForNcr,
+} from '../_actions/lookup-actions';
 import { getQaNcrsTranslator } from '../qa-ncrs-labels';
 import { NcrListClient } from './_components/ncr-list.client';
 import type { NcrListRow } from './_components/ncr-contracts';
@@ -100,6 +106,10 @@ async function ListContent({ locale, page }: { locale: string; page: number }) {
       labels={buildNcrListLabels(t)}
       locale={locale}
       createNcrAction={createNcr}
+      searchLpsAction={searchLps}
+      searchInspectionsAction={searchInspectionsForNcr}
+      searchHoldsAction={searchHoldsForNcr}
+      searchProductsAction={searchProductsForNcr}
     />
   );
 }

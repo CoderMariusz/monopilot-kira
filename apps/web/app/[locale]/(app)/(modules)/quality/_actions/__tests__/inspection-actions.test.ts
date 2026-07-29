@@ -12,6 +12,7 @@ import {
   createInspection,
   getInspectionDetail,
   listInspections,
+  recordInspectionResult,
   searchInspectionLps,
   resolveInspectionGrn,
   resolveInspectionWoOutput,
@@ -55,6 +56,17 @@ let activeHold = false;
 let existingInspectionHoldReason: string | null = null;
 let listTotal = 1;
 let specResolveRows: Array<Record<string, string>> = [];
+let recordSpecBoundsRows: Array<Record<string, string>> = [];
+let inspectionProductId: string | null = PRODUCT_ID;
+let inspectionSiteId: string | null = SITE_ID;
+
+function withSpecTieMeta(rows: Array<Record<string, string>>): Array<Record<string, string | number>> {
+  return rows.map((row) => ({
+    ...row,
+    tied_spec_count: 1,
+    tied_spec_ids: JSON.stringify([row.spec_id ?? 'spec-1']),
+  }));
+}
 
 vi.mock('../../../../../../../lib/i18n/revalidate-localized', () => ({ revalidateLocalized: vi.fn() }));
 import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
@@ -102,6 +114,39 @@ const DETAIL_ROW = {
   hold_id: HOLD_ID,
 };
 
+function expectedListItem(
+  overrides: Partial<{
+    id: string;
+    inspectionNumber: string;
+    referenceType: 'lp' | 'grn' | 'wo_output';
+    referenceId: string;
+    referenceDisplay: string;
+    productId: string | null;
+    productCode: string | null;
+    productName: string | null;
+    status: string;
+    assignedTo: { id: string; email: string | null; name: string | null } | null;
+    dueDate: string | null;
+    createdAt: string;
+  }> = {},
+) {
+  return {
+    id: INSP_ID,
+    inspectionNumber: 'INSP-00000001',
+    referenceType: 'lp' as const,
+    referenceId: LP_ID,
+    referenceDisplay: 'LP-4820',
+    productId: PRODUCT_ID,
+    productCode: 'RM-1001',
+    productName: 'Beef trim',
+    status: 'on_hold',
+    assignedTo: null,
+    dueDate: null,
+    createdAt: '2026-04-21T10:00:00.000Z',
+    ...overrides,
+  };
+}
+
 function makeClient(): QueryClient {
   return {
     query: vi.fn(async (sql: string, params: readonly unknown[] = []) => {
@@ -110,6 +155,50 @@ function makeClient(): QueryClient {
         return { rows: allowPermission ? [{ ok: true }] : [], rowCount: allowPermission ? 1 : 0 };
       }
       // submitInspectionDecision: FOR UPDATE select of the current inspection.
+      // Must not match listInspections / getInspectionDetail reads (same leading columns).
+      if (q.startsWith('select qi.id::text, qi.inspection_number') && q.includes('for update of qi')) {
+        return {
+          rows: [
+            {
+              id: INSP_ID,
+              inspection_number: 'INSP-00000001',
+              reference_type: inspectionReferenceType,
+              reference_id: inspectionReferenceId,
+              status: inspectionStatus,
+              parameters: inspectionParameters,
+              product_id: inspectionProductId,
+              site_id: inspectionSiteId,
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+      if (q.startsWith('select coalesce(qi.product_id, lp.product_id, woo.product_id)')) {
+        return {
+          rows: [{ product_id: inspectionProductId, reference_type: inspectionReferenceType }],
+          rowCount: 1,
+        };
+      }
+      if (q.startsWith('update public.quality_inspections') && q.includes("set status = 'in_progress'")) {
+        return {
+          rows: [
+            {
+              id: INSP_ID,
+              status: 'in_progress',
+              parameters: JSON.parse(String(params[1])),
+              result_notes: params[2],
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+      if (q.startsWith('select id::text') && q.includes('from public.ncr_reports')) {
+        return { rows: [], rowCount: 0 };
+      }
+      if (q.startsWith('insert into public.ncr_reports')) {
+        return { rows: [{ id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', ncr_number: 'NCR-00000001' }], rowCount: 1 };
+      }
+      // Legacy submitInspectionDecision select (older tests / other modules).
       if (q.startsWith('select id::text, inspection_number')) {
         return {
           rows: [
@@ -166,7 +255,19 @@ function makeClient(): QueryClient {
         return { rows: [], rowCount: 0 };
       }
       if (q.startsWith('select id::text, status, qa_status, quantity::text')) {
-        return { rows: [{ id: LP_ID, status: 'available', qa_status: 'pending', quantity: '12.500' }], rowCount: 1 };
+        return {
+          rows: [
+            {
+              id: LP_ID,
+              status: 'available',
+              qa_status: 'pending',
+              quantity: '12.500',
+              uom: 'kg',
+              catch_weight_kg: null,
+            },
+          ],
+          rowCount: 1,
+        };
       }
       if (q.startsWith('insert into public.quality_hold_items')) {
         return { rows: [], rowCount: 1 };
@@ -253,7 +354,8 @@ function makeClient(): QueryClient {
         return { rows: [{ ...DETAIL_ROW, hold_id: holdRows === 'one' ? HOLD_ID : null }] };
       }
       if (q.includes('from public.quality_specifications qs')) {
-        return { rows: specResolveRows };
+        const rows = recordSpecBoundsRows.length > 0 ? recordSpecBoundsRows : specResolveRows;
+        return { rows: withSpecTieMeta(rows) };
       }
       if (q.includes('from public.license_plates lp')) {
         return {
@@ -289,6 +391,9 @@ beforeEach(() => {
   existingInspectionHoldReason = null;
   listTotal = 1;
   specResolveRows = [];
+  recordSpecBoundsRows = [];
+  inspectionProductId = PRODUCT_ID;
+  inspectionSiteId = SITE_ID;
   client = makeClient();
   vi.mocked(getActiveSiteId).mockResolvedValue(SITE_ID);
   vi.mocked(signEvent).mockClear();
@@ -306,8 +411,8 @@ describe('listInspections — active site scope', () => {
     expect(normalize(String(listQuery?.[0]))).toContain('from public.quality_inspections qi');
     expect(listQuery?.[1]).toEqual(['pending', 'LP-4', SITE_ID, 25, 0]);
     if (res.ok) {
-      expect(res.data.items[0]).toEqual(expect.objectContaining({ inspectionNumber: 'INSP-00000001' }));
-      expect(res.data).toMatchObject({ total: 1, page: 1, limit: 25, hasMore: false });
+      expect(res.data.items[0]).toEqual(expectedListItem());
+      expect(res.data).toMatchObject({ total: 1, page: 1, limit: 25, offset: 0, hasMore: false });
     }
   });
 
@@ -325,7 +430,7 @@ describe('listInspections — active site scope', () => {
       offset: 50,
       hasMore: true,
     });
-    expect(result.data.items[0]).toEqual(expect.objectContaining({ inspectionNumber: 'INSP-00000051' }));
+    expect(result.data.items[0]).toEqual(expectedListItem({ inspectionNumber: 'INSP-00000051' }));
     const listQuery = vi.mocked(client.query).mock.calls.find(([sql]) =>
       normalize(String(sql)).includes('limit $4::int offset $5::int'),
     );
@@ -340,7 +445,7 @@ describe('listInspections — active site scope', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error('expected ok');
     expect(result.data.total).toBe(1);
-    expect(result.data.items[0]).toEqual(expect.objectContaining({ inspectionNumber: 'INSP-PAGE2-MATCH' }));
+    expect(result.data.items[0]).toEqual(expectedListItem({ inspectionNumber: 'INSP-PAGE2-MATCH' }));
     const countQuery = vi.mocked(client.query).mock.calls.find(([sql]) =>
       normalize(String(sql)).startsWith('select count(*)'),
     );
@@ -354,7 +459,7 @@ describe('listInspections — active site scope', () => {
 
     expect(res.ok).toBe(true);
     if (!res.ok) throw new Error('expected ok');
-    expect(res.data.items[0]).toEqual(expect.objectContaining({ inspectionNumber: 'INSP-00000001' }));
+    expect(res.data.items[0]).toEqual(expectedListItem());
     const listQuery = vi.mocked(client.query).mock.calls.find(([sql]) =>
       normalize(String(sql)).includes('from public.quality_inspections qi') && normalize(String(sql)).includes('limit $3::int'),
     );
@@ -521,14 +626,18 @@ describe('submitInspectionDecision (review fix F8 — base decision flow)', () =
     expect(lpUpdate?.[1]).toEqual([LP_ID, 'released', USER_ID, ['consumed', 'merged', 'shipped', 'returned']]);
   });
 
-  it('(b) decision=fail issues the LP qa_status=rejected update', async () => {
+  it('(b) decision=fail issues the LP qa_status=rejected update and creates hold + NCR', async () => {
     const res = await submitInspectionDecision({ ...baseInput, decision: 'fail' });
     expect(res.ok).toBe(true);
     const lpUpdate = findCall('update public.license_plates');
     expect(lpUpdate).toBeTruthy();
     expect(lpUpdate?.[1]).toEqual([LP_ID, 'rejected', USER_ID, ['consumed', 'merged', 'shipped', 'returned']]);
-    // fail does NOT open a hold
-    expect(calls().some((q) => q.includes('insert into public.quality_holds'))).toBe(false);
+    const holdInsert = findCall('insert into public.quality_holds');
+    expect(holdInsert).toBeTruthy();
+    expect(holdInsert?.[1]?.[3]).toBe(`Inspection ${INSP_ID}: checked`);
+    const ncrInsert = findCall('insert into public.ncr_reports');
+    expect(ncrInsert).toBeTruthy();
+    expect(ncrInsert?.[1]?.[2]).toBe(INSP_ID);
   });
 
   it('(c) decision=hold inserts quality_holds + quality_hold_items for the LP', async () => {
@@ -542,12 +651,51 @@ describe('submitInspectionDecision (review fix F8 — base decision flow)', () =
     const itemInsert = findCall('insert into public.quality_hold_items');
     expect(itemInsert).toBeTruthy();
     // decimal qty stays a string end-to-end
-    expect(itemInsert?.[1]).toEqual([HOLD_ID, LP_ID, '12.500']);
+    expect(itemInsert?.[1]).toEqual([HOLD_ID, LP_ID, '12.5']);
     // and emits the canonical quality.hold.created outbox event for the inline hold.
     const outbox = findCall('insert into public.outbox_events');
     expect(outbox).toBeTruthy();
     expect(outbox?.[1]?.[0]).toBe('quality.hold.created');
     expect(outbox?.[1]?.[1]).toBe(HOLD_ID);
+  });
+
+  it('blocks pass when stored bounded parameters are out of spec after server derivation', async () => {
+    inspectionParameters = [{ name: 'NIGHT-R16 pH', actual: '5.5001', pass: false }];
+    recordSpecBoundsRows = [
+      {
+        spec_id: 'spec-1',
+        parameter_name: 'NIGHT-R16 pH',
+        target_value: '5.0000',
+        min_value: '4.5000',
+        max_value: '5.5000',
+        unit: 'pH',
+      },
+    ];
+
+    const res = await submitInspectionDecision({ ...baseInput, decision: 'pass' });
+
+    expect(res).toEqual({ ok: false, reason: 'error', message: 'inspection_parameters_not_passing' });
+    expect(vi.mocked(signEvent)).not.toHaveBeenCalled();
+  });
+
+  it('allows decision=fail when legacy stored rows still carry pass=true for an out-of-spec measurement', async () => {
+    inspectionParameters = [{ name: 'NIGHT-R16 pH', actual: '5.5001', pass: true }];
+    recordSpecBoundsRows = [
+      {
+        spec_id: 'spec-1',
+        parameter_name: 'NIGHT-R16 pH',
+        target_value: '5.0000',
+        min_value: '4.5000',
+        max_value: '5.5000',
+        unit: 'pH',
+      },
+    ];
+
+    const res = await submitInspectionDecision({ ...baseInput, decision: 'fail' });
+
+    expect(res.ok).toBe(true);
+    expect(vi.mocked(signEvent)).toHaveBeenCalled();
+    expect(findCall('insert into public.ncr_reports')).toBeTruthy();
   });
 
   it('(d) re-submitting an already-final inspection is rejected without signing or mutating', async () => {
@@ -607,6 +755,113 @@ describe('submitInspectionDecision (review fix F8 — base decision flow)', () =
     });
     expect(lpTransition?.[1]).toEqual([LP_ID, 'released', USER_ID]);
     expect(calls().some((q) => q.startsWith('insert into public.lp_state_history'))).toBe(true);
+  });
+
+  it('decision=fail for a WO output marks FAILED, creates hold + NCR after e-sign', async () => {
+    inspectionReferenceType = 'wo_output';
+    inspectionReferenceId = WOO_ID;
+
+    const res = await submitInspectionDecision({ ...baseInput, decision: 'fail' });
+
+    expect(res).toMatchObject({ ok: true, data: { status: 'failed', qaStatus: 'rejected' } });
+    const outputTransition = findCall('update public.wo_outputs');
+    expect(outputTransition?.[1]).toEqual([WOO_ID, 'FAILED']);
+    expect(findCall('insert into public.quality_holds')).toBeTruthy();
+    expect(findCall('insert into public.ncr_reports')).toBeTruthy();
+    expect(vi.mocked(signEvent)).toHaveBeenCalled();
+  });
+});
+
+describe('recordInspectionResult — PF-R16-01 spec bounds', () => {
+  beforeEach(() => {
+    recordSpecBoundsRows = [
+      {
+        spec_id: 'spec-1',
+        parameter_name: 'NIGHT-R16 pH',
+        target_value: '5.0000',
+        min_value: '4.5000',
+        max_value: '5.5000',
+        unit: 'pH',
+      },
+    ];
+    inspectionProductId = PRODUCT_ID;
+  });
+
+  it('rejects saving pass=true when actual is above the active spec maximum', async () => {
+    const res = await recordInspectionResult({
+      inspectionId: INSP_ID,
+      parameters: [{ name: 'NIGHT-R16 pH', actual: '5.5001', pass: true }],
+    });
+
+    expect(res).toEqual({ ok: false, reason: 'error', message: 'parameter_out_of_spec' });
+    expect(
+      vi.mocked(client.query).mock.calls.some(([sql]) =>
+        normalize(String(sql)).includes("set status = 'in_progress'"),
+      ),
+    ).toBe(false);
+  });
+
+  it('persists pass=false when actual is out of spec', async () => {
+    const res = await recordInspectionResult({
+      inspectionId: INSP_ID,
+      parameters: [{ name: 'NIGHT-R16 pH', actual: '5.5001', pass: false }],
+    });
+
+    expect(res.ok).toBe(true);
+    const updateCall = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      normalize(String(sql)).includes("set status = 'in_progress'"),
+    );
+    expect(JSON.parse(String(updateCall?.[1]?.[1]))).toEqual([
+      { name: 'NIGHT-R16 pH', actual: '5.5001', pass: false },
+    ]);
+  });
+
+  it('anti-regression: sub-micro OOS measurement is stored as pass=false', async () => {
+    recordSpecBoundsRows = [
+      {
+        spec_id: 'spec-1',
+        parameter_name: 'Trace metal',
+        target_value: null,
+        min_value: '0.00004',
+        max_value: '0.000049',
+        unit: 'ppm',
+      },
+    ];
+
+    const res = await recordInspectionResult({
+      inspectionId: INSP_ID,
+      parameters: [{ name: 'Trace metal', actual: '0.000050', pass: true }],
+    });
+
+    expect(res).toEqual({ ok: false, reason: 'error', message: 'parameter_out_of_spec' });
+  });
+
+  it('rejects payloads that omit a required active-spec parameter', async () => {
+    inspectionParameters = [{ name: 'Visual', actual: 'ok', pass: true }];
+
+    const res = await submitInspectionDecision({
+      inspectionId: INSP_ID,
+      decision: 'pass',
+      signature: { password: 'pin-1234' },
+    });
+
+    expect(res).toEqual({ ok: false, reason: 'error', message: 'missing_spec_parameters' });
+    expect(vi.mocked(signEvent)).not.toHaveBeenCalled();
+  });
+
+  it('accepts in-spec measurements at the inclusive maximum boundary', async () => {
+    const res = await recordInspectionResult({
+      inspectionId: INSP_ID,
+      parameters: [{ name: 'NIGHT-R16 pH', actual: '5.5000', pass: true }],
+    });
+
+    expect(res.ok).toBe(true);
+    const updateCall = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      normalize(String(sql)).includes("set status = 'in_progress'"),
+    );
+    expect(JSON.parse(String(updateCall?.[1]?.[1]))).toEqual([
+      { name: 'NIGHT-R16 pH', actual: '5.5000', pass: true },
+    ]);
   });
 });
 

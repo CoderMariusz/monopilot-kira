@@ -120,6 +120,32 @@ export function buildNcrCreateLabels(t: QaNcrsTranslator): NcrCreateLabels {
     },
     error: t('createModal.error'),
     success: t('createModal.success'),
+    lookup: {
+      sourceRefType: t('createModal.lookup.sourceRefType'),
+      sourceRefTypeHelp: t('createModal.lookup.sourceRefTypeHelp'),
+      sourceRefTypeOptions: {
+        inspection: t('createModal.lookup.sourceRefTypeOptions.inspection'),
+        lp: t('createModal.lookup.sourceRefTypeOptions.lp'),
+      },
+      inspectionSearchLabel: t('createModal.lookup.inspectionSearchLabel'),
+      inspectionSearchPlaceholder: t('createModal.lookup.inspectionSearchPlaceholder'),
+      inspectionSearching: t('createModal.lookup.inspectionSearching'),
+      inspectionNoMatch: t('createModal.lookup.inspectionNoMatch'),
+      inspectionChip: t('createModal.lookup.inspectionChip'),
+      lpSearchLabel: t('createModal.lookup.lpSearchLabel'),
+      lpSearchPlaceholder: t('createModal.lookup.lpSearchPlaceholder'),
+      lpSearching: t('createModal.lookup.lpSearching'),
+      lpNoMatch: t('createModal.lookup.lpNoMatch'),
+      lpChip: t('createModal.lookup.lpChip'),
+      product: t('createModal.lookup.product'),
+      productHelp: t('createModal.lookup.productHelp'),
+      productSearchPlaceholder: t('createModal.lookup.productSearchPlaceholder'),
+      productSearching: t('createModal.lookup.productSearching'),
+      productNoMatch: t('createModal.lookup.productNoMatch'),
+      productChip: t('createModal.lookup.productChip'),
+      clearPick: t('createModal.lookup.clearPick'),
+      resultLine: t('createModal.lookup.resultLine'),
+    },
   };
 }
 

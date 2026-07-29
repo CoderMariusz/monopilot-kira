@@ -135,17 +135,170 @@ const listSchema = z.object({
   limit: z.number().int().min(1).max(200).optional(),
 });
 
-const createSchema = z.object({
-  ncrType: ncrTypeSchema,
-  severity: severitySchema,
-  title: z.string().trim().max(240).optional(),
-  description: z.string().trim().max(4000).optional(),
-  referenceType: referenceTypeSchema.optional(),
-  referenceId: uuidSchema.optional(),
-  productId: uuidSchema.optional(),
-  affectedQtyKg: decimalStringSchema.optional(),
-  linkedHoldId: uuidSchema.optional(),
-});
+const createSchema = z
+  .object({
+    ncrType: ncrTypeSchema,
+    severity: severitySchema,
+    title: z.string().trim().max(240).optional(),
+    description: z.string().trim().max(4000).optional(),
+    referenceType: referenceTypeSchema.optional(),
+    referenceId: uuidSchema.optional(),
+    productId: uuidSchema.optional(),
+    affectedQtyKg: decimalStringSchema.optional(),
+    linkedHoldId: uuidSchema.optional(),
+  })
+  .refine((input) => Boolean(input.referenceType) === Boolean(input.referenceId), {
+    message: 'reference_type_and_id_must_match',
+  });
+
+type CreateNcrInput = z.infer<typeof createSchema>;
+
+async function resolveNcrLinkedProductId(
+  ctx: QualityContext,
+  referenceType: NcrReferenceType,
+  referenceId: string,
+): Promise<string | null> {
+  const { rows } = await ctx.client.query<{ product_id: string | null }>(
+    `select lp.product_id::text as product_id
+       from public.license_plates lp
+      where $1::text = 'lp'
+        and lp.org_id = app.current_org_id()
+        and lp.id = $2::uuid
+     union all
+     select coalesce(qi.product_id, lp.product_id, woo.product_id)::text as product_id
+       from public.quality_inspections qi
+       left join public.license_plates lp on qi.reference_type = 'lp' and lp.id = qi.reference_id and lp.org_id = qi.org_id
+       left join public.wo_outputs woo on qi.reference_type = 'wo_output' and woo.id = qi.reference_id and woo.org_id = qi.org_id
+      where $1::text = 'inspection'
+        and qi.org_id = app.current_org_id()
+        and qi.id = $2::uuid
+     union all
+     select wo.product_id::text as product_id
+       from public.work_orders wo
+      where $1::text = 'wo'
+        and wo.org_id = app.current_org_id()
+        and wo.id = $2::uuid
+     union all
+     select woo.product_id::text as product_id
+       from public.wo_outputs woo
+      where $1::text = 'batch'
+        and woo.org_id = app.current_org_id()
+        and woo.id = $2::uuid
+     union all
+     select g.product_id::text as product_id
+       from public.grns g
+      where $1::text = 'grn'
+        and g.org_id = app.current_org_id()
+        and g.id = $2::uuid
+      limit 1`,
+    [referenceType, referenceId],
+  );
+  return rows[0]?.product_id ?? null;
+}
+
+async function assertNcrCreateLinks(
+  ctx: QualityContext,
+  parsed: CreateNcrInput,
+): Promise<{ productId: string | null }> {
+  let productId = parsed.productId ?? null;
+
+  if (parsed.referenceType && parsed.referenceId) {
+    const { rows } = await ctx.client.query<{ ok: boolean }>(
+      `select true as ok
+         from public.license_plates lp
+        where $1::text = 'lp'
+          and lp.org_id = app.current_org_id()
+          and lp.id = $2::uuid
+       union all
+       select true as ok
+         from public.quality_inspections qi
+        where $1::text = 'inspection'
+          and qi.org_id = app.current_org_id()
+          and qi.id = $2::uuid
+       union all
+       select true as ok
+         from public.grns grn
+        where $1::text = 'grn'
+          and grn.org_id = app.current_org_id()
+          and grn.id = $2::uuid
+       union all
+       select true as ok
+         from public.work_orders wo
+        where $1::text = 'wo'
+          and wo.org_id = app.current_org_id()
+          and wo.id = $2::uuid
+       union all
+       select true as ok
+         from public.purchase_orders po
+        where $1::text = 'po'
+          and po.org_id = app.current_org_id()
+          and po.id = $2::uuid
+       union all
+       select true as ok
+         from public.haccp_ccps c
+        where $1::text = 'ccp_deviation'
+          and c.org_id = app.current_org_id()
+          and c.id = $2::uuid
+       union all
+       select true as ok
+         from public.complaints c
+        where $1::text = 'complaint'
+          and c.org_id = app.current_org_id()
+          and c.id = $2::uuid
+       union all
+       select true as ok
+         from public.wo_outputs woo
+        where $1::text = 'batch'
+          and woo.org_id = app.current_org_id()
+          and woo.id = $2::uuid
+       union all
+       select true as ok
+         from public.suppliers s
+        where $1::text = 'supplier'
+          and s.org_id = app.current_org_id()
+          and s.id = $2::uuid
+        limit 1`,
+      [parsed.referenceType, parsed.referenceId],
+    );
+    if (!rows[0]) throw new Error('ncr_reference_not_found');
+
+    const sourceProductId = await resolveNcrLinkedProductId(ctx, parsed.referenceType, parsed.referenceId);
+    if (sourceProductId) {
+      if (productId && productId !== sourceProductId) {
+        throw new Error('ncr_product_reference_mismatch');
+      }
+      if (!productId) {
+        productId = sourceProductId;
+      }
+    }
+  }
+
+  if (productId) {
+    const { rows } = await ctx.client.query<{ id: string }>(
+      `select id::text
+         from public.items
+        where org_id = app.current_org_id()
+          and id = $1::uuid
+        limit 1`,
+      [productId],
+    );
+    if (!rows[0]) throw new Error('ncr_product_not_found');
+  }
+
+  if (parsed.linkedHoldId) {
+    const { rows } = await ctx.client.query<{ id: string }>(
+      `select id::text
+         from public.quality_holds
+        where org_id = app.current_org_id()
+          and id = $1::uuid
+        limit 1`,
+      [parsed.linkedHoldId],
+    );
+    if (!rows[0]) throw new Error('ncr_linked_hold_not_found');
+  }
+
+  return { productId };
+}
 
 async function resolveNcrSourceSiteId(
   ctx: QualityContext,
@@ -578,6 +731,8 @@ export async function createNcr(input: {
         (await resolveNcrSourceSiteId(ctx, parsed.referenceType, parsed.referenceId)) ??
         (await getActiveSiteId({ client: ctx.client }));
 
+      const { productId } = await assertNcrCreateLinks(ctx, parsed);
+
       const created = await ctx.client.query<CreatedNcr & { ncr_number: string }>(
         `insert into public.ncr_reports (
            org_id,
@@ -617,7 +772,7 @@ export async function createNcr(input: {
           parsed.description || '',
           parsed.referenceType ?? null,
           parsed.referenceId ?? null,
-          parsed.productId ?? null,
+          productId,
           ctx.userId,
           parsed.affectedQtyKg ?? null,
           parsed.linkedHoldId ?? null,

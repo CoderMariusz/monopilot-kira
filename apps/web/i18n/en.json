@@ -11891,7 +11891,9 @@
           "salesOrder": "Sales order",
           "customer": "Customer",
           "status": "Status",
-          "boxes": "Boxes"
+          "boxes": "Boxes",
+          "packedQty": "Packed qty",
+          "requiredQty": "Picked qty"
         },
         "boxes": {
           "title": "Boxes",
@@ -11920,12 +11922,15 @@
           "sealSubmitting": "Sealing…",
           "sealNoPermission": "You do not have permission to seal this shipment.",
           "sealNeedsBox": "Pack at least one box before sealing.",
-          "sealInvalidState": "This shipment cannot be sealed in its current status."
+          "sealInvalidState": "This shipment cannot be sealed in its current status.",
+          "sealIncompletePack": "Pack the remaining {remaining} before sealing.",
+          "sealIncompletePackSkipped": "({skipped} line(s) have no inventory unit and are omitted from this total.)"
         },
         "errors": {
           "invalid_input": "Enter a license plate code.",
           "invalid_state": "This shipment cannot be packed in its current status.",
           "no_boxes": "Pack at least one box before sealing the shipment.",
+          "incomplete_pack": "Packed quantity does not match picked quantity — finish packing before sealing.",
           "lp_not_found": "That license plate was not found.",
           "lp_not_allocated": "That license plate is not allocated to this sales order.",
           "already_packed": "That license plate is already packed.",
@@ -12364,6 +12369,7 @@
             "subtitle": "Define how this customer restricts allergens on shipped products.",
             "allergenLabel": "Allergen",
             "allergenPlaceholder": "Select an allergen",
+            "referenceUnavailable": "No allergen reference data is available for this organization. Ask an administrator to seed the EU-14 allergen master before adding customer restrictions.",
             "restrictionLabel": "Restriction type",
             "notesLabel": "Notes",
             "notesPlaceholder": "Optional context for operators and QA",
@@ -12371,7 +12377,8 @@
             "submitEdit": "Save changes",
             "submitting": "Saving…",
             "errors": {
-              "allergenRequired": "Select an allergen."
+              "allergenRequired": "Select an allergen.",
+              "referenceUnavailable": "Allergen reference data is not configured for this organization."
             }
           }
         },

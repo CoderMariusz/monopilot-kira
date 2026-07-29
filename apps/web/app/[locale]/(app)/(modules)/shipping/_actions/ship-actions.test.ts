@@ -110,6 +110,14 @@ let shipmentServiceLevel: string | null = null;
 let shipmentTrackingNumber: string | null = null;
 let bolPayload: Record<string, unknown> | null = null;
 let signedBolSubjectHashes = new Set<string>();
+let requiredPickRows: Array<{ line_id: string; required_qty: string; uom: string }> = [
+  { line_id: LINE_1, required_qty: '3.000', uom: 'kg' },
+  { line_id: LINE_2, required_qty: '2.000', uom: 'kg' },
+];
+let packedQtyRows: Array<{ line_id: string; packed_qty: string }> = [
+  { line_id: LINE_1, packed_qty: '3.000' },
+  { line_id: LINE_2, packed_qty: '2.000' },
+];
 let soLineAllocationDecrements: Array<{ line_id: string; qty: string }> = [];
 let outboxEvents: Array<{
   aggregateId: string;
@@ -119,6 +127,8 @@ let outboxEvents: Array<{
   sql: string;
 }> = [];
 let queryLog: Array<{ sql: string; params: readonly unknown[] }> = [];
+let shipmentLockReads = 0;
+let sealSecondLockStatus: string | null = null;
 
 vi.mock('../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -147,7 +157,10 @@ function makeClient(): QueryClient {
       }
 
       if (q.startsWith('select status, sales_order_id::text') && q.includes('from public.shipments') && q.includes('for update')) {
-        return { rows: [{ status: shipmentStatus, sales_order_id: SO_ID }], rowCount: 1 };
+        shipmentLockReads += 1;
+        const status =
+          shipmentLockReads === 2 && sealSecondLockStatus ? sealSecondLockStatus : shipmentStatus;
+        return { rows: [{ status, sales_order_id: SO_ID }], rowCount: 1 };
       }
 
       if (q.startsWith('update public.shipments') && q.includes('set status = $2')) {
@@ -190,7 +203,19 @@ function makeClient(): QueryClient {
         return { rows: [], rowCount: 1 };
       }
 
-      if (q.startsWith('select sbc.sales_order_line_id::text') && q.includes('sum(sbc.quantity)')) {
+      if (q.startsWith('select sol.id::text as line_id') && q.includes('quantity_picked')) {
+        return { rows: requiredPickRows, rowCount: requiredPickRows.length };
+      }
+
+      if (q.startsWith('select sbc.sales_order_line_id::text as line_id') && q.includes('sum(sbc.quantity)')) {
+        return { rows: packedQtyRows, rowCount: packedQtyRows.length };
+      }
+
+      if (
+        q.startsWith('select sbc.sales_order_line_id::text') &&
+        q.includes('sum(sbc.quantity)') &&
+        !q.includes('as line_id')
+      ) {
         return {
           rows: [
             { sales_order_line_id: LINE_1, shipped_qty: '3.000' },
@@ -198,6 +223,10 @@ function makeClient(): QueryClient {
           ],
           rowCount: 2,
         };
+      }
+
+      if (q.startsWith('select count(distinct sb.id)::int as box_count')) {
+        return { rows: [{ box_count: boxCount }], rowCount: 1 };
       }
 
       if (q.startsWith('update public.sales_order_lines') && q.includes('quantity_allocated = greatest')) {
@@ -465,8 +494,18 @@ beforeEach(() => {
     return { signatureId: SIGNATURE_ID };
   });
   soLineAllocationDecrements = [];
+  packedQtyRows = [
+    { line_id: LINE_1, packed_qty: '3.000' },
+    { line_id: LINE_2, packed_qty: '2.000' },
+  ];
+  requiredPickRows = [
+    { line_id: LINE_1, required_qty: '3.000', uom: 'kg' },
+    { line_id: LINE_2, required_qty: '2.000', uom: 'kg' },
+  ];
   outboxEvents = [];
   queryLog = [];
+  shipmentLockReads = 0;
+  sealSecondLockStatus = null;
   client = makeClient();
 });
 
@@ -735,6 +774,41 @@ describe('sealShipment', () => {
 
     expect(result).toEqual({ ok: false, error: 'no_boxes' });
     expect(packedShipmentUpdate).toBeNull();
+  });
+
+  it('returns incomplete_pack when picked quantity is not fully boxed', async () => {
+    shipmentStatus = 'packing';
+    boxCount = 1;
+    packedQtyRows = [{ line_id: LINE_1, packed_qty: '1.000' }];
+
+    const result = await sealShipment(SHIPMENT_ID);
+
+    expect(result).toEqual({ ok: false, error: 'incomplete_pack' });
+    expect(packedShipmentUpdate).toBeNull();
+  });
+
+  it('returns incomplete_pack when boxes exist but no line has quantity_picked > 0', async () => {
+    shipmentStatus = 'packing';
+    boxCount = 1;
+    requiredPickRows = [];
+    packedQtyRows = [{ line_id: LINE_1, packed_qty: '1.000' }];
+
+    const result = await sealShipment(SHIPMENT_ID);
+
+    expect(result).toEqual({ ok: false, error: 'incomplete_pack' });
+    expect(packedShipmentUpdate).toBeNull();
+  });
+
+  it('returns invalid_state when the shipment is cancelled before the status write', async () => {
+    shipmentStatus = 'packing';
+    boxCount = 1;
+    sealSecondLockStatus = 'cancelled';
+
+    const result = await sealShipment(SHIPMENT_ID);
+
+    expect(result).toEqual({ ok: false, error: 'invalid_state' });
+    expect(packedShipmentUpdate).toBeNull();
+    expect(shipmentLockReads).toBeGreaterThanOrEqual(2);
   });
 });
 

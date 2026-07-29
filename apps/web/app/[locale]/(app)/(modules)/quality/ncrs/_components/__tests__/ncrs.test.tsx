@@ -66,9 +66,26 @@ function makeRow(over: Partial<NcrListRow>): NcrListRow {
   };
 }
 
+const SEARCH_STUBS = {
+  searchLpsAction: vi.fn(async () => ({ ok: true, data: [] })),
+  searchInspectionsAction: vi.fn(async () => ({ ok: true, data: [] })),
+  searchHoldsAction: vi.fn(async () => ({ ok: true, data: [] })),
+  searchProductsAction: vi.fn(async () => []),
+};
+
 function renderList(rows: NcrListRow[], createNcrAction = vi.fn()) {
   return render(
-    <NcrListClient rows={rows} labels={LIST_LABELS} locale="en" createNcrAction={createNcrAction as never} />,
+    <NcrListClient
+      rows={rows}
+      pagination={{ total: rows.length, page: 1, limit: 50, offset: 0, hasMore: false, items: rows }}
+      labels={LIST_LABELS}
+      locale="en"
+      createNcrAction={createNcrAction as never}
+      searchLpsAction={SEARCH_STUBS.searchLpsAction as never}
+      searchInspectionsAction={SEARCH_STUBS.searchInspectionsAction as never}
+      searchHoldsAction={SEARCH_STUBS.searchHoldsAction as never}
+      searchProductsAction={SEARCH_STUBS.searchProductsAction as never}
+    />,
   );
 }
 
@@ -208,10 +225,70 @@ describe('NcrListClient (QA-009 §3.3 attention partition)', () => {
     const { rerender } = renderList([]);
     expect(screen.getByTestId('ncr-list-empty')).toHaveTextContent(LIST_LABELS.emptyAll);
     rerender(
-      <NcrListClient rows={[makeRow({ id: 'a', severity: 'critical', status: 'investigating' })]} labels={LIST_LABELS} locale="en" createNcrAction={vi.fn() as never} />,
+      <NcrListClient
+        rows={[makeRow({ id: 'a', severity: 'critical', status: 'investigating' })]}
+        pagination={{ total: 1, page: 1, limit: 50, offset: 0, hasMore: false, items: [makeRow({ id: 'a', severity: 'critical', status: 'investigating' })] }}
+        labels={LIST_LABELS}
+        locale="en"
+        createNcrAction={vi.fn() as never}
+        searchLpsAction={SEARCH_STUBS.searchLpsAction as never}
+        searchInspectionsAction={SEARCH_STUBS.searchInspectionsAction as never}
+        searchHoldsAction={SEARCH_STUBS.searchHoldsAction as never}
+        searchProductsAction={SEARCH_STUBS.searchProductsAction as never}
+      />,
     );
     fireEvent.change(screen.getByTestId('ncr-list-search'), { target: { value: 'zzz-nope' } });
     expect(screen.getByTestId('ncr-list-empty-filtered')).toHaveTextContent(LIST_LABELS.emptyFiltered);
+  });
+
+  it('opens the create modal and submits typed links with the createNcr payload', async () => {
+    const createNcrAction = vi.fn().mockResolvedValue({ ok: true, data: { id: 'n-new', ncrNumber: 'NCR-NEW' } });
+    SEARCH_STUBS.searchInspectionsAction.mockResolvedValueOnce({
+      ok: true,
+      data: [
+        {
+          id: 'insp-1',
+          inspectionNumber: 'INSP-00000014',
+          referenceDisplay: 'LP-1784360222874-WVBX',
+          productId: 'prod-1',
+          productCode: 'NIGHT-R16-BUTTER',
+          status: 'failed',
+        },
+      ],
+    });
+    SEARCH_STUBS.searchHoldsAction.mockResolvedValueOnce({
+      ok: true,
+      data: [{ id: 'hold-1', holdNumber: 'HLD-00001027', referenceDisplay: 'LP-1784360222874-WVBX' }],
+    });
+    renderList([makeRow({ id: 'a', severity: 'critical', status: 'investigating' })], createNcrAction);
+    fireEvent.click(screen.getByTestId('ncr-create-open'));
+
+    fireEvent.change(screen.getByTestId('ncr-create-source-search'), { target: { value: 'INSP' } });
+    await waitFor(() => expect(SEARCH_STUBS.searchInspectionsAction).toHaveBeenCalled());
+    fireEvent.click(screen.getByTestId('ncr-create-source-pick-insp-1'));
+    expect(screen.getByTestId('ncr-create-inspection-chip')).toHaveTextContent('INSP-00000014');
+
+    fireEvent.change(screen.getByTestId('ncr-create-hold-search'), { target: { value: 'HLD' } });
+    await waitFor(() => expect(SEARCH_STUBS.searchHoldsAction).toHaveBeenCalled());
+    fireEvent.click(screen.getByTestId('ncr-create-hold-pick-hold-1'));
+
+    fireEvent.change(screen.getByTestId('ncr-create-title'), { target: { value: 'Metal contamination on Line 1' } });
+    fireEvent.change(screen.getByTestId('ncr-create-description'), { target: { value: 'A ferrous fragment was detected by the metal detector on Line 1.' } });
+    fireEvent.change(screen.getByTestId('ncr-create-affectedqty'), { target: { value: '120' } });
+
+    fireEvent.click(screen.getByTestId('ncr-create-submit'));
+    await waitFor(() => expect(createNcrAction).toHaveBeenCalledTimes(1));
+    expect(createNcrAction).toHaveBeenCalledWith({
+      ncrType: 'quality',
+      severity: 'major',
+      title: 'Metal contamination on Line 1',
+      description: 'A ferrous fragment was detected by the metal detector on Line 1.',
+      referenceType: 'inspection',
+      referenceId: 'insp-1',
+      productId: 'prod-1',
+      linkedHoldId: 'hold-1',
+      affectedQtyKg: '120',
+    });
   });
 
   it('opens the create modal and submits the exact createNcr payload (with affected qty)', async () => {
@@ -470,6 +547,40 @@ describe('NcrDetailClient (QA-009a parity)', () => {
     expect(card).not.toHaveTextContent('ccp-uuid-9');
   });
 
+  it('immediately locks the detail view after a successful close without waiting for remount', async () => {
+    const closeNcrAction = vi.fn().mockResolvedValue({
+      ok: true,
+      data: {
+        id: 'n-1',
+        ncrNumber: 'NCR-2026-0001',
+        status: 'closed',
+        closedAt: '2026-04-25T09:00:00.000Z',
+        signatureHash: 'c'.repeat(64),
+      },
+    });
+
+    render(
+      <NcrDetailClient
+        ncr={makeDetail()}
+        labels={DETAIL_LABELS}
+        locale="en"
+        updateInvestigationAction={vi.fn() as never}
+        closeNcrAction={closeNcrAction as never}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('ncr-detail-close-open'));
+    fireEvent.change(screen.getByTestId('ncr-close-resolution'), { target: { value: 'Closed after minor rework.' } });
+    fireEvent.change(screen.getByTestId('ncr-close-password'), { target: { value: 'pw' } });
+    fireEvent.click(screen.getByTestId('ncr-close-submit'));
+
+    await waitFor(() => expect(screen.getByTestId('ncr-detail-status')).toHaveTextContent('Closed'));
+    expect(screen.queryByTestId('ncr-detail-close-open')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('ncr-investigation-save')).not.toBeInTheDocument();
+    expect(screen.getByTestId('ncr-detail-closed-banner')).toHaveAttribute('data-state', 'closed');
+    expect(refreshMock).toHaveBeenCalled();
+  });
+
   it('CLOSED NCR is immutable: shows the signed banner only when a receipt hash exists', () => {
     const { rerender } = render(
       <NcrDetailClient
@@ -523,5 +634,9 @@ describe('quality-ncrs i18n staging (en + pl, no leaked keys)', () => {
     }
     // pl actually differs from en (real translations, not an EN echo).
     expect(buildNcrListLabels(getQaNcrsTranslator('pl')).createNcr).not.toBe(LIST_LABELS.createNcr);
+    const plCreate = buildNcrCreateLabels(getQaNcrsTranslator('pl'));
+    const enCreate = buildNcrCreateLabels(getQaNcrsTranslator('en'));
+    expect(plCreate.lookup.sourceRefType).not.toBe(enCreate.lookup.sourceRefType);
+    expect(plCreate.lookup.product).not.toBe(enCreate.lookup.product);
   });
 });

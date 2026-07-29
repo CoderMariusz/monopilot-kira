@@ -47,6 +47,8 @@ let detailContents: Array<{
 }> = [];
 let existingBlockingShipment = false;
 let detailBolSha256: string | null = null;
+let detailPickedQty = '10.000';
+let detailPackedQty = '10.000';
 let queryLog: Array<{ sql: string; params: readonly unknown[] }> = [];
 
 vi.mock('../../../../../../lib/auth/with-org-context', () => ({
@@ -268,6 +270,18 @@ function makeClient(): QueryClient {
 
       if (q.startsWith('select sbc.shipment_box_id::text')) {
         return { rows: detailContents, rowCount: detailContents.length };
+      }
+
+      if (q.startsWith('select sh.sales_order_id::text') && q.includes('from public.shipments sh')) {
+        return { rows: [{ sales_order_id: SO_ID }], rowCount: 1 };
+      }
+
+      if (q.startsWith('select sol.id::text as line_id') && q.includes('quantity_picked')) {
+        return { rows: [{ line_id: LINE_ID, required_qty: detailPickedQty, uom: 'kg' }], rowCount: 1 };
+      }
+
+      if (q.startsWith('select sbc.sales_order_line_id::text as line_id') && q.includes('sum(sbc.quantity)')) {
+        return { rows: [{ line_id: LINE_ID, packed_qty: detailPackedQty }], rowCount: 1 };
       }
 
       return { rows: [], rowCount: 0 };
@@ -493,6 +507,7 @@ describe('getShipment', () => {
         },
         boxes: [
           {
+            boxId: BOX_ID,
             boxNumber: 1,
             sscc: generatedSscc,
             contents: [
@@ -505,6 +520,13 @@ describe('getShipment', () => {
             ],
           },
         ],
+        packing: {
+          requiredQty: '10.000 kg',
+          packedQty: '10.000 kg',
+          remainingQty: '0',
+          packComplete: true,
+          skippedLineCount: 0,
+        },
       },
     });
     if (!result.ok) throw new Error('expected ok result');

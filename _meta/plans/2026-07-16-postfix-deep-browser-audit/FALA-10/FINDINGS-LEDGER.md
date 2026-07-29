@@ -80,3 +80,33 @@ więc nic nie powstało (sprawdziłem: 0 organizacji pasujących do fixture'a) �
 Do dowodzenia na prodzie służy `PREPARE` w transakcji z `rollback` albo czysty SELECT.
 Ten test wymaga lokalnego Postgresa (`pnpm db:up && pnpm db:test`) i w bramce pada głośno bez bazy —
 to świadomy wzorzec repo (lepszy niż ciche pomijanie), nie regresja.
+
+## Wynik weryfikacji na żywej produkcji — wszystkie 4 P0 ZAMKNIĘTE
+
+| P0 | Dowód |
+|---|---|
+| „Save this run" | `mrp_runs` **3→4**, `MRP-20260729-97CB4D75`, `status=completed`, `mrp_requirements` **37→48**, **zero błędów runtime** (przedtem `42P01`) |
+| Historia MRP przy zakładzie | 3 stare przebiegi (wszystkie `site_id IS NULL`) widoczne i otwieralne przy Main Factory |
+| `/en/production` | KPI + tabela 25 zleceń, konsola **0 błędów** |
+| Duplikat progu | Po edycji **1 wiersz, ten sam `id`, `site_id` nadal NULL** — aktualizacja w miejscu, plus ekran ma teraz kolumnę SITE |
+
+### Dwie rzeczy warte naśladowania w metodzie weryfikacji
+**Kontrola przeciwna.** Zamrożony licznik anulowanego WO (9 min przez 6 min 16 s) sam w sobie
+niczego nie dowodzi — mógłby znaczyć, że zegar zamarł globalnie. Weryfikator równolegle pokazał WO
+w toku tykające `23371 → 23372`. Dopiero to dowodzi, że naprawa jest **celowana**.
+
+**Rozróżnienie „działa" od „udowodniłem, że działa tam, gdzie trzeba".** Odrzucenie jawnego zera
+zadziałało — ale w logu sieciowym **nie ma POST-a**, więc zatrzymał to klient. Serwerowa bramka
+istnieje w kodzie i **nie została wykonana**. Zaraportowane jako niedowiedzione zamiast zaliczone.
+
+## Do backlogu (z weryfikacji, poza zakresem fal)
+- **Z10-01 (P2)** — dashboard produkcji **w ogóle nie filtruje po zakładzie**: przy Main Factory KPI
+  mówi `4 / 5`, a obie listy WO pokazują 3 (baza: 3 na Main Factory, 4 org-wide). `dashboard-data.ts`
+  nie ma ani jednego `app.current_site_id()`. Ta sama rodzina co P0-02, tylko filtra brak w całości.
+- **Z10-02 (P2)** — odrzucenie jawnego zerowego przestoju **nie nazywa powodu** operatorowi
+  („Check the fields and try again.").
+- **Z10-03 (P3)** — `work_orders.paused_at` nie jest czyszczone przy wznowieniu.
+- **Z10-04 (P3)** — `/en/settings/printers` zwraca **404**.
+- **Z10-06 (P3)** — `mrp_runs.completed_at` bywa wcześniejsze niż `started_at`.
+- **Informacja:** stare 500-tki na `/en/settings/units` są **nieaktualne** (dziś 200) — naprawa
+  z poprzedniej nocy trzyma.

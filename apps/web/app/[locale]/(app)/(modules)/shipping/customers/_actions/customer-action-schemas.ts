@@ -378,8 +378,8 @@ export const ALLERGEN_RESTRICTION_SELECT =
    car.customer_id::text,
    car.allergen_id::text,
    coalesce(
-     nullif(trim(rt.row_data->>'display_name'), ''),
-     ra.display_name,
+     nullif(trim(ra.display_name), ''),
+     nullif(trim(ra.allergen_name), ''),
      car.allergen_id::text
    ) as allergen_name,
    car.restriction_type,

@@ -151,6 +151,8 @@ export function NcrDetailClient({
 }) {
   const router = useRouter();
   const [status, setStatus] = useState(ncr.status);
+  const [closedAt, setClosedAt] = useState(ncr.closedAt);
+  const [closureSignatureHash, setClosureSignatureHash] = useState(ncr.closureSignatureHash);
   const isClosed = TERMINAL.has(status);
   const isCritical = ncr.severity === 'critical';
   const canClose = !isClosed && status === 'investigating';
@@ -240,8 +242,8 @@ export function NcrDetailClient({
         >
           <span aria-hidden>🔒</span>
           <span>
-            {labels.closedBanner.replace('{date}', ncr.closedAt ? ncr.closedAt.slice(0, 10) : '—')}
-            {ncr.closureSignatureHash ? ` ${labels.closedBannerSigned}` : ''}
+            {labels.closedBanner.replace('{date}', closedAt ? closedAt.slice(0, 10) : '—')}
+            {closureSignatureHash ? ` ${labels.closedBannerSigned}` : ''}
           </span>
         </div>
       )}
@@ -505,7 +507,12 @@ export function NcrDetailClient({
           ncr={{ id: ncr.id, ncrNumber: ncr.ncrNumber, title: ncr.title, severity: ncr.severity, status: ncr.status }}
           labels={labels.closeLabels}
           closeNcrAction={closeNcrAction}
-          onClosed={() => router.refresh()}
+          onClosed={(closed) => {
+            setStatus('closed');
+            setClosedAt(closed.closedAt);
+            setClosureSignatureHash(closed.signatureHash);
+            router.refresh();
+          }}
         />
       )}
     </div>

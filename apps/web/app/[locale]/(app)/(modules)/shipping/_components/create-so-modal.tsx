@@ -134,6 +134,7 @@ export type CreateSoModalProps = {
   searchSoItemsAction: (input: SearchItemsInput) => Promise<ItemPickerOption[]>;
   createCustomerAction: (input: { name: string; category: 'retail'; isActive: true }) => Promise<CreateCustomerResult>;
   createSalesOrderAction: (input: {
+    client_op_id: string;
     customer_id: string;
     requested_date?: string;
     notes?: string;
@@ -194,13 +195,22 @@ export function CreateSoModal({
 
   const [pending, setPending] = React.useState(false);
   const [formError, setFormError] = React.useState<string | null>(null);
+  const submittingRef = React.useRef(false);
+  const [clientOpId, setClientOpId] = React.useState('');
+
+  function mintClientOpId(): string {
+    return typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random()}`;
+  }
 
   React.useEffect(() => {
     setCustomerOptions(customers);
   }, [customers]);
 
-  // Reset all field + status state whenever the modal is closed.
-  React.useEffect(() => {
+  // Reset all field + status state whenever the modal is closed; mint client_op_id
+  // in useLayoutEffect so the first submit in the same tick can proceed.
+  React.useLayoutEffect(() => {
     if (!open) {
       setCustomerId('');
       setCreatingCustomer(false);
@@ -211,7 +221,12 @@ export function CreateSoModal({
       setLines([makeLine()]);
       setPending(false);
       setFormError(null);
+      submittingRef.current = false;
+      setClientOpId('');
+      return;
     }
+    setClientOpId(mintClientOpId());
+    submittingRef.current = false;
   }, [open]);
 
   async function onCreateCustomer() {
@@ -295,11 +310,16 @@ export function CreateSoModal({
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (submittingRef.current) return;
     setFormError(null);
 
     if (!customerId) {
       setFormError(labels.errors.customerRequired);
       return;
+    }
+    const opId = clientOpId || mintClientOpId();
+    if (!clientOpId) {
+      setClientOpId(opId);
     }
     const validLines = lines.filter(
       (l) =>
@@ -320,9 +340,11 @@ export function CreateSoModal({
       return;
     }
 
+    submittingRef.current = true;
     setPending(true);
     try {
       const result = await createSalesOrderAction({
+        client_op_id: opId,
         customer_id: customerId,
         requested_date: requested || undefined,
         notes: notes.trim() || undefined,
@@ -340,6 +362,7 @@ export function CreateSoModal({
       if (!result.ok) {
         const map = labels.errors as Record<string, string>;
         setFormError(map[result.error] ?? labels.errors.persistence_failed);
+        submittingRef.current = false;
         setPending(false);
         return;
       }
@@ -347,6 +370,7 @@ export function CreateSoModal({
       onOpenChange(false);
     } catch {
       setFormError(labels.errors.persistence_failed);
+      submittingRef.current = false;
       setPending(false);
     }
   }

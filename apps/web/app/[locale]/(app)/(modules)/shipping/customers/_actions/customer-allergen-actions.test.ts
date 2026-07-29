@@ -6,6 +6,7 @@ import {
   listAllergenReferenceOptions,
   updateCustomerAllergenRestriction,
 } from './customer-allergen-actions';
+import { shippingAllergenReferenceId } from './customer-allergen-reference';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -18,7 +19,7 @@ const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
 const CUSTOMER_ID = '33333333-3333-4333-8333-333333333333';
 const RESTRICTION_ID = '44444444-4444-4444-8444-444444444444';
-const ALLERGEN_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const ALLERGEN_ID = shippingAllergenReferenceId(ORG_ID, 'milk');
 
 let client: QueryClient;
 let queryLog: Array<{ sql: string; params: readonly unknown[] }> = [];
@@ -36,6 +37,11 @@ vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
 
 function normalize(sql: string): string {
   return sql.replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+/** Matches SQL against canonical `"Reference"."Allergens"` after normalize(). */
+function referencesCanonicalAllergens(sql: string): boolean {
+  return normalize(sql).includes('"reference"."allergens"');
 }
 
 function restrictionRow(over: Record<string, unknown> = {}) {
@@ -64,7 +70,10 @@ function makeClient(): QueryClient {
       if (q.includes('from public.customers') && q.includes('deleted_at is null')) {
         return customerExists ? { rows: [{ ok: true }], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
-      if (q.includes('from public.reference_tables rt') && q.includes('reference.allergens_reference')) {
+      if (q.includes('from public.customer_allergen_restrictions car')) {
+        return { rows: [restrictionRow()], rowCount: 1 };
+      }
+      if (referencesCanonicalAllergens(sql)) {
         if (q.includes('order by name asc')) {
           return {
             rows: [{ id: ALLERGEN_ID, name: 'Milk' }],
@@ -81,9 +90,6 @@ function makeClient(): QueryClient {
       }
       if (q.startsWith('update public.customer_allergen_restrictions') && q.includes('set deleted_at')) {
         return { rows: [{ id: RESTRICTION_ID }], rowCount: 1 };
-      }
-      if (q.includes('from public.customer_allergen_restrictions car')) {
-        return { rows: [restrictionRow()], rowCount: 1 };
       }
       if (q.startsWith('insert into public.audit_events')) {
         return { rows: [], rowCount: 1 };
@@ -103,13 +109,23 @@ beforeEach(() => {
 });
 
 describe('listAllergenReferenceOptions', () => {
-  it('returns org-scoped allergen reference rows', async () => {
+  it('returns canonical allergen ids resolved via shipping_allergen_reference_id', async () => {
     const result = await listAllergenReferenceOptions();
     expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.data).toEqual([{ id: ALLERGEN_ID, name: 'Milk' }]);
-    }
-    expect(normalize(queryLog[0]!.sql)).toContain('app.current_org_id()');
+    if (!result.ok) return;
+
+    expect(result.data).toEqual([{ id: ALLERGEN_ID, name: 'Milk' }]);
+    expect(result.data[0]?.id).toBe(shippingAllergenReferenceId(ORG_ID, 'milk'));
+
+    const listQuery = queryLog.find(
+      (entry) =>
+        normalize(entry.sql).includes('shipping_allergen_reference_id') &&
+        normalize(entry.sql).includes('order by name asc'),
+    );
+    expect(listQuery).toBeTruthy();
+    expect(normalize(listQuery!.sql)).toMatch(
+      /shipping_allergen_reference_id\s*\(\s*ra\.org_id\s*,\s*ra\.allergen_code\s*\)/,
+    );
   });
 });
 
@@ -139,6 +155,13 @@ describe('createCustomerAllergenRestriction', () => {
       restrictionType: 'refuses',
     });
     expect(result).toEqual({ ok: false, error: 'invalid_input', message: 'Unknown allergen reference' });
+    expect(
+      queryLog.some(
+        (e) =>
+          normalize(e.sql).includes('shipping_allergen_reference_id') &&
+          e.params?.[0] === ALLERGEN_ID,
+      ),
+    ).toBe(true);
     expect(queryLog.some((e) => normalize(e.sql).startsWith('insert into public.customer_allergen_restrictions'))).toBe(
       false,
     );

@@ -104,15 +104,9 @@ async function assertCustomerExists(ctx: OrgActionContext, customerId: string): 
 async function assertAllergenReferenceExists(ctx: OrgActionContext, allergenId: string): Promise<boolean> {
   const { rows } = await ctx.client.query<{ ok: boolean }>(
     `select true as ok
-       from public.reference_tables rt
-      where rt.org_id = app.current_org_id()
-        and rt.table_code = 'reference.allergens_reference'
-        and rt.is_active
-        and rt.deleted_at is null
-        and (
-          rt.row_data->>'id' = $1::text
-          or rt.row_key = $1::text
-        )
+       from "Reference"."Allergens" ra
+      where ra.org_id = app.current_org_id()
+        and public.shipping_allergen_reference_id(ra.org_id, ra.allergen_code) = $1::uuid
       limit 1`,
     [allergenId],
   );
@@ -127,17 +121,9 @@ async function loadRestrictionById(
   const { rows } = await ctx.client.query<Parameters<typeof mapCustomerAllergenRestriction>[0]>(
     `select ${ALLERGEN_RESTRICTION_SELECT}
        from public.customer_allergen_restrictions car
-       left join public.reference_tables rt
-         on rt.org_id = car.org_id
-        and rt.table_code = 'reference.allergens_reference'
-        and rt.is_active
-        and (
-          rt.row_data->>'id' = car.allergen_id::text
-          or rt.row_key = car.allergen_id::text
-        )
        left join "Reference"."Allergens" ra
-         on ra.org_id = app.current_org_id()
-        and ra.allergen_code = coalesce(nullif(trim(rt.row_data->>'allergen_code'), ''), rt.row_key)
+         on ra.org_id = car.org_id
+        and public.shipping_allergen_reference_id(ra.org_id, ra.allergen_code) = car.allergen_id
       where car.org_id = app.current_org_id()
         and car.customer_id = $1::uuid
         and car.id = $2::uuid
@@ -153,17 +139,14 @@ export async function listAllergenReferenceOptions(): Promise<CustomerResult<All
   try {
     return await withOrgContext(async ({ client }): Promise<CustomerResult<AllergenReferenceOption[]>> => {
       const { rows } = await (client as QueryClient).query<{ id: string; name: string }>(
-        `select coalesce(nullif(trim(rt.row_data->>'id'), ''), rt.row_key)::text as id,
+        `select public.shipping_allergen_reference_id(ra.org_id, ra.allergen_code)::text as id,
                 coalesce(
-                  nullif(trim(rt.row_data->>'display_name'), ''),
-                  nullif(trim(rt.row_data->>'allergen_code'), ''),
-                  rt.row_key
+                  nullif(trim(ra.display_name), ''),
+                  nullif(trim(ra.allergen_name), ''),
+                  ra.allergen_code
                 ) as name
-           from public.reference_tables rt
-          where rt.org_id = app.current_org_id()
-            and rt.table_code = 'reference.allergens_reference'
-            and rt.is_active
-            and rt.deleted_at is null
+           from "Reference"."Allergens" ra
+          where ra.org_id = app.current_org_id()
           order by name asc`,
       );
       return { ok: true, data: rows.map((row) => ({ id: row.id, name: row.name })) };

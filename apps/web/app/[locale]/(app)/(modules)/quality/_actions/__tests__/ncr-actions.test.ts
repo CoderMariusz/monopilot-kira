@@ -16,6 +16,10 @@ const USER_ID = '22222222-2222-4222-8222-222222222222';
 const NCR_ID = '33333333-3333-4333-8333-333333333333';
 const PRODUCT_ID = '44444444-4444-4444-8444-444444444444';
 const HOLD_ID = '55555555-5555-4555-8555-555555555555';
+const INSPECTION_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const SUPPLIER_ID = '88888888-8888-4888-8888-888888888888';
+const BATCH_OUTPUT_ID = '99999999-9999-4999-8999-999999999999';
+const CONFLICT_PRODUCT_ID = '77777777-7777-4777-8777-777777777777';
 
 const CCP_ID = '66666666-6666-4666-8666-666666666666';
 const SITE_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -181,6 +185,22 @@ function makeClient(): QueryClient {
         return { rows: [{ id: NCR_ID, ncr_number: 'NCR-00001001', status: 'open' }], rowCount: 1 };
       }
 
+      if (q.includes('select true as ok') && q.includes('from public.license_plates lp')) {
+        return { rows: [{ ok: true }], rowCount: 1 };
+      }
+
+      if (q.includes('select lp.product_id::text as product_id')) {
+        return { rows: [{ product_id: PRODUCT_ID }], rowCount: 1 };
+      }
+
+      if (q.startsWith('select id::text') && q.includes('from public.items')) {
+        return { rows: [{ id: PRODUCT_ID }], rowCount: 1 };
+      }
+
+      if (q.startsWith('select id::text') && q.includes('from public.quality_holds')) {
+        return { rows: [{ id: HOLD_ID }], rowCount: 1 };
+      }
+
       if (q.includes('select id::text, status, root_cause') && q.includes('from public.ncr_reports')) {
         return {
           rows: [
@@ -324,24 +344,94 @@ describe('quality NCR server actions', () => {
     await expect(createNcr({ ncrType: 'quality', severity: 'minor' })).resolves.toEqual({ ok: false, reason: 'forbidden' });
   });
 
-  it('creates an NCR without writing generated ncr_number and emits the opened event', async () => {
+  it('auto-fills product_id from the inspection source when the client omits productId', async () => {
     const result = await createNcr({
       ncrType: 'quality',
       severity: 'major',
       title: 'Seal failure',
       description: 'Top seal failed inspection',
-      productId: PRODUCT_ID,
+      referenceType: 'inspection',
+      referenceId: INSPECTION_ID,
       affectedQtyKg: '12.500',
       linkedHoldId: HOLD_ID,
     });
 
     expect(result).toEqual({ ok: true, data: { id: NCR_ID, ncrNumber: 'NCR-00001001', status: 'open' } });
-    const insert = vi.mocked(client.query).mock.calls.find(([sql]) => normalize(String(sql)).startsWith('insert into public.ncr_reports'));
-    const insertedColumns = normalize(String(insert?.[0])).split(') values')[0];
-    expect(insertedColumns).not.toContain('ncr_number');
+    const insert = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      normalize(String(sql)).startsWith('insert into public.ncr_reports'),
+    );
+    expect(insert?.[1]?.[4]).toBe('inspection');
+    expect(insert?.[1]?.[5]).toBe(INSPECTION_ID);
+    expect(insert?.[1]?.[6]).toBe(PRODUCT_ID);
     expect(insert?.[1]?.[8]).toBe('12.500');
-    const outbox = vi.mocked(client.query).mock.calls.find(([sql]) => normalize(String(sql)).startsWith('insert into public.outbox_events'));
-    expect(outbox?.[1]?.[0]).toBe('quality.ncr.opened');
+    expect(insert?.[1]?.[9]).toBe(HOLD_ID);
+  });
+
+  it('rejects create when the linked reference is not found in the org', async () => {
+    const originalQuery = client.query;
+    client.query = vi.fn(async (sql: string, params: readonly unknown[] = []) => {
+      const q = normalize(sql);
+      if (q.includes('select true as ok') && q.includes('from public.license_plates lp')) {
+        return { rows: [], rowCount: 0 };
+      }
+      return originalQuery(sql, params);
+    }) as QueryClient['query'];
+
+    await expect(
+      createNcr({
+        ncrType: 'quality',
+        severity: 'major',
+        referenceType: 'inspection',
+        referenceId: INSPECTION_ID,
+      }),
+    ).resolves.toEqual({
+      ok: false,
+      reason: 'error',
+      message: 'ncr_reference_not_found',
+    });
+  });
+
+  it('rejects create when productId conflicts with the inspection source product', async () => {
+    await expect(
+      createNcr({
+        ncrType: 'quality',
+        severity: 'major',
+        referenceType: 'inspection',
+        referenceId: INSPECTION_ID,
+        productId: CONFLICT_PRODUCT_ID,
+      }),
+    ).resolves.toEqual({
+      ok: false,
+      reason: 'error',
+      message: 'ncr_product_reference_mismatch',
+    });
+  });
+
+  it('validates supplier and batch references against org-scoped rows', async () => {
+    await createNcr({
+      ncrType: 'supplier',
+      severity: 'major',
+      referenceType: 'supplier',
+      referenceId: SUPPLIER_ID,
+    });
+    const supplierValidate = vi.mocked(client.query).mock.calls.find(
+      ([sql, params]) =>
+        normalize(String(sql)).includes('select true as ok') && params?.[0] === 'supplier',
+    );
+    expect(supplierValidate).toBeTruthy();
+    expect(normalize(String(supplierValidate?.[0]))).toContain('from public.suppliers s');
+
+    await createNcr({
+      ncrType: 'quality',
+      severity: 'major',
+      referenceType: 'batch',
+      referenceId: BATCH_OUTPUT_ID,
+    });
+    const batchValidate = vi.mocked(client.query).mock.calls.find(
+      ([sql, params]) => normalize(String(sql)).includes('select true as ok') && params?.[0] === 'batch',
+    );
+    expect(batchValidate).toBeTruthy();
+    expect(normalize(String(batchValidate?.[0]))).toContain('from public.wo_outputs woo');
   });
 
   it('updates real investigation columns and stores corrective action in ext_jsonb', async () => {

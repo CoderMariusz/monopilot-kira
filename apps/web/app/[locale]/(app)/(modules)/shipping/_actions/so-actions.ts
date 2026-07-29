@@ -33,6 +33,12 @@ import { readLockedSalesOrderStatus, writeSalesOrderStatusInContext } from './so
 import { revalidateLocalized } from '../../../../../../lib/i18n/revalidate-localized';
 import { OrderLineUomError, resolveOrderQtyToInventoryQty, SALES_ORDER_LINE_ALLOCATED_TO_ORDER_SQL } from '../../../../../../lib/shipping/order-line-uom';
 import {
+  buildSoCreateIdempotencyPayload,
+  hashSoCreatePayload,
+  isUuidV4ish,
+  soCreateIdempotencyTransactionId,
+} from './so-create-idempotency';
+import {
   DEFAULT_SO_LIST_PAGE_SIZE,
   normalizePage,
   toPaginatedResult,
@@ -82,6 +88,7 @@ type TransitionSalesOrderStatusResult = ActionResult<
 type DeallocateSalesOrderResult = ActionResult<null, ForbiddenFailure | { ok: false; error: 'deallocate_not_allowed' }>;
 
 type CreateSalesOrderInput = {
+  client_op_id: string;
   customer_id: string;
   requested_date?: string;
   notes?: string;
@@ -550,14 +557,13 @@ export async function listSalesOrders(params: {
                      and sol.deleted_at is null
                 ) as line_count,
                 coalesce(
-                  so.total_amount_gbp,
                   (
-                    select sum(coalesce(
+                    select sum(round(coalesce(
                       sol.line_total_gbp,
                       sol.quantity_ordered * sol.unit_price_gbp
                         * (1 - coalesce(sol.discount_pct, 0) / 100)
                         * (1 + coalesce(sol.tax_pct, 0) / 100)
-                    ))
+                    ), 2))
                       from public.sales_order_lines sol
                      where sol.org_id = app.current_org_id()
                        and sol.sales_order_id = so.id
@@ -597,12 +603,48 @@ export async function getSalesOrder(id: string): Promise<GetSalesOrderResult> {
 }
 
 export async function createSalesOrder(input: CreateSalesOrderInput): Promise<CreateSalesOrderResult> {
+  const clientOpId = input.client_op_id?.trim();
+  if (!clientOpId || !isUuidV4ish(clientOpId)) {
+    return { ok: false, error: 'invalid_input', message: 'client_op_id must be a UUID' };
+  }
+
   return withOrgContext(async ({ userId, orgId, client }): Promise<CreateSalesOrderResult> => {
     const ctx: ShippingContext = { userId, orgId, client: client as QueryClient };
     const forbidden = await requirePermission(ctx, SHIP_SO_CREATE);
     if (forbidden) return forbidden;
     if (input.lines.length === 0) {
       return { ok: false, error: 'invalid_input', message: 'Sales order requires at least one line' };
+    }
+
+    const idempotencyPayload = buildSoCreateIdempotencyPayload(input);
+    const requestHash = hashSoCreatePayload(idempotencyPayload);
+    const idempotencyTransactionId = soCreateIdempotencyTransactionId(orgId, clientOpId);
+
+    await ctx.client.query(`select pg_advisory_xact_lock(hashtextextended($1, 0))`, [
+      `${orgId}:ship.so.create:${clientOpId}`,
+    ]);
+
+    const existing = await ctx.client.query<{ request_hash: string; response_json: { ok?: boolean; data?: { id?: string } } }>(
+      `select request_hash, response_json
+         from public.idempotency_keys
+        where transaction_id = $1::uuid
+          and org_id = app.current_org_id()
+        limit 1`,
+      [idempotencyTransactionId],
+    );
+    const existingRow = existing.rows[0];
+    if (existingRow) {
+      if (existingRow.request_hash !== requestHash) {
+        return {
+          ok: false,
+          error: 'invalid_input',
+          message: 'Idempotency key was reused with a different sales order payload',
+        };
+      }
+      const replaySoId = existingRow.response_json?.data?.id;
+      if (replaySoId) {
+        return { ok: true, data: await fetchSalesOrder(ctx, replaySoId) };
+      }
     }
 
     const { rows: customerRows } = await ctx.client.query<{ id: string }>(
@@ -785,7 +827,50 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
       );
     }
 
+    await ctx.client.query(
+      `update public.sales_orders so
+          set total_amount_gbp = (
+                select coalesce(sum(round(coalesce(
+                  sol.line_total_gbp,
+                  sol.quantity_ordered * sol.unit_price_gbp
+                    * (1 - coalesce(sol.discount_pct, 0) / 100)
+                    * (1 + coalesce(sol.tax_pct, 0) / 100)
+                ), 2)), 0)
+                  from public.sales_order_lines sol
+                 where sol.org_id = app.current_org_id()
+                   and sol.sales_order_id = so.id
+                   and sol.deleted_at is null
+              ),
+              updated_by = $2::uuid
+        where so.org_id = app.current_org_id()
+          and id = $1::uuid`,
+      [soId, userId],
+    );
+
     const created = await fetchSalesOrder(ctx, soId);
+
+    const insertedKey = await ctx.client.query<{ org_id: string; request_hash: string }>(
+      `insert into public.idempotency_keys (transaction_id, org_id, request_hash, response_json)
+       values ($1::uuid, $2::uuid, $3, $4::jsonb)
+       on conflict (transaction_id) do nothing
+       returning org_id::text, request_hash`,
+      [idempotencyTransactionId, orgId, requestHash, JSON.stringify({ ok: true, data: { id: soId } })],
+    );
+    if ((insertedKey.rowCount ?? 0) === 0) {
+      const { rows: verifyRows } = await ctx.client.query<{ org_id: string; request_hash: string }>(
+        `select org_id::text, request_hash
+           from public.idempotency_keys
+          where transaction_id = $1::uuid
+            and org_id = app.current_org_id()
+          limit 1`,
+        [idempotencyTransactionId],
+      );
+      const verified = verifyRows[0];
+      if (!verified || verified.org_id !== orgId || verified.request_hash !== requestHash) {
+        throw new Error('Idempotency key conflict for sales order create');
+      }
+    }
+
     revalidateLocalized('/shipping');
     return { ok: true, data: created };
   });
@@ -1049,12 +1134,12 @@ export async function updateSalesOrder(soId: string, input: UpdateSalesOrderInpu
       await ctx.client.query(
         `update public.sales_orders so
             set total_amount_gbp = (
-                  select coalesce(sum(coalesce(
+                  select coalesce(sum(round(coalesce(
                     sol.line_total_gbp,
                     sol.quantity_ordered * sol.unit_price_gbp
                       * (1 - coalesce(sol.discount_pct, 0) / 100)
                       * (1 + coalesce(sol.tax_pct, 0) / 100)
-                  )), 0)
+                  ), 2)), 0)
                     from public.sales_order_lines sol
                    where sol.org_id = app.current_org_id()
                      and sol.sales_order_id = so.id

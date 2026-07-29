@@ -35,9 +35,21 @@ export type ShipmentBoxDetail = {
   boxNumber: number;
   sscc: string | null;
   contents: ShipmentBoxContentDetail[];
+  /** Raw box id — used to target an existing box when packing additional qty. */
+  boxId: string;
+};
+
+export type ShipmentPackProgress = {
+  requiredQty: string;
+  packedQty: string;
+  remainingQty: string;
+  packComplete: boolean;
+  /** Picked lines without inventory UoM — omitted from cross-line qty totals. */
+  skippedLineCount?: number;
 };
 
 export type ShipmentDetail = {
   shipment: ShipmentRow;
   boxes: ShipmentBoxDetail[];
+  packing: ShipmentPackProgress;
 };

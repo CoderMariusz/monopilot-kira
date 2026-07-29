@@ -11776,7 +11776,9 @@
           "salesOrder": "Sales order",
           "customer": "Customer",
           "status": "Status",
-          "boxes": "Boxes"
+          "boxes": "Boxes",
+          "packedQty": "Спакована кількість",
+          "requiredQty": "Скомплектована кількість"
         },
         "boxes": {
           "title": "Boxes",
@@ -11805,12 +11807,15 @@
           "sealSubmitting": "Sealing…",
           "sealNoPermission": "You do not have permission to seal this shipment.",
           "sealNeedsBox": "Pack at least one box before sealing.",
-          "sealInvalidState": "This shipment cannot be sealed in its current status."
+          "sealInvalidState": "This shipment cannot be sealed in its current status.",
+          "sealIncompletePack": "Спакуйте залишок {remaining} перед опломбуванням.",
+          "sealIncompletePackSkipped": "({skipped} рядків без одиниці інвентаризації пропущено в цьому підсумку.)"
         },
         "errors": {
-          "invalid_input": "Enter a license plate code.",
-          "invalid_state": "This shipment cannot be packed in its current status.",
-          "no_boxes": "Pack at least one box before sealing the shipment.",
+          "invalid_input": "Введіть код палети (LP).",
+          "invalid_state": "Цю відправку не можна пакувати в поточному статусі.",
+          "no_boxes": "Спакуйте принаймні одну коробку перед опломбуванням.",
+          "incomplete_pack": "Спакована кількість не збігається зі скомплектованою — завершіть пакування перед опломбуванням.",
           "lp_not_found": "That license plate was not found.",
           "lp_not_allocated": "That license plate is not allocated to this sales order.",
           "already_packed": "That license plate is already packed.",
@@ -12249,6 +12254,7 @@
             "subtitle": "Визначте, як цей клієнт обмежує алергени у відвантажуваних продуктах.",
             "allergenLabel": "Алерген",
             "allergenPlaceholder": "Оберіть алерген",
+            "referenceUnavailable": "Для цієї організації немає довідника алергенів. Попросіть адміністратора заповнити майстер EU-14 перед додаванням обмежень для клієнта.",
             "restrictionLabel": "Тип обмеження",
             "notesLabel": "Примітки",
             "notesPlaceholder": "Необов'язковий контекст для операторів і QA",
@@ -12256,7 +12262,8 @@
             "submitEdit": "Зберегти зміни",
             "submitting": "Збереження…",
             "errors": {
-              "allergenRequired": "Оберіть алерген."
+              "allergenRequired": "Оберіть алерген.",
+              "referenceUnavailable": "Довідник алергенів не налаштовано для цієї організації."
             }
           }
         },

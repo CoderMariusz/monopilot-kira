@@ -46,7 +46,12 @@ import { ShippingTabs } from '../_components/shipping-tabs';
 
 /** Thin client-facing adapter so the client view's narrow seam type lines up with the
  *  server result union. */
-async function packLpAction(input: { shipmentId: string; lpId: string; boxId?: string }): Promise<PackLpResult> {
+async function packLpAction(input: {
+  shipmentId: string;
+  lpId: string;
+  boxId?: string;
+  quantity?: string;
+}): Promise<PackLpResult> {
   'use server';
   const result = await packLpIntoBox(input);
   return result.ok ? { ok: true, boxId: result.boxId } : { ok: false, error: result.error };
@@ -135,6 +140,8 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): ShipmentPa
       customer: t('pack.summary.customer'),
       status: t('pack.summary.status'),
       boxes: t('pack.summary.boxes'),
+      packedQty: t('pack.summary.packedQty'),
+      requiredQty: t('pack.summary.requiredQty'),
     },
     boxes: {
       title: t('pack.boxes.title'),
@@ -166,12 +173,15 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): ShipmentPa
       noPermission: t('pack.control.sealNoPermission'),
       needsBox: t('pack.control.sealNeedsBox'),
       invalidState: t('pack.control.sealInvalidState'),
+      incompletePack: t('pack.control.sealIncompletePack'),
+      incompletePackSkipped: t('pack.control.sealIncompletePackSkipped'),
     },
     errors: {
       invalid_input: t('pack.errors.invalid_input'),
       forbidden: t('errors.forbidden'),
       invalid_state: t('pack.errors.invalid_state'),
       no_boxes: t('pack.errors.no_boxes'),
+      incomplete_pack: t('pack.errors.incomplete_pack'),
       lp_not_found: t('pack.errors.lp_not_found'),
       lp_not_allocated: t('pack.errors.lp_not_allocated'),
       already_packed: t('pack.errors.already_packed'),
@@ -381,6 +391,7 @@ async function PackContent({ locale, shipmentId }: { locale: string; shipmentId:
       detail={{
         shipment: { ...data.shipment, weight: null },
         boxes: data.boxes,
+        packing: data.packing,
       }}
       labels={buildLabels(t)}
       packLpIntoBoxAction={packLpAction}

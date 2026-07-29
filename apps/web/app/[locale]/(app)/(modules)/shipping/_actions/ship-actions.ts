@@ -8,9 +8,15 @@ import { z } from 'zod';
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { debitWac } from '../../../../../../lib/finance/upsert-wac';
+import { fetchShipmentPackCompleteness } from '../../../../../../lib/shipping/shipment-pack-completeness';
 import { LIVE_ALLOCATION_SQL, SHIP_CLOSED_ALLOCATION_REASON } from './so-transitions';
 import type { SalesOrderStatus } from './so-transitions';
-import { readLockedSalesOrderStatus, writeSalesOrderStatusInContext, writeShipmentStatusInContext } from './so-status-write';
+import {
+  readLockedSalesOrderStatus,
+  readLockedShipmentStatus,
+  writeSalesOrderStatusInContext,
+  writeShipmentStatusInContext,
+} from './so-status-write';
 import type {
   GenerateBolInput,
   GenerateBolResult,
@@ -296,36 +302,41 @@ export async function sealShipment(shipmentId: string): Promise<SealShipmentResu
       const forbidden = await requirePermission(ctx, SHIP_PACK_CLOSE);
       if (forbidden) return forbidden;
 
-      const { rows: shipmentRows } = await ctx.client.query<{
-        id: string;
-        status: string;
-        box_count: number | string | bigint | null;
-      }>(
-        `select sh.id::text,
-                sh.status,
-                count(distinct sb.id)::int as box_count
-           from public.shipments sh
-           left join public.shipment_boxes sb on sb.shipment_id = sh.id
-            and sb.org_id = app.current_org_id()
-            and sb.deleted_at is null
-          where sh.org_id = app.current_org_id()
-            and sh.id = $1::uuid
-            and sh.deleted_at is null
-          group by sh.id, sh.status
-          limit 1`,
-        [shipmentId],
-      );
-      const shipment = shipmentRows[0];
-      if (!shipment || shipment.status !== 'packing') {
+      const locked = await readLockedShipmentStatus(ctx, shipmentId);
+      if (locked === 'not_found' || locked.status !== 'packing') {
         return { ok: false, error: 'invalid_state' };
       }
-      if (toNumber(shipment.box_count) < 1) {
+      if (!locked.salesOrderId) {
+        return { ok: false, error: 'invalid_state' };
+      }
+
+      const { rows: boxRows } = await ctx.client.query<{ box_count: number | string | bigint | null }>(
+        `select count(distinct sb.id)::int as box_count
+           from public.shipment_boxes sb
+          where sb.shipment_id = $1::uuid
+            and sb.org_id = app.current_org_id()
+            and sb.deleted_at is null`,
+        [shipmentId],
+      );
+      if (toNumber(boxRows[0]?.box_count) < 1) {
         return { ok: false, error: 'no_boxes' };
       }
 
-      const sealResult = await writeShipmentStatusInContext(ctx, shipmentId, 'packed', {
-        currentStatus: 'packing',
-      });
+      const packCompleteness = await fetchShipmentPackCompleteness(
+        ctx.client,
+        shipmentId,
+        locked.salesOrderId,
+      );
+      if (!packCompleteness.complete) {
+        return { ok: false, error: 'incomplete_pack' };
+      }
+
+      const lockedAfterPackCheck = await readLockedShipmentStatus(ctx, shipmentId);
+      if (lockedAfterPackCheck === 'not_found' || lockedAfterPackCheck.status !== 'packing') {
+        return { ok: false, error: 'invalid_state' };
+      }
+
+      const sealResult = await writeShipmentStatusInContext(ctx, shipmentId, 'packed');
       if (sealResult !== 'ok') throw new ActionError('persistence_failed');
 
       await ctx.client.query(

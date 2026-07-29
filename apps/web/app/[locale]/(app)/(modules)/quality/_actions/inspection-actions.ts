@@ -25,8 +25,18 @@ import {
 } from '../../../../../../lib/shared/pagination';
 import { qualityListSiteClause, qualityListSiteParams } from './list-site-scope';
 import { transitionWoOutputQaForContext } from '../../../../../../lib/production/output/transition-output-qa';
+import {
+  allParametersPass,
+  applySpecBoundsToParameters,
+  normalizeParameterName,
+  type InspectionParameterRecord,
+  validateSpecParameterCompleteness,
+} from '../../../../../../lib/quality/evaluate-inspection-parameter';
+import {
+  loadActiveSpecParameterBounds,
+  resolveInspectionParameters,
+} from '../../../../../../lib/quality/resolve-inspection-parameters';
 import { createHoldForContext } from './hold-actions';
-import { resolveInspectionParameters } from '../../../../../../lib/quality/resolve-inspection-parameters';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -187,6 +197,23 @@ const recordSchema = z.object({
   notes: z.string().trim().max(4000).optional(),
 });
 
+/** Stable operator-facing codes — never return raw Zod issue JSON to the UI. */
+function mapRecordInspectionValidationCode(error: z.ZodError): string {
+  for (const issue of error.issues) {
+    const field = issue.path[issue.path.length - 1];
+    if (field === 'actual' && (issue.code === 'too_small' || issue.code === 'invalid_type')) {
+      return 'actual_required';
+    }
+    if (field === 'parameters' && issue.code === 'too_small') {
+      return 'parameters_required';
+    }
+    if (field === 'name' && issue.code === 'too_small') {
+      return 'parameter_name_required';
+    }
+  }
+  return 'validation_failed';
+}
+
 const decisionSchema = z.object({
   inspectionId: uuidSchema,
   decision: z.enum(['pass', 'fail', 'hold']),
@@ -311,14 +338,14 @@ async function createInspectionHoldIfMissing(
     priority: 'high' | 'critical';
     inspectionId: string;
   },
-): Promise<void> {
+): Promise<string> {
   const reasonText = `Inspection ${params.inspectionId}: ${params.reasonText}`;
   const existing = await findActiveHoldForReference(ctx, {
     referenceType: params.referenceType,
     referenceId: params.referenceId,
     reasonText,
   });
-  if (existing) return;
+  if (existing) return existing;
 
   const hold = await createHoldForContext(ctx, {
     referenceType: params.referenceType,
@@ -328,6 +355,187 @@ async function createInspectionHoldIfMissing(
     lpIds: params.lpIds,
   });
   if (!hold.ok) throw new Error(hold.message ?? 'quality hold could not be created');
+  return hold.data.id;
+}
+
+async function findActiveNcrForInspection(ctx: QualityContext, inspectionId: string): Promise<string | null> {
+  const { rows } = await ctx.client.query<{ id: string }>(
+    `select id::text
+       from public.ncr_reports
+      where org_id = app.current_org_id()
+        and reference_type = 'inspection'
+        and reference_id = $1::uuid
+        and status not in ('closed', 'cancelled')
+      order by created_at desc
+      limit 1
+      for update`,
+    [inspectionId],
+  );
+  return rows[0]?.id ?? null;
+}
+
+async function createInspectionFailureNcrIfMissing(
+  ctx: QualityContext,
+  params: {
+    inspectionId: string;
+    inspectionNumber: string;
+    productId: string | null;
+    linkedHoldId: string | null;
+    note: string | null;
+    siteId: string | null;
+  },
+): Promise<string | null> {
+  const existing = await findActiveNcrForInspection(ctx, params.inspectionId);
+  if (existing) return existing;
+
+  const created = await ctx.client.query<{ id: string; ncr_number: string }>(
+    `insert into public.ncr_reports (
+       org_id,
+       site_id,
+       ncr_type,
+       severity,
+       status,
+       title,
+       description,
+       reference_type,
+       reference_id,
+       product_id,
+       detected_by,
+       linked_hold_id
+     )
+     values (
+       app.current_org_id(),
+       $7::uuid,
+       'quality',
+       'major',
+       'open',
+       $1,
+       $2,
+       'inspection',
+       $3::uuid,
+       $4::uuid,
+       $5::uuid,
+       $6::uuid
+     )
+     returning id::text, ncr_number`,
+    [
+      `Failed inspection ${params.inspectionNumber}`,
+      params.note ?? `Inspection ${params.inspectionNumber} was signed as failed.`,
+      params.inspectionId,
+      params.productId,
+      ctx.userId,
+      params.linkedHoldId,
+      params.siteId,
+    ],
+  );
+  const row = created.rows[0];
+  if (!row) throw new Error('NCR insert did not return a row');
+
+  await ctx.client.query(
+    `insert into public.outbox_events
+       (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
+     values (app.current_org_id(), 'quality.ncr.opened', 'ncr_report', $1::uuid, $2::jsonb, 'quality-ncrs-v1')`,
+    [
+      row.id,
+      JSON.stringify({
+        org_id: ctx.orgId,
+        actor_user_id: ctx.userId,
+        ncrId: row.id,
+        ncrNumber: row.ncr_number,
+        severity: 'major',
+        ncrType: 'quality',
+        source: 'inspection_failure',
+        inspectionId: params.inspectionId,
+      }),
+    ],
+  );
+
+  revalidateLocalized('/quality/ncrs');
+  revalidateLocalized(`/quality/ncrs/${row.id}`);
+  return row.id;
+}
+
+async function resolveInspectionContext(
+  ctx: QualityContext,
+  inspectionId: string,
+): Promise<{ productId: string | null; referenceType: ReferenceType } | null> {
+  const { rows } = await ctx.client.query<{ product_id: string | null; reference_type: ReferenceType }>(
+    `select coalesce(qi.product_id, lp.product_id, woo.product_id)::text as product_id,
+            qi.reference_type
+       from public.quality_inspections qi
+       left join public.license_plates lp
+         on qi.reference_type = 'lp'
+        and lp.id = qi.reference_id
+        and lp.org_id = qi.org_id
+       left join public.wo_outputs woo
+         on qi.reference_type = 'wo_output'
+        and woo.id = qi.reference_id
+        and woo.org_id = qi.org_id
+      where qi.org_id = app.current_org_id()
+        and qi.id = $1::uuid
+      limit 1`,
+    [inspectionId],
+  );
+  const row = rows[0];
+  if (!row) return null;
+  return { productId: row.product_id, referenceType: row.reference_type };
+}
+
+async function enforceSpecBoundsOnParameters(
+  ctx: QualityContext,
+  inspectionId: string,
+  parameters: InspectionParameterRecord[],
+  options: { rejectClientPassMismatch: boolean; requireSpecCompleteness: boolean },
+): Promise<
+  | { ok: true; parameters: InspectionParameterRecord[] }
+  | {
+      ok: false;
+      reason:
+        | 'parameter_out_of_spec'
+        | 'missing_spec_parameters'
+        | 'unknown_spec_parameters'
+        | 'ambiguous_active_spec';
+    }
+> {
+  const context = await resolveInspectionContext(ctx, inspectionId);
+  if (!context?.productId) return { ok: true, parameters };
+
+  const specBounds = await loadActiveSpecParameterBounds(ctx.client, context.productId, context.referenceType);
+  if (specBounds.status === 'ambiguous') {
+    return { ok: false, reason: 'ambiguous_active_spec' };
+  }
+  if (specBounds.status === 'none') return { ok: true, parameters };
+
+  if (options.requireSpecCompleteness) {
+    const completeness = validateSpecParameterCompleteness(parameters, specBounds.bounds);
+    if (!completeness.ok) {
+      return { ok: false, reason: completeness.reason };
+    }
+
+    const { parameters: normalized, clientPassRejected } = applySpecBoundsToParameters(parameters, specBounds.bounds);
+    if (options.rejectClientPassMismatch && clientPassRejected) {
+      return { ok: false, reason: 'parameter_out_of_spec' };
+    }
+    return { ok: true, parameters: normalized };
+  }
+
+  const specMatched = parameters.filter((parameter) =>
+    specBounds.bounds.has(normalizeParameterName(parameter.name)),
+  );
+  const { parameters: normalizedMatched, clientPassRejected } = applySpecBoundsToParameters(
+    specMatched,
+    specBounds.bounds,
+  );
+  const normalizedByKey = new Map(
+    normalizedMatched.map((parameter) => [normalizeParameterName(parameter.name), parameter]),
+  );
+  const merged = parameters.map(
+    (parameter) => normalizedByKey.get(normalizeParameterName(parameter.name)) ?? parameter,
+  );
+  if (options.rejectClientPassMismatch && clientPassRejected) {
+    return { ok: false, reason: 'parameter_out_of_spec' };
+  }
+  return { ok: true, parameters: merged };
 }
 
 async function findReceivedLpIdsForGrn(ctx: QualityContext, grnId: string): Promise<string[]> {
@@ -351,6 +559,9 @@ async function applyLpDecisionSideEffects(
   ctx: QualityContext,
   params: {
     inspectionId: string;
+    inspectionNumber: string;
+    productId: string | null;
+    siteId: string | null;
     referenceType: ReferenceType;
     referenceId: string;
     decision: Decision;
@@ -373,23 +584,67 @@ async function applyLpDecisionSideEffects(
   }
 
   if (params.referenceType === 'wo_output') {
-    if (params.decision !== 'pass') return null;
-    const transitioned = await transitionWoOutputQaForContext(
-      { userId: ctx.userId, orgId: ctx.orgId, client: ctx.client },
-      {
-        outputId: params.referenceId,
-        decision: 'PASSED',
-        note: params.note ?? undefined,
-      },
-    );
-    if (!transitioned.ok) {
-      if (transitioned.reason === 'not_found') throw new Error('wo_output not found');
-      if (transitioned.reason === 'invalid_state') {
-        throw new Error(transitioned.message ?? 'invalid_state');
+    if (params.decision === 'pass') {
+      const transitioned = await transitionWoOutputQaForContext(
+        { userId: ctx.userId, orgId: ctx.orgId, client: ctx.client },
+        {
+          outputId: params.referenceId,
+          decision: 'PASSED',
+          note: params.note ?? undefined,
+        },
+      );
+      if (!transitioned.ok) {
+        if (transitioned.reason === 'not_found') throw new Error('wo_output not found');
+        if (transitioned.reason === 'invalid_state') {
+          throw new Error(transitioned.message ?? 'invalid_state');
+        }
+        throw new Error('quality_hold_active');
       }
-      throw new Error('quality_hold_active');
+      return transitioned.data.lpQaStatus;
     }
-    return transitioned.data.lpQaStatus;
+
+    if (params.decision === 'fail') {
+      const transitioned = await transitionWoOutputQaForContext(
+        { userId: ctx.userId, orgId: ctx.orgId, client: ctx.client },
+        {
+          outputId: params.referenceId,
+          decision: 'FAILED',
+          note: params.note ?? undefined,
+        },
+      );
+      if (!transitioned.ok) {
+        if (transitioned.reason === 'not_found') throw new Error('wo_output not found');
+        if (transitioned.reason === 'invalid_state') {
+          throw new Error(transitioned.message ?? 'invalid_state');
+        }
+        throw new Error('quality_hold_active');
+      }
+
+      let linkedHoldId: string | null = null;
+      if (transitioned.data.lpId) {
+        linkedHoldId = await createInspectionHoldIfMissing(ctx, {
+          referenceType: 'lp',
+          referenceId: transitioned.data.lpId,
+          lpIds: [transitioned.data.lpId],
+          reasonText: params.note ?? 'failed WO output inspection',
+          priority: 'high',
+          inspectionId: params.inspectionId,
+        });
+      }
+
+      await createInspectionFailureNcrIfMissing(ctx, {
+        inspectionId: params.inspectionId,
+        inspectionNumber: params.inspectionNumber,
+        productId: params.productId,
+        linkedHoldId,
+        note: params.note,
+        siteId: params.siteId,
+      });
+
+      return transitioned.data.lpQaStatus ?? 'rejected';
+    }
+
+    return null;
   }
 
   if (params.referenceType !== 'lp') return null;
@@ -426,15 +681,28 @@ async function applyLpDecisionSideEffects(
     [params.referenceId, qaStatus, ctx.userId, [...TERMINAL_LP_STATUSES]],
   );
   if (!updated.rows[0]) throw new Error('license plate not found');
-  if (params.decision === 'hold') {
-    await createInspectionHoldIfMissing(ctx, {
+  if (params.decision === 'hold' || params.decision === 'fail') {
+    const holdId = await createInspectionHoldIfMissing(ctx, {
       referenceType: 'lp',
       referenceId: params.referenceId,
       lpIds: [params.referenceId],
-      reasonText: params.note ?? 'inspection hold',
+      reasonText:
+        params.decision === 'fail'
+          ? (params.note ?? 'failed inspection')
+          : (params.note ?? 'inspection hold'),
       priority: 'high',
       inspectionId: params.inspectionId,
     });
+    if (params.decision === 'fail') {
+      await createInspectionFailureNcrIfMissing(ctx, {
+        inspectionId: params.inspectionId,
+        inspectionNumber: params.inspectionNumber,
+        productId: params.productId,
+        linkedHoldId: holdId,
+        note: params.note,
+        siteId: params.siteId,
+      });
+    }
   }
   return qaStatus;
 }
@@ -512,6 +780,7 @@ async function fetchInspectionDetail(ctx: QualityContext, inspectionId: string):
   const resolution = await resolveInspectionParameters(ctx.client, {
     productId,
     storedParameters: row.parameters,
+    referenceType: row.reference_type,
   });
 
   return mapDetailRow({
@@ -889,10 +1158,21 @@ export async function recordInspectionResult(input: {
   parameters: Array<{ name: string; expected?: string; actual: string; pass: boolean }>;
   notes?: string;
 }): Promise<ActionResult<RecordedInspection>> {
+  const parsed = recordSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, reason: 'error', message: mapRecordInspectionValidationCode(parsed.error) };
+  }
   try {
-    const parsed = recordSchema.parse(input);
     return await withOrgContext(async (ctx): Promise<ActionResult<RecordedInspection>> => {
       if (!(await hasPermission(ctx, 'quality.inspection.execute'))) return { ok: false, reason: 'forbidden' };
+
+      const enforced = await enforceSpecBoundsOnParameters(ctx, parsed.data.inspectionId, parsed.data.parameters, {
+        rejectClientPassMismatch: true,
+        requireSpecCompleteness: false,
+      });
+      if (!enforced.ok) {
+        return { ok: false, reason: 'error', message: enforced.reason };
+      }
 
       const updated = await ctx.client.query<{ id: string; status: 'in_progress'; parameters: unknown; result_notes: string | null }>(
         `update public.quality_inspections
@@ -903,11 +1183,11 @@ export async function recordInspectionResult(input: {
             and id = $1::uuid
             and status in ('pending', 'in_progress')
           returning id::text, status, parameters, result_notes`,
-        [parsed.inspectionId, JSON.stringify(parsed.parameters), parsed.notes ?? null],
+        [parsed.data.inspectionId, JSON.stringify(enforced.parameters), parsed.data.notes ?? null],
       );
       const row = updated.rows[0];
       if (!row) throw new Error('quality inspection not found or not editable');
-      revalidateInspectionRoutes(parsed.inspectionId);
+      revalidateInspectionRoutes(parsed.data.inspectionId);
       return {
         ok: true,
         data: {
@@ -946,12 +1226,29 @@ export async function submitInspectionDecision(input: {
         reference_id: string;
         status: InspectionStatus;
         parameters: unknown;
+        product_id: string | null;
+        site_id: string | null;
       }>(
-        `select id::text, inspection_number, reference_type, reference_id::text, status, parameters
-           from public.quality_inspections
-          where org_id = app.current_org_id()
-            and id = $1::uuid
-          for update`,
+        `select qi.id::text,
+                qi.inspection_number,
+                qi.reference_type,
+                qi.reference_id::text,
+                qi.status,
+                qi.parameters,
+                coalesce(qi.product_id, lp.product_id, woo.product_id)::text as product_id,
+                qi.site_id::text
+           from public.quality_inspections qi
+           left join public.license_plates lp
+             on qi.reference_type = 'lp'
+            and lp.id = qi.reference_id
+            and lp.org_id = qi.org_id
+           left join public.wo_outputs woo
+             on qi.reference_type = 'wo_output'
+            and woo.id = qi.reference_id
+            and woo.org_id = qi.org_id
+          where qi.org_id = app.current_org_id()
+            and qi.id = $1::uuid
+          for update of qi`,
         [parsed.inspectionId],
       );
       const current = currentResult.rows[0];
@@ -959,8 +1256,20 @@ export async function submitInspectionDecision(input: {
       if (['passed', 'failed', 'on_hold', 'cancelled'].includes(current.status)) {
         throw new Error('quality inspection decision is already final');
       }
-      if (parsed.decision === 'pass' && current.status === 'pending' && parseParameters(current.parameters).length === 0) {
+
+      const storedParameters = parseParameters(current.parameters);
+      const enforced = await enforceSpecBoundsOnParameters(ctx, current.id, storedParameters, {
+        rejectClientPassMismatch: false,
+        requireSpecCompleteness: parsed.decision === 'pass',
+      });
+      if (!enforced.ok) {
+        return { ok: false, reason: 'error', message: enforced.reason };
+      }
+      if (parsed.decision === 'pass' && enforced.parameters.length === 0) {
         return { ok: false, reason: 'error', message: 'inspection_parameters_required' };
+      }
+      if (parsed.decision === 'pass' && !allParametersPass(enforced.parameters)) {
+        return { ok: false, reason: 'error', message: 'inspection_parameters_not_passing' };
       }
 
       const nextStatus = parsed.decision === 'pass' ? 'passed' : parsed.decision === 'fail' ? 'failed' : 'on_hold';
@@ -996,6 +1305,9 @@ export async function submitInspectionDecision(input: {
 
       const qaStatus = await applyLpDecisionSideEffects(ctx, {
         inspectionId: current.id,
+        inspectionNumber: current.inspection_number,
+        productId: current.product_id,
+        siteId: current.site_id,
         referenceType: current.reference_type,
         referenceId: current.reference_id,
         decision: parsed.decision,

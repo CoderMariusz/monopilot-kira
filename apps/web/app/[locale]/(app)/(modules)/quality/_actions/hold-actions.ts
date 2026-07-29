@@ -14,6 +14,7 @@ import {
   restoreWoOutputsAfterWoHoldReleaseForContext,
 } from '../../../../../../lib/production/output/transition-output-qa';
 import { getActiveSiteId } from '../../../../../../lib/site/site-context';
+import { resolveLpQtyHeldKg } from '../../../../../../lib/quality/lp-hold-qty';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -332,8 +333,10 @@ async function createHoldCore(
       status: string;
       qa_status: string;
       quantity: string;
+      uom: string;
+      catch_weight_kg: string | null;
     }>(
-      `select id::text, status, qa_status, quantity::text
+      `select id::text, status, qa_status, quantity::text, uom, catch_weight_kg::text
          from public.license_plates
         where org_id = app.current_org_id()
           and id = any($1::uuid[])
@@ -345,6 +348,7 @@ async function createHoldCore(
     if (missing.length > 0) throw new Error(`license plate not found: ${missing.join(',')}`);
 
     for (const lp of lps.rows) {
+      const qtyHeldKg = resolveLpQtyHeldKg(lp);
       await ctx.client.query(
         `insert into public.quality_hold_items (
            org_id,
@@ -355,7 +359,7 @@ async function createHoldCore(
          )
          values (app.current_org_id(), $1::uuid, $2::uuid, $3::numeric, 'held')
          on conflict (hold_id, license_plate_id) do nothing`,
-        [created.id, lp.id, lp.quantity],
+        [created.id, lp.id, qtyHeldKg],
       );
     }
 

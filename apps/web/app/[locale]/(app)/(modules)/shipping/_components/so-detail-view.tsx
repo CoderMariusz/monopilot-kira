@@ -40,7 +40,7 @@ import { useRouter } from 'next/navigation';
 
 import { SoStatusBadge, AllocationBadge } from './so-status-badge';
 import { EditSoModal, type EditSoResult } from './edit-so-modal';
-import { formatSoCurrencyDisplay, sumSoLineTotalsGbp } from '../_actions/sales-line-price';
+import { formatSoCurrencyDisplay, sumSoLineTotalsForDisplay } from '../_actions/sales-line-price';
 
 export type SoDetailLine = {
   id: string;
@@ -223,7 +223,7 @@ export function SoDetailView({
     totalsByCurrency.set(currency, totals);
   }
   const orderTotal = [...totalsByCurrency]
-    .map(([currency, totals]) => formatSoCurrencyDisplay(sumSoLineTotalsGbp(totals), currency))
+    .map(([currency, totals]) => formatSoCurrencyDisplay(sumSoLineTotalsForDisplay(totals), currency))
     .join(' · ');
 
   async function run(kind: ActionKind, fn: () => Promise<SoActionResult>, prompt?: string) {

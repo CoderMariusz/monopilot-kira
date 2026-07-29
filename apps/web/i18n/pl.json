@@ -11541,6 +11541,34 @@
       }
     },
     "ncrs": {
+      "createModal": {
+        "lookup": {
+          "sourceRefType": "Odniesienie źródłowe (opcjonalnie)",
+          "sourceRefTypeHelp": "Powiąż ten NCR z nieudaną kontrolą lub dotkniętym nośnikiem (LP).",
+          "sourceRefTypeOptions": {
+            "inspection": "Kontrola",
+            "lp": "Nośnik (LP)"
+          },
+          "inspectionSearchLabel": "Kontrola",
+          "inspectionSearchPlaceholder": "Szukaj nr kontroli, LP lub pozycji…",
+          "inspectionSearching": "Szukanie kontrol…",
+          "inspectionNoMatch": "Żadna kontrola nie pasuje do \"{query}\".",
+          "inspectionChip": "{number} · {reference}",
+          "lpSearchLabel": "Nośnik (LP)",
+          "lpSearchPlaceholder": "Szukaj numeru LP lub kodu pozycji…",
+          "lpSearching": "Szukanie nośników…",
+          "lpNoMatch": "Żaden nośnik nie pasuje do \"{query}\".",
+          "lpChip": "{lpNumber} · {itemCode}",
+          "product": "Produkt (opcjonalnie)",
+          "productHelp": "Domyślnie z wybranej kontroli lub LP, gdy dostępny.",
+          "productSearchPlaceholder": "Szukaj kodu lub nazwy pozycji…",
+          "productSearching": "Szukanie produktów…",
+          "productNoMatch": "Żaden produkt nie pasuje do \"{query}\".",
+          "productChip": "{itemCode} · {name}",
+          "clearPick": "Wyczyść",
+          "resultLine": "{primary} · {secondary}"
+        }
+      },
       "closeModal": {
         "policyErrors": {
           "second_signature_required": "Zamknięcie krytycznego NCR wymaga drugiego podpisu elektronicznego zgodnie ze skonfigurowaną zasadą zatwierdzania.",
@@ -11861,7 +11889,9 @@
           "salesOrder": "Zamówienie sprzedaży",
           "customer": "Klient",
           "status": "Status",
-          "boxes": "Kartony"
+          "boxes": "Kartony",
+          "packedQty": "Spakowana ilość",
+          "requiredQty": "Skompletowana ilość"
         },
         "boxes": {
           "title": "Kartony",
@@ -11890,12 +11920,15 @@
           "sealSubmitting": "Zamykanie pakowania…",
           "sealNoPermission": "Nie masz uprawnień do zamknięcia pakowania tej wysyłki.",
           "sealNeedsBox": "Spakuj co najmniej jeden karton przed zamknięciem pakowania.",
-          "sealInvalidState": "Tej wysyłki nie można zamknąć do wysyłki w bieżącym statusie."
+          "sealInvalidState": "Tej wysyłki nie można zamknąć do wysyłki w bieżącym statusie.",
+          "sealIncompletePack": "Spakuj pozostałe {remaining} przed zamknięciem pakowania.",
+          "sealIncompletePackSkipped": "({skipped} linii nie ma jednostki magazynowej i zostało pominiętych w tym podsumowaniu.)"
         },
         "errors": {
           "invalid_input": "Wpisz kod nośnika.",
           "invalid_state": "Tej wysyłki nie można spakować w bieżącym statusie.",
           "no_boxes": "Spakuj co najmniej jeden karton przed zamknięciem pakowania wysyłki.",
+          "incomplete_pack": "Spakowana ilość nie zgadza się ze skompletowaną — dokończ pakowanie przed zamknięciem.",
           "lp_not_found": "Nie znaleziono tego nośnika.",
           "lp_not_allocated": "Ten nośnik nie jest zaalokowany do tego zamówienia sprzedaży.",
           "already_packed": "Ten nośnik jest już spakowany.",
@@ -12334,6 +12367,7 @@
             "subtitle": "Określ, jak ten klient ogranicza alergeny w wysyłanych produktach.",
             "allergenLabel": "Alergen",
             "allergenPlaceholder": "Wybierz alergen",
+            "referenceUnavailable": "Brak danych referencyjnych alergenów dla tej organizacji. Poproś administratora o zasilenie słownika EU-14 przed dodaniem ograniczeń klienta.",
             "restrictionLabel": "Typ ograniczenia",
             "notesLabel": "Uwagi",
             "notesPlaceholder": "Opcjonalny kontekst dla operatorów i QA",
@@ -12341,7 +12375,8 @@
             "submitEdit": "Zapisz zmiany",
             "submitting": "Zapisywanie…",
             "errors": {
-              "allergenRequired": "Wybierz alergen."
+              "allergenRequired": "Wybierz alergen.",
+              "referenceUnavailable": "Słownik alergenów nie jest skonfigurowany dla tej organizacji."
             }
           }
         },

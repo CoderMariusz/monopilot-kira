@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { resolveLpByNumber, searchLps, resolveWoByNumber, resolveGrnByNumber } from '../lookup-actions';
+import { resolveLpByNumber, searchLps, resolveWoByNumber, resolveGrnByNumber, searchInspectionsForNcr, searchHoldsForNcr, searchProductsForNcr } from '../lookup-actions';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -37,6 +37,7 @@ const LP_ROW = {
   id: LP_ID,
   lp_number: 'LP-000123',
   item_code: 'RM-BEEF-01',
+  product_id: '77777777-7777-4777-8777-777777777777',
   quantity: '12.500',
   uom: 'kg',
   status: 'available',
@@ -75,6 +76,42 @@ function makeClient(): QueryClient {
       if (q.includes('from public.grns')) {
         return { rows: grnRows === 'one' ? [{ id: GRN_ID, grn_number: 'GRN-000001' }] : [] };
       }
+      if (q.includes('from public.quality_inspections qi')) {
+        return {
+          rows: [
+            {
+              id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+              inspection_number: 'INSP-00000001',
+              reference_display: 'LP-000123',
+              product_id: LP_ROW.product_id,
+              product_code: 'RM-BEEF-01',
+              status: 'failed',
+            },
+          ],
+        };
+      }
+      if (q.includes('from public.quality_holds h')) {
+        return {
+          rows: [
+            {
+              id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+              hold_number: 'HLD-00001000',
+              reference_display: 'LP-000123 / RM-BEEF-01',
+            },
+          ],
+        };
+      }
+      if (q.includes('from public.items i') && q.includes('i.item_type = any')) {
+        return {
+          rows: [
+            {
+              id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+              item_code: 'FG-PIE',
+              name: 'Steak Pie',
+            },
+          ],
+        };
+      }
       return { rows: [] };
     }),
   };
@@ -94,7 +131,7 @@ describe('resolveLpByNumber', () => {
     const res = await resolveLpByNumber({ lpNumber: 'LP-000123' });
     expect(res).toEqual({
       ok: true,
-      data: { id: LP_ID, lpNumber: 'LP-000123', itemCode: 'RM-BEEF-01', qty: '12.500', uom: 'kg', status: 'available', qaStatus: 'released' },
+      data: { id: LP_ID, lpNumber: 'LP-000123', itemCode: 'RM-BEEF-01', productId: LP_ROW.product_id, qty: '12.500', uom: 'kg', status: 'available', qaStatus: 'released' },
     });
   });
 
@@ -171,5 +208,56 @@ describe('resolveWoByNumber / resolveGrnByNumber', () => {
     allowPermission = false;
     const res = await resolveGrnByNumber({ grnNumber: 'GRN-000001' });
     expect(res).toEqual({ ok: false, reason: 'forbidden' });
+  });
+});
+
+describe('searchInspectionsForNcr / searchHoldsForNcr', () => {
+  it('returns org-scoped inspection matches for the NCR create picker', async () => {
+    const res = await searchInspectionsForNcr({ query: 'INSP', limit: 5 });
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.data[0]).toEqual({
+        id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        inspectionNumber: 'INSP-00000001',
+        referenceDisplay: 'LP-000123',
+        productId: LP_ROW.product_id,
+        productCode: 'RM-BEEF-01',
+        status: 'failed',
+      });
+    }
+  });
+
+  it('returns org-scoped hold matches for the NCR create picker', async () => {
+    const res = await searchHoldsForNcr({ query: 'HLD', limit: 5 });
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.data[0]).toEqual({
+        id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        holdNumber: 'HLD-00001000',
+        referenceDisplay: 'LP-000123 / RM-BEEF-01',
+      });
+    }
+  });
+});
+
+describe('searchProductsForNcr', () => {
+  it('returns org-scoped active product matches for the NCR create picker', async () => {
+    const rows = await searchProductsForNcr({ query: 'FG', limit: 5 });
+    expect(rows).toEqual([
+      {
+        id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+        itemCode: 'FG-PIE',
+        name: 'Steak Pie',
+      },
+    ]);
+    const productQuery = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      normalize(String(sql)).includes('from public.items i') && normalize(String(sql)).includes('i.item_type = any'),
+    );
+    expect(productQuery?.[1]?.[0]).toEqual(['fg', 'rm', 'ingredient', 'intermediate', 'packaging']);
+  });
+
+  it('returns an empty list when the caller lacks dashboard permission', async () => {
+    allowPermission = false;
+    await expect(searchProductsForNcr({ query: 'FG' })).resolves.toEqual([]);
   });
 });

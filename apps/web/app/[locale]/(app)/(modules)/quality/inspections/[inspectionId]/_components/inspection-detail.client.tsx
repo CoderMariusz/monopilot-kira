@@ -83,6 +83,10 @@ export type InspectionDetailLabels = {
     saving: string;
     saved: string;
     saveError: string;
+    saveErrors: {
+      actualRequired: string;
+      parametersRequired: string;
+    };
     notes: string;
     notesPlaceholder: string;
     formIncomplete: string;
@@ -122,6 +126,10 @@ export type InspectionDetailLabels = {
     submitting: string;
     formIncomplete: string;
     validation: { passwordRequired: string };
+    submitErrors: {
+      missing_spec_parameters: string;
+      unknown_spec_parameters: string;
+    };
     error: string;
     success: string;
   };
@@ -151,6 +159,31 @@ function computeOverall(params: EditableParam[]): Overall {
 function personLabel(p?: InspectionDetail['decidedBy']): string {
   if (!p) return '—';
   return p.name ?? p.email ?? p.id;
+}
+
+function formatRecordSaveError(
+  result: { reason: string; message?: string },
+  labels: InspectionDetailLabels,
+): string {
+  const code = result.message ?? result.reason;
+  if (code === 'actual_required') return labels.params.saveErrors.actualRequired;
+  if (code === 'parameters_required') return labels.params.saveErrors.parametersRequired;
+  if (code === 'parameter_name_required' || code === 'validation_failed') return labels.params.saveError;
+  // Guard: never surface raw Zod JSON or internal schema paths to the operator.
+  if (code.startsWith('[') || code.includes('"code"') || code.includes('"path"')) {
+    return labels.params.saveError;
+  }
+  return labels.params.saveError;
+}
+
+function formatSubmitDecisionError(
+  result: { reason: string; message?: string },
+  labels: InspectionDetailLabels['esign'],
+): string {
+  const code = result.message ?? result.reason;
+  if (code === 'missing_spec_parameters') return labels.submitErrors.missing_spec_parameters;
+  if (code === 'unknown_spec_parameters') return labels.submitErrors.unknown_spec_parameters;
+  return labels.error.replace('{message}', code);
 }
 
 function productLabel(inspection: InspectionDetail): string {
@@ -224,7 +257,7 @@ export function InspectionDetailClient({
       });
       if (!result.ok) {
         setSaveState('error');
-        setSaveError(labels.params.saveError.replace('{message}', result.message ?? result.reason));
+        setSaveError(formatRecordSaveError(result, labels));
         return;
       }
       setSaveState('saved');
@@ -616,7 +649,7 @@ function InspectionEsignModal({
         ...(note.trim() ? { note: note.trim() } : {}),
       });
       if (!result.ok) {
-        setError(labels.error.replace('{message}', result.message ?? result.reason));
+        setError(formatSubmitDecisionError(result, labels));
         return;
       }
       close();

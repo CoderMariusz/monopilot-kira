@@ -38,6 +38,7 @@ export type LpLookupResult = {
   id: string;
   lpNumber: string;
   itemCode: string | null;
+  productId: string | null;
   qty: string;
   uom: string;
   status: string;
@@ -57,6 +58,7 @@ function mapLpRow(row: {
   id: string;
   lp_number: string;
   item_code: string | null;
+  product_id: string | null;
   quantity: string;
   uom: string;
   status: string;
@@ -66,6 +68,7 @@ function mapLpRow(row: {
     id: row.id,
     lpNumber: row.lp_number,
     itemCode: row.item_code,
+    productId: row.product_id,
     qty: String(row.quantity),
     uom: row.uom,
     status: row.status,
@@ -77,6 +80,7 @@ const LP_SELECT = `
   select lp.id::text,
          lp.lp_number,
          i.item_code,
+         lp.product_id::text,
          lp.quantity::text,
          lp.uom,
          lp.status,
@@ -180,6 +184,149 @@ export async function resolveWoByNumber(
  * Resolve a GRN by its number (exact, case-insensitive). Cheap org-scoped read —
  * mirrors the listHolds reference_display join (grns.grn_number).
  */
+export type InspectionLookupResult = {
+  id: string;
+  inspectionNumber: string;
+  referenceDisplay: string;
+  productId: string | null;
+  productCode: string | null;
+  status: string;
+};
+
+export type HoldLookupResult = {
+  id: string;
+  holdNumber: string;
+  referenceDisplay: string;
+};
+
+/**
+ * Autocomplete inspections for the MODAL-NCR-CREATE source picker. Matches
+ * inspection number or the linked LP / GRN / WO output display text.
+ */
+export async function searchInspectionsForNcr(
+  input: { query: string; limit?: number },
+): Promise<ActionResult<InspectionLookupResult[]>> {
+  try {
+    const parsed = searchSchema.parse(input);
+    return await withOrgContext(async ({ userId, orgId, client }): Promise<ActionResult<InspectionLookupResult[]>> => {
+      const ctx: LookupContext = { userId, orgId, client: client as QueryClient };
+      if (!(await hasPermission(ctx, LOOKUP_PERMISSION))) return { ok: false, reason: 'forbidden' };
+
+      const { rows } = await ctx.client.query<{
+        id: string;
+        inspection_number: string;
+        reference_display: string | null;
+        product_id: string | null;
+        product_code: string | null;
+        status: string;
+      }>(
+        `select
+           qi.id::text,
+           qi.inspection_number,
+           coalesce(
+             case when qi.reference_type = 'lp' then lp.lp_number end,
+             case when qi.reference_type = 'grn' then grn.grn_number end,
+             case when qi.reference_type = 'wo_output' then wo.wo_number || coalesce(' / ' || woo.batch_number, '') end,
+             qi.reference_id::text
+           ) as reference_display,
+           coalesce(qi.product_id, lp.product_id, woo.product_id)::text as product_id,
+           i.item_code as product_code,
+           qi.status
+         from public.quality_inspections qi
+         left join public.license_plates lp on qi.reference_type = 'lp' and lp.id = qi.reference_id and lp.org_id = qi.org_id
+         left join public.grns grn on qi.reference_type = 'grn' and grn.id = qi.reference_id and grn.org_id = qi.org_id
+         left join public.wo_outputs woo on qi.reference_type = 'wo_output' and woo.id = qi.reference_id and woo.org_id = qi.org_id
+         left join public.work_orders wo on wo.id = woo.wo_id and wo.org_id = qi.org_id
+         left join public.items i on i.id = coalesce(qi.product_id, lp.product_id, woo.product_id) and i.org_id = qi.org_id
+        where qi.org_id = app.current_org_id()
+          and (
+            qi.inspection_number ilike '%' || $1 || '%'
+            or lp.lp_number ilike '%' || $1 || '%'
+            or grn.grn_number ilike '%' || $1 || '%'
+            or wo.wo_number ilike '%' || $1 || '%'
+            or i.item_code ilike '%' || $1 || '%'
+          )
+        order by qi.created_at desc
+        limit $2::int`,
+        [parsed.query, parsed.limit ?? 10],
+      );
+
+      return {
+        ok: true,
+        data: rows.map((row) => ({
+          id: row.id,
+          inspectionNumber: row.inspection_number,
+          referenceDisplay: row.reference_display ?? '—',
+          productId: row.product_id,
+          productCode: row.product_code,
+          status: row.status,
+        })),
+      };
+    });
+  } catch (err) {
+    return { ok: false, reason: 'error', message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/**
+ * Autocomplete quality holds for the MODAL-NCR-CREATE linked-hold picker.
+ */
+export async function searchHoldsForNcr(
+  input: { query: string; limit?: number },
+): Promise<ActionResult<HoldLookupResult[]>> {
+  try {
+    const parsed = searchSchema.parse(input);
+    return await withOrgContext(async ({ userId, orgId, client }): Promise<ActionResult<HoldLookupResult[]>> => {
+      const ctx: LookupContext = { userId, orgId, client: client as QueryClient };
+      if (!(await hasPermission(ctx, LOOKUP_PERMISSION))) return { ok: false, reason: 'forbidden' };
+
+      const { rows } = await ctx.client.query<{
+        id: string;
+        hold_number: string;
+        reference_display: string | null;
+      }>(
+        `select
+           h.id::text,
+           h.hold_number,
+           coalesce(
+             case when h.reference_type = 'lp' then lp.lp_number || coalesce(' / ' || i.item_code, '') end,
+             case when h.reference_type = 'wo' then wo.wo_number end,
+             case when h.reference_type = 'grn' then grn.grn_number end,
+             h.reference_text,
+             h.reference_id::text
+           ) as reference_display
+         from public.quality_holds h
+         left join public.license_plates lp on h.reference_type = 'lp' and lp.id = h.reference_id and lp.org_id = h.org_id
+         left join public.items i on i.id = lp.product_id and i.org_id = h.org_id
+         left join public.work_orders wo on h.reference_type = 'wo' and wo.id = h.reference_id and wo.org_id = h.org_id
+         left join public.grns grn on h.reference_type = 'grn' and grn.id = h.reference_id and grn.org_id = h.org_id
+        where h.org_id = app.current_org_id()
+          and (
+            h.hold_number ilike '%' || $1 || '%'
+            or h.reference_text ilike '%' || $1 || '%'
+            or lp.lp_number ilike '%' || $1 || '%'
+            or wo.wo_number ilike '%' || $1 || '%'
+            or grn.grn_number ilike '%' || $1 || '%'
+          )
+        order by h.created_at desc
+        limit $2::int`,
+        [parsed.query, parsed.limit ?? 10],
+      );
+
+      return {
+        ok: true,
+        data: rows.map((row) => ({
+          id: row.id,
+          holdNumber: row.hold_number,
+          referenceDisplay: row.reference_display ?? '—',
+        })),
+      };
+    });
+  } catch (err) {
+    return { ok: false, reason: 'error', message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 export async function resolveGrnByNumber(
   input: { grnNumber: string },
 ): Promise<ActionResult<RefLookupResult | null>> {
@@ -203,4 +350,58 @@ export async function resolveGrnByNumber(
   } catch (err) {
     return { ok: false, reason: 'error', message: err instanceof Error ? err.message : String(err) };
   }
+}
+
+const productSearchSchema = z.object({
+  query: z.string().trim().max(120).optional().default(''),
+  limit: z.number().int().min(1).max(50).optional(),
+});
+
+const NCR_PRODUCT_ITEM_TYPES = ['fg', 'rm', 'ingredient', 'intermediate', 'packaging'] as const;
+
+export type NcrProductLookupResult = { id: string; itemCode: string; name: string };
+
+/**
+ * Autocomplete products for the MODAL-NCR-CREATE product picker. Named Server Action
+ * so the NCR list RSC can pass it across the client boundary (no inline closure).
+ */
+export async function searchProductsForNcr(
+  input: { query?: string; limit?: number } = {},
+): Promise<NcrProductLookupResult[]> {
+  const parsed = productSearchSchema.parse(input);
+  const term = parsed.query.trim();
+  const limit = parsed.limit ?? 10;
+
+  return withOrgContext<NcrProductLookupResult[]>(async ({ userId, orgId, client }) => {
+    const ctx: LookupContext = { userId, orgId, client: client as QueryClient };
+    if (!(await hasPermission(ctx, LOOKUP_PERMISSION))) return [];
+
+    const like = term.length > 0 ? `%${term.replace(/[%_]/g, (m) => `\\${m}`)}%` : null;
+    const { rows } = await ctx.client.query<{ id: string; item_code: string; name: string }>(
+      `select i.id::text,
+              i.item_code,
+              i.name
+         from public.items i
+        where i.org_id = app.current_org_id()
+          and i.item_type = any($1::text[])
+          and i.status = 'active'
+          and (
+            $2::text is null
+            or i.item_code ilike $2 escape '\\'
+            or i.name ilike $2 escape '\\'
+          )
+        order by
+          case when $2::text is not null and i.item_code ilike $2 escape '\\' then 0 else 1 end,
+          i.updated_at desc,
+          i.item_code asc
+        limit $3::int`,
+      [NCR_PRODUCT_ITEM_TYPES, like, limit],
+    );
+
+    return rows.map((row) => ({
+      id: row.id,
+      itemCode: row.item_code,
+      name: row.name,
+    }));
+  });
 }

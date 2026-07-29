@@ -4,10 +4,12 @@ import {
   computeSoLineTotal,
   computeSoLineTotalGbp,
   fetchActiveCustomerItemPrices,
+  formatSoCurrencyDisplay,
   normalizePriceString,
   normalizeSoUnitPriceGbp,
   resolveSalesLinePrice,
   resolveSalesLinePriceDetailed,
+  sumSoLineTotalsForDisplay,
   SO_LINE_PRICE_CURRENCY,
 } from '../sales-line-price';
 
@@ -73,6 +75,17 @@ describe('computeSoLineTotalGbp', () => {
 describe('computeSoLineTotal', () => {
   it('applies discount then tax with exact decimal arithmetic', () => {
     expect(computeSoLineTotal('3.25', '3.50', '10', '5')).toBe('10.7494');
+  });
+
+  it('reconciles PF-R18-03 audit lines with the display order total', () => {
+    const line1 = computeSoLineTotal('1.250', '3.3333', '12.5', '20');
+    const line2 = computeSoLineTotal('2.375', '1.2346', '0', '5');
+    expect(line1).toBe('4.3750');
+    expect(line2).toBe('3.0788');
+    expect(sumSoLineTotalsForDisplay([line1, line2])).toBe('7.46');
+    expect(formatSoCurrencyDisplay(line1)).toBe('£4.38');
+    expect(formatSoCurrencyDisplay(line2)).toBe('£3.08');
+    expect(formatSoCurrencyDisplay(sumSoLineTotalsForDisplay([line1, line2]))).toBe('£7.46');
   });
 });
 

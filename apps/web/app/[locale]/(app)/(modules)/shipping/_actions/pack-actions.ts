@@ -9,6 +9,7 @@ import {
   type PaginatedResult,
 } from '../../../../../../lib/shared/pagination';
 import { packLpIntoBoxCore } from '../../../../../../lib/shipping/pack-lp-into-box';
+import { fetchShipmentPackCompleteness } from '../../../../../../lib/shipping/shipment-pack-completeness';
 import {
   ALLOWED_CREATE_SHIPMENT_SO_STATUSES,
   isSalesOrderStatus,
@@ -255,6 +256,17 @@ export async function getShipment(id: string): Promise<GetShipmentResult> {
     const shipment = await fetchShipmentRow(ctx, id);
     if (!shipment) return { ok: false, error: 'not_found' };
 
+    const { rows: shipmentLinkRows } = await ctx.client.query<{ sales_order_id: string | null }>(
+      `select sh.sales_order_id::text
+         from public.shipments sh
+        where sh.org_id = app.current_org_id()
+          and sh.id = $1::uuid
+          and sh.deleted_at is null
+        limit 1`,
+      [id],
+    );
+    const salesOrderId = shipmentLinkRows[0]?.sales_order_id ?? null;
+
     const { rows: boxRows } = await ctx.client.query<{
       id: string;
       box_number: number | string | bigint;
@@ -307,6 +319,21 @@ export async function getShipment(id: string): Promise<GetShipmentResult> {
       contentsByBox.set(row.box_id, contents);
     }
 
+    const packing = salesOrderId
+      ? await fetchShipmentPackCompleteness(ctx.client, id, salesOrderId)
+      : {
+          complete: false,
+          requiredTotal: '0',
+          packedTotal: '0',
+          remainingTotal: '0',
+          requiredDisplay: '0',
+          packedDisplay: '0',
+          remainingDisplay: '0',
+          uomRollups: [],
+          skippedLineCount: 0,
+          lines: [],
+        };
+
     return {
       ok: true,
       data: {
@@ -314,8 +341,16 @@ export async function getShipment(id: string): Promise<GetShipmentResult> {
         boxes: boxRows.map((box) => ({
           boxNumber: toNumber(box.box_number),
           sscc: box.sscc,
+          boxId: box.id,
           contents: contentsByBox.get(box.id) ?? [],
         })),
+        packing: {
+          requiredQty: packing.requiredDisplay,
+          packedQty: packing.packedDisplay,
+          remainingQty: packing.remainingDisplay,
+          packComplete: packing.complete,
+          skippedLineCount: packing.skippedLineCount,
+        },
       },
     };
   });

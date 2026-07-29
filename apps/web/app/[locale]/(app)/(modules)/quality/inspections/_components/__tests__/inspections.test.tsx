@@ -382,6 +382,21 @@ describe('InspectionDetailClient (QA-005a parity)', () => {
     );
   });
 
+  it('shows a friendly message instead of raw Zod JSON when save rejects a blank actual value', async () => {
+    const record = vi.fn(async () => ({
+      ok: false as const,
+      reason: 'error',
+      message: 'actual_required',
+    }));
+    renderDetail(makeDetail({}), true, { record });
+    fireEvent.click(screen.getByTestId('inspection-result-save'));
+    await waitFor(() => expect(record).toHaveBeenCalledTimes(1));
+    const error = screen.getByTestId('inspection-result-save-error');
+    expect(error).toHaveTextContent(DETAIL_LABELS.params.saveErrors.actualRequired);
+    expect(error).not.toHaveTextContent('too_small');
+    expect(error).not.toHaveTextContent('"code"');
+  });
+
   it('decision e-sign: Pass opens the password modal and submits the decision payload', async () => {
     const { submit } = renderDetail(makeDetail({}));
     fireEvent.click(screen.getByTestId('inspection-decision-pass'));

@@ -91,6 +91,8 @@ const packLabels: ShipmentPackLabels = {
     customer: 'Customer',
     status: 'Status',
     boxes: 'Boxes',
+    packedQty: 'Packed qty',
+    requiredQty: 'Picked qty',
   },
   boxes: {
     title: 'Boxes',
@@ -107,6 +109,8 @@ const packLabels: ShipmentPackLabels = {
     title: 'Pack a license plate',
     lpLabel: 'License plate code',
     lpPlaceholder: 'Scan or type LP code…',
+    qtyLabel: 'Quantity',
+    qtyPlaceholder: 'Leave blank to pack remaining allocated qty',
     boxLabel: 'Box',
     newBox: 'New box',
     submit: 'Pack',
@@ -120,12 +124,15 @@ const packLabels: ShipmentPackLabels = {
     noPermission: 'You do not have permission to seal this shipment.',
     needsBox: 'Pack at least one box before sealing.',
     invalidState: 'This shipment cannot be sealed in its current status.',
+    incompletePack: 'Pack the remaining {remaining} before sealing.',
+    incompletePackSkipped: '({skipped} line(s) have no inventory unit and are omitted from this total.)',
   },
   errors: {
     invalid_input: 'Enter a license plate code.',
     forbidden: "You don't have permission to do that.",
     invalid_state: 'This shipment cannot be packed in its current status.',
     no_boxes: 'Pack at least one box before sealing the shipment.',
+    incomplete_pack: 'Packed quantity does not match picked quantity — finish packing before sealing.',
     lp_not_found: 'That license plate was not found.',
     lp_not_allocated: 'That license plate is not allocated to this sales order.',
     already_packed: 'That license plate is already packed.',
@@ -397,6 +404,7 @@ function makeDetail(overrides: Partial<ShipmentDetail> = {}): ShipmentDetail {
     shipment: rows[0],
     boxes: [
       {
+        boxId: 'box-uuid-1',
         boxNumber: 1,
         sscc: '050123450000000428',
         contents: [
@@ -404,6 +412,12 @@ function makeDetail(overrides: Partial<ShipmentDetail> = {}): ShipmentDetail {
         ],
       },
     ],
+    packing: {
+      requiredQty: '10',
+      packedQty: '10',
+      remainingQty: '0',
+      packComplete: true,
+    },
     ...overrides,
   };
 }
@@ -530,6 +544,22 @@ describe('ShipmentPackView — header, boxes+SSCC, contents, Pack-LP control', (
     fireEvent.click(sealBtn);
     await waitFor(() => expect(sealShipmentAction).toHaveBeenCalledWith(SHIPMENT_ID));
     await waitFor(() => expect(refresh).toHaveBeenCalled());
+  });
+
+  it('disables seal when picked quantity is not fully packed', () => {
+    renderPack(
+      makeDetail({
+        packing: {
+          requiredQty: '3.625 kg',
+          packedQty: '1.000 kg',
+          remainingQty: '2.625 kg',
+          packComplete: false,
+        },
+      }),
+    );
+    const sealBtn = screen.getByTestId('shipment-seal-submit');
+    expect(sealBtn).toBeDisabled();
+    expect(sealBtn).toHaveAttribute('title', 'Pack the remaining 2.625 kg before sealing.');
   });
 });
 

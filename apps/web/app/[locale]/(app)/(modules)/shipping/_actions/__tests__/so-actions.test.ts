@@ -29,6 +29,7 @@ const ITEM_ID_2 = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const LP_1 = '77777777-7777-4777-8777-777777777777';
 const LP_2 = '88888888-8888-4888-8888-888888888888';
 const SITE_ID = '99999999-9999-4999-8999-999999999999';
+const CLIENT_OP_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
 let client: QueryClient;
 let allowPermission = true;
@@ -75,6 +76,10 @@ let itemPackFactors: Record<
 let orgUnitCodes = ['kg', 'g', 'l', 'ml', 'pcs', 'pack', 'box', 'pallet', 'case'];
 let queryLog: Array<{ sql: string; params: readonly unknown[] }> = [];
 let listTotal = 1;
+let idempotencyRows = new Map<string, { request_hash: string; response_json: { ok: boolean; data: { id: string } } }>();
+let soInsertCount = 0;
+let advisoryLockDepth = 0;
+const advisoryLockWaiters: Array<() => void> = [];
 const nextCacheMocks = vi.hoisted(() => ({ revalidateLocalized: vi.fn() }));
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
@@ -126,6 +131,38 @@ function makeClient(): QueryClient {
       if (q.includes('from public.user_roles')) {
         return { rows: allowPermission ? [{ ok: true }] : [], rowCount: allowPermission ? 1 : 0 };
       }
+      if (q.includes('pg_advisory_xact_lock')) {
+        if (advisoryLockDepth > 0) {
+          await new Promise<void>((resolve) => {
+            advisoryLockWaiters.push(resolve);
+          });
+        }
+        advisoryLockDepth += 1;
+        return { rows: [], rowCount: 0 };
+      }
+      if (q.includes('from public.idempotency_keys')) {
+        const transactionId = String(params[0]);
+        const row = idempotencyRows.get(transactionId);
+        return { rows: row ? [row] : [], rowCount: row ? 1 : 0 };
+      }
+      if (q.startsWith('insert into public.idempotency_keys')) {
+        const transactionId = String(params[0]);
+        if (!idempotencyRows.has(transactionId)) {
+          idempotencyRows.set(transactionId, {
+            request_hash: String(params[2]),
+            response_json: JSON.parse(String(params[3])) as { ok: boolean; data: { id: string } },
+          });
+          advisoryLockDepth = Math.max(0, advisoryLockDepth - 1);
+          advisoryLockWaiters.shift()?.();
+          return {
+            rows: [{ org_id: String(params[1]), request_hash: String(params[2]) }],
+            rowCount: 1,
+          };
+        }
+        advisoryLockDepth = Math.max(0, advisoryLockDepth - 1);
+        advisoryLockWaiters.shift()?.();
+        return { rows: [], rowCount: 0 };
+      }
       if (q.includes('next_sales_order_document_number')) {
         return { rows: [{ so_number: soNumber }], rowCount: 1 };
       }
@@ -136,6 +173,7 @@ function makeClient(): QueryClient {
         return { rows: [{ id: CUSTOMER_ID }], rowCount: 1 };
       }
       if (q.startsWith('insert into public.sales_orders')) {
+        soInsertCount += 1;
         insertedSo = {
           id: SO_ID,
           order_number: params[1],
@@ -448,6 +486,10 @@ beforeEach(() => {
   orgUnitCodes = ['kg', 'g', 'l', 'ml', 'pcs', 'pack', 'box', 'pallet', 'case'];
   queryLog = [];
   listTotal = 1;
+  idempotencyRows = new Map();
+  soInsertCount = 0;
+  advisoryLockDepth = 0;
+  advisoryLockWaiters.length = 0;
   nextCacheMocks.revalidateLocalized.mockClear();
   client = makeClient();
 });
@@ -487,6 +529,17 @@ describe('SO read actions', () => {
       },
     });
     expect(queryLog.some((entry) => normalize(entry.sql).includes('left join public.customers'))).toBe(true);
+  });
+
+  it('computes list total from rounded line sums instead of stored total_amount_gbp', async () => {
+    await listSalesOrders({ status: 'draft' });
+
+    const listQuery = queryLog.find(
+      (entry) => normalize(entry.sql).includes('line_count') && normalize(entry.sql).includes('offset $5::int'),
+    );
+    expect(listQuery).toBeDefined();
+    expect(normalize(String(listQuery?.sql))).not.toContain('so.total_amount_gbp');
+    expect(normalize(String(listQuery?.sql))).toContain('sum(round(');
   });
 
   it('page 2 offset returns the second page of rows when total exceeds limit', async () => {
@@ -602,6 +655,7 @@ describe('SO read actions', () => {
 describe('createSalesOrder', () => {
   it('generates the SO number and inserts the order plus lines', async () => {
     const result = await createSalesOrder({
+      client_op_id: CLIENT_OP_ID,
       customer_id: CUSTOMER_ID,
       requested_date: '2026-06-20',
       notes: 'deliver am',
@@ -626,6 +680,7 @@ describe('createSalesOrder', () => {
 
   it('creates one header and both lines when two valid lines are submitted', async () => {
     const result = await createSalesOrder({
+      client_op_id: CLIENT_OP_ID,
       customer_id: CUSTOMER_ID,
       requested_date: '2026-06-20',
       notes: 'deliver am',
@@ -669,6 +724,7 @@ describe('createSalesOrder', () => {
     listPriceGbp = '2.5000';
 
     await createSalesOrder({
+      client_op_id: CLIENT_OP_ID,
       customer_id: CUSTOMER_ID,
       requested_date: '2026-06-20',
       lines: [{ item_id: ITEM_ID_2, qty: '3', uom: 'case' }],
@@ -684,6 +740,7 @@ describe('createSalesOrder', () => {
 
   it('persists per-line discount, tax, currency, and the extended exact formula', async () => {
     await createSalesOrder({
+      client_op_id: CLIENT_OP_ID,
       customer_id: CUSTOMER_ID,
       lines: [
         {
@@ -712,6 +769,7 @@ describe('createSalesOrder', () => {
 
   it('accepts trailing-zero qty and price on create and normalizes to DB scale (C114)', async () => {
     await createSalesOrder({
+      client_op_id: CLIENT_OP_ID,
       customer_id: CUSTOMER_ID,
       lines: [
         {
@@ -734,6 +792,7 @@ describe('createSalesOrder', () => {
     listPriceGbp = '12.3456789';
 
     await createSalesOrder({
+      client_op_id: CLIENT_OP_ID,
       customer_id: CUSTOMER_ID,
       requested_date: '2026-06-20',
       lines: [{ item_id: ITEM_ID, qty: '1', uom: 'kg' }],
@@ -749,6 +808,7 @@ describe('createSalesOrder', () => {
     customerPriceRows = [{ item_id: ITEM_ID, unit_price: '6.5000', currency: 'GBP' }];
 
     await createSalesOrder({
+      client_op_id: CLIENT_OP_ID,
       customer_id: CUSTOMER_ID,
       requested_date: '2026-06-20',
       lines: [{ item_id: ITEM_ID, qty: '4', uom: 'kg' }],
@@ -766,6 +826,7 @@ describe('createSalesOrder', () => {
     customerPriceRows = [{ item_id: ITEM_ID, unit_price: '1.0000', currency: 'EUR' }];
 
     await createSalesOrder({
+      client_op_id: CLIENT_OP_ID,
       customer_id: CUSTOMER_ID,
       requested_date: '2026-06-20',
       lines: [{ item_id: ITEM_ID, qty: '2', uom: 'kg' }],
@@ -781,6 +842,7 @@ describe('createSalesOrder', () => {
     listPriceGbp = null;
 
     const result = await createSalesOrder({
+      client_op_id: CLIENT_OP_ID,
       customer_id: CUSTOMER_ID,
       requested_date: '2026-06-20',
       lines: [{ item_id: ITEM_ID, qty: '3', uom: 'kg' }],
@@ -798,6 +860,7 @@ describe('createSalesOrder', () => {
     customerActive = false;
 
     const result = await createSalesOrder({
+      client_op_id: CLIENT_OP_ID,
       customer_id: CUSTOMER_ID,
       requested_date: '2026-06-20',
       lines: [{ item_id: ITEM_ID, qty: '10', uom: 'kg' }],
@@ -818,6 +881,7 @@ describe('createSalesOrder', () => {
     customerDeleted = true;
 
     const result = await createSalesOrder({
+      client_op_id: CLIENT_OP_ID,
       customer_id: CUSTOMER_ID,
       requested_date: '2026-06-20',
       lines: [{ item_id: ITEM_ID, qty: '10', uom: 'kg' }],
@@ -833,6 +897,7 @@ describe('createSalesOrder', () => {
 
   it('rejects SO creation when a line UoM is not in the org unit registry', async () => {
     const result = await createSalesOrder({
+      client_op_id: CLIENT_OP_ID,
       customer_id: CUSTOMER_ID,
       requested_date: '2026-06-20',
       lines: [{ item_id: ITEM_ID, qty: '10', uom: 'bogus-unit' }],
@@ -851,6 +916,7 @@ describe('createSalesOrder', () => {
     orgUnitCodes = [];
 
     const result = await createSalesOrder({
+      client_op_id: CLIENT_OP_ID,
       customer_id: CUSTOMER_ID,
       requested_date: '2026-06-20',
       lines: [{ item_id: ITEM_ID, qty: '10', uom: 'bogus-unit' }],
@@ -878,6 +944,7 @@ describe('createSalesOrder', () => {
     }) as typeof client.query;
 
     const result = await createSalesOrder({
+      client_op_id: CLIENT_OP_ID,
       customer_id: CUSTOMER_ID,
       requested_date: '2026-06-20',
       lines: [
@@ -895,6 +962,76 @@ describe('createSalesOrder', () => {
     expect(insertedLines).toEqual([]);
     expect(queryLog.some((entry) => normalize(entry.sql).includes('insert into public.sales_orders'))).toBe(false);
     expect(queryLog.some((entry) => normalize(entry.sql).includes('insert into public.sales_order_lines'))).toBe(false);
+  });
+
+  it('rejects create without a client_op_id before any insert', async () => {
+    const result = await createSalesOrder({
+      client_op_id: '',
+      customer_id: CUSTOMER_ID,
+      lines: [{ item_id: ITEM_ID, qty: '10', uom: 'kg' }],
+    });
+
+    expect(result).toEqual({ ok: false, error: 'invalid_input', message: 'client_op_id must be a UUID' });
+    expect(soInsertCount).toBe(0);
+  });
+
+  it('replays the same client_op_id + payload without inserting a second sales order', async () => {
+    const payload = {
+      client_op_id: CLIENT_OP_ID,
+      customer_id: CUSTOMER_ID,
+      requested_date: '2026-06-20',
+      notes: 'deliver am',
+      lines: [{ item_id: ITEM_ID, qty: '10', uom: 'kg' }],
+    };
+
+    const first = await createSalesOrder(payload);
+    const second = await createSalesOrder(payload);
+
+    expect(first).toMatchObject({ ok: true, data: { so_number: 'SO-202606-00001' } });
+    expect(second).toMatchObject({ ok: true, data: { so_number: 'SO-202606-00001' } });
+    expect(soInsertCount).toBe(1);
+    expect(
+      queryLog.filter((entry) => normalize(entry.sql).startsWith('insert into public.sales_orders')),
+    ).toHaveLength(1);
+  });
+
+  it('creates only one sales order when duplicate requests run concurrently', async () => {
+    const payload = {
+      client_op_id: CLIENT_OP_ID,
+      customer_id: CUSTOMER_ID,
+      requested_date: '2026-06-20',
+      lines: [{ item_id: ITEM_ID, qty: '10', uom: 'kg' }],
+    };
+
+    const [first, second] = await Promise.all([createSalesOrder(payload), createSalesOrder(payload)]);
+
+    expect(first).toMatchObject({ ok: true, data: { so_number: 'SO-202606-00001' } });
+    expect(second).toMatchObject({ ok: true, data: { so_number: 'SO-202606-00001' } });
+    expect(soInsertCount).toBe(1);
+    expect(
+      queryLog.filter((entry) => normalize(entry.sql).startsWith('insert into public.sales_orders')),
+    ).toHaveLength(1);
+  });
+
+  it('rejects a payload change under the same client_op_id', async () => {
+    await createSalesOrder({
+      client_op_id: CLIENT_OP_ID,
+      customer_id: CUSTOMER_ID,
+      lines: [{ item_id: ITEM_ID, qty: '10', uom: 'kg' }],
+    });
+
+    const result = await createSalesOrder({
+      client_op_id: CLIENT_OP_ID,
+      customer_id: CUSTOMER_ID,
+      lines: [{ item_id: ITEM_ID, qty: '11', uom: 'kg' }],
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'invalid_input',
+      message: 'Idempotency key was reused with a different sales order payload',
+    });
+    expect(soInsertCount).toBe(1);
   });
 });
 

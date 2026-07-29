@@ -417,6 +417,7 @@ describe('CreateSoModal — exposes all createSalesOrder fields + validation + R
     expect(createSalesOrderAction).toHaveBeenCalledTimes(1);
     const payload = createSalesOrderAction.mock.calls[0][0];
     expect(payload).toMatchObject({
+      client_op_id: expect.any(String),
       customer_id: customers[0].id,
       lines: [
         {
@@ -466,6 +467,7 @@ describe('CreateSoModal — exposes all createSalesOrder fields + validation + R
     await waitFor(() => expect(createSalesOrderAction).toHaveBeenCalled());
     expect(createSalesOrderAction).toHaveBeenCalledWith(
       expect.objectContaining({
+        client_op_id: expect.any(String),
         customer_id: customers[0].id,
         lines: [
           expect.objectContaining({
@@ -477,6 +479,35 @@ describe('CreateSoModal — exposes all createSalesOrder fields + validation + R
       }),
     );
     expect(screen.queryByTestId('create-so-error')).toBeNull();
+  });
+
+  it('blocks a synchronous double submit with one client_op_id', async () => {
+    const { createSalesOrderAction } = renderList({ autoOpenCreate: true });
+    let resolveCreate: ((value: CreateSoResult) => void) | undefined;
+    createSalesOrderAction.mockImplementation(
+      () =>
+        new Promise<CreateSoResult>((resolve) => {
+          resolveCreate = resolve;
+        }),
+    );
+
+    const form = screen.getByTestId('create-so-form');
+    fireEvent.click(within(form).getAllByRole('combobox')[0]);
+    fireEvent.click(screen.getByRole('option', { name: /CUST-01/ }));
+    fireEvent.click(screen.getByRole('button', { name: '+ Add finished good' }));
+    fireEvent.change(screen.getByPlaceholderText('Search by code or name…'), { target: { value: 'FG' } });
+    fireEvent.click(await screen.findByText(/Sausage roll/));
+    fireEvent.change(screen.getByTestId('create-so-line-qty'), { target: { value: '5' } });
+    await waitFor(() => {
+      expect(screen.getByTestId('create-so-line-price')).toHaveValue('3.5000');
+    });
+
+    fireEvent.click(screen.getByTestId('create-so-submit'));
+    fireEvent.click(screen.getByTestId('create-so-submit'));
+    expect(createSalesOrderAction).toHaveBeenCalledTimes(1);
+    const firstPayload = createSalesOrderAction.mock.calls[0]?.[0] as { client_op_id?: string };
+    expect(typeof firstPayload.client_op_id).toBe('string');
+    resolveCreate?.({ ok: true, data: {} });
   });
 });
 

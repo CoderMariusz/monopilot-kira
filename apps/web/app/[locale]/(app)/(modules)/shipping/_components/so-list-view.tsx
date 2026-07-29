@@ -136,6 +136,7 @@ export type SoListViewProps = {
   searchSoItemsAction: (input: SearchItemsInput) => Promise<ItemPickerOption[]>;
   createCustomerAction?: (input: { name: string; category: 'retail'; isActive: true }) => Promise<CreateCustomerResult>;
   createSalesOrderAction: (input: {
+    client_op_id: string;
     customer_id: string;
     requested_date?: string;
     notes?: string;

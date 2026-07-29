@@ -20,7 +20,14 @@ import stagedBundle from '../../../../../../../_meta/i18n-staging/quality-ncrs.j
 
 type MsgTree = { [k: string]: string | MsgTree };
 
-const BUNDLE = stagedBundle as unknown as { en: MsgTree; pl: MsgTree };
+const BUNDLE = stagedBundle as unknown as { en: MsgTree; pl: MsgTree; ro?: MsgTree; uk?: MsgTree };
+
+function localeTree(locale: string): MsgTree {
+  if (locale === 'pl') return BUNDLE.pl;
+  if (locale === 'ro' && BUNDLE.ro) return BUNDLE.ro;
+  if (locale === 'uk' && BUNDLE.uk) return BUNDLE.uk;
+  return BUNDLE.en;
+}
 
 function lookup(tree: MsgTree | undefined, dotted: string): string | undefined {
   if (!tree) return undefined;
@@ -46,7 +53,7 @@ function interpolate(template: string, values?: Record<string, string | number>)
  * key segment (review rule: NEVER leak the raw dotted "a.b.cKey" into the UI).
  */
 export function getQaNcrsTranslator(locale: string) {
-  const primary = locale === 'pl' ? BUNDLE.pl : BUNDLE.en;
+  const primary = localeTree(locale);
   const fallback = BUNDLE.en;
 
   const t = (key: string, values?: Record<string, string | number>): string => {

@@ -1,11 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getProductionDashboard } from './dashboard-data';
-import { PRODUCTION_DASHBOARD_WO_LIST_SQL } from '../_lib/dashboard-queries';
+import {
+  PRODUCTION_DASHBOARD_SITE_WO_PREDICATE,
+  PRODUCTION_DASHBOARD_WO_LIST_SQL,
+} from '../_lib/dashboard-queries';
 import { formatDashboardKg } from '../_lib/dashboard-format';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
+const SITE_ID = '7b72b4af-48d5-4da2-a3fe-d191d9e6ec19';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -16,6 +20,20 @@ type QueryClient = {
 
 let client: QueryClient;
 let executed: string[] = [];
+let boundSiteId: string | null = SITE_ID;
+
+vi.mock('../../../../../../lib/auth/with-site-context', () => ({
+  withSiteContext: vi.fn(
+    async (
+      arg1: unknown,
+      arg2?: (ctx: { userId: string; orgId: string; siteId: string | null; client: QueryClient }) => Promise<unknown>,
+    ) => {
+      const action = typeof arg1 === 'function' ? arg1 : arg2;
+      if (!action) throw new TypeError('withSiteContext mock: missing action');
+      return action({ userId: USER_ID, orgId: ORG_ID, siteId: boundSiteId, client });
+    },
+  ),
+}));
 
 vi.mock('../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(
@@ -23,6 +41,10 @@ vi.mock('../../../../../../lib/auth/with-org-context', () => ({
       action({ userId: USER_ID, orgId: ORG_ID, client }),
   ),
 }));
+
+function hasSiteWoPredicate(sql: string): boolean {
+  return sql.includes(PRODUCTION_DASHBOARD_SITE_WO_PREDICATE.toLowerCase());
+}
 
 function makeClient(woRows: Record<string, unknown>[] = []): QueryClient {
   return {
@@ -34,7 +56,7 @@ function makeClient(woRows: Record<string, unknown>[] = []): QueryClient {
         expect(params).toEqual([USER_ID, ORG_ID, 'production.oee.read']);
         return { rows: [{ ok: true }] as never[], rowCount: 1 };
       }
-      if (normalized.includes('coalesce(sum(qty_kg), 0)::text as kg')) {
+      if (normalized.includes('coalesce(sum(o.qty_kg), 0)::text as kg')) {
         return { rows: [{ kg: '0.480' }] as never[], rowCount: 1 };
       }
       if (normalized.includes('from public.work_orders w') && normalized.includes('limit 25')) {
@@ -56,6 +78,7 @@ function makeClient(woRows: Record<string, unknown>[] = []): QueryClient {
 
 beforeEach(() => {
   executed = [];
+  boundSiteId = SITE_ID;
   client = makeClient();
 });
 
@@ -67,11 +90,12 @@ describe('getProductionDashboard', () => {
     if (!result.ok) return;
     expect(result.data.outputTodayKg).toBe('0.480');
 
-    const outputSql = executed.find((sql) => sql.includes('coalesce(sum(qty_kg), 0)::text as kg'));
+    const outputSql = executed.find((sql) => sql.includes('coalesce(sum(o.qty_kg), 0)::text as kg'));
     expect(outputSql).toBeTruthy();
     expect(outputSql!).toContain("date_trunc('day', now() at time zone 'utc') at time zone 'utc'");
     expect(outputSql!).not.toContain("date_trunc('day', now())");
     expect(outputSql!).toContain("interval '1 day'");
+    expect(outputSql!).toContain(PRODUCTION_DASHBOARD_SITE_WO_PREDICATE.toLowerCase());
   });
 
   it('keeps produced qty numeric in the lateral subquery so progress_pct division is valid', async () => {
@@ -79,6 +103,7 @@ describe('getProductionDashboard', () => {
 
     expect(PRODUCTION_DASHBOARD_WO_LIST_SQL).toContain('coalesce(sum(o.qty_kg), 0) as qty_kg');
     expect(PRODUCTION_DASHBOARD_WO_LIST_SQL).not.toContain('coalesce(sum(o.qty_kg), 0)::text as qty_kg');
+    expect(PRODUCTION_DASHBOARD_WO_LIST_SQL).toContain(PRODUCTION_DASHBOARD_SITE_WO_PREDICATE);
   });
 
   it('preserves exact decimal produced/planned kg strings from the WO list query', async () => {
@@ -109,5 +134,89 @@ describe('getProductionDashboard', () => {
     expect(result.data.woRows[0]?.producedKg).toBe('0.960');
     expect(formatDashboardKg(result.data.woRows[0]?.producedKg)).toBe('0.96');
     expect(formatDashboardKg(result.data.outputTodayKg)).toBe('0.48');
+  });
+
+  it('scopes WO KPI counts to the active site so KPI and list agree (regression Z10-01)', async () => {
+    const ORG_WIDE_IN_PROGRESS = 4;
+    const SITE_SCOPED_IN_PROGRESS = 3;
+
+    client = {
+      query: vi.fn(async (sql: string, params: readonly unknown[] = []) => {
+        const normalized = sql.replace(/\s+/g, ' ').trim().toLowerCase();
+        executed.push(normalized);
+
+        if (normalized.includes('from public.user_roles')) {
+          return { rows: [{ ok: true }] as never[], rowCount: 1 };
+        }
+        if (
+          normalized.includes('from public.wo_executions e') &&
+          normalized.includes("e.status = 'in_progress'")
+        ) {
+          expect(hasSiteWoPredicate(normalized)).toBe(true);
+          return {
+            rows: [{ n: hasSiteWoPredicate(normalized) ? SITE_SCOPED_IN_PROGRESS : ORG_WIDE_IN_PROGRESS }],
+            rowCount: 1,
+          };
+        }
+        if (normalized.includes('group by 1')) {
+          expect(hasSiteWoPredicate(normalized)).toBe(true);
+          return {
+            rows: [
+              {
+                status: 'in_progress',
+                n: hasSiteWoPredicate(normalized) ? SITE_SCOPED_IN_PROGRESS : ORG_WIDE_IN_PROGRESS,
+              },
+            ],
+            rowCount: 1,
+          };
+        }
+        if (normalized.includes('from public.work_orders w') && normalized.includes('limit 25')) {
+          expect(hasSiteWoPredicate(normalized)).toBe(true);
+          const count = hasSiteWoPredicate(normalized) ? SITE_SCOPED_IN_PROGRESS : ORG_WIDE_IN_PROGRESS;
+          return {
+            rows: Array.from({ length: count }, (_, index) => ({
+              id: `wo-${index}`,
+              wo_number: `WO-${index}`,
+              status: 'in_progress',
+              production_line_id: null,
+              line_code: null,
+              product_id: `prod-${index}`,
+              item_code: null,
+              product_name: null,
+              planned_quantity: '10.000',
+              produced_quantity: null,
+              progress_pct: null,
+              has_allergen: false,
+              over_production_flagged: false,
+            })),
+            rowCount: count,
+          };
+        }
+        if (normalized.includes('coalesce(sum(o.qty_kg), 0)::text as kg')) {
+          return { rows: [{ kg: '0' }] as never[], rowCount: 1 };
+        }
+        if (normalized.includes('count(*)::int as n')) {
+          return { rows: [{ n: 0 }] as never[], rowCount: 1 };
+        }
+        if (normalized.includes('from public.oee_snapshots')) {
+          return { rows: [] as never[], rowCount: 0 };
+        }
+        return { rows: [] as never[], rowCount: 0 };
+      }),
+    };
+
+    const result = await getProductionDashboard();
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.woInProgress).toBe(SITE_SCOPED_IN_PROGRESS);
+    expect(result.data.statusCounts.in_progress).toBe(SITE_SCOPED_IN_PROGRESS);
+    expect(result.data.woRows.filter((row) => row.status === 'in_progress')).toHaveLength(
+      SITE_SCOPED_IN_PROGRESS,
+    );
+    expect(result.data.woInProgress).toBe(result.data.statusCounts.in_progress);
+    expect(executed.every((sql) => !sql.includes('from public.wo_executions') || hasSiteWoPredicate(sql))).toBe(
+      true,
+    );
   });
 });
