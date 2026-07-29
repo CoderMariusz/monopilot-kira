@@ -100,6 +100,29 @@ export function PmScheduleFormModal({
 
     setError(null);
     startSubmit(async () => {
+      if (mode === 'create') {
+        const result = await createPmScheduleAction({
+          equipmentId,
+          scheduleType,
+          intervalValue: parsedInterval,
+          warningDays: Number.isFinite(parsedWarning) ? parsedWarning : 7,
+          firstDueDate: dueDate || undefined,
+        });
+        if (result.ok) onSaved();
+        else
+          setError(
+            result.reason === 'forbidden'
+              ? labels.errorForbidden
+              : result.message ?? labels.errorFailed,
+          );
+        return;
+      }
+
+      if (!schedule) {
+        setError(labels.errorFailed);
+        return;
+      }
+
       const updatePayload: {
         scheduleId: string;
         intervalValue: number;
@@ -107,7 +130,7 @@ export function PmScheduleFormModal({
         nextDueDate?: string;
         active: boolean;
       } = {
-        scheduleId: schedule!.id,
+        scheduleId: schedule.id,
         intervalValue: parsedInterval,
         nextDueDate: dueDate || undefined,
         active,
@@ -116,16 +139,7 @@ export function PmScheduleFormModal({
         updatePayload.warningDays = parsedWarning;
       }
 
-      const result =
-        mode === 'create'
-          ? await createPmScheduleAction({
-              equipmentId,
-              scheduleType,
-              intervalValue: parsedInterval,
-              warningDays: Number.isFinite(parsedWarning) ? parsedWarning : 7,
-              firstDueDate: dueDate || undefined,
-            })
-          : await updatePmScheduleAction(updatePayload);
+      const result = await updatePmScheduleAction(updatePayload);
       if (result.ok) onSaved();
       else
         setError(
@@ -174,12 +188,12 @@ export function PmScheduleFormModal({
               data-testid="pm-schedule-type"
             />
           </div>
-        ) : (
+        ) : schedule ? (
           <p className="text-sm text-slate-700">
             <span className="font-medium">{labels.scheduleType}: </span>
-            {labels.type[schedule!.scheduleType]}
+            {labels.type[schedule.scheduleType]}
           </p>
-        )}
+        ) : null}
 
         <label className="flex flex-col gap-1 text-sm">
           <span className="font-medium text-slate-700">
