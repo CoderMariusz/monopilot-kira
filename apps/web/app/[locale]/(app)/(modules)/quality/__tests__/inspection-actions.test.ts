@@ -26,6 +26,8 @@ const SITE_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 let client: QueryClient;
 let allowPermission = true;
 let currentReferenceType: 'lp' | 'grn' | 'wo_output' = 'lp';
+/** Active spec rows for loadActiveSpecParameterBounds; default empty = no spec to enforce. */
+let activeSpecRows: Array<Record<string, string | number>> = [];
 
 vi.mock('../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -118,20 +120,7 @@ function makeClient(): QueryClient {
       }
 
       if (q.includes('from public.quality_specifications qs')) {
-        return {
-          rows: [
-            {
-              spec_id: 'spec-1',
-              parameter_name: 'Visual',
-              target_value: null,
-              min_value: null,
-              max_value: null,
-              unit: null,
-              tied_spec_count: 1,
-              tied_spec_ids: '["spec-1"]',
-            },
-          ],
-        };
+        return { rows: activeSpecRows };
       }
 
       if (q.startsWith('update public.quality_inspections') && q.includes("set status = 'in_progress'")) {
@@ -247,6 +236,7 @@ describe('quality inspection server actions', () => {
   beforeEach(() => {
     allowPermission = true;
     currentReferenceType = 'lp';
+    activeSpecRows = [];
     client = makeClient();
     vi.clearAllMocks();
   });

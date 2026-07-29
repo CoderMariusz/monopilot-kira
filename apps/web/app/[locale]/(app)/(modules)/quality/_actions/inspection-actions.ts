@@ -30,6 +30,7 @@ import {
   applySpecBoundsToParameters,
   normalizeParameterName,
   type InspectionParameterRecord,
+  validateKnownSpecParameters,
   validateSpecParameterCompleteness,
 } from '../../../../../../lib/quality/evaluate-inspection-parameter';
 import {
@@ -517,6 +518,11 @@ async function enforceSpecBoundsOnParameters(
       return { ok: false, reason: 'parameter_out_of_spec' };
     }
     return { ok: true, parameters: normalized };
+  }
+
+  const known = validateKnownSpecParameters(parameters, specBounds.bounds);
+  if (!known.ok) {
+    return { ok: false, reason: known.reason };
   }
 
   const specMatched = parameters.filter((parameter) =>

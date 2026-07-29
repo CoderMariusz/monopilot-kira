@@ -140,7 +140,11 @@
         "save": "Save results",
         "saving": "Saving…",
         "saved": "Results saved.",
-        "saveError": "Could not save results: {message}",
+        "saveError": "Could not save results. Please try again.",
+        "saveErrors": {
+          "actualRequired": "Enter a measured value for every parameter before saving.",
+          "parametersRequired": "At least one parameter is required before saving."
+        },
         "notes": "Result notes",
         "notesPlaceholder": "Optional notes on the recorded results…"
       },
@@ -176,6 +180,10 @@
         "submitting": "Submitting…",
         "validation": {
           "passwordRequired": "Your password or PIN is required to sign."
+        },
+        "submitErrors": {
+          "missing_spec_parameters": "Measure every parameter required by the active specification before signing a Pass decision.",
+          "unknown_spec_parameters": "One or more parameter names are not defined on the active specification. Use the exact names from the spec template."
         },
         "error": "Could not submit decision: {message}",
         "success": "Decision recorded."
@@ -322,7 +330,11 @@
         "save": "Zapisz wyniki",
         "saving": "Zapisywanie…",
         "saved": "Wyniki zapisane.",
-        "saveError": "Nie udało się zapisać wyników: {message}",
+        "saveError": "Nie udało się zapisać wyników. Spróbuj ponownie.",
+        "saveErrors": {
+          "actualRequired": "Podaj zmierzoną wartość każdego parametru przed zapisem.",
+          "parametersRequired": "Przed zapisem wymagany jest co najmniej jeden parametr."
+        },
         "notes": "Notatki do wyników",
         "notesPlaceholder": "Opcjonalne notatki do zapisanych wyników…"
       },
@@ -359,8 +371,46 @@
         "validation": {
           "passwordRequired": "Hasło lub PIN są wymagane do podpisu."
         },
+        "submitErrors": {
+          "missing_spec_parameters": "Zmierz każdy parametr wymagany przez aktywną specyfikację przed podpisaniem decyzji Zalicz.",
+          "unknown_spec_parameters": "Co najmniej jedna nazwa parametru nie jest zdefiniowana w aktywnej specyfikacji. Użyj dokładnych nazw z szablonu specyfikacji."
+        },
         "error": "Nie udało się wysłać decyzji: {message}",
         "success": "Decyzja zapisana."
+      }
+    }
+  },
+  "ro": {
+    "detail": {
+      "params": {
+        "saveError": "Nu s-au putut salva rezultatele. Încercați din nou.",
+        "saveErrors": {
+          "actualRequired": "Introduceți valoarea măsurată pentru fiecare parametru înainte de salvare.",
+          "parametersRequired": "Este necesar cel puțin un parametru înainte de salvare."
+        }
+      },
+      "esign": {
+        "submitErrors": {
+          "missing_spec_parameters": "Măsurați fiecare parametru cerut de specificația activă înainte de a semna decizia Promovat.",
+          "unknown_spec_parameters": "Unul sau mai multe nume de parametri nu sunt definite în specificația activă. Folosiți exact numele din șablonul specificației."
+        }
+      }
+    }
+  },
+  "uk": {
+    "detail": {
+      "params": {
+        "saveError": "Не вдалося зберегти результати. Спробуйте ще раз.",
+        "saveErrors": {
+          "actualRequired": "Введіть виміряне значення для кожного параметра перед збереженням.",
+          "parametersRequired": "Перед збереженням потрібен щонайменше один параметр."
+        }
+      },
+      "esign": {
+        "submitErrors": {
+          "missing_spec_parameters": "Виміряйте кожен параметр, який вимагає активна специфікація, перед підписанням рішення «Здано».",
+          "unknown_spec_parameters": "Одна або кілька назв параметрів не визначені в активній специфікації. Використовуйте точні назви з шаблону специфікації."
+        }
       }
     }
   }

@@ -863,6 +863,74 @@ describe('recordInspectionResult — PF-R16-01 spec bounds', () => {
       { name: 'NIGHT-R16 pH', actual: '5.5000', pass: true },
     ]);
   });
+
+  it('rejects save when a parameter name is not defined in the active spec (Z-02)', async () => {
+    recordSpecBoundsRows = [
+      {
+        spec_id: 'spec-1',
+        parameter_name: 'Moisture',
+        target_value: '12.0000',
+        min_value: '10.0000',
+        max_value: '14.0000',
+        unit: '%',
+      },
+    ];
+
+    const res = await recordInspectionResult({
+      inspectionId: INSP_ID,
+      parameters: [{ name: 'Moistur', actual: '25', pass: true }],
+    });
+
+    expect(res).toEqual({ ok: false, reason: 'error', message: 'unknown_spec_parameters' });
+    expect(
+      vi.mocked(client.query).mock.calls.some(([sql]) =>
+        normalize(String(sql)).includes("set status = 'in_progress'"),
+      ),
+    ).toBe(false);
+  });
+
+  it('persists a parameter whose name matches the active spec (Moisture)', async () => {
+    recordSpecBoundsRows = [
+      {
+        spec_id: 'spec-1',
+        parameter_name: 'Moisture',
+        target_value: '12.0000',
+        min_value: '10.0000',
+        max_value: '14.0000',
+        unit: '%',
+      },
+    ];
+
+    const res = await recordInspectionResult({
+      inspectionId: INSP_ID,
+      parameters: [{ name: 'Moisture', actual: '12', pass: true }],
+    });
+
+    expect(res.ok).toBe(true);
+    const updateCall = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      normalize(String(sql)).includes("set status = 'in_progress'"),
+    );
+    expect(JSON.parse(String(updateCall?.[1]?.[1]))).toEqual([
+      { name: 'Moisture', actual: '12', pass: true },
+    ]);
+  });
+
+  it('allows save when no active specification exists for the product', async () => {
+    recordSpecBoundsRows = [];
+
+    const res = await recordInspectionResult({
+      inspectionId: INSP_ID,
+      parameters: [{ name: 'Ad-hoc check', actual: 'ok', pass: true }],
+    });
+
+    expect(res.ok).toBe(true);
+    const updateCall = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      normalize(String(sql)).includes("set status = 'in_progress'"),
+    );
+    expect(JSON.parse(String(updateCall?.[1]?.[1]))).toEqual([
+      { name: 'Ad-hoc check', actual: 'ok', pass: true },
+    ]);
+  });
 });
 
 describe('searchInspectionAssignees', () => {

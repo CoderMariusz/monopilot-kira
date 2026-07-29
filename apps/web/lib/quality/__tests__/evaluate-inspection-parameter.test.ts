@@ -4,6 +4,7 @@ import {
   applySpecBoundsToParameters,
   isWithinSpecBounds,
   normalizeParameterName,
+  validateKnownSpecParameters,
   validateSpecParameterCompleteness,
 } from '../evaluate-inspection-parameter';
 
@@ -29,6 +30,40 @@ describe('isWithinSpecBounds', () => {
 
   it('anti-regression: non-numeric actual fails closed instead of coercing to zero', () => {
     expect(isWithinSpecBounds('abc', null, '5.5')).toBe(false);
+  });
+});
+
+describe('validateKnownSpecParameters', () => {
+  const bounds = new Map([
+    [
+      normalizeParameterName('Moisture'),
+      { parameterName: 'Moisture', minValue: '10', maxValue: '14' },
+    ],
+    [normalizeParameterName('Visual'), { parameterName: 'Visual', minValue: null, maxValue: null }],
+  ]);
+
+  it('rejects a typo parameter name while the active spec exists (Z-02)', () => {
+    const result = validateKnownSpecParameters(
+      [{ name: 'Moistur', actual: '25', pass: true }],
+      bounds,
+    );
+    expect(result).toEqual({ ok: false, reason: 'unknown_spec_parameters', names: ['Moistur'] });
+  });
+
+  it('allows a partial payload that only includes spec-defined names', () => {
+    const result = validateKnownSpecParameters(
+      [{ name: 'Moisture', actual: '12', pass: true }],
+      bounds,
+    );
+    expect(result).toEqual({ ok: true });
+  });
+
+  it('allows any payload when the spec defines no parameters', () => {
+    const result = validateKnownSpecParameters(
+      [{ name: 'Ad-hoc check', actual: 'ok', pass: true }],
+      new Map(),
+    );
+    expect(result).toEqual({ ok: true });
   });
 });
 

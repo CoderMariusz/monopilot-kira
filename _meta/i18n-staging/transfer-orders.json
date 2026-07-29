@@ -126,7 +126,9 @@
             "ship": "Ship",
             "receive": "Receive",
             "cancel": "Cancel",
+            "cancelRemainder": "Cancel remainder",
             "confirm": "Change status of {to} to \"{status}\"?",
+            "confirmCancelRemainder": "Cancel the outstanding remainder on {to}? Already-received stock stays at the destination; source stock for unreceived lines will be restored.",
             "pending": "Updating…",
             "none": "No further status actions available."
           }
@@ -261,7 +263,9 @@
             "ship": "Wyślij",
             "receive": "Przyjmij",
             "cancel": "Anuluj",
+            "cancelRemainder": "Anuluj resztę",
             "confirm": "Zmienić status {to} na \"{status}\"?",
+            "confirmCancelRemainder": "Anulować pozostałą część na {to}? Już przyjęty zapas pozostaje w magazynie docelowym; zapas źródłowy dla nieprzyjętych pozycji zostanie przywrócony.",
             "pending": "Aktualizowanie…",
             "none": "Brak dostępnych dalszych akcji statusu."
           }

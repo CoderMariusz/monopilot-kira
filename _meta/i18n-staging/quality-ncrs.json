@@ -84,7 +84,8 @@
       "error": "We could not load this non-conformance report right now. Refresh to try again.",
       "backToNcrs": "NCRs",
       "overdueBanner": "Response overdue. Response was due {due}. The escalation rule will auto-escalate to the Quality Director within 24h.",
-      "closedBanner": "NCR was closed on {date}. Closure is immutable (21 CFR Part 11). SHA-256 signature stored.",
+      "closedBanner": "NCR was closed on {date}. Closure is immutable (21 CFR Part 11).",
+      "closedBannerSigned": "SHA-256 signature stored.",
       "closeNcr": "Close NCR",
       "downloadReport": "Download report",
       "header": {
@@ -210,6 +211,32 @@
       "linkedHoldNoMatch": "No hold matched \"{query}\".",
       "linkedHoldChip": "{number} · {reference}",
       "linkedHoldClear": "Clear",
+      "lookup": {
+        "sourceRefType": "Source reference (optional)",
+        "sourceRefTypeHelp": "Link this NCR to the failed inspection or affected licence plate.",
+        "sourceRefTypeOptions": {
+          "inspection": "Inspection",
+          "lp": "Licence plate"
+        },
+        "inspectionSearchLabel": "Inspection",
+        "inspectionSearchPlaceholder": "Search inspection #, LP or item…",
+        "inspectionSearching": "Searching inspections…",
+        "inspectionNoMatch": "No inspection matched \"{query}\".",
+        "inspectionChip": "{number} · {reference}",
+        "lpSearchLabel": "Licence plate",
+        "lpSearchPlaceholder": "Search LP number or item code…",
+        "lpSearching": "Searching licence plates…",
+        "lpNoMatch": "No licence plate matched \"{query}\".",
+        "lpChip": "{lpNumber} · {itemCode}",
+        "product": "Product (optional)",
+        "productHelp": "Defaults from the selected inspection or LP when available.",
+        "productSearchPlaceholder": "Search item code or name…",
+        "productSearching": "Searching products…",
+        "productNoMatch": "No product matched \"{query}\".",
+        "productChip": "{itemCode} · {name}",
+        "clearPick": "Clear",
+        "resultLine": "{primary} · {secondary}"
+      },
       "affectedQty": "Affected qty (kg)",
       "affectedQtyPlaceholder": "0",
       "cancel": "Cancel",
@@ -307,7 +334,8 @@
       "error": "Nie udało się teraz wczytać tego raportu niezgodności. Odśwież, aby spróbować ponownie.",
       "backToNcrs": "NCR",
       "overdueBanner": "Reakcja przeterminowana. Termin reakcji minął {due}. Reguła eskalacji automatycznie przekaże sprawę do Dyrektora ds. Jakości w ciągu 24h.",
-      "closedBanner": "NCR został zamknięty {date}. Zamknięcie jest niezmienne (21 CFR Part 11). Zapisano podpis SHA-256.",
+      "closedBanner": "NCR został zamknięty {date}. Zamknięcie jest niezmienne (21 CFR Part 11).",
+      "closedBannerSigned": "Zapisano podpis SHA-256.",
       "closeNcr": "Zamknij NCR",
       "downloadReport": "Pobierz raport",
       "header": {
@@ -433,6 +461,32 @@
       "linkedHoldNoMatch": "Żadne wstrzymanie nie pasuje do \"{query}\".",
       "linkedHoldChip": "{number} · {reference}",
       "linkedHoldClear": "Wyczyść",
+      "lookup": {
+        "sourceRefType": "Odniesienie źródłowe (opcjonalnie)",
+        "sourceRefTypeHelp": "Powiąż ten NCR z nieudaną kontrolą lub dotkniętym nośnikiem (LP).",
+        "sourceRefTypeOptions": {
+          "inspection": "Kontrola",
+          "lp": "Nośnik (LP)"
+        },
+        "inspectionSearchLabel": "Kontrola",
+        "inspectionSearchPlaceholder": "Szukaj nr kontroli, LP lub pozycji…",
+        "inspectionSearching": "Szukanie kontrol…",
+        "inspectionNoMatch": "Żadna kontrola nie pasuje do \"{query}\".",
+        "inspectionChip": "{number} · {reference}",
+        "lpSearchLabel": "Nośnik (LP)",
+        "lpSearchPlaceholder": "Szukaj numeru LP lub kodu pozycji…",
+        "lpSearching": "Szukanie nośników…",
+        "lpNoMatch": "Żaden nośnik nie pasuje do \"{query}\".",
+        "lpChip": "{lpNumber} · {itemCode}",
+        "product": "Produkt (opcjonalnie)",
+        "productHelp": "Domyślnie z wybranej kontroli lub LP, gdy dostępny.",
+        "productSearchPlaceholder": "Szukaj kodu lub nazwy pozycji…",
+        "productSearching": "Szukanie produktów…",
+        "productNoMatch": "Żaden produkt nie pasuje do \"{query}\".",
+        "productChip": "{itemCode} · {name}",
+        "clearPick": "Wyczyść",
+        "resultLine": "{primary} · {secondary}"
+      },
       "affectedQty": "Ilość objęta (kg)",
       "affectedQtyPlaceholder": "0",
       "cancel": "Anuluj",
@@ -444,6 +498,18 @@
       },
       "error": "Nie udało się utworzyć NCR: {message}",
       "success": "NCR utworzony."
+    }
+  },
+  "ro": {
+    "detail": {
+      "closedBanner": "NCR a fost închis la {date}. Închiderea este imuabilă (21 CFR Part 11).",
+      "closedBannerSigned": "Semnătura SHA-256 a fost stocată."
+    }
+  },
+  "uk": {
+    "detail": {
+      "closedBanner": "NCR закрито {date}. Закриття є незмінним (21 CFR Part 11).",
+      "closedBannerSigned": "Підпис SHA-256 збережено."
     }
   }
 }

@@ -252,6 +252,8 @@
           "intro": "Split a quantity off this LP into a new child license plate. The remainder stays on this LP.",
           "qty": "Split quantity",
           "qtyHint": "Available to split: {qty} {uom} (must be less than the full available quantity).",
+          "destination": "Destination location",
+          "destinationPlaceholder": "Choose where the new pallet goes",
           "reason": "Reason",
           "reasonPlaceholder": "Why is this LP being split?",
           "cancel": "Cancel",
@@ -260,7 +262,8 @@
           "validation": {
             "positive": "Enter a quantity greater than zero.",
             "lessThanAvailable": "The split quantity must be less than the available quantity.",
-            "reasonRequired": "Enter a reason before splitting."
+            "reasonRequired": "Enter a reason before splitting.",
+            "destinationRequired": "Choose a destination location for the new pallet."
           },
           "errors": {
             "forbidden": "You do not have permission to split license plates.",
@@ -269,6 +272,8 @@
             "invalidState": "This license plate cannot be split in its current state.",
             "onHold": "This license plate is under an active quality hold and cannot be split.",
             "qtyTooLarge": "The split quantity must be less than the available quantity.",
+            "destinationInvalid": "Choose an active destination location in this site — the one selected is unknown, deactivated, or in another site.",
+            "siteScope": "This license plate belongs to another site. Switch to that site first.",
             "generic": "We could not split this license plate. Try again."
           }
         },
@@ -372,7 +377,9 @@
         "noParent": "No parent LP — this is a root receipt.",
         "noChildren": "No child LPs — this LP has not been split or consumed into other LPs.",
         "status": "Status",
-        "qty": "Qty"
+        "qty": "Qty",
+        "consumingWosTitle": "Consumed by work orders",
+        "noConsumingWos": "No work order has consumed from this LP."
       },
       "labels": {
         "deferred": "Print a barcode / GS1 label for this license plate. Printer routing and job log live in Print history.",
@@ -383,7 +390,26 @@
         "download": "Download label",
         "error": "Label could not be printed. Try again or contact an administrator.",
         "forbidden": "Insufficient permissions: settings.org.update is required to print labels.",
-        "historyLink": "View print history"
+        "historyLink": "View print history",
+        "printModal": {
+          "title": "Print label — {lp}",
+          "intro": "Choose how many copies to print and which printer to use.",
+          "copies": "Copies",
+          "copiesHelp": "Enter a whole number from 1 to 100.",
+          "printer": "Printer",
+          "printerPlaceholder": "Select a printer…",
+          "noPrinters": "No active printers are configured for this site.",
+          "printersLoadError": "Could not load printers — try again.",
+          "cancel": "Cancel",
+          "submit": "Print",
+          "submitting": "Printing…",
+          "validation": {
+            "copiesInteger": "Copies must be a whole number.",
+            "copiesMin": "Copies must be at least 1.",
+            "copiesMax": "Copies cannot exceed 100.",
+            "printerRequired": "Select a printer."
+          }
+        }
       },
       "raw": {
         "title": "Raw extension data (ext_jsonb)",
@@ -702,6 +728,8 @@
           "intro": "Wydziel część ilości z tego LP do nowego, podrzędnego nośnika. Reszta pozostaje na tym LP.",
           "qty": "Ilość do wydzielenia",
           "qtyHint": "Dostępne do podziału: {qty} {uom} (musi być mniejsze niż pełna dostępna ilość).",
+          "destination": "Lokalizacja docelowa",
+          "destinationPlaceholder": "Wybierz, gdzie trafi nowa paleta",
           "reason": "Powód",
           "reasonPlaceholder": "Dlaczego ten LP jest dzielony?",
           "cancel": "Anuluj",
@@ -710,7 +738,8 @@
           "validation": {
             "positive": "Podaj ilość większą od zera.",
             "lessThanAvailable": "Ilość do wydzielenia musi być mniejsza niż dostępna ilość.",
-            "reasonRequired": "Podaj powód przed podziałem."
+            "reasonRequired": "Podaj powód przed podziałem.",
+            "destinationRequired": "Wybierz lokalizację docelową dla nowej palety."
           },
           "errors": {
             "forbidden": "Nie masz uprawnień do dzielenia LP.",
@@ -719,6 +748,8 @@
             "invalidState": "Tego LP nie można podzielić w obecnym stanie.",
             "onHold": "Ten LP jest na aktywnym holdzie jakościowym i nie można go podzielić.",
             "qtyTooLarge": "Ilość do wydzielenia musi być mniejsza niż dostępna ilość.",
+            "destinationInvalid": "Wybierz aktywną lokalizację docelową w tym zakładzie — wskazana jest nieznana, nieaktywna albo należy do innego zakładu.",
+            "siteScope": "Ten LP należy do innego zakładu. Najpierw przełącz się na ten zakład.",
             "generic": "Nie udało się podzielić tego LP. Spróbuj ponownie."
           }
         },
@@ -822,7 +853,9 @@
         "noParent": "Brak nadrzędnego LP — to przyjęcie źródłowe.",
         "noChildren": "Brak podrzędnych LP — ten LP nie został podzielony ani zużyty do innych LP.",
         "status": "Status",
-        "qty": "Ilość"
+        "qty": "Ilość",
+        "consumingWosTitle": "Zużyty przez zlecenia produkcyjne",
+        "noConsumingWos": "Żadne zlecenie nie zużyło z tego LP."
       },
       "labels": {
         "deferred": "Wydrukuj etykietę z kodem kreskowym / GS1 dla tej palety. Routing drukarki i dziennik zadań znajdują się w Historii druku.",
@@ -833,7 +866,26 @@
         "download": "Pobierz etykietę",
         "error": "Nie udało się wydrukować etykiety. Spróbuj ponownie lub skontaktuj się z administratorem.",
         "forbidden": "Niewystarczające uprawnienia: do druku etykiet wymagane jest settings.org.update.",
-        "historyLink": "Zobacz historię druku"
+        "historyLink": "Zobacz historię druku",
+        "printModal": {
+          "title": "Drukuj etykietę — {lp}",
+          "intro": "Wybierz liczbę kopii i drukarkę.",
+          "copies": "Kopie",
+          "copiesHelp": "Podaj liczbę całkowitą od 1 do 100.",
+          "printer": "Drukarka",
+          "printerPlaceholder": "Wybierz drukarkę…",
+          "noPrinters": "Brak aktywnych drukarek skonfigurowanych dla tego zakładu.",
+          "printersLoadError": "Nie udało się wczytać drukarek — spróbuj ponownie.",
+          "cancel": "Anuluj",
+          "submit": "Drukuj",
+          "submitting": "Drukowanie…",
+          "validation": {
+            "copiesInteger": "Liczba kopii musi być liczbą całkowitą.",
+            "copiesMin": "Liczba kopii musi wynosić co najmniej 1.",
+            "copiesMax": "Liczba kopii nie może przekraczać 100.",
+            "printerRequired": "Wybierz drukarkę."
+          }
+        }
       },
       "raw": {
         "title": "Surowe dane rozszerzeń (ext_jsonb)",
@@ -1152,6 +1204,8 @@
           "intro": "Split a quantity off this LP into a new child license plate. The remainder stays on this LP.",
           "qty": "Split quantity",
           "qtyHint": "Available to split: {qty} {uom} (must be less than the full available quantity).",
+          "destination": "Destination location",
+          "destinationPlaceholder": "Choose where the new pallet goes",
           "reason": "Reason",
           "reasonPlaceholder": "Why is this LP being split?",
           "cancel": "Cancel",
@@ -1160,7 +1214,8 @@
           "validation": {
             "positive": "Enter a quantity greater than zero.",
             "lessThanAvailable": "The split quantity must be less than the available quantity.",
-            "reasonRequired": "Enter a reason before splitting."
+            "reasonRequired": "Enter a reason before splitting.",
+            "destinationRequired": "Choose a destination location for the new pallet."
           },
           "errors": {
             "forbidden": "You do not have permission to split license plates.",
@@ -1169,6 +1224,8 @@
             "invalidState": "This license plate cannot be split in its current state.",
             "onHold": "This license plate is under an active quality hold and cannot be split.",
             "qtyTooLarge": "The split quantity must be less than the available quantity.",
+            "destinationInvalid": "Choose an active destination location in this site — the one selected is unknown, deactivated, or in another site.",
+            "siteScope": "This license plate belongs to another site. Switch to that site first.",
             "generic": "We could not split this license plate. Try again."
           }
         },
@@ -1272,7 +1329,9 @@
         "noParent": "No parent LP — this is a root receipt.",
         "noChildren": "No child LPs — this LP has not been split or consumed into other LPs.",
         "status": "Status",
-        "qty": "Qty"
+        "qty": "Qty",
+        "consumingWosTitle": "Consumed by work orders",
+        "noConsumingWos": "No work order has consumed from this LP."
       },
       "labels": {
         "deferred": "Print a barcode / GS1 label for this license plate. Printer routing and job log live in Print history.",
@@ -1283,7 +1342,26 @@
         "download": "Download label",
         "error": "Label could not be printed. Try again or contact an administrator.",
         "forbidden": "Insufficient permissions: settings.org.update is required to print labels.",
-        "historyLink": "View print history"
+        "historyLink": "View print history",
+        "printModal": {
+          "title": "Print label — {lp}",
+          "intro": "Choose how many copies to print and which printer to use.",
+          "copies": "Copies",
+          "copiesHelp": "Enter a whole number from 1 to 100.",
+          "printer": "Printer",
+          "printerPlaceholder": "Select a printer…",
+          "noPrinters": "No active printers are configured for this site.",
+          "printersLoadError": "Could not load printers — try again.",
+          "cancel": "Cancel",
+          "submit": "Print",
+          "submitting": "Printing…",
+          "validation": {
+            "copiesInteger": "Copies must be a whole number.",
+            "copiesMin": "Copies must be at least 1.",
+            "copiesMax": "Copies cannot exceed 100.",
+            "printerRequired": "Select a printer."
+          }
+        }
       },
       "raw": {
         "title": "Raw extension data (ext_jsonb)",
@@ -1602,6 +1680,8 @@
           "intro": "Split a quantity off this LP into a new child license plate. The remainder stays on this LP.",
           "qty": "Split quantity",
           "qtyHint": "Available to split: {qty} {uom} (must be less than the full available quantity).",
+          "destination": "Destination location",
+          "destinationPlaceholder": "Choose where the new pallet goes",
           "reason": "Reason",
           "reasonPlaceholder": "Why is this LP being split?",
           "cancel": "Cancel",
@@ -1610,7 +1690,8 @@
           "validation": {
             "positive": "Enter a quantity greater than zero.",
             "lessThanAvailable": "The split quantity must be less than the available quantity.",
-            "reasonRequired": "Enter a reason before splitting."
+            "reasonRequired": "Enter a reason before splitting.",
+            "destinationRequired": "Choose a destination location for the new pallet."
           },
           "errors": {
             "forbidden": "You do not have permission to split license plates.",
@@ -1619,6 +1700,8 @@
             "invalidState": "This license plate cannot be split in its current state.",
             "onHold": "This license plate is under an active quality hold and cannot be split.",
             "qtyTooLarge": "The split quantity must be less than the available quantity.",
+            "destinationInvalid": "Choose an active destination location in this site — the one selected is unknown, deactivated, or in another site.",
+            "siteScope": "This license plate belongs to another site. Switch to that site first.",
             "generic": "We could not split this license plate. Try again."
           }
         },
@@ -1722,7 +1805,9 @@
         "noParent": "No parent LP — this is a root receipt.",
         "noChildren": "No child LPs — this LP has not been split or consumed into other LPs.",
         "status": "Status",
-        "qty": "Qty"
+        "qty": "Qty",
+        "consumingWosTitle": "Consumed by work orders",
+        "noConsumingWos": "No work order has consumed from this LP."
       },
       "labels": {
         "deferred": "Print a barcode / GS1 label for this license plate. Printer routing and job log live in Print history.",
@@ -1733,7 +1818,26 @@
         "download": "Download label",
         "error": "Label could not be printed. Try again or contact an administrator.",
         "forbidden": "Insufficient permissions: settings.org.update is required to print labels.",
-        "historyLink": "View print history"
+        "historyLink": "View print history",
+        "printModal": {
+          "title": "Print label — {lp}",
+          "intro": "Choose how many copies to print and which printer to use.",
+          "copies": "Copies",
+          "copiesHelp": "Enter a whole number from 1 to 100.",
+          "printer": "Printer",
+          "printerPlaceholder": "Select a printer…",
+          "noPrinters": "No active printers are configured for this site.",
+          "printersLoadError": "Could not load printers — try again.",
+          "cancel": "Cancel",
+          "submit": "Print",
+          "submitting": "Printing…",
+          "validation": {
+            "copiesInteger": "Copies must be a whole number.",
+            "copiesMin": "Copies must be at least 1.",
+            "copiesMax": "Copies cannot exceed 100.",
+            "printerRequired": "Select a printer."
+          }
+        }
       },
       "raw": {
         "title": "Raw extension data (ext_jsonb)",

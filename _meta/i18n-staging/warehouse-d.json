@@ -109,7 +109,17 @@
         }
       },
       "none": "—",
-      "empty": "No license plates are past or nearing their expiry date. The daily expiry check runs automatically."
+      "empty": "No license plates are past or nearing their expiry date. The daily expiry check runs automatically.",
+      "qaStatus": {
+        "pending": "QA pending",
+        "released": "QA released",
+        "on_hold": "QA on hold",
+        "rejected": "QA rejected",
+        "quarantined": "QA quarantined",
+        "passed": "QA passed",
+        "failed": "QA failed",
+        "hold": "QA hold"
+      }
     }
   },
   "pl": {
@@ -221,7 +231,17 @@
         }
       },
       "none": "—",
-      "empty": "Żadne numery LP nie są po terminie ani nie zbliżają się do niego. Codzienna kontrola terminów działa automatycznie."
+      "empty": "Żadne numery LP nie są po terminie ani nie zbliżają się do niego. Codzienna kontrola terminów działa automatycznie.",
+      "qaStatus": {
+        "pending": "QA oczekuje",
+        "released": "QA zwolnione",
+        "on_hold": "QA wstrzymane",
+        "rejected": "QA odrzucone",
+        "quarantined": "QA kwarantanna",
+        "passed": "QA zaliczone",
+        "failed": "QA niezaliczone",
+        "hold": "QA hold"
+      }
     }
   }
 }

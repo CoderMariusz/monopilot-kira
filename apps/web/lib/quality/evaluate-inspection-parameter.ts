@@ -65,6 +65,33 @@ export type SpecParameterCompletenessResult =
   | { ok: false; reason: 'missing_spec_parameters' | 'unknown_spec_parameters'; names: string[] };
 
 /**
+ * Rejects parameter names that are not defined on the active spec (and duplicate names).
+ * Does not require every spec parameter to be present — used at result-save time so
+ * controllers can record measurements incrementally.
+ */
+export function validateKnownSpecParameters(
+  parameters: InspectionParameterRecord[],
+  boundsByName: ReadonlyMap<string, SpecParameterBounds>,
+): SpecParameterCompletenessResult {
+  if (boundsByName.size === 0) return { ok: true };
+
+  const submitted = new Set<string>();
+  const unknown: string[] = [];
+  for (const parameter of parameters) {
+    const key = normalizeParameterName(parameter.name);
+    if (submitted.has(key)) {
+      return { ok: false, reason: 'unknown_spec_parameters', names: [parameter.name] };
+    }
+    submitted.add(key);
+    if (!boundsByName.has(key)) unknown.push(parameter.name);
+  }
+  if (unknown.length > 0) {
+    return { ok: false, reason: 'unknown_spec_parameters', names: unknown };
+  }
+  return { ok: true };
+}
+
+/**
  * Fail-closed completeness: every active-spec parameter must be present exactly once
  * (normalized name match). Unknown parameter names are rejected when a spec exists.
  *

@@ -101,8 +101,10 @@
     },
     "pm": {
       "title": "PM schedules",
-      "subtitle": "Preventive maintenance schedules (read-only list)",
-      "empty": "No PM schedules yet. The PM engine and schedule editor arrive in a later slice.",
+      "subtitle": "Define calendar-day recurrence; due schedules feed the PM engine and can generate MWOs.",
+      "empty": "No PM schedules yet. Create one to start preventive planning.",
+      "createSchedule": "+ Create PM schedule",
+      "editSchedule": "Edit",
       "col": {
         "equipment": "Equipment",
         "type": "Type",
@@ -127,7 +129,26 @@
       "activeNo": "Inactive",
       "generateMwo": "Generate MWO",
       "generating": "Generating…",
-      "generateFailed": "Could not generate the MWO from this schedule."
+      "generateFailed": "Could not generate the MWO from this schedule.",
+      "form": {
+        "createTitle": "Create PM schedule",
+        "editTitle": "Edit PM schedule",
+        "equipment": "Equipment",
+        "equipmentPlaceholder": "Select equipment…",
+        "scheduleType": "Schedule type",
+        "intervalValue": "Repeat every",
+        "intervalUnit": "calendar days",
+        "warningDays": "Warning window (days before due)",
+        "firstDueDate": "First due date",
+        "nextDueDate": "Next due date",
+        "active": "Schedule active",
+        "submit": "Save schedule",
+        "submitting": "Saving…",
+        "cancel": "Cancel",
+        "errorRequired": "Equipment and interval are required.",
+        "errorFailed": "Could not save the PM schedule.",
+        "errorForbidden": "You do not have permission to manage PM schedules."
+      }
     },
     "detail": {
       "backToList": "Back to work orders",
@@ -264,8 +285,10 @@
     },
     "pm": {
       "title": "Harmonogramy PM",
-      "subtitle": "Harmonogramy konserwacji zapobiegawczej (lista tylko do odczytu)",
-      "empty": "Brak harmonogramów PM. Silnik PM i edytor harmonogramów pojawią się w kolejnej części.",
+      "subtitle": "Zdefiniuj cykliczność kalendarzową; harmonogramy w terminie zasilają silnik PM i mogą generować MWO.",
+      "empty": "Brak harmonogramów PM. Utwórz pierwszy, aby rozpocząć planowanie prewencyjne.",
+      "createSchedule": "+ Utwórz harmonogram PM",
+      "editSchedule": "Edytuj",
       "col": {
         "equipment": "Urządzenie",
         "type": "Typ",
@@ -290,7 +313,26 @@
       "activeNo": "Nieaktywny",
       "generateMwo": "Utwórz MWO",
       "generating": "Tworzenie…",
-      "generateFailed": "Nie udało się utworzyć MWO z tego harmonogramu."
+      "generateFailed": "Nie udało się utworzyć MWO z tego harmonogramu.",
+      "form": {
+        "createTitle": "Utwórz harmonogram PM",
+        "editTitle": "Edytuj harmonogram PM",
+        "equipment": "Urządzenie",
+        "equipmentPlaceholder": "Wybierz urządzenie…",
+        "scheduleType": "Typ harmonogramu",
+        "intervalValue": "Powtarzaj co",
+        "intervalUnit": "dni kalendarzowe",
+        "warningDays": "Okno ostrzeżenia (dni przed terminem)",
+        "firstDueDate": "Pierwszy termin",
+        "nextDueDate": "Następny termin",
+        "active": "Harmonogram aktywny",
+        "submit": "Zapisz harmonogram",
+        "submitting": "Zapisywanie…",
+        "cancel": "Anuluj",
+        "errorRequired": "Urządzenie i interwał są wymagane.",
+        "errorFailed": "Nie udało się zapisać harmonogramu PM.",
+        "errorForbidden": "Brak uprawnień do zarządzania harmonogramami PM."
+      }
     },
     "detail": {
       "backToList": "Wróć do zleceń",

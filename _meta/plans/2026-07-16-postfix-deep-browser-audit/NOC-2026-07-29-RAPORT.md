@@ -1,0 +1,150 @@
+# Noc 2026-07-28/29 — Fale 7-12. **Plan naprawczy ZAMKNIĘTY.**
+
+Owner zlecił fale 7-11 do 6:00. Zmieściły się wszystkie, a po nich jeszcze **Fala 12** —
+czyli cały 12-falowy plan naprawczy po audycie przeglądarkowym z 16.07 jest na produkcji.
+
+| Fala | Commit | Zakres | Migracje | Bramka | E2E na prodzie |
+|---|---|---|---|---|---|
+| 7+8 | `5b1a5187` | ZZ/GRN/nośniki, druk etykiet, przydatność, lokalizacje | 527 | +64 rdzeń / +50 UI | **6/7 udowodnione** |
+| 9 | `20988b30` | MRP, transfery, łańcuchy WO, scheduler | 528 | +50 rdzeń, 0 regresów | 2 P0 wykryte |
+| 10 | `ce072fdf` | produkcja, scheduler, kalibracja **+ P0 Fali 9** | — | +20 rdzeń / +6 UI | **4/4 P0 zamknięte** |
+| 11 | `d5c2319f` | jakość/NCR, wysyłki/zamówienia | 541 | +50 rdzeń, 0 regresów | **wszystkie punkty** |
+| 12 | `6bd4ad17` | utrzymanie ruchu, D365 export-only | 542 | +10/+7, **0 nowych czerwonych** | w toku |
+
+Fale 7 i 8 poszły jednym commitem: ich tory pracowały w tym samym drzewie i zmiany były
+przeplecione w tych samych modułach. Rozdzielanie po ścieżkach było bezpośrednią przyczyną
+niekompilującego się commita Fali 6 poprzedniej nocy.
+
+---
+
+## Co dała ta noc, czego nie dałby sam kod
+
+### Cross-review złapał to, czego bramka nie mogła
+**W trzech torach Fali 9 główny finding NIE był naprawiony, mimo raportu twierdzącego inaczej.**
+Przyczyna awarii „Save this run", guard transferów odrzucający *każdy* transfer w mieszanych
+jednostkach, TO dające się zamknąć jako przyjęte z brakującą ilością. Wszystkie trzy przeszłyby
+bramkę — bo bramka sprawdza, czy kod działa, a nie czy robi to, co obiecuje raport.
+
+W Fali 11 to samo w module jakości: fail-open przez pominięcie parametru, kontrole końcowe
+porównywane do granic ze specyfikacji przyjęcia, arbitralny werdykt przy wielu specyfikacjach.
+
+### Weryfikacja na żywym prodzie złapała to, czego nie mógł cross-review
+**„Save this run" padał przez ZASZYTY ALIAS TABELI** w stałej filtrującej dostawców, wstawianej
+do zapytań o innych aliasach (`s` vs `s_by_id`/`s_by_code`). Helper wołany był wyłącznie ze ścieżki
+zapisu — stąd „odczyt działa, zapis pada". Konsekwencja, której nie widać z diffu: **filtr
+zablokowanych dostawców żył w tej samej zepsutej ścieżce, więc na produkcji nigdy się nie wykonywał.**
+Naprawa jednego findingu była warunkiem drugiego.
+
+Weryfikacja znalazła też **żywą awarię poza zakresem fal**: `/en/production` był w stanie błędu
+(`operator does not exist: text / numeric`), podczas gdy bliźniaczy `/production/wos` działał.
+
+### Najostrzejszy dowód nocy
+Weryfikator wpisał wilgotność **25%** przy specyfikacji 10-14%, **ręcznie przestawił werdykt na
+„Pass"**, ekran pokazał „Overall result: PASS" — i **serwer odmówił zapisu**. Baza nietknięta.
+Potem podmienił nazwę parametru **w wychodzącym żądaniu** — też odmowa, bo guard czyta parametry
+**zapisane w bazie**, nie z ładunku klienta. Czyli **nie da się go obejść od strony przeglądarki**.
+
+Podpisany wynik negatywny dał komplet: blokada `HLD-00001029`, zgłoszenie `NCR-00001007`,
+nośnik na `on_hold`. Bramka podpisu nie była obchodzona.
+
+---
+
+## WZORZEC NOCY: guard chroniący jeden przypadek zamraża sąsiednie
+
+To wracało **sześć razy** w sześciu niezależnych obszarach:
+
+| gdzie | co guard miał chronić | co zamroził |
+|---|---|---|
+| lokalizacje | kasowanie lokalizacji z zapasem | przeniesienie i dezaktywację pustego rodzica |
+| transfery | konserwację ilości | legalne przejście `in_transit → received` |
+| łańcuchy WO | cykl zależności A→B→A | **zwykły łańcuch rodzic→dziecko** |
+| prognozy MRP | zakres site | wszystkie wiersze z pustym zakładem |
+| obłożenie | stare szkice schedulera | także szkic bieżący → obłożenie 0 zamiast 2 h |
+| jakość | fail-open przez pominięty parametr | zapis wyników i decyzję o blokadzie |
+| zamówienia | podwójny submit | **oba** żądania zamiast jednego |
+| plombowanie | niekompletną wysyłkę | wysyłkę z co najmniej jednym pudłem |
+
+**Wniosek operacyjny:** przy każdym zacieśnieniu warunku trzeba osobno udowodnić, że
+**sąsiednia legalna ścieżka nadal przechodzi**. Sam dowód „złe wejście odrzucone" jest połową
+roboty i systematycznie prowadzi do zamrożenia modułu.
+
+## Drugi wzorzec: naprawa jednego miejsca, gdy rodzeństwo ma tę samą wadę
+Zdublowany komunikat skanera naprawiony w jednym pliku z dwóch — a stan `not_found` **dodano do
+drugiego w tym samym commicie**, czyli defekt powielono obok miejsca, gdzie go usuwano.
+Total zamówienia poprawiony w szczegółach, ominięty na liście. Jedna martwa kontrolka D365
+usunięta, druga została. Przeżywa, bo testy asertują „jest obecny", nie „występuje dokładnie raz".
+
+## Trzeci: tory piszą testy, których nie uruchamiają
+Zakaz jest celowy (chroni pipeline przed padaniem), ale skutek jest systematyczny: testy
+deterministycznie czerwone, importujące nieistniejące moduły, niesprawdzające tego, co obiecują
+w nazwie, deklarowane w raporcie i nieobecne w patchu. **To koszt stały tego flow**, nie wpadka —
+bramka i cross-review go wyłapują, ale trzeba go budżetować czasowo.
+
+---
+
+## Decyzje, które podjąłem sam
+
+**Wycofanie przejścia „otwórz ponownie" (Fala 10).** Tor odpowiedział na finding „zakończone WO
+traci podpisane wyjście" **nowym przejściem `reopen`** z migracją. Recenzja pokazała koszt:
+cofanie stanu `closed` **bez kompensacji domknięcia finansowego** i trwale fałszywy snapshot OEE.
+Postawiłem warunek: udowodnij kompensację testem albo wycofaj. Wycofano — razem z migracją —
+a finding naprawiono węziej. **Wąska pewna naprawa jest warta więcej niż szeroka z dziurą w rozliczeniach.**
+
+**Korekta projektowa przy alergenach (Fala 11).** Tor zbudował **równoległą tabelę** zamiast podpiąć
+kanoniczny słownik. Przy bezpieczeństwie żywności dwa rozjeżdżające się rejestry są groźniejsze
+niż jeden brakujący. Skończyło się deterministyczną funkcją rozwiązującą kod do
+`reference.allergens_reference` — bez drugiego źródła prawdy. Weryfikacja potwierdziła: pełna lista EU-14.
+
+**Rozdzielenie zera od sub-minuty (Fala 10).** Pierwsza wersja **kasowała** zdarzenie przestoju
+trwającego poniżej minuty. Ale taka przerwa naprawdę się wydarzyła — zero było skutkiem obcięcia
+przez kolumnę generowaną, nie brakiem zdarzenia. Rozdzielone: jawne zero od operatora → odmowa;
+realna krótka przerwa → wiersz zachowany z czasem w sekundach. Udowodnione na prodzie:
+`{"actualDurationSec": 10, "durationBelowMinute": true}`.
+
+---
+
+## Moje własne błędy tej nocy
+
+1. **Skierowałem test tworzący dane na produkcyjną bazę.** Chciałem udowodnić naprawę
+   `/en/production` i uruchomiłem nowy `*.pg.test.ts` z `DATABASE_URL` wskazującym owner-proda.
+   Insert padł na setupie, nic nie powstało (sprawdziłem: 0 pasujących organizacji) — ale intencja
+   była zła. **Testy `*.pg.test.ts` tworzą fixture'y i nigdy nie wolno kierować ich na produkcję.**
+   Dowód wykonałem właściwie: `PREPARE` zapytania na prodzie, zero zapisów.
+
+2. **Sprawdzałem stan po nazwie, którą sam założyłem.** Przez 9 minut myślałem, że migracja 528 nie
+   weszła, bo odpytywałem o `demand_forecasts_org_item_week_site_unique`. Ta nazwa nigdy nie miała
+   powstać — runda poprawek świadomie **zachowała stare nazwy** (co, nawiasem, zlikwidowało okno
+   wdrożeniowe, które wcześniej zaakceptowałem). **Sprawdzaj po DEFINICJI, nie po nazwie.**
+
+3. **Grep po `apps/` bez wykluczenia `.next/`** dał trafienia w artefakcie builda sprzed zmian
+   i przez chwilę wyglądało to na P0 (kod woła ograniczenie, które migracja kasuje). Źródła były
+   już poprawne.
+
+---
+
+## Gotchy metodologiczne (potwierdzone empirycznie)
+
+- **Flaki od obciążenia są przewidywalne.** Rodzina widoków importu zbiorczego (`to-`, `wo-`, `po-`)
+  wypadała czerwona **cztery razy** w przebiegu równoległym i **za każdym razem** była zielona
+  szeregowo (3× pod rząd). Rozstrzygaj `--fileParallelism=false`, nie zgłaszaj jako regresji.
+- **`sslmode=no-verify` to składnia sterownika Node.** `psql`/libpq jej nie zna — odpowiednikiem
+  jest `sslmode=require` (szyfruje bez weryfikacji łańcucha).
+- **`${x^^}` to bash, nie zsh.** Wywaliło heredoc i wyprodukowało puste prompty recenzji —
+  recenzenci odpowiedzieli „What would you like me to work on?".
+- **Nowy test PG padający głośno bez bazy** to świadomy wzorzec repo, nie regresja.
+
+## Do backlogu (świadomie nie naprawione)
+- **Z10-02** odrzucenie jawnego zerowego przestoju **nie nazywa powodu** („Check the fields and try again.")
+- **Z-01 (F11)** pusty wynik kontroli pokazuje „Actual Required" zamiast zamierzonego zdania
+- **N-10 (F7)** diagnostyka z akcji ZZ (która linia blokuje wysyłkę) nie trafia na ekran — wymaga
+  decyzji, czy pokazywać nieprzetłumaczony tekst serwera w interfejsie czterojęzycznym
+- **Z10-03** `work_orders.paused_at` nie jest czyszczone przy wznowieniu
+- **Z10-04** `/en/settings/printers` zwraca 404
+- **Z10-06** `mrp_runs.completed_at` bywa wcześniejsze niż `started_at`
+- **B-1** `wo_outputs.registered_year` liczony w UTC — rejestracja tuż po północy 1.01 trafia do
+  roku poprzedniego i koliduje z numerem partii
+- **B-2** `wo_dependencies` broni wyłącznie self-loopa; cykl A→B→A baza przepuści
+- **B-3** `wo_status_history.from_status`/`to_status` bez żadnego CHECK-a
+- luka etykiet dla `chain_child_not_editable` i `chain_dependency_cycle` (degradują łagodnie)
+- zastane z poprzednich nocy: martwa bramka migracyjna CI, partycje `audit_log` do 2027-01-01,
+  SCIM CREATE, brak działającej wysyłki maili
