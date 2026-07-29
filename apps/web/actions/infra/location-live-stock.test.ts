@@ -12,7 +12,8 @@
  *   - refuses with a NAMED error carrying the exact dependency count, instead of cascading or
  *     silently moving stock;
  *   - "live" = the definition the locations page counts with (page.tsx lp_counts CTE) and that
- *     stock-move-actions.ts / scanner movement.ts share: every status but the terminal three.
+ *     stock-move-actions.ts / scanner movement.ts share: every status but the terminal four
+ *     (consumed, merged, shipped, destroyed — mig 294 license_plates_status_check).
  *
  * Separate file from location-active-parent.test.ts on purpose: that file's fake client does not
  * model license_plates, and crud.test.ts is shared with the lines/warehouses tracks.
@@ -26,7 +27,8 @@ const WAREHOUSE_ID = '33333333-3333-4333-8333-333333333333';
 const STOCKED_ID = '44444444-4444-4444-8444-444444444444'; // active, holds live LPs
 const EMPTY_ID = '55555555-5555-4555-8555-555555555555'; // active, no LPs
 const OFF_STOCKED_ID = '66666666-6666-4666-8666-666666666666'; // ALREADY inactive, holds live LPs
-const TERMINAL_ONLY_ID = '77777777-7777-4777-8777-777777777777'; // active, only consumed/shipped LPs
+const TERMINAL_ONLY_ID = '77777777-7777-4777-8777-777777777777'; // active, only terminal LPs
+const MERGED_ONLY_ID = '88888888-8888-4888-8888-888888888888'; // active, only merged LPs (prod RECV case)
 
 type Row = {
   id: string;
@@ -68,9 +70,8 @@ function row(overrides: Partial<Row> & Pick<Row, 'id' | 'code' | 'level' | 'path
   };
 }
 
-// The terminal triple the guard excludes. Kept as a literal here on purpose: if production ever
-// widens it, this list is what has to disagree first.
-const TERMINAL = ['consumed', 'shipped', 'destroyed'];
+// Terminal statuses from mig 294 license_plates_status_check — no longer handleable stock at a bin.
+const TERMINAL = ['consumed', 'merged', 'shipped', 'destroyed'];
 
 function makeClient(): FakeClient {
   const client: FakeClient = {
@@ -80,6 +81,7 @@ function makeClient(): FakeClient {
       [EMPTY_ID, row({ id: EMPTY_ID, code: 'NIGHT-R08-EMPTY', level: 1, path: 'NIGHT-R08-EMPTY' })],
       [OFF_STOCKED_ID, row({ id: OFF_STOCKED_ID, code: 'NIGHT-R08-OFF', level: 1, path: 'NIGHT-R08-OFF', is_active: false })],
       [TERMINAL_ONLY_ID, row({ id: TERMINAL_ONLY_ID, code: 'NIGHT-R08-TERM', level: 1, path: 'NIGHT-R08-TERM' })],
+      [MERGED_ONLY_ID, row({ id: MERGED_ONLY_ID, code: 'NIGHT-R08-MERGE', level: 1, path: 'NIGHT-R08-MERGE' })],
     ]),
     lps: [
       // The observed pallet, plus two more so the reported count is not confusable with a boolean.
@@ -88,8 +90,11 @@ function makeClient(): FakeClient {
       { location_id: STOCKED_ID, status: 'quarantine' },
       { location_id: OFF_STOCKED_ID, status: 'available' },
       { location_id: TERMINAL_ONLY_ID, status: 'consumed' },
+      { location_id: TERMINAL_ONLY_ID, status: 'merged' },
       { location_id: TERMINAL_ONLY_ID, status: 'shipped' },
       { location_id: TERMINAL_ONLY_ID, status: 'destroyed' },
+      { location_id: MERGED_ONLY_ID, status: 'merged' },
+      { location_id: MERGED_ONLY_ID, status: 'merged' },
     ],
     async query<T>(sql: string, params: readonly unknown[] = []) {
       client.calls.push({ sql, params });
@@ -108,7 +113,7 @@ function makeClient(): FakeClient {
       // forgot `status not in (...)` or scoped by the wrong column fails here.
       if (normalized.includes('live_lps')) {
         expect(normalized).toContain('from public.license_plates');
-        expect(normalized).toContain("status not in ('consumed', 'shipped', 'destroyed')");
+        expect(normalized).toContain("status not in ('consumed', 'merged', 'shipped', 'destroyed')");
         const locationId = String(params[0]);
         const count = client.lps.filter((lp) => lp.location_id === locationId && !TERMINAL.includes(lp.status)).length;
         return { rows: [{ live_lps: count }] as T[], rowCount: 1 };
@@ -209,7 +214,7 @@ describe('R08-01 · locations: deactivating a location that still holds stock', 
     expect(currentClient.locations.get(EMPTY_ID)?.is_active).toBe(false);
   });
 
-  it('counts only LIVE stock — consumed / shipped / destroyed pallets do not block', async () => {
+  it('counts only LIVE stock — consumed / merged / shipped / destroyed pallets do not block', async () => {
     const result = await upsert({
       id: TERMINAL_ONLY_ID,
       warehouseId: WAREHOUSE_ID,
@@ -223,6 +228,22 @@ describe('R08-01 · locations: deactivating a location that still holds stock', 
 
     expect(result).toMatchObject({ ok: true, data: { active: false } });
     expect(currentClient.locations.get(TERMINAL_ONLY_ID)?.is_active).toBe(false);
+  });
+
+  it('lets a location with ONLY merged pallets be deactivated (prod RECV false block)', async () => {
+    const result = await upsert({
+      id: MERGED_ONLY_ID,
+      warehouseId: WAREHOUSE_ID,
+      parentId: null,
+      code: 'NIGHT-R08-MERGE',
+      name: 'Merged only',
+      level: 1,
+      locationType: 'storage',
+      active: false,
+    });
+
+    expect(result).toMatchObject({ ok: true, data: { active: false } });
+    expect(currentClient.locations.get(MERGED_ONLY_ID)?.is_active).toBe(false);
   });
 
   it('keeps an ALREADY-inactive location with live stock editable (anti-over-blocking)', async () => {

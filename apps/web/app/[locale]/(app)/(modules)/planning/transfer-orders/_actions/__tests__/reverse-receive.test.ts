@@ -106,6 +106,7 @@ function makeClient(): QueryClient {
         q.startsWith('update public.license_plates') ||
         q.startsWith('insert into public.lp_state_history') ||
         q.startsWith('insert into public.stock_moves') ||
+        q.startsWith('update public.transfer_order_line_lps') ||
         q.startsWith('delete from public.transfer_order_line_lps') ||
         q.startsWith('update public.transfer_orders') ||
         q.startsWith('insert into public.audit_events') ||
@@ -125,7 +126,7 @@ describe('reverseToReceiveLine source LP state guards', () => {
     client = makeClient();
   });
 
-  it('allows a shipped source LP and flips it back to available while crediting quantity', async () => {
+  it('does not credit the source LP — qty returns to in-transit via the junction row', async () => {
     const result = await reverseToReceiveLine(makeInput());
 
     expect(result.ok).toBe(true);
@@ -133,65 +134,58 @@ describe('reverseToReceiveLine source LP state guards', () => {
       const q = normalize(String(sql));
       return q.startsWith('update public.license_plates') && params?.[0] === SOURCE_LP_ID;
     });
-    expect(sourceUpdate?.[0]).toContain("status = CASE WHEN status = 'shipped' THEN 'available' ELSE status END");
-    expect(sourceUpdate?.[1]).toEqual([SOURCE_LP_ID, '12', USER_ID]);
-
-    const shippedHistory = vi.mocked(client.query).mock.calls.find(([sql, params]) => {
-      const q = normalize(String(sql));
-      return q.startsWith('insert into public.lp_state_history') && params?.[1] === SOURCE_LP_ID;
-    });
-    expect(shippedHistory?.[1]?.[2]).toBe('shipped');
-    expect(shippedHistory?.[1]?.[3]).toBe('available');
+    expect(sourceUpdate).toBeUndefined();
   });
 
-  it('rejects a consumed source LP before mutating stock', async () => {
+  it('allows reversal when the source LP is consumed (only the destination LP is voided)', async () => {
     sourceStatus = 'consumed';
 
     const result = await reverseToReceiveLine(makeInput());
 
-    expect(result).toEqual({
-      ok: false,
-      error: 'invalid_state',
-      message: 'Source LP is consumed; receive reversal would create phantom stock.',
+    expect(result.ok).toBe(true);
+    const sourceUpdate = vi.mocked(client.query).mock.calls.find(([sql, params]) => {
+      const q = normalize(String(sql));
+      return q.startsWith('update public.license_plates') && params?.[0] === SOURCE_LP_ID;
     });
-    expect(vi.mocked(client.query).mock.calls.some(([sql]) => normalize(String(sql)).startsWith('update public.license_plates'))).toBe(false);
+    expect(sourceUpdate).toBeUndefined();
   });
 
-  it('rejects a destroyed source LP before mutating stock', async () => {
+  it('allows reversal when the source LP is destroyed (only the destination LP is voided)', async () => {
     sourceStatus = 'destroyed';
 
     const result = await reverseToReceiveLine(makeInput());
 
-    expect(result).toEqual({
-      ok: false,
-      error: 'invalid_state',
-      message: 'Source LP is destroyed; receive reversal would create phantom stock.',
+    expect(result.ok).toBe(true);
+    const sourceUpdate = vi.mocked(client.query).mock.calls.find(([sql, params]) => {
+      const q = normalize(String(sql));
+      return q.startsWith('update public.license_plates') && params?.[0] === SOURCE_LP_ID;
     });
-    expect(vi.mocked(client.query).mock.calls.some(([sql]) => normalize(String(sql)).startsWith('update public.license_plates'))).toBe(false);
+    expect(sourceUpdate).toBeUndefined();
   });
 });
 
-describe('reverseToReceiveLine ship-link cleanup (C058)', () => {
+describe('reverseToReceiveLine ship-link cleanup (PF-R10-02)', () => {
   beforeEach(() => {
     sourceStatus = 'shipped';
     client = makeClient();
   });
 
-  it('deletes the transfer_order_line_lps row so cancel cannot double-credit source stock', async () => {
+  it('clears dest_lp_id on the junction row so receive can materialize the remainder', async () => {
     const result = await reverseToReceiveLine(makeInput());
 
     expect(result.ok).toBe(true);
 
-    const linkDelete = vi.mocked(client.query).mock.calls.find(([sql, params]) => {
+    const linkUpdate = vi.mocked(client.query).mock.calls.find(([sql, params]) => {
       const q = normalize(String(sql));
-      return q.startsWith('delete from public.transfer_order_line_lps') && params?.[0] === LINK_ID;
+      return q.startsWith('update public.transfer_order_line_lps') && params?.[0] === LINK_ID;
     });
-    expect(linkDelete).toBeDefined();
+    expect(linkUpdate).toBeDefined();
+    expect(String(linkUpdate?.[0])).toContain('dest_lp_id = null');
 
-    const linkUpdate = vi.mocked(client.query).mock.calls.find(([sql]) =>
-      normalize(String(sql)).startsWith('update public.transfer_order_line_lps'),
+    const linkDelete = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      normalize(String(sql)).startsWith('delete from public.transfer_order_line_lps'),
     );
-    expect(linkUpdate).toBeUndefined();
+    expect(linkDelete).toBeUndefined();
   });
 
   it('rerolls the TO status to in_transit when received_count is 0 and returns it in result.data.status', async () => {

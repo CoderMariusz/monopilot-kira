@@ -2,11 +2,32 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const ORG_ID = '22222222-2222-4222-8222-222222222222';
 const USER_ID = '33333333-3333-4333-8333-333333333333';
+const SITE_ID = '44444444-4444-4444-8444-444444444444';
 
 const tx = vi.hoisted(() => ({
   committed: false,
   rolledBack: false,
   query: vi.fn(),
+}));
+
+vi.mock('../../../../../../../lib/auth/with-site-context', () => ({
+  withSiteContext: vi.fn(
+    async (
+      arg1: unknown,
+      arg2?: (ctx: { userId: string; orgId: string; siteId: string | null; client: { query: typeof tx.query } }) => Promise<unknown>,
+    ) => {
+      const action = typeof arg1 === 'function' ? arg1 : arg2;
+      if (!action) throw new TypeError('withSiteContext mock: missing action');
+      try {
+        const result = await action({ orgId: ORG_ID, userId: USER_ID, siteId: SITE_ID, client: { query: tx.query } });
+        tx.committed = true;
+        return result;
+      } catch (error) {
+        tx.rolledBack = true;
+        throw error;
+      }
+    },
+  ),
 }));
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({

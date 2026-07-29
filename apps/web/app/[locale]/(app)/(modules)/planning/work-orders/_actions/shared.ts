@@ -35,6 +35,10 @@ export type PlanningWorkOrderError =
   | 'chain_cancel_blocked'
   | 'line_site_mismatch'
   | 'chain_child_not_editable'
+  // F9 — date propagation walks wo_dependencies, and the DB only rejects the
+  // self-loop (A->B->A passes), so the walk detects longer cycles itself and
+  // surfaces them instead of looping.
+  | 'chain_dependency_cycle'
   | 'persistence_failed';
 
 export type EnteredUom = 'base' | 'each' | 'box';

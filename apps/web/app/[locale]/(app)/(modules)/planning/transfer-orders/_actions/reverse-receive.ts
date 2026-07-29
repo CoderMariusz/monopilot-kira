@@ -32,8 +32,6 @@ const TRANSFER_RECEIVE_REVERSE_INTENT = 'warehouse.transfer_receive.reverse';
 const TRANSFER_RECEIVE_REVERSED_EVENT = 'warehouse.lp.transitioned';
 const APP_VERSION = 'planning-transfer-reversal-v1';
 const RETURNED_LP_STATUS = 'returned';
-const SOURCE_REVERSE_BLOCKED_STATUSES = new Set(['consumed', 'destroyed']);
-
 const uuidSchema = z.string().uuid();
 const quantitySchema = z
   .string()
@@ -456,14 +454,6 @@ export async function reverseToReceiveLine(rawInput: unknown): Promise<ReverseTo
         };
       }
 
-      if (SOURCE_REVERSE_BLOCKED_STATUSES.has(link.source_status)) {
-        return {
-          ok: false,
-          error: 'invalid_state',
-          message: `Source LP is ${link.source_status}; receive reversal would create phantom stock.`,
-        };
-      }
-
       try {
         await assertCorrectionAllowed(
           { userId, orgId, client: client as unknown as ProductionQueryClient } satisfies ProductionContext,
@@ -497,9 +487,7 @@ export async function reverseToReceiveLine(rawInput: unknown): Promise<ReverseTo
       const matterBaseline = await snapshotTransferOrderMatterBalance(ctx, link.to_id, toItemUoms);
 
       const destHistoryTxn = randomUUID();
-      const sourceHistoryTxn = randomUUID();
       const destMoveTxn = randomUUID();
-      const sourceMoveTxn = randomUUID();
       const reversedQty = microToDecimal(reversedMicro);
       const reasonText = note ?? `TO receive reversal ${link.to_number}`;
 
@@ -532,36 +520,6 @@ export async function reverseToReceiveLine(rawInput: unknown): Promise<ReverseTo
         },
       });
 
-      await ctx.client.query(
-        `update public.license_plates
-            set quantity = quantity + $2::numeric,
-                status = CASE WHEN status = 'shipped' THEN 'available' ELSE status END,
-                updated_by = $3::uuid,
-                updated_at = now()
-          where org_id = app.current_org_id()
-            and id = $1::uuid`,
-        [link.source_lp_id, reversedQty, userId],
-      );
-
-      if (link.source_status === 'shipped') {
-        await writeLpHistory(ctx, {
-          siteId: link.source_site_id,
-          lpId: link.source_lp_id,
-          fromState: 'shipped',
-          toState: 'available',
-          reasonText,
-          transactionId: sourceHistoryTxn,
-          ext: {
-            transfer_order_id: link.to_id,
-            transfer_order_line_id: link.line_id,
-            transfer_order_line_lp_id: link.link_id,
-            dest_lp_id: link.dest_lp_id,
-            reversed_qty: reversedQty,
-            correction_reason_code: input.reasonCode,
-          },
-        });
-      }
-
       await writeStockMove(ctx, {
         siteId: link.dest_site_id,
         lpId: link.dest_lp_id,
@@ -579,31 +537,16 @@ export async function reverseToReceiveLine(rawInput: unknown): Promise<ReverseTo
         },
       });
 
-      await writeStockMove(ctx, {
-        siteId: link.source_site_id,
-        lpId: link.source_lp_id,
-        fromLocationId: null,
-        toLocationId: link.source_location_id,
-        quantity: reversedQty,
-        uom: link.line_uom,
-        reasonText,
-        transactionId: sourceMoveTxn,
-        ext: {
-          correction_action: 'transfer_receive_reversed',
-          transfer_order_id: link.to_id,
-          transfer_order_line_lp_id: link.link_id,
-          direction: 'source_lp_credit',
-        },
-      });
-
-      // C058: delete the ship/receive link — reversal already credited the source LP
-      // and voided the destination LP. Leaving dest_lp_id null would make cancel
-      // treat the row as unreceived in-transit stock and credit source again.
+      // PF-R10-02: keep the ship junction and return qty to in-transit (dest_lp_id null).
+      // Do NOT credit the source LP — that double-counts on cancel and removes the row
+      // receive() needs to materialize the remainder. In-transit qty lives on the junction.
       await ctx.client.query(
-        `delete from public.transfer_order_line_lps
+        `update public.transfer_order_line_lps
+            set dest_lp_id = null,
+                updated_by = $2::uuid
           where org_id = app.current_org_id()
             and id = $1::uuid`,
-        [link.link_id],
+        [link.link_id, userId],
       );
 
       const nextStatus = await rerollTransferOrderStatus(ctx, link.to_id);

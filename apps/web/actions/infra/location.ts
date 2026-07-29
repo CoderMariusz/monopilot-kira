@@ -195,14 +195,16 @@ export async function upsertLocation(rawInput: unknown): Promise<UpsertLocationR
         //
         // "Live" is the definition this screen already counts with — the lp_counts CTE in
         // settings/infra/locations/page.tsx — and the one stock-move-actions.ts and scanner
-        // movement.ts use: every status except the terminal three. Keep the three in sync.
+        // movement.ts use: every status except the terminal four (license_plates_status_check
+        // in mig 294: consumed/merged/shipped/destroyed no longer exist as handleable stock).
+        // Keep the four in sync.
         if (input.active === false) {
           const { rows: liveLpRows } = await client.query<{ live_lps: number | string }>(
             `select count(*)::integer as live_lps
                from public.license_plates
               where org_id = app.current_org_id()
                 and location_id = $1::uuid
-                and status not in ('consumed', 'shipped', 'destroyed')`,
+                and status not in ('consumed', 'merged', 'shipped', 'destroyed')`,
             [existing.id],
           );
           const liveLps = Number(liveLpRows[0]?.live_lps ?? 0);

@@ -6,25 +6,29 @@
  * INDEPENDENT-demand seam runMrp can net against later (mrp_runs demand_source
  * = 'forecast', mig 178); this slice owns the editable grid + readers only.
  *
- * DDL grain honoured exactly: one row per (org_id, item_id, iso_week) — upsert
- * via the demand_forecasts_org_item_week_unique key. qty is NUMERIC(18,6) >= 0
+ * DDL grain honoured exactly: one row per (org_id, item_id, iso_week, site_id) —
+ * upsert via the demand_forecasts_org_item_week_unique key (mig 528). qty is NUMERIC(18,6) >= 0
  * and travels as a decimal string end-to-end (never a JS float). Quantities are
  * stored in the item's BASE UoM: the caller enters a qty in the item's OUTPUT
  * UoM (output_uom) and we convert to base ONLY via lib/uom (snapshotFromItemRow
  * + toBaseQty) — no ad-hoc arithmetic.
  *
+ * site_id NULL = org-global row (visible and editable from every bound site until a
+ * site-specific override exists). mig 528 NULLS NOT DISTINCT allows one global row
+ * per (org, item, iso_week) alongside per-site rows.
+ *
  * RBAC: reads gate on `scheduler.run.read` (the planning READ gate the MRP slice
  * + dashboard use); writes gate on the EXISTING `planning.forecast.manage`
  * permission (seeded live by migration 301 — no enum churn here).
  *
- * All statements run inside withOrgContext as app_user (RLS:
- * org_id = app.current_org_id()); no service-role bypass.
+ * All statements run inside withSiteContext as app_user (RLS:
+ * org_id = app.current_org_id(), site_id = app.current_site_id()); no service-role bypass.
  */
 import { z } from 'zod';
 
 import { snapshotFromItemRow, toBaseQty, TypedError } from '../../../../../../lib/uom/convert';
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
-import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { withSiteContext } from '../../../../../../lib/auth/with-site-context';
 import {
   isPgError,
   toIso,
@@ -77,6 +81,8 @@ export type ForecastCell = {
 /** One forecasted item with its full row of cells, keyed by ISO-week. */
 export type ForecastItemRow = {
   itemId: string;
+  /** Bound site for this row; null = org-global (all-sites view only). */
+  siteId?: string | null;
   itemCode: string | null;
   itemName: string | null;
   uomBase: string | null;
@@ -155,6 +161,7 @@ function buildForecastWeeks(count: number, from: Date = new Date()): string[] {
 type ForecastSqlRow = {
   id: string;
   item_id: string;
+  site_id: string | null;
   item_code: string | null;
   item_name: string | null;
   uom_base: string | null;
@@ -211,43 +218,46 @@ export async function listForecasts(weeks?: number): Promise<ForecastResult<Fore
   const weekLabels = buildForecastWeeks(horizon);
 
   try {
-    return await withOrgContext(async ({ userId, orgId, client }) => {
+    return await withSiteContext({ mode: 'read' }, async ({ userId, orgId, client }) => {
       const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
       if (!(await hasPermission(ctx, PLANNING_READ_PERMISSION))) {
         return { ok: false as const, error: 'forbidden' as const };
       }
 
       const { rows } = await ctx.client.query<ForecastSqlRow>(
-        `select f.id, f.item_id, i.item_code, i.name as item_name, i.uom_base,
+        `select f.id, f.item_id, f.site_id, i.item_code, i.name as item_name, i.uom_base,
                 f.iso_week, f.qty::text as qty, f.uom, f.source, f.updated_at
            from public.demand_forecasts f
            left join public.items i
              on i.org_id = app.current_org_id() and i.id = f.item_id
           where f.org_id = app.current_org_id()
+            and (app.current_site_id() is null or f.site_id is null or f.site_id = app.current_site_id())
             and f.iso_week = any($1::text[])
-          order by i.item_code asc nulls last, f.iso_week asc`,
+          order by i.item_code asc nulls last, f.site_id asc nulls first, f.iso_week asc`,
         [weekLabels],
       );
 
-      const byItem = new Map<string, ForecastItemRow>();
+      const byItemSite = new Map<string, ForecastItemRow>();
       for (const row of rows) {
-        let item = byItem.get(row.item_id);
+        const rowKey = `${row.item_id}\0${row.site_id ?? ''}`;
+        let item = byItemSite.get(rowKey);
         if (!item) {
           item = {
             itemId: row.item_id,
+            siteId: row.site_id,
             itemCode: row.item_code,
             itemName: row.item_name,
             uomBase: row.uom_base,
             cells: {},
           };
-          byItem.set(row.item_id, item);
+          byItemSite.set(rowKey, item);
         }
         item.cells[row.iso_week] = mapCell(row);
       }
 
       return {
         ok: true as const,
-        data: { weeks: weekLabels, rows: [...byItem.values()] } satisfies ForecastGrid,
+        data: { weeks: weekLabels, rows: [...byItemSite.values()] } satisfies ForecastGrid,
       };
     });
   } catch (err) {
@@ -295,14 +305,14 @@ async function upsertForecastWith(
 
   const { rows } = await ctx.client.query<ForecastSqlRow>(
     `insert into public.demand_forecasts
-       (org_id, item_id, iso_week, qty, uom, source, created_by)
+       (org_id, item_id, iso_week, site_id, qty, uom, source, created_by)
      values
-       (app.current_org_id(), $1::uuid, $2, $3::numeric, $4, $5, $6::uuid)
+       (app.current_org_id(), $1::uuid, $2, app.current_site_id(), $3::numeric, $4, $5, $6::uuid)
      on conflict on constraint demand_forecasts_org_item_week_unique
      do update set qty = excluded.qty,
                    uom = excluded.uom,
                    source = excluded.source
-     returning id, item_id,
+     returning id, item_id, site_id,
                null::text as item_code, null::text as item_name, null::text as uom_base,
                iso_week, qty::text as qty, uom, source, updated_at`,
     [input.itemId, input.isoWeek, baseQty, uom, source, ctx.userId],
@@ -331,7 +341,7 @@ export async function upsertForecast(rawInput: unknown): Promise<ForecastResult<
   const input = parsed.data;
 
   try {
-    return await withOrgContext(async ({ userId, orgId, client }) => {
+    return await withSiteContext(async ({ userId, orgId, client }) => {
       const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
       if (!(await hasPermission(ctx, FORECAST_MANAGE_PERMISSION))) {
         return { ok: false as const, error: 'forbidden' as const };
@@ -352,14 +362,16 @@ export async function deleteForecast(id: string): Promise<ForecastResult<{ id: s
   if (!parsed.success) return { ok: false, error: 'invalid_input' };
 
   try {
-    return await withOrgContext(async ({ userId, orgId, client }) => {
+    return await withSiteContext(async ({ userId, orgId, client }) => {
       const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
       if (!(await hasPermission(ctx, FORECAST_MANAGE_PERMISSION))) {
         return { ok: false as const, error: 'forbidden' as const };
       }
       const { rows } = await ctx.client.query<{ id: string; item_id: string; iso_week: string }>(
         `delete from public.demand_forecasts
-          where org_id = app.current_org_id() and id = $1::uuid
+          where org_id = app.current_org_id()
+            and id = $1::uuid
+            and (site_id is null or site_id is not distinct from app.current_site_id())
           returning id, item_id, iso_week`,
         [parsed.data],
       );
@@ -394,18 +406,19 @@ export async function copyForecastWeek(rawInput: unknown): Promise<CopyPreviousW
   if (fromWeek === toWeek) return { ok: false, error: 'invalid_input' };
 
   try {
-    return await withOrgContext(async ({ userId, orgId, client }) => {
+    return await withSiteContext(async ({ userId, orgId, client }) => {
       const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
       if (!(await hasPermission(ctx, FORECAST_MANAGE_PERMISSION))) {
         return { ok: false as const, error: 'forbidden' as const };
       }
       const { rows } = await ctx.client.query<{ id: string }>(
         `insert into public.demand_forecasts
-           (org_id, item_id, iso_week, qty, uom, source, created_by)
-         select app.current_org_id(), src.item_id, $2, src.qty, src.uom, 'manual', $3::uuid
+           (org_id, item_id, iso_week, site_id, qty, uom, source, created_by)
+         select app.current_org_id(), src.item_id, $2, app.current_site_id(), src.qty, src.uom, 'manual', $3::uuid
            from public.demand_forecasts src
           where src.org_id = app.current_org_id()
             and src.iso_week = $1
+            and (src.site_id is null or src.site_id is not distinct from app.current_site_id())
          on conflict on constraint demand_forecasts_org_item_week_unique
          do nothing
          returning id`,
@@ -451,7 +464,7 @@ export async function importForecastCsv(rawInput: unknown): Promise<ImportForeca
   const { rows } = parsed.data;
 
   try {
-    return await withOrgContext(async ({ userId, orgId, client }) => {
+    return await withSiteContext(async ({ userId, orgId, client }) => {
       const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
       if (!(await hasPermission(ctx, FORECAST_MANAGE_PERMISSION))) {
         return { ok: false as const, error: 'forbidden' as const };

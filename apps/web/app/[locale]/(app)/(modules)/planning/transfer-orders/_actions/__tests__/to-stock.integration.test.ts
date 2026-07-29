@@ -336,16 +336,14 @@ run('W9-K-II transfer-order ship/receive stock model (integration)', () => {
     expect(links.rows).toHaveLength(0);
   });
 
-  // ── F3 (W9 cross-review HIGH) — partial receive blocks cancel ───────────────
-  it('CANCEL after a PARTIAL receive → partially_received, NOTHING mutated', async () => {
+  // ── PF-R10-03 — cancel remainder after partial receive ───────────────────────
+  it('CANCEL after a PARTIAL receive cancels only the remainder and closes as received', async () => {
     const { lpAId, lpBId } = await makeSourceStock();
     const { toId } = await makeTo({ qty: '80' });
 
     const { transitionTransferOrderStatus } = await import('../actions');
     expect((await transitionTransferOrderStatus(toId, 'in_transit')).ok).toBe(true);
 
-    // Simulate a partial receive: ONE junction row already materialized a
-    // destination LP (dest_lp_id NOT NULL), the other is still in transit.
     const destLpId = randomUUID();
     await owner.query(
       `insert into public.license_plates
@@ -360,32 +358,32 @@ run('W9-K-II transfer-order ship/receive stock model (integration)', () => {
         where org_id = $2 and to_id = $3 and source_lp_id = $4`,
       [destLpId, seed.orgId, toId, lpAId],
     );
-
-    const before = await owner.query<{ id: string; quantity: string; status: string }>(
-      `select id, quantity::text as quantity, status from public.license_plates where org_id = $1 order by id`,
-      [seed.orgId]);
+    await owner.query(
+      `update public.transfer_orders set status = 'partially_received' where org_id = $1 and id = $2`,
+      [seed.orgId, toId],
+    );
 
     const cancelled = await transitionTransferOrderStatus(toId, 'cancelled');
-    expect(cancelled.ok).toBe(false);
-    if (!cancelled.ok) {
-      expect(cancelled.error).toBe('partially_received');
-      expect(cancelled.message).toContain('already-received destination stock');
-    }
+    expect(cancelled.ok).toBe(true);
+    if (!cancelled.ok) throw new Error(cancelled.error);
+    expect(cancelled.data.status).toBe('received');
 
-    // NOTHING mutated: TO still in_transit, every LP (source A shipped-empty,
-    // source B partially picked, dest LP) byte-identical, junction rows intact.
     const to = await owner.query<{ status: string }>(
       `select status from public.transfer_orders where id = $1`, [toId]);
-    expect(to.rows[0]!.status).toBe('in_transit');
-    const after = await owner.query<{ id: string; quantity: string; status: string }>(
-      `select id, quantity::text as quantity, status from public.license_plates where org_id = $1 order by id`,
-      [seed.orgId]);
-    expect(after.rows).toEqual(before.rows);
+    expect(to.rows[0]!.status).toBe('received');
+
+    const destLp = await owner.query<{ quantity: string }>(
+      `select quantity::text as quantity from public.license_plates where id = $1`,
+      [destLpId],
+    );
+    expect(destLp.rows[0]!.quantity).toBe('60.000000');
+
     const links = await owner.query<{ source_lp_id: string; dest_lp_id: string | null }>(
       `select source_lp_id, dest_lp_id from public.transfer_order_line_lps where org_id = $1 order by created_at`,
-      [seed.orgId]);
-    expect(links.rows).toHaveLength(2);
-    expect(links.rows.find((r) => r.source_lp_id === lpAId)?.dest_lp_id).toBe(destLpId);
-    expect(links.rows.find((r) => r.source_lp_id === lpBId)?.dest_lp_id).toBeNull();
+      [seed.orgId],
+    );
+    expect(links.rows).toHaveLength(1);
+    expect(links.rows[0]?.source_lp_id).toBe(lpAId);
+    expect(links.rows[0]?.dest_lp_id).toBe(destLpId);
   });
 });

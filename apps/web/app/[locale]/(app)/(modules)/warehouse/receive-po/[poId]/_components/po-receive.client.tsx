@@ -140,6 +140,9 @@ export function PoReceiveClient({
     [po.lines],
   );
 
+  // Header count must match the rendered table rows — not the open-only subset.
+  const visibleLineCount = openLines.length === 0 ? 0 : po.lines.length;
+
   const locationOptions = useMemo<SelectOption[]>(
     () => [
       { value: '', label: labels.form.locationPlaceholder },
@@ -243,7 +246,7 @@ export function PoReceiveClient({
       <Card className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 px-4 py-3">
           <h2 className="text-sm font-semibold text-slate-900">
-            {fill(labels.linesTitle, { count: String(openLines.length) })}
+            {fill(labels.linesTitle, { count: String(visibleLineCount) })}
           </h2>
         </div>
         {openLines.length === 0 ? (

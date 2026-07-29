@@ -92,8 +92,10 @@ export type ToDetailLabels = {
     title: string;
     ship: string;
     receive: string;
-    cancel: string;
-    confirm: string;
+  cancel: string;
+  cancelRemainder: string;
+  confirm: string;
+  confirmCancelRemainder: string;
     pending: string;
     none: string;
   };
@@ -153,7 +155,7 @@ export type ToDetailViewProps = {
  *    received / cancelled → terminal
  *  Omitting partially_received here left it a UI dead-end (zero action buttons)
  *  even though the backend allows completing/cancelling it — restored below. */
-const TRANSITIONS: Record<string, Array<{ to: string; labelKey: 'ship' | 'receive' | 'cancel'; tone: 'primary' | 'danger' }>> = {
+const TRANSITIONS: Record<string, Array<{ to: string; labelKey: 'ship' | 'receive' | 'cancel' | 'cancelRemainder'; tone: 'primary' | 'danger'; confirmKey?: 'confirmCancelRemainder' }>> = {
   draft: [
     { to: 'in_transit', labelKey: 'ship', tone: 'primary' },
     { to: 'cancelled', labelKey: 'cancel', tone: 'danger' },
@@ -164,7 +166,12 @@ const TRANSITIONS: Record<string, Array<{ to: string; labelKey: 'ship' | 'receiv
   ],
   partially_received: [
     { to: 'received', labelKey: 'receive', tone: 'primary' },
-    { to: 'cancelled', labelKey: 'cancel', tone: 'danger' },
+    {
+      to: 'cancelled',
+      labelKey: 'cancelRemainder',
+      tone: 'danger',
+      confirmKey: 'confirmCancelRemainder',
+    },
   ],
 };
 
@@ -306,16 +313,20 @@ export function ToDetailView({
 
   async function onTransition(target: string) {
     if (pendingTo) return;
-    const confirmMsg = labels.transitions.confirm
-      .replace('{to}', detail.toNumber)
-      .replace('{status}', statusLabel(target));
+    const action = actions.find((a) => a.to === target);
+    const confirmMsg =
+      action?.confirmKey === 'confirmCancelRemainder'
+        ? labels.transitions.confirmCancelRemainder.replace('{to}', detail.toNumber)
+        : labels.transitions.confirm
+            .replace('{to}', detail.toNumber)
+            .replace('{status}', statusLabel(target));
     if (!window.confirm(confirmMsg)) return;
     setPendingTo(target);
     setError(null);
     try {
       const result = await transitionTransferOrderStatusAction(detail.id, target);
       if (!result.ok) {
-        setError(labels.errors[result.error] ?? labels.errors.persistence_failed);
+        setError(result.message ?? labels.errors[result.error] ?? labels.errors.persistence_failed);
         setPendingTo(null);
         return;
       }

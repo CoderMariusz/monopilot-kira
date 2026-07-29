@@ -90,10 +90,17 @@ function makeClient(): QueryClient {
         return { rows: [{ id: 'line-1', item_id: ITEM_ID, qty: '10.000', uom: 'kg', line_no: 1 }], rowCount: 1 };
       }
 
+      if (n.includes('from public.items i') && n.includes('uom_base')) {
+        return {
+          rows: [{ id: ITEM_ID, uom_base: 'kg', net_qty_per_each: null, each_per_box: null }],
+          rowCount: 1,
+        };
+      }
+
       // FEFO LP candidates (ship path)
       if (n.includes('from public.license_plates') && n.includes('reserved_qty::text as reserved_qty')) {
         return {
-          rows: lpCandidates.map((lp) => ({ ...lp, location_id: LOCATION_ID })),
+          rows: lpCandidates.map((lp) => ({ ...lp, location_id: LOCATION_ID, uom: 'kg' })),
           rowCount: lpCandidates.length,
         };
       }

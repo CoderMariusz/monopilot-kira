@@ -57,6 +57,13 @@ export type MrpLabels = {
   horizonWeeksOptions?: Array<{ value: number; label: string }>;
   minQty: string;
   dueBy: string;
+  releaseBy: string;
+  needByBucket: string;
+  nextBucketAction: string;
+  horizonSuggested: string;
+  late: string;
+  earliestReceipt: string;
+  bucketCalcHint: string;
   kpis: {
     itemsShort: string;
     coverage: string;
@@ -251,6 +258,11 @@ function ResultsTable({ rows, labels }: { rows: MrpRow[]; labels: MrpLabels }) {
               <td className="px-3 py-2">
                 {row.suggestedAction ? (
                   <>
+                    {row.suggestedAction.actionScope === 'next_bucket' ? (
+                      <div className="text-xs font-medium text-slate-600" data-testid={`mrp-action-scope-${row.itemCode}`}>
+                        {labels.nextBucketAction}
+                      </div>
+                    ) : null}
                     <span
                       className={row.suggestedAction.type === 'make' ? 'badge badge-blue' : 'badge badge-amber'}
                       data-testid={`mrp-action-${row.itemCode}`}
@@ -258,9 +270,52 @@ function ResultsTable({ rows, labels }: { rows: MrpRow[]; labels: MrpLabels }) {
                       {row.suggestedAction.type === 'make' ? labels.actionTypes.make : labels.actionTypes.buy}{' '}
                       {row.suggestedAction.qty} {row.uomBase}
                     </span>
+                    {row.suggestedAction.horizonSuggestedQty ? (
+                      <div
+                        className="mt-0.5 text-xs font-medium text-slate-700"
+                        data-testid={`mrp-horizon-suggested-${row.itemCode}`}
+                      >
+                        {labels.horizonSuggested}: {row.suggestedAction.horizonSuggestedQty} {row.uomBase}
+                      </div>
+                    ) : null}
+                    {row.suggestedAction.bucketDate ? (
+                      <div className="mt-0.5 text-xs text-slate-500" data-testid={`mrp-bucket-${row.itemCode}`}>
+                        {labels.needByBucket}: {row.suggestedAction.bucketDate}
+                      </div>
+                    ) : null}
                     {row.suggestedAction.dueDate ? (
                       <div className="mt-0.5 text-xs text-slate-500" data-testid={`mrp-due-${row.itemCode}`}>
                         {labels.dueBy}: {row.suggestedAction.dueDate}
+                      </div>
+                    ) : null}
+                    {row.suggestedAction.releaseDate ? (
+                      <div className="mt-0.5 text-xs text-slate-500" data-testid={`mrp-release-${row.itemCode}`}>
+                        {labels.releaseBy}: {row.suggestedAction.releaseDate}
+                        {row.suggestedAction.isLate ? (
+                          <span className="ml-1 badge badge-red" data-testid={`mrp-late-${row.itemCode}`}>
+                            {labels.late}
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    {row.suggestedAction.isLate && row.suggestedAction.earliestReceiptDate ? (
+                      <div className="mt-0.5 text-xs text-amber-700" data-testid={`mrp-earliest-${row.itemCode}`}>
+                        {labels.earliestReceipt}: {row.suggestedAction.earliestReceiptDate}
+                        {row.suggestedAction.leadTimeDays != null
+                          ? ` (${row.suggestedAction.leadTimeDays}d)`
+                          : null}
+                      </div>
+                    ) : null}
+                    {row.suggestedAction.netAtBucket != null && row.minQty ? (
+                      <div
+                        className="mt-0.5 text-xs text-slate-400"
+                        data-testid={`mrp-calc-${row.itemCode}`}
+                      >
+                        {labels.bucketCalcHint
+                          .replace('{net}', row.suggestedAction.netAtBucket)
+                          .replace('{gap}', row.suggestedAction.gapAtBucket ?? '0.000')
+                          .replace('{lot}', row.suggestedAction.reorderLotAtBucket ?? '0.000')
+                          .replace('{min}', row.minQty)}
                       </div>
                     ) : null}
                   </>

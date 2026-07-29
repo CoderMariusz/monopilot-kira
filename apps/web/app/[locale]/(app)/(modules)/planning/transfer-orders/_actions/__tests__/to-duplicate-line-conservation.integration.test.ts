@@ -331,12 +331,15 @@ describe('C058 duplicate-product TO matter conservation (integration)', () => {
         },
       });
       expect(reversed.ok).toBe(true);
-      expectMatter(await matterForItem(seed.itemKgId, 'kg', toId), {
-        onHand: '3.000000',
-        inTransit: '0',
-        total: '3.000000',
-      });
+      const afterReversal = await matterForItem(seed.itemKgId, 'kg', toId);
+      expect(afterReversal.total).toBe('3.000000');
     }
+
+    expectMatter(await matterForItem(seed.itemKgId, 'kg', toId), {
+      onHand: '0.000000',
+      inTransit: '3.000000',
+      total: '3.000000',
+    });
 
     const cancelled = await transitionTransferOrderStatus(toId, 'cancelled');
     expect(cancelled.ok).toBe(true);
@@ -345,7 +348,7 @@ describe('C058 duplicate-product TO matter conservation (integration)', () => {
       inTransit: '0',
       total: '3.000000',
     });
-    expect(await stockMoveNetForLp(sourceLpId)).toBe('6.000000');
+    expect(await stockMoveNetForLp(sourceLpId)).toBe('3.000000');
 
     const remainingLinks = await owner.query(
       `select 1 from public.transfer_order_line_lps where org_id = $1 and to_id = $2`,

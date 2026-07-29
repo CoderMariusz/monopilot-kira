@@ -1,4 +1,8 @@
 import {
+  dependencyEarliestStartMs,
+  planDependencyConstrainedScheduling,
+} from '../../../../../../lib/planning/wo-dependency-scheduling';
+import {
   allergenProfileKey,
   effectiveChangeoverMinutes,
   isChangeoverMatrixConfigured,
@@ -458,6 +462,7 @@ function placeSequencedWorkOrder(
   lastWoByLine: Map<string, WorkOrderForScheduling>,
   now: number,
   cumulative: number,
+  dependencyEarliestMs = 0,
 ): PlaceSequencedWorkOrderResult {
   const lineKey = workOrder.production_line_id ?? '__unassigned__';
   const previous = lastWoByLine.get(lineKey) ?? null;
@@ -472,7 +477,7 @@ function placeSequencedWorkOrder(
   const changeoverCost = changeover.transitionMinutes;
   const previousEndMs = plannedEndByLine.get(lineKey) ?? now;
   const changeoverMs = changeoverCost * 60 * 1000;
-  const earliestStart = Math.max(now, previousEndMs + changeoverMs);
+  const earliestStart = Math.max(now, previousEndMs + changeoverMs, dependencyEarliestMs);
   const runDuration = durationMs(workOrder);
   const pendingChangeover =
     previous && changeoverMs > 0
@@ -516,19 +521,17 @@ function placeSequencedWorkOrder(
   };
 }
 
-export function sequenceWorkOrders(
+function buildChangeoverOptimizedSequence(
   wos: WorkOrderForScheduling[],
   matrix: ChangeoverMatrixEntry[],
-  config: ShiftAwareSolverConfig = cloneDefaultSolverConfig(),
-): SequenceSolverResult {
-  if (wos.length === 0) return { assignments: [], omitted: [] };
-
-  const matrixConfigured = isChangeoverMatrixConfigured(matrix);
+  config: SequenceSolverConfig,
+  matrixConfigured: boolean,
+): WorkOrderForScheduling[] {
   const unscheduled = [...wos].sort(compareByDueDateThenId);
   const sequence: WorkOrderForScheduling[] = [];
 
   const first = unscheduled.shift();
-  if (!first) return { assignments: [], omitted: [] };
+  if (!first) return [];
   sequence.push(first);
 
   while (unscheduled.length > 0) {
@@ -541,6 +544,56 @@ export function sequenceWorkOrders(
     const [next] = unscheduled.splice(bestIndex, 1);
     sequence.push(next);
   }
+
+  return sequence;
+}
+
+function buildDependencyAwareSequence(
+  wos: WorkOrderForScheduling[],
+  dependencyEdges: NonNullable<SequenceSolverConfig['dependencyEdges']>,
+): { sequence: WorkOrderForScheduling[]; cyclicWoIds: Set<string> } {
+  const woById = new Map(wos.map((wo) => [wo.id, wo]));
+  const compareAvailableIds = (a: string, b: string) =>
+    compareByDueDateThenId(woById.get(a) as WorkOrderForScheduling, woById.get(b) as WorkOrderForScheduling);
+  const plan = planDependencyConstrainedScheduling(
+    wos.map((wo) => wo.id),
+    dependencyEdges,
+    compareAvailableIds,
+  );
+  const sequence = plan.orderedWoIds
+    .map((id) => woById.get(id))
+    .filter((wo): wo is WorkOrderForScheduling => wo !== undefined);
+  const scheduledIds = new Set(sequence.map((wo) => wo.id));
+  const remainder = wos
+    .filter((wo) => !scheduledIds.has(wo.id) && !plan.cyclicWoIds.has(wo.id))
+    .sort(compareByDueDateThenId);
+  return { sequence: [...sequence, ...remainder], cyclicWoIds: plan.cyclicWoIds };
+}
+
+export function sequenceWorkOrders(
+  wos: WorkOrderForScheduling[],
+  matrix: ChangeoverMatrixEntry[],
+  config: ShiftAwareSolverConfig = cloneDefaultSolverConfig(),
+): SequenceSolverResult {
+  if (wos.length === 0) return { assignments: [], omitted: [] };
+
+  const matrixConfigured = isChangeoverMatrixConfigured(matrix);
+  const dependencyEdges = config.dependencyEdges ?? [];
+  const woById = new Map(wos.map((wo) => [wo.id, wo]));
+  const compareAvailableIds = (a: string, b: string) =>
+    compareByDueDateThenId(woById.get(a) as WorkOrderForScheduling, woById.get(b) as WorkOrderForScheduling);
+  const dependencyPlan =
+    dependencyEdges.length > 0
+      ? planDependencyConstrainedScheduling(
+          wos.map((wo) => wo.id),
+          dependencyEdges,
+          compareAvailableIds,
+        )
+      : null;
+  const sequence =
+    dependencyEdges.length > 0
+      ? buildDependencyAwareSequence(wos, dependencyEdges).sequence
+      : buildChangeoverOptimizedSequence(wos, matrix, config, matrixConfigured);
 
   const now = config.nowMs ?? Date.now();
   const plannedEndByLine = new Map<string, number>(
@@ -556,10 +609,30 @@ export function sequenceWorkOrders(
   const assignments: SequencedAssignment[] = [];
   const deferred: WorkOrderForScheduling[] = [];
   const omitReasons = new Map<string, OmittedWorkOrder['reason']>();
+  if (dependencyPlan) {
+    for (const cyclicWoId of dependencyPlan.cyclicWoIds) {
+      omitReasons.set(cyclicWoId, 'dependency_cycle');
+    }
+  }
+  const plannedEndByWoId = new Map<string, number>(
+    Object.entries(config.dependencyAnchoredEnds ?? {}),
+  );
   let cumulative = 0;
   let sequenceIndex = 0;
 
   for (const workOrder of sequence) {
+    if (omitReasons.get(workOrder.id) === 'dependency_cycle') {
+      deferred.push(workOrder);
+      continue;
+    }
+    const dependencyEarliest = dependencyPlan
+      ? dependencyEarliestStartMs(workOrder.id, dependencyPlan.childrenByParent, plannedEndByWoId)
+      : 0;
+    if (dependencyEarliest === null) {
+      omitReasons.set(workOrder.id, 'dependency_unresolved');
+      deferred.push(workOrder);
+      continue;
+    }
     const placed = placeSequencedWorkOrder(
       workOrder,
       sequenceIndex + 1,
@@ -571,6 +644,7 @@ export function sequenceWorkOrders(
       lastWoByLine,
       now,
       cumulative,
+      dependencyEarliest,
     );
     if (!placed.ok) {
       omitReasons.set(workOrder.id, placed.reason);
@@ -579,11 +653,23 @@ export function sequenceWorkOrders(
     }
     omitReasons.delete(workOrder.id);
     assignments.push(placed.assignment);
+    plannedEndByWoId.set(
+      workOrder.id,
+      new Date(placed.assignment.planned_end_at ?? placed.assignment.planned_start_at).getTime(),
+    );
     cumulative = placed.cumulative;
     sequenceIndex += 1;
   }
 
   for (const workOrder of deferred) {
+    if (omitReasons.get(workOrder.id) === 'dependency_cycle') continue;
+    const dependencyEarliest = dependencyPlan
+      ? dependencyEarliestStartMs(workOrder.id, dependencyPlan.childrenByParent, plannedEndByWoId)
+      : 0;
+    if (dependencyEarliest === null) {
+      omitReasons.set(workOrder.id, 'dependency_unresolved');
+      continue;
+    }
     const placed = placeSequencedWorkOrder(
       workOrder,
       sequenceIndex + 1,
@@ -595,6 +681,7 @@ export function sequenceWorkOrders(
       lastWoByLine,
       now,
       cumulative,
+      dependencyEarliest,
     );
     if (!placed.ok) {
       omitReasons.set(workOrder.id, placed.reason);
@@ -602,6 +689,10 @@ export function sequenceWorkOrders(
     }
     omitReasons.delete(workOrder.id);
     assignments.push(placed.assignment);
+    plannedEndByWoId.set(
+      workOrder.id,
+      new Date(placed.assignment.planned_end_at ?? placed.assignment.planned_start_at).getTime(),
+    );
     cumulative = placed.cumulative;
     sequenceIndex += 1;
   }
@@ -617,6 +708,30 @@ export function sequenceWorkOrders(
   return { assignments, omitted };
 }
 
+/** Resolve a WO's planned end timestamp (ms) for dependency anchoring. */
+export function workOrderPlannedEndMs(
+  wo: WorkOrderForScheduling,
+  nowMs: number,
+): number | null {
+  const runDuration = durationMs(wo);
+  const scheduledStart = timestampMs(wo.scheduled_start_time) ?? timestampMs(wo.planned_start_date);
+  const scheduledEnd = timestampMs(wo.scheduled_end_time) ?? timestampMs(wo.planned_end_date);
+  let startMs = scheduledStart;
+  let endMs = scheduledEnd;
+  if ((wo.status as string) === 'IN_PROGRESS' && (endMs === null || endMs <= nowMs)) {
+    startMs = nowMs;
+    endMs = nowMs + runDuration;
+  } else if (startMs === null && endMs !== null) {
+    startMs = endMs - runDuration;
+  } else if (startMs !== null && endMs === null) {
+    endMs = startMs + runDuration;
+  } else if (startMs === null && endMs === null) {
+    return null;
+  }
+  if (startMs === null || endMs === null || endMs <= startMs) return null;
+  return endMs;
+}
+
 /** Build occupancy seed maps from WOs already consuming line capacity. */
 export function buildPreoccupiedSeed(
   occupying: WorkOrderForScheduling[],
@@ -626,6 +741,7 @@ export function buildPreoccupiedSeed(
   const dayUsageMs: Record<string, number> = {};
   const lastWoByLine: Record<string, WorkOrderForScheduling> = {};
   const lineEndMs = new Map<string, { end: number; wo: WorkOrderForScheduling }>();
+  const nowMs = config.nowMs ?? Date.now();
 
   for (const wo of occupying) {
     const lineKey = wo.production_line_id ?? '__unassigned__';
@@ -634,7 +750,6 @@ export function buildPreoccupiedSeed(
     const scheduledEnd = timestampMs(wo.scheduled_end_time) ?? timestampMs(wo.planned_end_date);
     let startMs = scheduledStart;
     let endMs = scheduledEnd;
-    const nowMs = config.nowMs ?? Date.now();
     if ((wo.status as string) === 'IN_PROGRESS' && (endMs === null || endMs <= nowMs)) {
       startMs = nowMs;
       endMs = nowMs + runDuration;

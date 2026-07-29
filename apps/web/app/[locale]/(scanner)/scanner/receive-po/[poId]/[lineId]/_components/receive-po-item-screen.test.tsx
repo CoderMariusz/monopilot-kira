@@ -180,6 +180,7 @@ describe('ReceivePoItemScreen', () => {
     render(<ReceivePoItemScreen locale="en" poId="missing" lineId="line-1" labels={getScannerLabels('en')} />);
 
     expect(await screen.findByText('Purchase order not found.')).toBeInTheDocument();
+    expect(screen.getAllByText('Purchase order not found.')).toHaveLength(1);
     expect(screen.queryByText('Could not load data.')).not.toBeInTheDocument();
   });
 

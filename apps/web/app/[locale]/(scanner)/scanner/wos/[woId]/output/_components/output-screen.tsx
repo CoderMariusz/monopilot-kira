@@ -257,8 +257,8 @@ export function OutputScreen({
                 </div>
               )}
             </div>
-            {printState === "printed" && <Banner kind="success" title={L.scannerPrinted}>{L.scannerPrinted}</Banner>}
-            {printState === "error" && <Banner kind="err" title={L.scannerPrintError}>{L.scannerPrintError}</Banner>}
+            {printState === "printed" && <Banner kind="success" title={L.scannerPrinted} />}
+            {printState === "error" && <Banner kind="err" title={L.scannerPrintError} />}
           </Content>
           <BottomActions>
             <Btn

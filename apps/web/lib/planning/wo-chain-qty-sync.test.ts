@@ -6,6 +6,7 @@ import {
   preflightParentChainEdges,
   propagateParentWoChainQuantities,
   reconcileQtyEnteredOnBaseEdit,
+  throwIfChainDependencyCycle,
   type ChainEdgeSnapshot,
 } from './wo-chain-qty-sync';
 
@@ -57,6 +58,7 @@ describe('reconcileQtyEnteredOnBaseEdit', () => {
 describe('loadAndLockParentChainEdges', () => {
   const PARENT_WO_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
   const CHILD_WO_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  const GRANDCHILD_WO_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
   const LINK_PRODUCT_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
   const BOM_LINE_ID = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
 
@@ -69,12 +71,14 @@ describe('loadAndLockParentChainEdges', () => {
           child_product_id: LINK_PRODUCT_ID,
           link_product_id: LINK_PRODUCT_ID,
           link_bom_item_id: BOM_LINE_ID,
+          child_scheduled_start_time: null,
+          child_scheduled_end_time: null,
         }],
         rowCount: 1,
       })),
     };
 
-    const edges = await loadAndLockParentChainEdges(
+    const { edges } = await loadAndLockParentChainEdges(
       { userId: 'user', orgId: 'org', client },
       PARENT_WO_ID,
     );
@@ -85,9 +89,84 @@ describe('loadAndLockParentChainEdges', () => {
       childProductId: LINK_PRODUCT_ID,
       linkProductId: LINK_PRODUCT_ID,
       linkBomItemId: BOM_LINE_ID,
+      childScheduledStartTime: null,
+      childScheduledEndTime: null,
     }]);
     expect(String(client.query.mock.calls[0]?.[0])).toContain('wm.product_id::text as link_product_id');
     expect(String(client.query.mock.calls[0]?.[0])).toContain('for update of child, dep');
+  });
+
+  it('walks transitive descendants beyond the first chain level', async () => {
+    const client = {
+      query: vi.fn(async (sql: string, params: readonly unknown[] = []) => {
+        const parentId = String(params[0]);
+        if (parentId === PARENT_WO_ID) {
+          return {
+            rows: [{
+              child_wo_id: CHILD_WO_ID,
+              child_status: 'DRAFT',
+              child_product_id: LINK_PRODUCT_ID,
+              link_product_id: LINK_PRODUCT_ID,
+              link_bom_item_id: BOM_LINE_ID,
+              child_scheduled_start_time: null,
+              child_scheduled_end_time: null,
+            }],
+            rowCount: 1,
+          };
+        }
+        if (parentId === CHILD_WO_ID) {
+          return {
+            rows: [{
+              child_wo_id: GRANDCHILD_WO_ID,
+              child_status: 'RELEASED',
+              child_product_id: LINK_PRODUCT_ID,
+              link_product_id: null,
+              link_bom_item_id: null,
+              child_scheduled_start_time: null,
+              child_scheduled_end_time: null,
+            }],
+            rowCount: 1,
+          };
+        }
+        return { rows: [], rowCount: 0 };
+      }),
+    };
+
+    const { edges } = await loadAndLockParentChainEdges(
+      { userId: 'user', orgId: 'org', client },
+      PARENT_WO_ID,
+    );
+
+    expect(edges.map((edge) => edge.childWoId)).toEqual([CHILD_WO_ID, GRANDCHILD_WO_ID]);
+  });
+
+  it('rejects dependency cycles while walking descendants', async () => {
+    const client = {
+      query: vi.fn(async (_sql: string, params: readonly unknown[] = []) => {
+        const parentId = String(params[0]);
+        if (parentId === PARENT_WO_ID || parentId === CHILD_WO_ID) {
+          return {
+            rows: [{
+              child_wo_id: parentId === PARENT_WO_ID ? CHILD_WO_ID : PARENT_WO_ID,
+              child_status: 'DRAFT',
+              child_product_id: LINK_PRODUCT_ID,
+              link_product_id: null,
+              link_bom_item_id: null,
+              child_scheduled_start_time: null,
+              child_scheduled_end_time: null,
+            }],
+            rowCount: 1,
+          };
+        }
+        return { rows: [], rowCount: 0 };
+      }),
+    };
+
+    const result = await loadAndLockParentChainEdges({ userId: 'user', orgId: 'org', client }, PARENT_WO_ID);
+    expect(result.hasCycle).toBe(true);
+    expect(() => throwIfChainDependencyCycle(result)).toThrow(expect.objectContaining({
+      code: 'chain_dependency_cycle',
+    }));
   });
 });
 
@@ -101,6 +180,8 @@ describe('preflightParentChainEdges', () => {
       childProductId: CHILD_PRODUCT_ID,
       linkProductId: CHILD_PRODUCT_ID,
       linkBomItemId: null,
+      childScheduledStartTime: null,
+      childScheduledEndTime: null,
     }];
 
     await expect(
@@ -124,6 +205,8 @@ describe('propagateParentWoChainQuantities', () => {
     childProductId: CHILD_PRODUCT_ID,
     linkProductId: CHILD_PRODUCT_ID,
     linkBomItemId: BOM_LINE_ID,
+    childScheduledStartTime: null,
+    childScheduledEndTime: null,
   };
 
   it('B1a: relinks after resnapshot (material_link null) and propagates child qty from new parent material', async () => {
@@ -235,6 +318,8 @@ describe('propagateParentWoChainQuantities', () => {
         childProductId: CHILD_PRODUCT_ID,
         linkProductId: CHILD_PRODUCT_ID,
         linkBomItemId: BOM_LINE_ID,
+        childScheduledStartTime: null,
+        childScheduledEndTime: null,
       },
       {
         childWoId: CHILD_WO_ID_2,
@@ -242,6 +327,8 @@ describe('propagateParentWoChainQuantities', () => {
         childProductId: CHILD_PRODUCT_ID,
         linkProductId: CHILD_PRODUCT_ID,
         linkBomItemId: null,
+        childScheduledStartTime: null,
+        childScheduledEndTime: null,
       },
     ];
 

@@ -325,7 +325,7 @@ export function ReceivePoItemScreen({
               />
               <div style={{ marginTop: 6, fontSize: 11, color: T.hint }}>{L.destinationHint}</div>
               {destResolving && <div style={{ padding: "8px 0", color: T.mute, fontSize: 13 }}>{L.resolving}</div>}
-              {locationOptionsState === "error" && <Banner kind="err" title={L.errorLoad}>{L.errorLoad}</Banner>}
+              {locationOptionsState === "error" && <Banner kind="err" title={L.errorLoad} />}
               {destinationUnavailable && (
                 <Banner kind="err" title={DESTINATION_NO_LOCATIONS_KEY}>{noLocationsMessage}</Banner>
               )}
@@ -393,8 +393,8 @@ export function ReceivePoItemScreen({
             {done.qcInspectionRequired && (
               <Banner kind="info" title={L.qcHoldTitle}>{L.qcHoldBody}</Banner>
             )}
-            {printState === "printed" && <Banner kind="success" title={L.scannerPrinted}>{L.scannerPrinted}</Banner>}
-            {printState === "error" && <Banner kind="err" title={L.scannerPrintError}>{L.scannerPrintError}</Banner>}
+            {printState === "printed" && <Banner kind="success" title={L.scannerPrinted} />}
+            {printState === "error" && <Banner kind="err" title={L.scannerPrintError} />}
           </div>
         )}
       </Content>

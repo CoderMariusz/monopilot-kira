@@ -99,8 +99,8 @@ export function ReceivePoListScreen({ locale, labels }: { locale: string; labels
           onOpenCamera={() => setCameraOpen(true)}
         />
         {state === "loading" && <StateText>{L.loadingPo}</StateText>}
-        {state === "denied" && <Banner kind="err" title={L.permissionDenied}>{L.permissionDenied}</Banner>}
-        {state === "error" && <Banner kind="err" title={L.errorLoad}>{L.errorLoad}</Banner>}
+        {state === "denied" && <Banner kind="err" title={L.permissionDenied} />}
+        {state === "error" && <Banner kind="err" title={L.errorLoad} />}
         {state === "ready" && filtered.length === 0 && (
           <Empty title={L.emptyTitle} body={query ? L.noMatchBody : L.emptyBody} />
         )}

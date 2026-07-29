@@ -83,9 +83,9 @@ export function ReceivePoLinesScreen({
       />
       <Content>
         {state === "loading" && <StateText>{L.loadingLines}</StateText>}
-        {state === "denied" && <Banner kind="err" title={L.permissionDenied}>{L.permissionDenied}</Banner>}
-        {state === "not_found" && <Banner kind="err" title={L.poNotFound}>{L.poNotFound}</Banner>}
-        {state === "error" && <Banner kind="err" title={L.errorLoad}>{L.errorLoad}</Banner>}
+        {state === "denied" && <Banner kind="err" title={L.permissionDenied} />}
+        {state === "not_found" && <Banner kind="err" title={L.poNotFound} />}
+        {state === "error" && <Banner kind="err" title={L.errorLoad} />}
         {state === "already_received" && (
           <Banner kind="info" title={L.alreadyReceivedTitle}>{L.alreadyReceivedSub}</Banner>
         )}

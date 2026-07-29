@@ -50,17 +50,30 @@
  */
 import { randomUUID } from 'node:crypto';
 
+import { cookies } from 'next/headers';
+
 import { nextDocumentNumber } from '../../../../../../lib/documents/numbering';
-import { pickProcurementSupplierId, fetchNonBlockedSupplierIds, resolveProcurementSuppliersForItems } from '../../../../../../lib/procurement/resolve-item-supplier';
+import { pickProcurementSupplierId, fetchActiveSupplierIds, resolveProcurementSuppliersForItems } from '../../../../../../lib/procurement/resolve-item-supplier';
 import { computeWoMaterialScalar, WoMaterialScalarError } from '../../../../../../lib/production/wo-material-scalar';
 import { createBomSnapshot } from '../../../../../../lib/technical/bom/snapshot';
-import { resolveWriteSiteId } from '../../../../../../lib/site/site-context';
-import { snapshotFromItemRow, toBaseQty } from '../../../../../../lib/uom/convert';
+import {
+  ALL_SITES_COOKIE_VALUE,
+  asSiteId,
+  resolveWriteSiteId,
+  SITE_COOKIE_NAME,
+} from '../../../../../../lib/site/site-context';
+import { microToFixed, toMicro } from '../../../../../../lib/shared/decimal';
+import { snapshotFromItemRow } from '../../../../../../lib/uom/convert';
 import { createPurchaseOrderCore } from '../purchase-orders/_actions/create-purchase-order-core';
 import { APP_VERSION, isPgError } from '../work-orders/_actions/shared';
-import { withSiteContext } from '../../../../../../lib/auth/with-site-context';
+import {
+  NoActiveSiteError,
+  withSiteContext,
+  type WithSiteContextOptions,
+} from '../../../../../../lib/auth/with-site-context';
 import { hasPlanningWritePermission, writeProcurementAudit, type OrgActionContext } from './procurement-shared';
 import {
+  collapseThresholdsForAllSites,
   computeMrpPhased,
   MRP_DEFAULT_HORIZON_WEEKS,
   type MrpBucketRow,
@@ -194,11 +207,34 @@ async function hasMrpConvertPermission(client: QueryClient, userId: string, orgI
   return rows.length > 0;
 }
 
+/**
+ * Persist binds a write site; read scopes via cookie/default/all-sites.
+ * Explicit `mp_site_id=all` is deliberate all-sites (site_id NULL) — not unresolved.
+ */
+async function buildMrpSiteContextOptions(persist: boolean): Promise<WithSiteContextOptions> {
+  if (!persist) return { mode: 'read' };
+  try {
+    const store = await cookies();
+    const raw = store.get(SITE_COOKIE_NAME)?.value;
+    if (raw === ALL_SITES_COOKIE_VALUE) {
+      return { mode: 'write', siteId: null };
+    }
+    const fromCookie = asSiteId(raw);
+    if (fromCookie) {
+      return { mode: 'write', siteId: fromCookie };
+    }
+  } catch {
+    // No request scope (unit tests / static render) — withSiteContext resolves inside the txn.
+  }
+  return { mode: 'write' };
+}
+
 export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
   const persist = input?.persist === true;
   const horizonWeeks = resolveHorizonWeeks(input?.horizonWeeks);
+  const siteOptions = await buildMrpSiteContextOptions(persist);
   try {
-    return await withSiteContext({ mode: 'read' }, async ({ userId, orgId, client, siteId }): Promise<MrpRunResult> => {
+    return await withSiteContext(siteOptions, async ({ userId, orgId, client, siteId }): Promise<MrpRunResult> => {
       const c = client as QueryClient;
 
       if (!(await hasPlanningReadPermission(c, userId, orgId))) {
@@ -417,6 +453,7 @@ export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
       //    lots and suggested due dates.
       const thresholds = await c.query<MrpThresholdRow>(
         `select rt.item_id,
+                rt.site_id,
                 rt.min_qty::text as min_qty,
                 rt.reorder_qty::text as reorder_qty,
                 rt.preferred_supplier_id,
@@ -432,6 +469,11 @@ export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
             and (app.current_site_id() is null or rt.site_id is null or rt.site_id = app.current_site_id())`,
       );
 
+      const thresholdRows =
+        siteId === null
+          ? collapseThresholdsForAllSites(thresholds.rows)
+          : thresholds.rows;
+
       const { rows, kpis, bucketDates, bucketRows } = computeMrpPhased({
         items: items.rows,
         onHand: onHand.rows,
@@ -440,7 +482,7 @@ export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
         soDemand: soDemand.rows,
         poSupply: poSupply.rows,
         productionSupply: productionSupply.rows,
-        thresholds: thresholds.rows,
+        thresholds: thresholdRows,
         today,
         horizonWeeks,
       });
@@ -479,6 +521,10 @@ export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
       };
     });
   } catch (err) {
+    if (err instanceof NoActiveSiteError) {
+      console.error('[planning/mrp] runMrp failed — no resolvable write site', err);
+      return { ok: false, error: 'persistence_failed' };
+    }
     console.error('[planning/mrp] runMrp failed', err);
     return { ok: false, error: 'persistence_failed' };
   }
@@ -632,15 +678,12 @@ function toDbOrderType(type: NonNullable<MrpRow['suggestedAction']>['type']): 'p
   return 'wo';
 }
 
-function toBaseQtyString(row: MrpRow): string {
-  const snap = snapshotFromItemRow({
-    output_uom: 'base',
-    uom_base: row.uomBase,
-    net_qty_per_each: null,
-    each_per_box: null,
-    weight_mode: 'fixed',
-  });
-  return toBaseQty(snap, Number(row.suggestedAction?.qty ?? '0'), 'base').toFixed(3);
+function plannedOrderQtyFromAction(row: MrpRow): string | null {
+  const qty = row.suggestedAction?.qty;
+  if (!qty) return null;
+  const micro = toMicro(qty);
+  if (micro <= 0n) return null;
+  return microToFixed(micro, 6);
 }
 
 async function persistPlannedOrders(
@@ -674,10 +717,12 @@ async function persistPlannedOrders(
     const resolved = supplierByItem.get(row.itemId);
     if (resolved) supplierCandidates.add(resolved.supplierId);
   }
-  const eligibleSupplierIds = await fetchNonBlockedSupplierIds(c, [...supplierCandidates]);
+  const eligibleSupplierIds = await fetchActiveSupplierIds(c, [...supplierCandidates]);
 
   for (const row of bucketRows) {
     if (!row.suggestedAction) continue;
+    const quantity = plannedOrderQtyFromAction(row);
+    if (!quantity) continue;
     const rawDueDate = row.suggestedAction.dueDate ?? row.bucketDate;
     const dueDate = rawDueDate < today ? today : rawDueDate;
     const preferredSupplierId = row.suggestedAction.supplierId;
@@ -688,6 +733,9 @@ async function persistPlannedOrders(
     let releaseDate = row.suggestedAction.releaseDate ?? null;
     if (releaseDate !== null && releaseDate < today) {
       releaseDate = today;
+    }
+    if (releaseDate !== null && releaseDate > dueDate) {
+      releaseDate = dueDate;
     }
     const isLate = row.suggestedAction.isLate ?? (releaseDate === today && rawDueDate < today);
     const reqKey = `${row.itemId}:${row.bucketDate}`;
@@ -706,7 +754,7 @@ async function persistPlannedOrders(
         requirementIds.get(reqKey) ?? null,
         row.itemId,
         toDbOrderType(row.suggestedAction.type),
-        toBaseQtyString(row),
+        quantity,
         row.uomBase,
         dueDate,
         releaseDate,

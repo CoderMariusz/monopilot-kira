@@ -30,6 +30,8 @@ let currentScheduledStartTime: string | null = null;
 let currentLineId: string | null = null;
 let lineSiteId: string | null = SITE_ID;
 let chainChildStatus = 'DRAFT';
+let chainChildScheduledStart: string | null = '2026-07-25T00:00:00.000Z';
+let chainChildScheduledEnd: string | null = '2026-07-25T08:00:00.000Z';
 let chainEdgesPresent = false;
 
 vi.mock('../../../../../../../lib/i18n/revalidate-localized', () => ({
@@ -124,6 +126,8 @@ function makeClient(): QueryClient {
       }
       if (normalized.includes('from public.wo_dependencies dep')) {
         if (!chainEdgesPresent) return { rows: [], rowCount: 0 };
+        const parentWoId = String(params[0]);
+        if (parentWoId !== WO_ID) return { rows: [], rowCount: 0 };
         return {
           rows: [{
             child_wo_id: CHILD_WO_ID,
@@ -131,6 +135,8 @@ function makeClient(): QueryClient {
             child_product_id: CHILD_PRODUCT_ID,
             link_product_id: CHILD_PRODUCT_ID,
             link_bom_item_id: BOM_LINE_ID,
+            child_scheduled_start_time: chainChildScheduledStart,
+            child_scheduled_end_time: chainChildScheduledEnd,
           }],
           rowCount: 1,
         };
@@ -150,6 +156,12 @@ function makeClient(): QueryClient {
         return { rows: [], rowCount: 1 };
       }
       if (normalized.startsWith('update public.work_orders') && params[0] === CHILD_WO_ID) {
+        if (normalized.includes('scheduled_start_time = $2::timestamptz')) {
+          return {
+            rows: chainChildStatus === 'IN_PROGRESS' ? [] : [{ id: CHILD_WO_ID }],
+            rowCount: chainChildStatus === 'IN_PROGRESS' ? 0 : 1,
+          };
+        }
         return { rows: [{ id: CHILD_WO_ID }], rowCount: chainChildStatus === 'IN_PROGRESS' ? 0 : 1 };
       }
       if (normalized.startsWith('update public.work_orders')) {
@@ -210,6 +222,8 @@ describe('updateWorkOrder', () => {
     currentLineId = null;
     lineSiteId = SITE_ID;
     chainChildStatus = 'DRAFT';
+    chainChildScheduledStart = '2026-07-25T00:00:00.000Z';
+    chainChildScheduledEnd = '2026-07-25T08:00:00.000Z';
     chainEdgesPresent = false;
     client = makeClient();
   });
@@ -442,5 +456,56 @@ describe('updateWorkOrder', () => {
     expect(calls.some((sql) => sql.startsWith('update public.work_orders'))).toBe(false);
     expect(calls.some((sql) => sql.startsWith('delete from public.wo_materials'))).toBe(false);
     expect(calls.some((sql) => sql.startsWith('insert into public.wo_materials'))).toBe(false);
+  });
+
+  it('PF-R11-01: propagates chain child scheduled dates when parent scheduled start changes', async () => {
+    chainEdgesPresent = true;
+    currentScheduledStartTime = '2026-07-25T00:00:00.000Z';
+    chainChildScheduledStart = '2026-07-25T00:00:00.000Z';
+    chainChildScheduledEnd = '2026-07-25T08:00:00.000Z';
+    const civilMidnight = '2026-07-26T00:00:00.000Z';
+
+    const result = await updateWorkOrder({ id: WO_ID, scheduledStartTime: civilMidnight });
+
+    expect(result.ok).toBe(true);
+    const childDateUpdate = vi.mocked(client.query).mock.calls.find(([sql, params]) => {
+      const n = String(sql).replace(/\s+/g, ' ').trim().toLowerCase();
+      return n.startsWith('update public.work_orders')
+        && n.includes('scheduled_start_time = $2::timestamptz')
+        && params?.[0] === CHILD_WO_ID;
+    });
+    expect(childDateUpdate?.[1]).toEqual([
+      CHILD_WO_ID,
+      '2026-07-26T00:00:00.000Z',
+      '2026-07-26T08:00:00.000Z',
+      USER_ID,
+    ]);
+  });
+
+  it('PF-R11-01: blocks scheduled-date edit when chain child is not editable', async () => {
+    chainEdgesPresent = true;
+    chainChildStatus = 'IN_PROGRESS';
+
+    await expect(
+      updateWorkOrder({ id: WO_ID, scheduledStartTime: '2026-07-26T00:00:00.000Z' }),
+    ).resolves.toEqual({ ok: false, error: 'chain_child_not_editable' });
+
+    const calls = vi.mocked(client.query).mock.calls.map(([sql]) => String(sql).replace(/\s+/g, ' ').trim().toLowerCase());
+    expect(calls.some((sql) => sql.startsWith('update public.work_orders wo'))).toBe(false);
+  });
+
+  it('PF-R11-01: date-only edit skips pack-hierarchy preflight on chain children', async () => {
+    chainEdgesPresent = true;
+    currentScheduledStartTime = '2026-07-25T00:00:00.000Z';
+    chainChildScheduledStart = '2026-07-25T00:00:00.000Z';
+    chainChildScheduledEnd = null;
+
+    const result = await updateWorkOrder({ id: WO_ID, scheduledStartTime: '2026-07-26T00:00:00.000Z' });
+
+    expect(result.ok).toBe(true);
+    const bomHeaderLookups = vi.mocked(client.query).mock.calls.filter(([sql]) =>
+      String(sql).replace(/\s+/g, ' ').trim().toLowerCase().includes('from public.bom_headers'),
+    );
+    expect(bomHeaderLookups).toHaveLength(0);
   });
 });

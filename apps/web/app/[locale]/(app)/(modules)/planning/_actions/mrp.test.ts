@@ -11,7 +11,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { createBomSnapshotMock } = vi.hoisted(() => ({
+const { createBomSnapshotMock, MockNoActiveSiteError } = vi.hoisted(() => ({
   createBomSnapshotMock: vi.fn(async () => ({
     id: 'snap-mrp-0001',
     orgId: '11111111-1111-4111-8111-111111111111',
@@ -20,6 +20,15 @@ const { createBomSnapshotMock } = vi.hoisted(() => ({
     snapshotJson: {},
     snapshotAt: '2026-07-27T00:00:00.000Z',
   })),
+  MockNoActiveSiteError: class NoActiveSiteError extends Error {
+    readonly reason = 'no_active_site' as const;
+    constructor(
+      message = 'No active site selected. Pick a site from the top-bar switcher, or set a default site in Settings -> Sites.',
+    ) {
+      super(message);
+      this.name = 'NoActiveSiteError';
+    }
+  },
 }));
 
 import { withSiteContext } from '../../../../../../lib/auth/with-site-context';
@@ -75,11 +84,25 @@ let failInventoryRead = false;
 /** Threshold rows the reorder_thresholds read returns (default none). */
 let thresholdRows: Array<{
   item_id: string;
+  site_id?: string | null;
   min_qty: string;
   reorder_qty: string;
   preferred_supplier_id: string | null;
   lead_time_days: number | null;
+  preferred_supplier_status?: string | null;
 }> = [];
+/** Override flour on-hand for precision / threshold scenarios. */
+let flourOnHand = '40.000';
+let flourReserved = '10.000';
+/** Override WO-material demand rows returned by the mock. */
+let woMaterialRows: Array<{ product_id: string; uom: string; qty: string; need_date: string }> = [
+  { product_id: FLOUR_ID, uom: 'kg', qty: '80.000', need_date: MOCK_NEED_DATE },
+  { product_id: DOUGH_ID, uom: 'kg', qty: '20.000', need_date: MOCK_NEED_DATE },
+];
+/** Open-PO remainder rows for MRP supply netting. */
+let poSupplyRows: Array<{ product_id: string; uom: string; qty: string; need_date: string }> = [
+  { product_id: FLOUR_ID, uom: 'kg', qty: '25.000', need_date: MOCK_NEED_DATE },
+];
 /**
  * Rework scenario (Codex batch-D F2): WO_REWORK consumes 20 kg dough to make
  * dough (self-referential). Its 50 kg projected output must NOT offset its own
@@ -152,6 +175,7 @@ vi.mock('../../../../../../lib/auth/with-site-context', () => ({
       return action({ userId: USER_ID, orgId: ORG_ID, siteId: boundSiteId, client });
     },
   ),
+  NoActiveSiteError: MockNoActiveSiteError,
 }));
 
 vi.mock('../../../../../../lib/auth/with-org-context', () => ({
@@ -355,7 +379,22 @@ function makeClient(): QueryClient {
         };
       }
       if (normalized.includes('from public.reorder_thresholds')) {
-        return { rows: thresholdRows, rowCount: thresholdRows.length };
+        return {
+          rows: thresholdRows.map((row) => ({
+            item_id: row.item_id,
+            min_qty: row.min_qty,
+            reorder_qty: row.reorder_qty,
+            preferred_supplier_id: row.preferred_supplier_id,
+            lead_time_days: row.lead_time_days,
+            preferred_supplier_status:
+              row.preferred_supplier_status ??
+              (row.preferred_supplier_id ? 'active' : null),
+            preferred_supplier_code: null,
+            preferred_supplier_name: null,
+            site_id: row.site_id ?? null,
+          })),
+          rowCount: thresholdRows.length,
+        };
       }
       if (normalized.includes('from public.items')) {
         if (typeof params[0] === 'string') {
@@ -429,7 +468,7 @@ function makeClient(): QueryClient {
       if (normalized.includes('from public.v_inventory_available')) {
         if (failInventoryRead) throw new Error('boom');
         return {
-          rows: [{ product_id: FLOUR_ID, uom: 'kg', on_hand: '40.000', reserved: '10.000' }],
+          rows: [{ product_id: FLOUR_ID, uom: 'kg', on_hand: flourOnHand, reserved: flourReserved }],
           rowCount: 1,
         };
       }
@@ -469,13 +508,7 @@ function makeClient(): QueryClient {
       }
       if (normalized.includes('from public.wo_materials')) {
         expect(params[0]).toEqual(['DRAFT', 'RELEASED', 'IN_PROGRESS']);
-        return {
-          rows: [
-            { product_id: FLOUR_ID, uom: 'kg', qty: '80.000', need_date: MOCK_NEED_DATE },
-            { product_id: DOUGH_ID, uom: 'kg', qty: '20.000', need_date: MOCK_NEED_DATE },
-          ],
-          rowCount: 2,
-        };
+        return { rows: woMaterialRows, rowCount: woMaterialRows.length };
       }
       if (normalized.includes('from public.demand_forecasts')) {
         expect(String(params[0])).toMatch(/^\d{4}-W\d{2}$/);
@@ -497,10 +530,14 @@ function makeClient(): QueryClient {
         }
         expect(params[0]).toEqual(['sent', 'confirmed', 'partially_received']);
         // Remainder already netted in SQL (ordered − received via grn_items).
-        return { rows: [{ product_id: FLOUR_ID, uom: 'kg', qty: '25.000', need_date: MOCK_NEED_DATE }], rowCount: 1 };
+        return { rows: poSupplyRows, rowCount: poSupplyRows.length };
       }
       if (normalized.includes('from public.supplier_specs ss') && normalized.includes('distinct on (ss.item_id)')) {
         return { rows: supplierSpecLinkRows, rowCount: supplierSpecLinkRows.length };
+      }
+      if (normalized.includes('from public.suppliers s') && normalized.includes("s.status = 'active'")) {
+        const ids = (params[0] as string[]) ?? [];
+        return { rows: ids.map((id) => ({ id })), rowCount: ids.length };
       }
       if (normalized.includes('from public.suppliers s') && normalized.includes("s.status <> 'blocked'")) {
         const ids = (params[0] as string[]) ?? [];
@@ -523,6 +560,13 @@ beforeEach(() => {
   undatedSoLinesMock = 0;
   flourPackHierarchy = false;
   thresholdRows = [];
+  flourOnHand = '40.000';
+  flourReserved = '10.000';
+  woMaterialRows = [
+    { product_id: FLOUR_ID, uom: 'kg', qty: '80.000', need_date: MOCK_NEED_DATE },
+    { product_id: DOUGH_ID, uom: 'kg', qty: '20.000', need_date: MOCK_NEED_DATE },
+  ];
+  poSupplyRows = [{ product_id: FLOUR_ID, uom: 'kg', qty: '25.000', need_date: MOCK_NEED_DATE }];
   includeFinishedGood = false;
   openPoSupplierRows = [];
   supplierSpecLinkRows = [];
@@ -747,6 +791,57 @@ describe('runMrp', () => {
     expect(executed.some((sql) => sql.startsWith('insert') || sql.startsWith('update') || sql.startsWith('delete'))).toBe(false);
   });
 
+  it('PF-R09-03: site-scoped MRP includes org-global (site-null) forecast and threshold rows', async () => {
+    boundSiteId = SITE_ID;
+    await runMrp();
+
+    const forecast = executed.find((sql) => sql.includes('from public.demand_forecasts'))!;
+    expect(forecast).toContain('app.current_site_id() is null or f.site_id is null or f.site_id = app.current_site_id()');
+    expect(forecast).toContain('f.site_id is null');
+
+    const threshold = executed.find((sql) => sql.includes('from public.reorder_thresholds'))!;
+    expect(threshold).toContain('app.current_site_id() is null or rt.site_id is null or rt.site_id = app.current_site_id()');
+    expect(threshold).toContain('rt.site_id is null');
+
+    const po = executed.find((sql) => sql.includes('from public.purchase_order_lines'))!;
+    expect(po).toContain('app.current_site_id() is null or po.site_id is null or po.site_id = app.current_site_id()');
+    expect(po).toContain('po.site_id is null');
+
+    const so = executed.find((sql) => sql.includes('from public.sales_order_lines'))!;
+    expect(so).toContain('app.current_site_id() is null or so.site_id is null or so.site_id = app.current_site_id()');
+    expect(so).toContain('so.site_id is null');
+  });
+
+  it('PF-R09-03: all-sites MRP collapses duplicate thresholds to the highest min_qty per item', async () => {
+    boundSiteId = null;
+    thresholdRows = [
+      {
+        item_id: DOUGH_ID,
+        site_id: SITE_ID,
+        min_qty: '10.000',
+        reorder_qty: '20.000',
+        preferred_supplier_id: null,
+        lead_time_days: null,
+        preferred_supplier_status: null,
+      },
+      {
+        item_id: DOUGH_ID,
+        site_id: OTHER_SITE_ID,
+        min_qty: '100.000',
+        reorder_qty: '20.000',
+        preferred_supplier_id: null,
+        lead_time_days: null,
+        preferred_supplier_status: null,
+      },
+    ];
+    const result = await runMrp();
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const dough = result.data.rows.find((r) => r.itemCode === 'INT-DOUGH')!;
+    expect(dough.minQty).toBe('100.000');
+  });
+
   it('excludes a rework WO\'s self-supply — its output never offsets its own demand (batch-D F2)', async () => {
     reworkSelfSupply = true;
     const result = await runMrp();
@@ -819,6 +914,7 @@ describe('runMrp', () => {
         reorder_qty: '20.000',
         preferred_supplier_id: SUPPLIER_ID,
         lead_time_days: 7,
+        preferred_supplier_status: 'active',
       },
     ];
     const result = await runMrp();
@@ -837,13 +933,21 @@ describe('runMrp', () => {
       qty: '20',
       dueDate,
       supplierId: SUPPLIER_ID,
+      actionScope: 'next_bucket',
+      bucketDate: bucketStart,
+      netAtBucket: '-8.000',
+      gapAtBucket: '8.000',
+      reorderLotAtBucket: '20.000',
+      leadTimeDays: 7,
     });
     if (rawRelease < today) {
       expect(dough.suggestedAction?.releaseDate).toBe(today);
       expect(dough.suggestedAction?.isLate).toBe(true);
+      expect(dough.suggestedAction?.earliestReceiptDate).toBe(addDaysIso(today, 7));
     } else {
       expect(dough.suggestedAction?.releaseDate).toBe(rawRelease);
       expect(dough.suggestedAction?.isLate).toBeFalsy();
+      expect(dough.suggestedAction?.earliestReceiptDate).toBeNull();
     }
   });
 
@@ -1183,6 +1287,7 @@ describe('runMrp', () => {
 
     const fgPlannedInsert = plannedInserts.find((p) => p[2] === FG_ID)!;
     expect(fgPlannedInsert[3]).toBe('wo');
+    expect(fgPlannedInsert[4]).toBe('9.000000');
     const fgPlanned = result.data.plannedOrders.find((po) => po.itemId === FG_ID)!;
     expect(fgPlanned.type).toBe('make');
 
@@ -1219,6 +1324,29 @@ describe('runMrp', () => {
       priceWarnings: [],
     });
     expect(createPurchaseOrderCoreMock).not.toHaveBeenCalled();
+  });
+
+  it('persists sub-thousand planned-order quantities at numeric(18,6) without float truncation', async () => {
+    flourOnHand = '39.999999';
+    flourReserved = '0.000';
+    woMaterialRows = [];
+    poSupplyRows = [];
+    thresholdRows = [
+      {
+        item_id: FLOUR_ID,
+        min_qty: '40.000000',
+        reorder_qty: '0.000001',
+        preferred_supplier_id: null,
+        lead_time_days: null,
+      },
+    ];
+
+    const result = await runMrp({ persist: true, horizonWeeks: 1 });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const flourPlanned = plannedInserts.find((p) => p[2] === FLOUR_ID);
+    expect(flourPlanned?.[4]).toBe('0.000001');
   });
 
   it('persists the run header + per-item requirements per the mig-178 DDL ({ persist: true })', async () => {

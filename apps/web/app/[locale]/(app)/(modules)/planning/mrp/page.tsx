@@ -52,6 +52,13 @@ export default async function PlanningMrpPage({ params }: MrpPageProps) {
     ],
     minQty: t('mrp.minQty'),
     dueBy: t('mrp.dueBy'),
+    releaseBy: t('mrp.releaseBy'),
+    needByBucket: t('mrp.needByBucket'),
+    nextBucketAction: t('mrp.nextBucketAction'),
+    horizonSuggested: t('mrp.horizonSuggested'),
+    late: t('mrp.late'),
+    earliestReceipt: t('mrp.earliestReceipt'),
+    bucketCalcHint: t('mrp.bucketCalcHint'),
     kpis: {
       itemsShort: t('mrp.kpis.itemsShort'),
       coverage: t('mrp.kpis.coverage'),

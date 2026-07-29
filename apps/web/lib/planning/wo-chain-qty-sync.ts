@@ -6,7 +6,10 @@
 import { computeWoMaterialScalar, WoMaterialScalarError } from '../production/wo-material-scalar';
 import { fromBaseQty, snapshotFromItemRow, TypedError, type OutputUom, type UomSnapshot } from '../uom/convert';
 
-export type ChainQtySyncError = 'chain_child_not_editable' | 'pack_hierarchy_incomplete';
+export type ChainQtySyncError =
+  | 'chain_child_not_editable'
+  | 'pack_hierarchy_incomplete'
+  | 'chain_dependency_cycle';
 
 export class ChainQtySyncRollbackError extends Error {
   readonly code: ChainQtySyncError;
@@ -53,6 +56,8 @@ export type ChainEdgeSnapshot = {
   childProductId: string;
   linkProductId: string | null;
   linkBomItemId: string | null;
+  childScheduledStartTime: string | Date | null;
+  childScheduledEndTime: string | Date | null;
 };
 
 const EDITABLE_CHILD_STATUSES = new Set(['DRAFT', 'RELEASED']);
@@ -202,26 +207,40 @@ async function resnapshotChildWorkOrder(
   );
 }
 
-/**
- * Lock downstream chain edges and capture parent material identity BEFORE parent
- * wo_materials are deleted (ON DELETE SET NULL would clear material_link).
- */
-export async function loadAndLockParentChainEdges(
+type ChainEdgeRow = {
+  child_wo_id: string;
+  child_status: string;
+  child_product_id: string;
+  link_product_id: string | null;
+  link_bom_item_id: string | null;
+  child_scheduled_start_time: string | Date | null;
+  child_scheduled_end_time: string | Date | null;
+};
+
+function mapChainEdgeRow(row: ChainEdgeRow): ChainEdgeSnapshot {
+  return {
+    childWoId: row.child_wo_id,
+    childStatus: row.child_status,
+    childProductId: row.child_product_id,
+    linkProductId: row.link_product_id,
+    linkBomItemId: row.link_bom_item_id,
+    childScheduledStartTime: row.child_scheduled_start_time,
+    childScheduledEndTime: row.child_scheduled_end_time,
+  };
+}
+
+async function loadDirectParentChainEdges(
   ctx: OrgActionContext,
   parentWoId: string,
 ): Promise<ChainEdgeSnapshot[]> {
-  const { rows } = await ctx.client.query<{
-    child_wo_id: string;
-    child_status: string;
-    child_product_id: string;
-    link_product_id: string | null;
-    link_bom_item_id: string | null;
-  }>(
+  const { rows } = await ctx.client.query<ChainEdgeRow>(
     `select dep.child_wo_id::text as child_wo_id,
             child.status as child_status,
             child.product_id::text as child_product_id,
             wm.product_id::text as link_product_id,
-            wm.bom_item_id::text as link_bom_item_id
+            wm.bom_item_id::text as link_bom_item_id,
+            child.scheduled_start_time as child_scheduled_start_time,
+            child.scheduled_end_time as child_scheduled_end_time
        from public.wo_dependencies dep
        join public.work_orders child
          on child.org_id = dep.org_id
@@ -236,13 +255,83 @@ export async function loadAndLockParentChainEdges(
     [parentWoId],
   );
 
-  return rows.map((row) => ({
-    childWoId: row.child_wo_id,
-    childStatus: row.child_status,
-    childProductId: row.child_product_id,
-    linkProductId: row.link_product_id,
-    linkBomItemId: row.link_bom_item_id,
-  }));
+  return rows.map(mapChainEdgeRow);
+}
+
+async function walkDescendantChainEdges(
+  ctx: OrgActionContext,
+  childWoId: string,
+  visited: Set<string>,
+  loading: Set<string>,
+  edges: ChainEdgeSnapshot[],
+  onCycle: () => void,
+): Promise<void> {
+  if (loading.has(childWoId)) {
+    onCycle();
+    return;
+  }
+  if (visited.has(childWoId)) return;
+
+  loading.add(childWoId);
+  visited.add(childWoId);
+
+  const children = await loadDirectParentChainEdges(ctx, childWoId);
+  for (const edge of children) {
+    // wo_dependencies CHECK forbids parent_wo_id = child_wo_id — ignore impossible self-loops.
+    if (edge.childWoId === childWoId) continue;
+    edges.push(edge);
+    await walkDescendantChainEdges(ctx, edge.childWoId, visited, loading, edges, onCycle);
+  }
+
+  loading.delete(childWoId);
+}
+
+export type ParentChainLoadResult = {
+  edges: ChainEdgeSnapshot[];
+  hasCycle: boolean;
+};
+
+/** Throw after editability guards so chain_child_not_editable wins over cycle detection. */
+export function throwIfChainDependencyCycle(result: ParentChainLoadResult): void {
+  if (result.hasCycle) {
+    throw new ChainQtySyncRollbackError('chain_dependency_cycle');
+  }
+}
+
+/**
+ * Lock downstream chain edges and capture parent material identity BEFORE parent
+ * wo_materials are deleted (ON DELETE SET NULL would clear material_link).
+ * Walks the full descendant graph; cycle detection is deferred — call
+ * throwIfChainDependencyCycle after editability preflight.
+ */
+export async function loadAndLockParentChainEdges(
+  ctx: OrgActionContext,
+  parentWoId: string,
+): Promise<ParentChainLoadResult> {
+  const edges: ChainEdgeSnapshot[] = [];
+  const visited = new Set<string>();
+  const loading = new Set<string>();
+  let hasCycle = false;
+  const onCycle = () => {
+    hasCycle = true;
+  };
+
+  const directChildren = await loadDirectParentChainEdges(ctx, parentWoId);
+  for (const edge of directChildren) {
+    edges.push(edge);
+    await walkDescendantChainEdges(ctx, edge.childWoId, visited, loading, edges, onCycle);
+  }
+
+  return { edges, hasCycle };
+}
+
+/** Status-only guard for date propagation — no pack-hierarchy resnapshot checks. */
+export function preflightParentChainEditability(edges: ChainEdgeSnapshot[]): void {
+  for (const edge of edges) {
+    if (!EDITABLE_CHILD_STATUSES.has(edge.childStatus)) {
+      throw new ChainQtySyncRollbackError('chain_child_not_editable');
+    }
+  }
 }
 
 /** Validate every downstream child is editable before any parent mutation. */
@@ -250,11 +339,7 @@ export async function preflightParentChainEdges(
   ctx: OrgActionContext,
   edges: ChainEdgeSnapshot[],
 ): Promise<void> {
-  for (const edge of edges) {
-    if (!EDITABLE_CHILD_STATUSES.has(edge.childStatus)) {
-      throw new ChainQtySyncRollbackError('chain_child_not_editable');
-    }
-  }
+  preflightParentChainEditability(edges);
 
   for (const edge of edges) {
     if (!edge.linkProductId && !edge.linkBomItemId) continue;

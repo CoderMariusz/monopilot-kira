@@ -8,11 +8,14 @@ import {
   ChainQtySyncRollbackError,
   loadAndLockParentChainEdges,
   preflightParentChainEdges,
+  preflightParentChainEditability,
+  throwIfChainDependencyCycle,
   propagateParentWoChainQuantities,
   reconcileQtyEnteredOnBaseEdit,
   snapshotFromItemSnapshotRow,
   type ChainEdgeSnapshot,
 } from '../../../../../../../lib/planning/wo-chain-qty-sync';
+import { propagateParentWoChainScheduledDates } from '../../../../../../../lib/planning/wo-chain-date-sync';
 import { computeWoMaterialScalar, WoMaterialScalarError } from '../../../../../../../lib/production/wo-material-scalar';
 import { fetchEligibleFactorySpecUnderBindLock } from '../../../../../../../lib/technical/factory-spec-bind-lock';
 import { snapshotFromItemRow } from '../../../../../../../lib/uom/convert';
@@ -274,10 +277,19 @@ export async function updateWorkOrder(params: {
           }
         : null;
 
+      const scheduleDateEdit = input.scheduledStartTime !== undefined;
+      const qtyEdit = input.plannedQuantity !== undefined;
+
       let chainEdges: ChainEdgeSnapshot[] = [];
-      if (input.plannedQuantity !== undefined) {
-        chainEdges = await loadAndLockParentChainEdges(ctx, input.id);
-        await preflightParentChainEdges(ctx, chainEdges);
+      if (qtyEdit || scheduleDateEdit) {
+        const chainLoad = await loadAndLockParentChainEdges(ctx, input.id);
+        chainEdges = chainLoad.edges;
+        if (qtyEdit) {
+          await preflightParentChainEdges(ctx, chainEdges);
+        } else {
+          preflightParentChainEditability(chainEdges);
+        }
+        throwIfChainDependencyCycle(chainLoad);
       }
 
       const productChanged = input.productId !== undefined;
@@ -386,8 +398,15 @@ export async function updateWorkOrder(params: {
         if (resnapshotResult) return resnapshotResult;
       }
 
-      if (input.plannedQuantity !== undefined) {
+      if (qtyEdit) {
         await propagateParentWoChainQuantities(ctx, input.id, ctx.userId, chainEdges);
+      }
+
+      if (scheduleDateEdit) {
+        await propagateParentWoChainScheduledDates(ctx, ctx.userId, chainEdges, {
+          parentOldScheduledStart: current.scheduled_start_time,
+          parentNewScheduledStart: input.scheduledStartTime ?? null,
+        });
       }
 
       await ctx.client.query(

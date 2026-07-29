@@ -46,6 +46,13 @@ const LABELS = {
   persistedAs: 'saved as',
   minQty: 'Min',
   dueBy: 'Due',
+  releaseBy: 'Release',
+  needByBucket: 'Need-by bucket',
+  nextBucketAction: 'Next bucket action',
+  horizonSuggested: 'Horizon suggested total',
+  late: 'Late',
+  earliestReceipt: 'Earliest receipt',
+  bucketCalcHint: 'Bucket position {net} + receipts {receipts} vs min {min}',
   kpis: {
     itemsShort: 'Items short',
     coverage: 'Demand coverage',
@@ -491,5 +498,63 @@ describeUi('/planning/mrp — MrpView', () => {
     expect(screen.getByTestId('mrp-supplier-RM-SALT')).toHaveTextContent('SUP-FLOUR');
     expect(screen.getByTestId('mrp-supplier-status-RM-SALT')).toHaveTextContent('Active');
     expect(screen.getByTestId('mrp-supplier-RM-FLOUR')).toHaveTextContent('None configured');
+  });
+
+  it('PF-R09-05: surfaces next-bucket scope, release/late and bucket calc hint on summary rows', async () => {
+    const lateRow: MrpRow = {
+      ...SHORT_ROW,
+      itemCode: 'RM-R09',
+      net: '12.375',
+      minQty: '15.875',
+      suggestedAction: {
+        type: 'buy',
+        qty: '12',
+        dueDate: '2026-07-17',
+        releaseDate: '2026-07-17',
+        isLate: true,
+        supplierId: null,
+        bucketDate: '2026-07-17',
+        actionScope: 'next_bucket',
+        netAtBucket: '7.125',
+        gapAtBucket: '8.750',
+        reorderLotAtBucket: '4.000',
+        earliestReceiptDate: '2026-07-26',
+        leadTimeDays: 9,
+      },
+    };
+    const runAction = vi.fn(async () => okResult([lateRow]));
+    renderView({ runAction, timeFormatter: (iso) => iso });
+
+    fireEvent.click(screen.getByTestId('mrp-run-button'));
+    await waitFor(() => expect(screen.getByTestId('mrp-action-RM-R09')).toBeInTheDocument());
+    expect(screen.getByTestId('mrp-action-scope-RM-R09')).toHaveTextContent('Next bucket action');
+    expect(screen.getByTestId('mrp-late-RM-R09')).toHaveTextContent('Late');
+    expect(screen.getByTestId('mrp-earliest-RM-R09')).toHaveTextContent('2026-07-26');
+    expect(screen.getByTestId('mrp-calc-RM-R09')).toHaveTextContent('7.125');
+    expect(screen.getByTestId('mrp-calc-RM-R09')).toHaveTextContent('15.875');
+  });
+
+  it('PF-R09-02: surfaces horizon suggested total beside the next-bucket action', async () => {
+    const multiBucketRow: MrpRow = {
+      ...MAKE_ROW,
+      itemCode: 'FG-BREAD',
+      net: '-12.000',
+      suggestedAction: {
+        type: 'make',
+        qty: '9',
+        dueDate: null,
+        supplierId: null,
+        actionScope: 'next_bucket',
+        horizonSuggestedQty: '12',
+      },
+    };
+    const runAction = vi.fn(async () => okResult([multiBucketRow]));
+    renderView({ runAction, timeFormatter: (iso) => iso });
+
+    fireEvent.click(screen.getByTestId('mrp-run-button'));
+    await waitFor(() => expect(screen.getByTestId('mrp-action-FG-BREAD')).toBeInTheDocument());
+    expect(screen.getByTestId('mrp-action-scope-FG-BREAD')).toHaveTextContent('Next bucket action');
+    expect(screen.getByTestId('mrp-action-FG-BREAD')).toHaveTextContent('MAKE 9 kg');
+    expect(screen.getByTestId('mrp-horizon-suggested-FG-BREAD')).toHaveTextContent('Horizon suggested total: 12 kg');
   });
 });

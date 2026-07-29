@@ -139,6 +139,6 @@ describe("ReceivePoListScreen — scan field onSubmit", () => {
     );
 
     renderScreen();
-    await waitFor(() => expect(screen.getAllByText(L.permissionDenied).length).toBeGreaterThan(0));
+    await waitFor(() => expect(screen.getAllByText(L.permissionDenied)).toHaveLength(1));
   });
 });

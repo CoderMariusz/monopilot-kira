@@ -6,8 +6,7 @@
  * persisted set needs a migration (OUT OF SCOPE here). What IS wired and tested:
  *   1. the TO server state machine + reverse-receipt flow already reference
  *      'partially_received', so the badge + label set must render it honestly;
- *   2. the cancel guard returns error code 'partially_received', so the detail
- *      page must carry a real i18n message instead of the generic fallback.
+ *   2. incomplete receive surfaces invalid_state with a concrete server message.
  *
  * This test locks the i18n leaf-key parity (all 4 locales carry the new
  * toStatus + errors keys) and the badge colour band so the label can never
@@ -46,7 +45,7 @@ describe('TO partially_received label contract', () => {
     expect(plLabel).not.toBe(enLabel);
   });
 
-  it('every locale carries the errors.partially_received cancel-guard message', () => {
+  it('every locale carries the errors.partially_received incomplete-receive message', () => {
     for (const [name, locale] of Object.entries(LOCALES)) {
       const errors = toBlock(locale).errors as Record<string, string>;
       expect(errors.partially_received, `${name} errors.partially_received`).toBeTruthy();

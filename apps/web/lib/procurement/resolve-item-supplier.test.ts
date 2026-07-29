@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  fetchActiveSupplierIds,
   fetchNonBlockedSupplierIds,
   pickProcurementSupplierId,
   resolveProcurementSuppliersForItems,
@@ -109,6 +110,19 @@ describe('pickProcurementSupplierId', () => {
     ]);
     const eligible = new Set([SUP_OPEN_PO]);
     expect(pickProcurementSupplierId(ITEM_A, SUP_BLOCKED, map, eligible)).toBe(SUP_OPEN_PO);
+  });
+});
+
+describe('fetchActiveSupplierIds', () => {
+  it('returns only suppliers with status active', async () => {
+    const client = {
+      query: async () => ({
+        rows: [{ id: SUP_OPEN_PO }],
+        rowCount: 1,
+      }),
+    };
+    const eligible = await fetchActiveSupplierIds(client, [SUP_OPEN_PO, SUP_BLOCKED]);
+    expect(eligible).toEqual(new Set([SUP_OPEN_PO]));
   });
 });
 

@@ -138,21 +138,15 @@ export function LpInfoScreen({ locale, labels }: { locale: string; labels: Scann
         )}
 
         {phase === "notfound" && (
-          <Banner kind="err" title={L.notFound}>
-            {L.notFound}
-          </Banner>
+          <Banner kind="err" title={L.notFound} />
         )}
 
         {phase === "error" && (
-          <Banner kind="err" title={L.errorLoad}>
-            {L.errorLoad}
-          </Banner>
+          <Banner kind="err" title={L.errorLoad} />
         )}
 
         {phase === "denied" && (
-          <Banner kind="err" title={L.permissionDenied}>
-            {L.permissionDenied}
-          </Banner>
+          <Banner kind="err" title={L.permissionDenied} />
         )}
 
         {phase === "ready" && lp && (

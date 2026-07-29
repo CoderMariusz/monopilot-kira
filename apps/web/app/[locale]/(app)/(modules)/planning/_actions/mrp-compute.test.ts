@@ -10,6 +10,7 @@ import { describe, expect, it } from 'vitest';
 import {
   computeMrp,
   computeMrpPhased,
+  collapseThresholdsForAllSites,
   normalizeToBase,
   type MrpItemRow,
   type MrpThresholdRow,
@@ -32,6 +33,17 @@ const INT_DOUGH: MrpItemRow = {
   item_code: 'INT-DOUGH',
   name: 'Bread dough',
   item_type: 'intermediate',
+  uom_base: 'kg',
+  output_uom: 'base',
+  net_qty_per_each: null,
+  each_per_box: null,
+};
+
+const FG_BREAD: MrpItemRow = {
+  id: 'item-fg-bread',
+  item_code: 'FG-BREAD',
+  name: 'Finished bread',
+  item_type: 'fg',
   uom_base: 'kg',
   output_uom: 'base',
   net_qty_per_each: null,
@@ -442,7 +454,7 @@ describe('computeMrp — reorder thresholds (mig 178, CL2)', () => {
       demand: [],
       poSupply: [],
       productionSupply: [],
-      thresholds: [threshold({ preferred_supplier_id: SUPPLIER, lead_time_days: 7 })],
+      thresholds: [threshold({ preferred_supplier_id: SUPPLIER, lead_time_days: 7, preferred_supplier_status: 'active' })],
       today: '2026-06-11',
     });
     expect(rows[0].suggestedAction).toEqual({
@@ -450,6 +462,55 @@ describe('computeMrp — reorder thresholds (mig 178, CL2)', () => {
       qty: '15', // gap 20 − 5
       dueDate: '2026-06-18',
       supplierId: SUPPLIER,
+    });
+  });
+
+  it('PF-R09-04: omits supplierId and due date when the preferred supplier is blocked', () => {
+    const { rows } = computeMrp({
+      items: [RM_FLOUR],
+      onHand: [{ product_id: 'item-flour', uom: 'kg', on_hand: '5.000', reserved: '0' }],
+      demand: [],
+      poSupply: [],
+      productionSupply: [],
+      thresholds: [
+        threshold({
+          preferred_supplier_id: SUPPLIER,
+          lead_time_days: 7,
+          preferred_supplier_status: 'blocked',
+        }),
+      ],
+      today: '2026-06-11',
+    });
+    expect(rows[0].suggestedAction).toEqual({
+      type: 'buy',
+      qty: '15',
+      dueDate: null,
+      supplierId: null,
+      preferredSupplierIneligible: 'blocked',
+    });
+    expect(rows[0].preferredSupplier?.status).toBe('blocked');
+  });
+
+  it('PF-R09-04: flags inactive preferred suppliers the same way as blocked', () => {
+    const { rows } = computeMrp({
+      items: [RM_FLOUR],
+      onHand: [{ product_id: 'item-flour', uom: 'kg', on_hand: '5.000', reserved: '0' }],
+      demand: [],
+      poSupply: [],
+      productionSupply: [],
+      thresholds: [
+        threshold({
+          preferred_supplier_id: SUPPLIER,
+          lead_time_days: 7,
+          preferred_supplier_status: 'inactive',
+        }),
+      ],
+      today: '2026-06-11',
+    });
+    expect(rows[0].suggestedAction).toMatchObject({
+      supplierId: null,
+      dueDate: null,
+      preferredSupplierIneligible: 'inactive',
     });
   });
 
@@ -593,6 +654,32 @@ describe('computeMrp — reorder thresholds (mig 178, CL2)', () => {
     expect(row.demand).toBe('2.000');
     expect(row.net).toBe('-2.000');
   });
+
+  it('PF-R09-03: collapseThresholdsForAllSites keeps the highest min_qty per item (deterministic all-sites)', () => {
+    const siteA = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const siteB = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const rows: MrpThresholdRow[] = [
+      {
+        item_id: 'item-flour',
+        site_id: siteA,
+        min_qty: '10',
+        reorder_qty: '4',
+        preferred_supplier_id: null,
+        lead_time_days: null,
+      },
+      {
+        item_id: 'item-flour',
+        site_id: siteB,
+        min_qty: '100',
+        reorder_qty: '4',
+        preferred_supplier_id: null,
+        lead_time_days: null,
+      },
+    ];
+    const collapsed = collapseThresholdsForAllSites(rows);
+    expect(collapsed).toHaveLength(1);
+    expect(collapsed[0]).toMatchObject({ min_qty: '100', site_id: siteB });
+  });
 });
 
 describe('computeMrpPhased — weekly buckets (C3b)', () => {
@@ -652,6 +739,7 @@ describe('computeMrpPhased — weekly buckets (C3b)', () => {
           min_qty: '0',
           reorder_qty: '0',
           preferred_supplier_id: SUPPLIER,
+          preferred_supplier_status: 'active',
           lead_time_days: 7,
         },
       ],
@@ -744,6 +832,7 @@ describe('computeMrpPhased — weekly buckets (C3b)', () => {
           min_qty: '0',
           reorder_qty: '0',
           preferred_supplier_id: SUPPLIER,
+          preferred_supplier_status: 'active',
           lead_time_days: 14,
         },
       ],
@@ -761,5 +850,83 @@ describe('computeMrpPhased — weekly buckets (C3b)', () => {
       isLate: true,
       supplierId: SUPPLIER,
     });
+  });
+
+  it('PF-R09-05: summary row exposes next-bucket BUY context so 12 kg is traceable vs horizon min', () => {
+    const week1 = buckets[0]!;
+    const week2 = buckets[1]!;
+    const { rows, bucketRows } = computeMrpPhased({
+      items: [RM_FLOUR],
+      onHand: [{ product_id: 'item-flour', uom: 'kg', on_hand: '7.125', reserved: '0' }],
+      demand: [],
+      poSupply: [{ product_id: 'item-flour', uom: 'kg', qty: '5.250', need_date: week2 }],
+      productionSupply: [],
+      thresholds: [
+        {
+          item_id: 'item-flour',
+          min_qty: '15.875',
+          reorder_qty: '4.000',
+          preferred_supplier_id: SUPPLIER,
+          preferred_supplier_status: 'active',
+          lead_time_days: 9,
+        },
+      ],
+      today,
+      horizonWeeks: 4,
+    });
+
+    const summary = rows.find((r) => r.itemCode === 'RM-FLOUR')!;
+    const bucket1 = bucketRows.find((r) => r.bucketDate === week1)!;
+    expect(bucket1.suggestedAction?.qty).toBe('12');
+    expect(summary.suggestedAction).toMatchObject({
+      type: 'buy',
+      qty: '12',
+      dueDate: today,
+      supplierId: SUPPLIER,
+      actionScope: 'next_bucket',
+      bucketDate: week1,
+      netAtBucket: '7.125',
+      gapAtBucket: '8.750',
+      reorderLotAtBucket: '4.000',
+      leadTimeDays: 9,
+      releaseDate: today,
+      isLate: true,
+      earliestReceiptDate: addDaysIso(today, 9),
+    });
+    expect(summary.net).toBe('12.375');
+    expect(summary.minQty).toBe('15.875');
+  });
+
+  it('PF-R09-02: summary shows horizon suggested total when multi-bucket MAKE exceeds first bucket', () => {
+    const today = '2026-06-11';
+    const buckets = buildMrpBucketDates(today, 4);
+    const week1 = buckets[0]!;
+    const week2 = buckets[1]!;
+    const { rows, bucketRows } = computeMrpPhased({
+      items: [FG_BREAD],
+      onHand: [],
+      demand: [],
+      forecastDemand: [
+        { product_id: 'item-fg-bread', uom: 'kg', iso_week: '2026-W24', qty: '9.000' },
+        { product_id: 'item-fg-bread', uom: 'kg', iso_week: '2026-W25', qty: '3.000' },
+      ],
+      poSupply: [],
+      productionSupply: [],
+      today,
+      horizonWeeks: 4,
+    });
+
+    const summary = rows.find((r) => r.itemCode === 'FG-BREAD')!;
+    expect(summary.net).toBe('-12.000');
+    expect(summary.suggestedAction).toMatchObject({
+      type: 'make',
+      qty: '9',
+      actionScope: 'next_bucket',
+      horizonSuggestedQty: '12',
+    });
+    const bucket1 = bucketRows.find((r) => r.bucketDate === week1)!;
+    const bucket2 = bucketRows.find((r) => r.bucketDate === week2)!;
+    expect(bucket1.suggestedAction?.qty).toBe('9');
+    expect(bucket2.suggestedAction?.qty).toBe('3');
   });
 });

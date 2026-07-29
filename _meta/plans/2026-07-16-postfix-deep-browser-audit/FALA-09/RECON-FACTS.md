@@ -654,3 +654,31 @@ migracje na live (`pnpm db:migrate` w buildCommand) — backup przed pushem.
   (potwierdzone: jedyny CHECK to `parent_wo_id <> child_wo_id`). Czy taka ochrona istnieje w kodzie — nie sprawdzałem.
 - **Realne dane produkcyjne** (ile jest wierszy, jakie statusy występują faktycznie) — nie odpytywałem;
   ten plik opisuje wyłącznie schemat.
+
+---
+
+# DO BACKLOGU — znalezione przy rekonesansie, poza zakresem Fali 9
+
+Rekonesans miał tylko zebrać fakty o schemacie, ale po drodze odsłonił trzy rzeczy,
+których nie obejmuje żaden finding z audytu. Zapisuję je, żeby nie zginęły.
+
+### B-1. `wo_outputs.registered_year` liczony w UTC — rejestracja 31 grudnia wieczorem trafia do złego roku
+Kolumna jest `GENERATED ALWAYS` z `registered_at` **w UTC** i wchodzi w klucz unikalny
+`(org_id, batch_number, registered_year)`. Zakład pracuje w czasie polskim: produkcja
+zarejestrowana 31.12 o 23:30 CET to 22:30 UTC tego samego dnia — więc akurat ten przypadek
+jest OK — ale 1.01 o 00:30 CET to **31.12 UTC**, czyli rekord nowego roku dostaje rok
+poprzedni. Skutek: numer partii, który powinien być wolny, koliduje ze starym rokiem, a
+raport roczny gubi pierwsze godziny stycznia. Ta sama klasa co e-podpisy w UTC z Fali 3.
+
+### B-2. `wo_dependencies` broni wyłącznie self-loopa — cykl A→B→A baza przepuści
+Jest ochrona przed `parent = child`, ale nie ma żadnej przed cyklem dłuższym. Jeśli
+propagacja dat albo scheduler pójdą po grafie rekurencyjnie bez własnego licznika, dostaniemy
+nieskończoną pętlę na produkcji. Ochrona istnieje dziś tylko po stronie kodu (i nie wiadomo,
+czy we wszystkich ścieżkach).
+
+### B-3. Dwie maszyny stanów WO o kolidującym nazewnictwie
+`work_orders.status` jest WERSALIKAMI, `wo_executions.status` małymi literami — to naprawdę
+dwie różne maszyny, ale nazwa kolumny sugeruje jedną. Do tego `wo_status_history.from_status`
+/`to_status` **nie mają żadnego CHECK-a**, więc baza przyjmie dowolny ciąg znaków jako status.
+Historia zmian stanu jest zapisem audytowym — a jest to jedyne miejsce w tym obszarze bez
+walidacji.

@@ -284,7 +284,7 @@ async function readLocationData(): Promise<{
                from public.license_plates
               where org_id = app.current_org_id()
                 and location_id is not null
-                and status not in ('consumed', 'shipped', 'destroyed')
+                and status not in ('consumed', 'merged', 'shipped', 'destroyed')
               group by location_id
            )
            select l.id,

@@ -154,6 +154,11 @@ export interface PmWindow {
   end_at: string;
 }
 
+export type WoSchedulingDependencyEdge = {
+  parentWoId: string;
+  childWoId: string;
+};
+
 export interface SequenceSolverConfig {
   /** `greedy` = due-date order only; `allergen_optimized` = changeover-aware; `local_search` falls back to allergen_optimized until implemented. */
   sequencingStrategy: SchedulerConfigRow['sequencing_strategy'];
@@ -172,6 +177,10 @@ export interface SequenceSolverConfig {
   nowMs?: number;
   /** Pre-seeded line occupancy from active/in-progress or already-scheduled WOs. */
   preoccupied?: SequencePreoccupiedSeed;
+  /** wo_dependencies edges for candidate WOs (parent FG → upstream child WIP). */
+  dependencyEdges?: WoSchedulingDependencyEdge[];
+  /** Planned end times for upstream children outside the candidate set (e.g. IN_PROGRESS). */
+  dependencyAnchoredEnds?: Record<string, number>;
 }
 
 /** Occupancy windows already consuming line capacity before the solver places released WOs. */
@@ -193,7 +202,11 @@ export interface SequencedAssignment {
   work_order: WorkOrderForScheduling;
 }
 
-export type OmittedWorkOrderReason = 'no_feasible_changeover' | 'no_feasible_capacity';
+export type OmittedWorkOrderReason =
+  | 'no_feasible_changeover'
+  | 'no_feasible_capacity'
+  | 'dependency_cycle'
+  | 'dependency_unresolved';
 
 export interface OmittedWorkOrder {
   wo_id: string;

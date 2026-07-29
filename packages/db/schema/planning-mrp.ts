@@ -250,7 +250,7 @@ export const mrpPlannedOrders = pgTable(
  * reorder_thresholds — per-item reorder configuration consumed by the Material Demand
  * dashboard (T-045). min_qty drives the LOW/CRITICAL status badge; reorder_qty is the
  * Create-PO quick-action default; preferred_supplier_id is a SOFT reference (no
- * suppliers table merged yet). UNIQUE(org_id, item_id) — one threshold row per item.
+ * suppliers table merged yet). UNIQUE(org_id, item_id, site_id) — one threshold row per item per site.
  */
 export const reorderThresholds = pgTable(
   'reorder_thresholds',
@@ -272,7 +272,9 @@ export const reorderThresholds = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    orgItemUnique: unique('reorder_thresholds_org_item_unique').on(table.orgId, table.itemId),
+    orgItemSiteUnique: unique('reorder_thresholds_org_item_unique')
+      .on(table.orgId, table.itemId, table.siteId)
+      .nullsNotDistinct(),
     orgIdx: index('idx_reorder_thresholds_org').on(table.orgId),
     itemIdx: index('idx_reorder_thresholds_item').on(table.itemId),
     supplierIdx: index('idx_reorder_thresholds_supplier')

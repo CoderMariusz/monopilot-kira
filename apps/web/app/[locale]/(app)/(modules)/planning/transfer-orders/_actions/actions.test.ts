@@ -37,9 +37,26 @@ let raceLineUpdate = false;
 let raceLineDelete = false;
 let failNextLineInsert = false;
 let currentTransferNotes: string | null = null;
-/** F3: junction rows already received (dest_lp_id NOT NULL) — blocks cancel. */
-let receivedJunctionCount = 0;
+/** PF-R10-03: per-line receive state for cancel remainder / receive completeness. */
+let lineReceiveQty = '12.000000';
+let lineReceivedQty = '0.000000';
+let linePendingQty = '12.000000';
+let receiveMaterialized = false;
+let remainderCancelled = false;
 let listTotal = 1;
+
+function mockMatterOnHand(): string {
+  const sourceRemaining = remainderCancelled ? 8 + Number.parseFloat(linePendingQty) : 8;
+  const destReceived = receiveMaterialized
+    ? Number.parseFloat(lineReceiveQty)
+    : Number.parseFloat(lineReceivedQty);
+  return (sourceRemaining + destReceived).toFixed(6);
+}
+
+function mockMatterInTransit(): string {
+  if (receiveMaterialized || remainderCancelled) return '0.000000';
+  return linePendingQty;
+}
 
 const SOURCE_LP_ID = '99999999-9999-4999-8999-999999999999';
 const DEST_LOCATION_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -152,26 +169,63 @@ function makeClient(): QueryClient {
       if (normalized.startsWith('delete from public.transfer_order_lines')) {
         return { rows: [], rowCount: raceLineDelete ? 0 : 1 };
       }
+      // Must precede the generic transfer_order_lines stub — receive/cancel status
+      // resolution calls loadTransferOrderLineReceiveState (grouped junction aggregates).
+      if (normalized.startsWith('select l.id::text as line_id') && normalized.includes('received_qty')) {
+        const received = remainderCancelled ? lineReceivedQty : receiveMaterialized ? lineReceiveQty : lineReceivedQty;
+        const pending = remainderCancelled ? '0.000000' : receiveMaterialized ? '0.000000' : linePendingQty;
+        return {
+          rows: [
+            {
+              line_id: '66666666-6666-4666-8666-666666666666',
+              line_qty: lineReceiveQty,
+              received_qty: received,
+              pending_qty: pending,
+            },
+          ],
+          rowCount: 1,
+        };
+      }
       if (normalized.includes('from public.transfer_order_lines')) {
         return { rows: [line()], rowCount: 1 };
       }
-      // F3 — pre-cancel guard: count of already-received junction rows.
-      if (normalized.startsWith('select count(*)::text as received_count')) {
-        return { rows: [{ received_count: String(receivedJunctionCount) }], rowCount: 1 };
+      if (normalized.includes('coalesce(sum(tll.qty), 0)::text as total') && normalized.includes('transfer_order_line_lps tll')) {
+        return { rows: [{ item_id: ITEM_ID, uom: 'kg', total: mockMatterInTransit() }], rowCount: 1 };
       }
-      if (normalized.startsWith('select distinct item_id')) {
-        return { rows: [{ item_id: ITEM_ID }], rowCount: 1 };
+      // Legacy stub — no longer queried on cancel; kept for reverse-receive reroll tests if imported.
+      if (normalized.startsWith('select count(*)::text as received_count')) {
+        return { rows: [{ received_count: lineReceivedQty !== '0.000000' ? '1' : '0' }], rowCount: 1 };
+      }
+      if (normalized.includes('select distinct item_id::text as item_id, uom')) {
+        return { rows: [{ item_id: ITEM_ID, uom: 'kg' }], rowCount: 1 };
+      }
+      if (normalized.includes('from public.license_plates lp') && normalized.includes('group by lp.product_id, lp.uom')) {
+        return { rows: [{ item_id: ITEM_ID, uom: 'kg', total: mockMatterOnHand() }], rowCount: 1 };
       }
       if (normalized.startsWith('select coalesce(sum(quantity), 0)::text as total')) {
-        return { rows: [{ total: '20.000000' }], rowCount: 1 };
+        return { rows: [{ total: mockMatterOnHand() }], rowCount: 1 };
       }
-      // Cancel path — un-received junction rows joined to their source LPs.
+      // Cancel path — un-received junction rows joined to their source LPs + line/item UoM.
       if (
         normalized.includes('from public.transfer_order_line_lps tll') &&
         normalized.includes('lp.status as lp_status')
       ) {
         return {
-          rows: [{ id: JUNCTION_ID, source_lp_id: SOURCE_LP_ID, qty: '12.000000', lp_status: 'available' }],
+          rows: [
+            {
+              id: JUNCTION_ID,
+              source_lp_id: SOURCE_LP_ID,
+              qty: linePendingQty,
+              junction_uom: 'kg',
+              item_id: ITEM_ID,
+              uom_base: 'kg',
+              net_qty_per_each: null,
+              each_per_box: null,
+              lp_uom: 'kg',
+              lp_status: 'available',
+              lp_location_id: DEST_LOCATION_ID,
+            },
+          ],
           rowCount: 1,
         };
       }
@@ -183,6 +237,9 @@ function makeClient(): QueryClient {
       }
       // Receive path — pending junction rows carrying the source LP snapshot.
       if (normalized.includes('lp.product_id, lp.batch_number')) {
+        if (linePendingQty === '0.000000' && !receiveMaterialized) {
+          return { rows: [], rowCount: 0 };
+        }
         return {
           rows: [
             {
@@ -203,9 +260,15 @@ function makeClient(): QueryClient {
         };
       }
       // Ship path — FEFO pick candidates at the source warehouse.
+      if (normalized.includes('from public.items i') && normalized.includes('uom_base')) {
+        return {
+          rows: [{ id: ITEM_ID, uom_base: 'kg', net_qty_per_each: null, each_per_box: null }],
+          rowCount: 1,
+        };
+      }
       if (normalized.includes('from public.license_plates') && normalized.includes('reserved_qty::text as reserved_qty')) {
         return {
-          rows: [{ id: SOURCE_LP_ID, quantity: '20.000000', reserved_qty: '0.000000', location_id: DEST_LOCATION_ID }],
+          rows: [{ id: SOURCE_LP_ID, quantity: '20.000000', reserved_qty: '0.000000', location_id: DEST_LOCATION_ID, uom: 'kg' }],
           rowCount: 1,
         };
       }
@@ -280,6 +343,12 @@ function makeClient(): QueryClient {
         normalized.startsWith('insert into public.lp_genealogy') ||
         normalized.startsWith('update public.transfer_order_line_lps')
       ) {
+        if (normalized.includes('dest_lp_id')) {
+          receiveMaterialized = true;
+        }
+        if (normalized.startsWith('delete from public.transfer_order_line_lps')) {
+          remainderCancelled = true;
+        }
         return { rows: [], rowCount: 1 };
       }
       return { rows: [], rowCount: 0 };
@@ -303,7 +372,11 @@ describe('planning transfer order actions', () => {
     raceLineDelete = false;
     failNextLineInsert = false;
     currentTransferNotes = null;
-    receivedJunctionCount = 0;
+    lineReceiveQty = '12.000000';
+    lineReceivedQty = '0.000000';
+    linePendingQty = '12.000000';
+    receiveMaterialized = false;
+    remainderCancelled = false;
     listTotal = 1;
     client = makeClient();
     vi.mocked(revalidateLocalized).mockClear();
@@ -644,28 +717,28 @@ describe('planning transfer order actions', () => {
     expect(result).toEqual({ ok: false, error: 'invalid_state' });
   });
 
-  // ── F3 (W9 cross-review HIGH) — partial receive blocks cancel ───────────────
-  it('rejects cancel of a partially received TO with partially_received and mutates NOTHING', async () => {
-    currentStatus = 'in_transit';
-    receivedJunctionCount = 1;
+  // ── PF-R10-03 — cancel remainder on partially received TO closes document ─────
+  it('cancels only the outstanding remainder on a partially received TO and closes as received', async () => {
+    currentStatus = 'partially_received';
+    lineReceiveQty = '12.000000';
+    lineReceivedQty = '6.000000';
+    linePendingQty = '6.000000';
 
     const result = await transitionTransferOrderStatus(TO_ID, 'cancelled');
 
-    expect(result).toEqual({
-      ok: false,
-      error: 'partially_received',
-      message:
-        'Transfer order has already-received destination stock; cancel is not allowed. Receive the remainder or reverse the received LPs first.',
-    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.data.status).toBe('received');
     const calls = vi.mocked(client.query).mock.calls.map(([sql]) => String(sql).replace(/\s+/g, ' ').toLowerCase());
-    expect(calls.some((sql) => sql.startsWith('update public.license_plates'))).toBe(false);
-    expect(calls.some((sql) => sql.startsWith('delete from public.transfer_order_line_lps'))).toBe(false);
-    expect(calls.some((sql) => sql.startsWith('update public.transfer_orders'))).toBe(false);
+    expect(calls.some((sql) => sql.startsWith('update public.license_plates'))).toBe(true);
+    expect(calls.some((sql) => sql.startsWith('delete from public.transfer_order_line_lps'))).toBe(true);
+    expect(calls.some((sql) => sql.startsWith('update public.transfer_orders'))).toBe(true);
   });
 
   it('still cancels a fully un-received in_transit TO (source stock restored)', async () => {
     currentStatus = 'in_transit';
-    receivedJunctionCount = 0;
+    lineReceivedQty = '0.000000';
+    linePendingQty = '12.000000';
 
     const result = await transitionTransferOrderStatus(TO_ID, 'cancelled');
 
@@ -674,5 +747,19 @@ describe('planning transfer order actions', () => {
     const calls = vi.mocked(client.query).mock.calls.map(([sql]) => String(sql).replace(/\s+/g, ' ').toLowerCase());
     expect(calls.some((sql) => sql.startsWith('update public.license_plates'))).toBe(true);
     expect(calls.some((sql) => sql.startsWith('delete from public.transfer_order_line_lps'))).toBe(true);
+  });
+
+  it('refuses receive when a line is short-received with no pending junction (PF-R10-02)', async () => {
+    currentStatus = 'in_transit';
+    lineReceiveQty = '12.000000';
+    lineReceivedQty = '6.000000';
+    linePendingQty = '0.000000';
+
+    const result = await transitionTransferOrderStatus(TO_ID, 'received');
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('expected failure');
+    expect(result.error).toBe('invalid_state');
+    expect(result.message).toContain('not fully received');
   });
 });

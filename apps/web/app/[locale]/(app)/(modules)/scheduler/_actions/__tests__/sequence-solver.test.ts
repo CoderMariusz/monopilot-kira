@@ -956,3 +956,113 @@ describe('sequenceWorkOrders', () => {
     ]);
   });
 });
+
+describe('wo_dependencies scheduling (PF-R12-01)', () => {
+  const WIP_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const FG_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  const LINE_WIP = '22222222-2222-4222-8222-222222222222';
+  const LINE_FG = '33333333-3333-4333-8333-333333333333';
+  const NOW_MS = Date.parse('2026-07-18T05:00:00.000Z');
+
+  it('PF-R12-01: parent FG starts after upstream WIP child ends across lines', () => {
+    const wip = wo({
+      id: WIP_ID,
+      due: '2026-07-18T08:00:00.000Z',
+      allergens: ['milk'],
+      lineId: LINE_WIP,
+      routingDurationMs: 60 * 60 * 1000,
+    });
+    const fg = wo({
+      id: FG_ID,
+      due: '2026-07-18T08:00:00.000Z',
+      allergens: ['milk'],
+      lineId: LINE_FG,
+      routingDurationMs: 60 * 60 * 1000,
+    });
+
+    const result = sequenceWorkOrders([fg, wip], [], {
+      ...DEFAULT_SEQUENCE_SOLVER_CONFIG,
+      nowMs: NOW_MS,
+      dependencyEdges: [{ parentWoId: FG_ID, childWoId: WIP_ID }],
+    });
+
+    const wipAssignment = result.assignments.find((assignment) => assignment.wo_id === WIP_ID);
+    const fgAssignment = result.assignments.find((assignment) => assignment.wo_id === FG_ID);
+    expect(wipAssignment).toBeDefined();
+    expect(fgAssignment).toBeDefined();
+    expect(new Date(fgAssignment!.planned_start_at).getTime()).toBeGreaterThanOrEqual(
+      new Date(wipAssignment!.planned_end_at ?? '').getTime(),
+    );
+  });
+
+  it('omits WOs on dependency cycles instead of scheduling them simultaneously', () => {
+    const a = wo({ id: WIP_ID, due: '2026-07-18T08:00:00.000Z', allergens: [], routingDurationMs: 60 * 60 * 1000 });
+    const b = wo({ id: FG_ID, due: '2026-07-18T08:00:00.000Z', allergens: [], routingDurationMs: 60 * 60 * 1000 });
+
+    const result = sequenceWorkOrders([a, b], [], {
+      ...DEFAULT_SEQUENCE_SOLVER_CONFIG,
+      nowMs: NOW_MS,
+      dependencyEdges: [
+        { parentWoId: FG_ID, childWoId: WIP_ID },
+        { parentWoId: WIP_ID, childWoId: FG_ID },
+      ],
+    });
+
+    expect(result.assignments).toHaveLength(0);
+    expect(result.omitted).toEqual([
+      { wo_id: WIP_ID, reason: 'dependency_cycle' },
+      { wo_id: FG_ID, reason: 'dependency_cycle' },
+    ]);
+  });
+
+  it('PF-R12-01: anchors parent FG to IN_PROGRESS upstream child outside candidates', () => {
+    const wipEndMs = NOW_MS + 60 * 60 * 1000;
+    const fg = wo({
+      id: FG_ID,
+      due: '2026-07-18T08:00:00.000Z',
+      allergens: ['milk'],
+      lineId: LINE_FG,
+      routingDurationMs: 60 * 60 * 1000,
+    });
+
+    const result = sequenceWorkOrders([fg], [], {
+      ...DEFAULT_SEQUENCE_SOLVER_CONFIG,
+      nowMs: NOW_MS,
+      dependencyEdges: [{ parentWoId: FG_ID, childWoId: WIP_ID }],
+      dependencyAnchoredEnds: { [WIP_ID]: wipEndMs },
+    });
+
+    expect(result.assignments).toHaveLength(1);
+    expect(new Date(result.assignments[0]!.planned_start_at).getTime()).toBeGreaterThanOrEqual(wipEndMs);
+  });
+
+  it('omits parent FG when upstream child cannot be placed', () => {
+    const wip = wo({
+      id: WIP_ID,
+      due: '2026-07-18T08:00:00.000Z',
+      allergens: [],
+      lineId: LINE_WIP,
+      routingDurationMs: 25 * 60 * 60 * 1000,
+    });
+    const fg = wo({
+      id: FG_ID,
+      due: '2026-07-18T08:00:00.000Z',
+      allergens: [],
+      lineId: LINE_FG,
+      routingDurationMs: 60 * 60 * 1000,
+    });
+
+    const result = sequenceWorkOrders([fg, wip], [], {
+      ...DEFAULT_SEQUENCE_SOLVER_CONFIG,
+      nowMs: NOW_MS,
+      capacityHoursPerDay: 8,
+      dependencyEdges: [{ parentWoId: FG_ID, childWoId: WIP_ID }],
+    });
+
+    expect(result.assignments.map((assignment) => assignment.wo_id)).toEqual([]);
+    expect(result.omitted).toEqual([
+      { wo_id: FG_ID, reason: 'dependency_unresolved' },
+      { wo_id: WIP_ID, reason: 'no_feasible_capacity' },
+    ]);
+  });
+});

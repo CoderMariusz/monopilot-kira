@@ -18,7 +18,7 @@ export type LocationRow = {
   siteCode?: string | null;
   siteName?: string | null;
   /**
-   * R08-01 — live LPs parked here (page.tsx lp_counts CTE: every status but the terminal three).
+   * R08-01 — live LPs parked here (page.tsx lp_counts CTE: every status but the terminal four).
    * REQUIRED on purpose. It used to be optional, and the save path rebuilt the row from the
    * dialog input alone — dropping the count silently, so the panel rendered "LPs here: 0" for a
    * location whose stock had not moved. A required field makes that omission a typecheck error

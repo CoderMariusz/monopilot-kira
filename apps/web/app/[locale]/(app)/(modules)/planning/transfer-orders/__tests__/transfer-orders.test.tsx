@@ -440,7 +440,7 @@ describe('ToDetailView — lines + status transitions (parity: to-screens.jsx:10
     const completeBtn = screen.getByTestId('to-transition-received');
     const cancelBtn = screen.getByTestId('to-transition-cancelled');
     expect(completeBtn).toHaveTextContent(enTo.detail.transitions.receive);
-    expect(cancelBtn).toHaveTextContent(enTo.detail.transitions.cancel);
+    expect(cancelBtn).toHaveTextContent(enTo.detail.transitions.cancelRemainder);
     // The dead-end placeholder must NOT render — actions exist.
     expect(screen.queryByTestId('to-detail-no-actions')).toBeNull();
 

@@ -10,6 +10,7 @@ import {
   sequenceWorkOrders,
   DEFAULT_SEQUENCE_SOLVER_CONFIG,
   buildPreoccupiedSeed,
+  workOrderPlannedEndMs,
   type LineShiftWindow,
 } from './sequence-solver';
 import { loadPmWindows, pmBlockHoursFromConfigParams } from './pm-windows';
@@ -27,6 +28,7 @@ import type {
   SequenceSolverConfig,
   UpsertChangeoverMatrixEntryResult,
   WorkOrderForScheduling,
+  WoSchedulingDependencyEdge,
   OverrideSchedulerAssignmentInput,
   OverrideSchedulerAssignmentResult,
 } from './scheduler-types';
@@ -439,6 +441,44 @@ async function loadOpenWorkOrders(
   siteId: string | null,
 ): Promise<WorkOrderForScheduling[]> {
   return loadWorkOrdersForScheduling(ctx, 'schedulable', lineId, horizonDays, siteId);
+}
+
+async function loadWoDependenciesForScheduling(
+  ctx: OrgActionContext,
+  woIds: readonly string[],
+): Promise<WoSchedulingDependencyEdge[]> {
+  if (woIds.length === 0) return [];
+  const { rows } = await ctx.client.query<{ parent_wo_id: string; child_wo_id: string }>(
+    `select dep.parent_wo_id::text as parent_wo_id,
+            dep.child_wo_id::text as child_wo_id
+       from public.wo_dependencies dep
+      where dep.org_id = app.current_org_id()
+        and dep.parent_wo_id = any($1::uuid[])`,
+    [woIds],
+  );
+  return rows.map((row) => ({
+    parentWoId: row.parent_wo_id,
+    childWoId: row.child_wo_id,
+  }));
+}
+
+function buildDependencyAnchoredEnds(
+  dependencyEdges: WoSchedulingDependencyEdge[],
+  schedulableIds: Set<string>,
+  occupying: WorkOrderForScheduling[],
+  nowMs: number,
+): Record<string, number> {
+  const occupyingById = new Map(occupying.map((wo) => [wo.id, wo]));
+  const anchored: Record<string, number> = {};
+  for (const edge of dependencyEdges) {
+    if (schedulableIds.has(edge.childWoId)) continue;
+    const childWo = occupyingById.get(edge.childWoId);
+    if (!childWo) continue;
+    const endMs = workOrderPlannedEndMs(childWo, nowMs);
+    if (endMs === null) continue;
+    anchored[edge.childWoId] = Math.max(anchored[edge.childWoId] ?? 0, endMs);
+  }
+  return anchored;
 }
 
 async function loadLineOccupancy(
@@ -1052,6 +1092,10 @@ export async function runScheduler(input?: { lineId?: string; horizonDays?: numb
         loadLineOccupancy(ctx, lineId, horizonDays, siteId),
         loadLineShiftCalendar(ctx, lineId, horizonDays, runNowMs),
       ]);
+      const dependencyEdges = await loadWoDependenciesForScheduling(
+        ctx,
+        workOrders.map((wo) => wo.id),
+      );
       const baseSolverConfig = solverConfigFromRow(schedulerConfig);
       const solverConfig: SequenceSolverConfig =
         schedulerConfig?.respect_pm_windows === true
@@ -1065,12 +1109,19 @@ export async function runScheduler(input?: { lineId?: string; horizonDays?: numb
               ),
             }
           : baseSolverConfig;
+      solverConfig.dependencyEdges = dependencyEdges;
       if (lineId === null && schedulerConfigs.length > 0) {
         solverConfig.capacityHoursPerDayByLine = capacityHoursByLineFromConfigs(
           schedulerConfigs.filter((row): row is SchedulerConfigRow => row !== null),
         );
       }
       const schedulableIds = new Set(workOrders.map((wo) => wo.id));
+      solverConfig.dependencyAnchoredEnds = buildDependencyAnchoredEnds(
+        dependencyEdges,
+        schedulableIds,
+        occupying,
+        runNowMs,
+      );
       solverConfig.nowMs = runNowMs;
       solverConfig.preoccupied = buildPreoccupiedSeed(
         occupying.filter((wo) => !schedulableIds.has(wo.id)),

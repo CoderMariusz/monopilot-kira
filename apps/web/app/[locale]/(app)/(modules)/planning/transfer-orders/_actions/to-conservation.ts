@@ -1,4 +1,5 @@
 import type { OrgActionContext, QueryClient } from '../../_actions/procurement-shared';
+import { qtyToBaseMicro6, type TransferItemUomRow } from './transfer-uom-base';
 
 const QTY_SCALE = 1_000_000n;
 
@@ -31,7 +32,12 @@ export class TransferOrderConservationError extends Error {
 
 export type ToItemUom = { itemId: string; uom: string };
 
-/** Stable key for per-(item_id, uom) balances — never mix products or UOMs. */
+/** Stable key for per-item balances in base UoM — mixed-UoM lines (g + kg) aggregate here. */
+export function toItemConservationKey(itemId: string): string {
+  return itemId;
+}
+
+/** @deprecated Per-(item,uom) keys — use toItemConservationKey for matter snapshots. */
 export function toItemUomKey(itemId: string, uom: string): string {
   return `${itemId}:${uom}`;
 }
@@ -56,12 +62,12 @@ export async function loadTransferOrderItemIds(ctx: OrgActionContext, toId: stri
 }
 
 /**
- * C058 — physical matter balance per (item_id, uom) for a TO:
- *   Σ license_plates.quantity (org-wide for that item + UOM)
+ * C058 — physical matter balance per item in base UoM for a TO:
+ *   Σ license_plates.quantity (org-wide, all UoMs converted to base)
  * + Σ transfer_order_line_lps.qty (unreceived / in-transit rows for this TO)
  *
  * In-transit qty is not on any LP yet; counting both sides catches ship/receive inflation.
- * Each (item_id, uom) pair is tracked independently — unlike a global scalar, +A / −B cannot mask.
+ * Mixed-UoM lines (kg LP + g line) must convert to base — per-(item,uom) scalars false-trip.
  */
 export async function snapshotTransferOrderMatterBalance(
   ctx: OrgActionContext,
@@ -69,9 +75,21 @@ export async function snapshotTransferOrderMatterBalance(
   itemUoms: ToItemUom[],
 ): Promise<ToMatterBalanceSnapshot> {
   const snapshot: ToMatterBalanceSnapshot = new Map();
-  if (itemUoms.length === 0) return snapshot;
-
   const itemIds = [...new Set(itemUoms.map((pair) => pair.itemId))];
+  if (itemIds.length === 0) return snapshot;
+
+  const { rows: itemRows } = await (ctx.client as QueryClient).query<TransferItemUomRow>(
+    `select i.id::text as id,
+            i.uom_base,
+            i.net_qty_per_each::text as net_qty_per_each,
+            i.each_per_box::text as each_per_box
+       from public.items i
+      where i.org_id = app.current_org_id()
+        and i.id = any($1::uuid[])`,
+    [itemIds],
+  );
+  const itemById = new Map(itemRows.map((row) => [row.id, row]));
+
   const { rows: onHandRows } = await (ctx.client as QueryClient).query<{
     item_id: string;
     uom: string;
@@ -85,9 +103,6 @@ export async function snapshotTransferOrderMatterBalance(
         and lp.product_id = any($1::uuid[])
       group by lp.product_id, lp.uom`,
     [itemIds],
-  );
-  const onHandByKey = new Map(
-    onHandRows.map((row) => [toItemUomKey(row.item_id, row.uom), toMicro6(row.total)]),
   );
 
   const { rows: inTransitRows } = await (ctx.client as QueryClient).query<{
@@ -108,14 +123,33 @@ export async function snapshotTransferOrderMatterBalance(
       group by tol.item_id, tol.uom`,
     [toId],
   );
-  const inTransitByKey = new Map(
-    inTransitRows.map((row) => [toItemUomKey(row.item_id, row.uom), toMicro6(row.total)]),
-  );
 
-  for (const { itemId, uom } of itemUoms) {
-    const key = toItemUomKey(itemId, uom);
-    const onHand = onHandByKey.get(key) ?? 0n;
-    const inTransit = inTransitByKey.get(key) ?? 0n;
+  const sumRowsToBase = (
+    rows: readonly { item_id: string; uom: string; total: string }[],
+  ): Map<string, bigint> => {
+    const byItem = new Map<string, bigint>();
+    for (const row of rows) {
+      const item = itemById.get(row.item_id);
+      if (!item) continue;
+      const baseMicro = qtyToBaseMicro6(item, row.total, row.uom);
+      if (baseMicro === null) {
+        throw new TransferOrderConservationError(
+          `Cannot convert ${row.uom} qty to base UoM for item ${row.item_id} during matter snapshot`,
+        );
+      }
+      const key = toItemConservationKey(row.item_id);
+      byItem.set(key, (byItem.get(key) ?? 0n) + baseMicro);
+    }
+    return byItem;
+  };
+
+  const onHandByItem = sumRowsToBase(onHandRows);
+  const inTransitByItem = sumRowsToBase(inTransitRows);
+
+  for (const itemId of itemIds) {
+    const key = toItemConservationKey(itemId);
+    const onHand = onHandByItem.get(key) ?? 0n;
+    const inTransit = inTransitByItem.get(key) ?? 0n;
     snapshot.set(key, onHand + inTransit);
   }
   return snapshot;
@@ -126,6 +160,81 @@ function formatSnapshot(snapshot: ToMatterBalanceSnapshot): string {
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([key, micro]) => `${key}=${microToText6(micro)}`);
   return parts.length > 0 ? parts.join(', ') : '(empty)';
+}
+
+/** Per-line receive progress — junction rows drive in-transit vs received qty. */
+export type TransferOrderLineReceiveState = {
+  lineId: string;
+  lineMicro: bigint;
+  receivedMicro: bigint;
+  pendingMicro: bigint;
+};
+
+export async function loadTransferOrderLineReceiveState(
+  ctx: OrgActionContext,
+  toId: string,
+): Promise<TransferOrderLineReceiveState[]> {
+  const { rows } = await (ctx.client as QueryClient).query<{
+    line_id: string;
+    line_qty: string;
+    received_qty: string;
+    pending_qty: string;
+  }>(
+    `select l.id::text as line_id,
+            l.qty::text as line_qty,
+            coalesce(sum(tll.qty) filter (where tll.dest_lp_id is not null), 0)::text as received_qty,
+            coalesce(sum(tll.qty) filter (where tll.dest_lp_id is null), 0)::text as pending_qty
+       from public.transfer_order_lines l
+       left join public.transfer_order_line_lps tll
+         on tll.org_id = l.org_id
+        and tll.to_line_id = l.id
+      where l.org_id = app.current_org_id()
+        and l.to_id = $1::uuid
+      group by l.id, l.qty, l.line_no
+      order by l.line_no asc`,
+    [toId],
+  );
+  return rows.map((row) => ({
+    lineId: row.line_id,
+    lineMicro: toMicro6(row.line_qty),
+    receivedMicro: toMicro6(row.received_qty),
+    pendingMicro: toMicro6(row.pending_qty),
+  }));
+}
+
+/** Every line must have received qty equal to line qty with no pending in-transit rows. */
+export function assertAllLinesFullyReceived(lines: readonly TransferOrderLineReceiveState[]): {
+  ok: true;
+} | {
+  ok: false;
+  message: string;
+} {
+  const incomplete = lines.filter((line) => line.receivedMicro !== line.lineMicro || line.pendingMicro > 0n);
+  if (incomplete.length === 0) return { ok: true };
+  const parts = incomplete.map(
+    (line) =>
+      `line ${line.lineId}: received ${microToText6(line.receivedMicro)} pending ${microToText6(line.pendingMicro)} required ${microToText6(line.lineMicro)}`,
+  );
+  return {
+    ok: false,
+    message: `Transfer order is not fully received: ${parts.join('; ')}`,
+  };
+}
+
+/**
+ * Derive header status from materialized junction rows — never from transition intent alone.
+ * Partial fulfillment with remainder cancelled/in-transit cleared closes as `received`.
+ */
+export function resolveTransferOrderStatusFromLines(
+  lines: readonly TransferOrderLineReceiveState[],
+): 'received' | 'partially_received' | 'in_transit' | 'cancelled' {
+  if (lines.length === 0) return 'cancelled';
+  const anyPending = lines.some((line) => line.pendingMicro > 0n);
+  const anyReceived = lines.some((line) => line.receivedMicro > 0n);
+  const allFullyReceived = lines.every((line) => line.receivedMicro === line.lineMicro && line.pendingMicro === 0n);
+  if (allFullyReceived) return 'received';
+  if (anyPending) return anyReceived ? 'partially_received' : 'in_transit';
+  return anyReceived ? 'received' : 'cancelled';
 }
 
 export async function assertTransferOrderMatterConserved(

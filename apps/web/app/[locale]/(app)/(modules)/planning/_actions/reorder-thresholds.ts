@@ -4,8 +4,8 @@
  * CL2 slice 2 — reorder_thresholds CRUD (mig 178 §4: per-item reorder config
  * backing the Material Demand dashboard, T-045).
  *
- * DDL grain honoured exactly: one row per (org_id, item_id) — upsert via the
- * reorder_thresholds_org_item_unique key. min_qty / reorder_qty are
+ * DDL grain honoured exactly: one row per (org_id, item_id, site_id) — upsert via the
+ * reorder_thresholds_org_item_unique key (mig 528). min_qty / reorder_qty are
  * NUMERIC(18,6) >= 0 and travel as decimal strings end-to-end (never JS
  * floats). preferred_supplier_id is a SOFT FK ("service-layer-validated" per
  * the mig-178 comment) — we validate it against public.suppliers inside the
@@ -15,12 +15,12 @@
  * writes gate on `npd.planning.write` via procurement-shared
  * hasPlanningWritePermission — the exact permission family PO/TO creates use.
  *
- * All statements run inside withOrgContext as app_user (RLS:
- * org_id = app.current_org_id()); no service-role bypass.
+ * All statements run inside withSiteContext as app_user (RLS:
+ * org_id = app.current_org_id(), site_id = app.current_site_id()); no service-role bypass.
  */
 import { z } from 'zod';
 
-import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { withSiteContext } from '../../../../../../lib/auth/with-site-context';
 import {
   hasPlanningWritePermission,
   isPgError,
@@ -147,7 +147,7 @@ const THRESHOLD_SELECT = `select rt.id, rt.item_id, i.item_code, i.name as item_
 /** All configured thresholds for the org, item-code sorted. */
 export async function listReorderThresholds(): Promise<ThresholdResult<ReorderThresholdRow[]>> {
   try {
-    return await withOrgContext(async ({ userId, orgId, client }) => {
+    return await withSiteContext({ mode: 'read' }, async ({ userId, orgId, client }) => {
       const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
       if (!(await hasPlanningReadPermission(ctx))) {
         return { ok: false as const, error: 'forbidden' as const };
@@ -155,7 +155,8 @@ export async function listReorderThresholds(): Promise<ThresholdResult<ReorderTh
       const { rows } = await ctx.client.query<ThresholdSqlRow>(
         `${THRESHOLD_SELECT}
           where rt.org_id = app.current_org_id()
-          order by i.item_code asc nulls last, rt.created_at asc`,
+            and (app.current_site_id() is null or rt.site_id is null or rt.site_id = app.current_site_id())
+          order by i.item_code asc nulls last, rt.site_id asc nulls first, rt.created_at asc`,
       );
       return { ok: true as const, data: rows.map(mapThreshold) };
     });
@@ -178,7 +179,7 @@ export async function upsertReorderThreshold(
   const input = parsed.data;
 
   try {
-    return await withOrgContext(async ({ userId, orgId, client }) => {
+    return await withSiteContext(async ({ userId, orgId, client }) => {
       const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
       if (!(await hasPlanningWritePermission(ctx))) {
         return { ok: false as const, error: 'forbidden' as const };
@@ -210,9 +211,9 @@ export async function upsertReorderThreshold(
 
       const { rows } = await ctx.client.query<{ id: string }>(
         `insert into public.reorder_thresholds
-           (org_id, item_id, min_qty, reorder_qty, preferred_supplier_id, updated_by)
+           (org_id, item_id, site_id, min_qty, reorder_qty, preferred_supplier_id, updated_by)
          values
-           (app.current_org_id(), $1::uuid, $2::numeric, $3::numeric, $4::uuid, $5::uuid)
+           (app.current_org_id(), $1::uuid, app.current_site_id(), $2::numeric, $3::numeric, $4::uuid, $5::uuid)
          on conflict on constraint reorder_thresholds_org_item_unique
          do update set min_qty = excluded.min_qty,
                        reorder_qty = excluded.reorder_qty,
@@ -260,14 +261,16 @@ export async function deleteReorderThreshold(id: string): Promise<ThresholdResul
   if (!parsed.success) return { ok: false, error: 'invalid_input' };
 
   try {
-    return await withOrgContext(async ({ userId, orgId, client }) => {
+    return await withSiteContext(async ({ userId, orgId, client }) => {
       const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
       if (!(await hasPlanningWritePermission(ctx))) {
         return { ok: false as const, error: 'forbidden' as const };
       }
       const { rows } = await ctx.client.query<{ id: string; item_id: string }>(
         `delete from public.reorder_thresholds
-          where org_id = app.current_org_id() and id = $1::uuid
+          where org_id = app.current_org_id()
+            and id = $1::uuid
+            and (site_id is null or site_id is not distinct from app.current_site_id())
           returning id, item_id`,
         [parsed.data],
       );

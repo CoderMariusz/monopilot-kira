@@ -409,16 +409,12 @@ export function PickScreen({ locale, labels }: { locale: string; labels: Scanner
           {phase === "loading" && <StateText>{L.loadingWos}</StateText>}
 
           {phase === "denied" && (
-            <Banner kind="err" title={L.permissionDenied}>
-              {L.permissionDenied}
-            </Banner>
+            <Banner kind="err" title={L.permissionDenied} />
           )}
 
           {phase === "error" && (
             <>
-              <Banner kind="err" title={L.errorLoad}>
-                {L.errorLoad}
-              </Banner>
+              <Banner kind="err" title={L.errorLoad} />
               <div style={{ padding: "0 16px" }}>
                 <Btn variant="sec" onClick={() => void loadWos()}>
                   {L.retry}
@@ -566,9 +562,7 @@ export function PickScreen({ locale, labels }: { locale: string; labels: Scanner
               <div style={{ marginTop: 8 }}>
                 {lpState === "loading" && <StateText>{L.lpLoading}</StateText>}
                 {lpState === "error" && (
-                  <Banner kind="err" title={L.lpError}>
-                    {L.lpError}
-                  </Banner>
+                  <Banner kind="err" title={L.lpError} />
                 )}
                 {lpState === "ready" && lps.length === 0 && (
                   <div style={{ padding: "16px 24px", textAlign: "center", color: T.mute }}>

@@ -38,6 +38,21 @@ let executed: string[] = [];
 let upsertParams: readonly unknown[] | null = null;
 let auditParams: readonly unknown[] | null = null;
 
+const SITE_ID = '12121212-1212-4121-8121-121212121212';
+
+vi.mock('../../../../../../lib/auth/with-site-context', () => ({
+  withSiteContext: vi.fn(
+    async (
+      arg1: unknown,
+      arg2?: (ctx: { userId: string; orgId: string; siteId: string | null; client: QueryClient }) => Promise<unknown>,
+    ) => {
+      const action = typeof arg1 === 'function' ? arg1 : arg2;
+      if (!action) throw new TypeError('withSiteContext mock: missing action');
+      return action({ userId: USER_ID, orgId: ORG_ID, siteId: SITE_ID, client });
+    },
+  ),
+}));
+
 vi.mock('../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(
     async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -174,6 +189,7 @@ describe('upsertReorderThreshold', () => {
     const sql = executed.find((s) => s.includes('insert into public.reorder_thresholds'))!;
     expect(sql).toContain('app.current_org_id()');
     expect(sql).toContain('on conflict on constraint reorder_thresholds_org_item_unique');
+    expect(sql).toContain('app.current_site_id()');
     expect(sql).toContain('do update set min_qty = excluded.min_qty');
     // Quantities travel as the exact decimal strings the caller sent (6dp ok).
     expect(upsertParams).toEqual([ITEM_ID, '20.5', '50.000001', SUPPLIER_ID, USER_ID]);

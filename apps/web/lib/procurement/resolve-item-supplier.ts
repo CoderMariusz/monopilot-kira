@@ -97,6 +97,23 @@ export async function resolveProcurementSuppliersForItems(
   return resolved;
 }
 
+export async function fetchActiveSupplierIds(
+  client: QueryClient,
+  supplierIds: readonly string[],
+): Promise<Set<string>> {
+  const uniqueIds = [...new Set(supplierIds.filter(Boolean))];
+  if (uniqueIds.length === 0) return new Set();
+  const { rows } = await client.query<{ id: string }>(
+    `select s.id::text as id
+       from public.suppliers s
+      where s.org_id = app.current_org_id()
+        and s.id = any($1::uuid[])
+        and s.status = 'active'`,
+    [uniqueIds],
+  );
+  return new Set(rows.map((row) => row.id));
+}
+
 export async function fetchNonBlockedSupplierIds(
   client: QueryClient,
   supplierIds: readonly string[],

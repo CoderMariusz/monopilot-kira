@@ -181,7 +181,23 @@ describe('Warehouse PO receive — six-decimal quantities', () => {
     expect(screen.getByTestId('po-receive-status-line-1')).toHaveTextContent('Full');
     expect(screen.queryByTestId('po-receive-open-line-1')).not.toBeInTheDocument();
     expect(screen.getByTestId('po-receive-open-line-2')).toBeInTheDocument();
-    expect(screen.getByText('Lines to receive (1)')).toBeInTheDocument();
+    expect(screen.getByText('Lines to receive (2)')).toBeInTheDocument();
+  });
+
+  it('header count matches every rendered table row, not just open lines', () => {
+    const thirdOpen: PoReceiveLine = {
+      id: 'line-3',
+      lineNo: 3,
+      itemCode: 'RM-003',
+      itemName: 'Chicken Thigh',
+      orderedQty: '8.000000',
+      receivedQty: '0',
+      uom: 'kg',
+      shelfLifeDays: null,
+    };
+    renderClient('12.345600', undefined, [OPEN_SIBLING, thirdOpen]);
+    expect(screen.getAllByTestId(/^po-receive-line-/)).toHaveLength(3);
+    expect(screen.getByText('Lines to receive (3)')).toBeInTheDocument();
   });
 
   it('falls back to the empty state when every line is received to the last micro-unit', () => {

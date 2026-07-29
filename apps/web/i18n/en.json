@@ -9346,7 +9346,7 @@
         "already_exists": "A transfer order with that number already exists.",
         "invalid_state": "That action isn't allowed in the current status.",
         "insufficient_stock": "Insufficient stock to fulfill this transfer",
-        "partially_received": "This transfer has already-received stock. Receive the remainder or reverse the received license plates before cancelling.",
+        "partially_received": "This transfer is not fully received yet. Receive all outstanding lines before closing it.",
         "same_warehouse": "To warehouse must differ from From warehouse.",
         "persistence_failed": "Something went wrong saving your changes. Please retry."
       },
@@ -9429,7 +9429,9 @@
           "ship": "Ship",
           "receive": "Receive",
           "cancel": "Cancel",
+          "cancelRemainder": "Cancel remainder",
           "confirm": "Change status of {to} to \"{status}\"?",
+          "confirmCancelRemainder": "Cancel the outstanding remainder on {to}? Already-received stock stays at the destination; source stock for unreceived lines will be restored.",
           "pending": "Updating…",
           "none": "No further status actions available."
         }
@@ -9622,6 +9624,13 @@
       "horizonWeeksOption26": "26 weeks",
       "minQty": "Min",
       "dueBy": "Due",
+      "releaseBy": "Release",
+      "needByBucket": "Need-by bucket",
+      "nextBucketAction": "Next bucket action",
+      "horizonSuggested": "Horizon suggested total",
+      "late": "Late",
+      "earliestReceipt": "Earliest receipt",
+      "bucketCalcHint": "PAB {net} vs min {min}, gap {gap}, lot {lot}",
       "previousRuns": {
         "title": "Previous runs",
         "empty": "No persisted runs yet — enable “Save this run” before running.",

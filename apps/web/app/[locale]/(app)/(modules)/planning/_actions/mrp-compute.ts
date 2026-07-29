@@ -121,6 +121,8 @@ export type MrpOnHandBucket = {
 /** reorder_thresholds row (mig 178) + the preferred supplier's lead time (mig 261 soft join). */
 export type MrpThresholdRow = {
   item_id: string;
+  /** Present when the caller read site_id; used for all-sites collapse tie-breaks. */
+  site_id?: string | null;
   min_qty: string | number;
   reorder_qty: string | number;
   preferred_supplier_id: string | null;
@@ -150,8 +152,26 @@ export type MrpSuggestedAction = {
   releaseDate?: string | null;
   /** True when lead time forces release before today — releaseDate is clamped to today. */
   isLate?: boolean;
-  /** reorder_thresholds.preferred_supplier_id when set; else null. */
+  /** reorder_thresholds.preferred_supplier_id when procurement-eligible; else null. */
   supplierId: string | null;
+  /** Set when a preferred supplier is configured but cannot be used for procurement. */
+  preferredSupplierIneligible?: 'blocked' | 'inactive';
+  /** ISO date of the bucket this suggestion covers (time-phased runs). */
+  bucketDate?: string;
+  /** Summary rows expose the first bucket action — not the full-horizon total. */
+  actionScope?: 'next_bucket';
+  /** Sum of every bucket suggestion across the horizon (when it exceeds the next-bucket qty). */
+  horizonSuggestedQty?: string;
+  /** Projected available balance in the action bucket before the suggested order. */
+  netAtBucket?: string;
+  /** Gap to min (or shortage depth) in the action bucket — drives lot rounding. */
+  gapAtBucket?: string;
+  /** reorder_qty lot size used to round the suggested qty. */
+  reorderLotAtBucket?: string;
+  /** Earliest physical receipt when release is clamped to today (release + lead time). */
+  earliestReceiptDate?: string | null;
+  /** Supplier lead time in days when a preferred supplier resolves. */
+  leadTimeDays?: number | null;
 };
 
 export type MrpRow = {
@@ -460,7 +480,8 @@ export function computeMrp(input: {
     if (isShort || isBelowMin) {
       const gap = minQty - net > -net ? minQty - net : -net;
       const qtyMicro = ceilGapToLotMultiple(gap, reorderQty);
-      const leadDays = threshold?.preferred_supplier_id ? threshold.lead_time_days : null;
+      const leadDays = resolveSuggestedLeadDays(threshold);
+      const eligibilityIssue = preferredSupplierEligibilityIssue(threshold);
       suggestedAction = {
         type: item.item_type === 'intermediate' || item.item_type === 'fg' ? 'make' : 'buy',
         qty: formatSuggestedQty(qtyMicro),
@@ -468,7 +489,8 @@ export function computeMrp(input: {
           leadDays !== null && leadDays !== undefined && Number.isFinite(leadDays)
             ? addDaysIso(todayIso, leadDays)
             : null,
-        supplierId: threshold?.preferred_supplier_id ?? null,
+        supplierId: resolveSuggestedSupplierId(threshold),
+        ...(eligibilityIssue ? { preferredSupplierIneligible: eligibilityIssue } : {}),
       };
     }
 
@@ -550,6 +572,58 @@ function worstSeverity(a: MrpSeverity, b: MrpSeverity): MrpSeverity {
   return SEVERITY_RANK[a] <= SEVERITY_RANK[b] ? a : b;
 }
 
+/**
+ * All-sites MRP can return multiple threshold rows per item (one per site).
+ * Pick the row with the highest min_qty so netting is deterministic and conservative.
+ * Ties break on site_id (NULL last, then lexicographic).
+ */
+export function collapseThresholdsForAllSites(thresholds: MrpThresholdRow[]): MrpThresholdRow[] {
+  const byItem = new Map<string, MrpThresholdRow>();
+  for (const row of thresholds) {
+    const existing = byItem.get(row.item_id);
+    if (!existing) {
+      byItem.set(row.item_id, row);
+      continue;
+    }
+    const rowMin = toMicro(row.min_qty);
+    const existingMin = toMicro(existing.min_qty);
+    if (rowMin > existingMin) {
+      byItem.set(row.item_id, row);
+      continue;
+    }
+    if (rowMin < existingMin) continue;
+    const rowSite = row.site_id ?? '';
+    const existingSite = existing.site_id ?? '';
+    if (rowSite > existingSite) {
+      byItem.set(row.item_id, row);
+    }
+  }
+  return [...byItem.values()];
+}
+
+function preferredSupplierEligibilityIssue(
+  threshold: MrpThresholdRow | null,
+): 'blocked' | 'inactive' | null {
+  if (!threshold?.preferred_supplier_id) return null;
+  const status = threshold.preferred_supplier_status;
+  if (status === 'blocked') return 'blocked';
+  if (status === 'inactive') return 'inactive';
+  return null;
+}
+
+function isPreferredSupplierProcurementEligible(threshold: MrpThresholdRow | null): boolean {
+  if (!threshold?.preferred_supplier_id) return false;
+  return threshold.preferred_supplier_status === 'active';
+}
+
+function resolveSuggestedSupplierId(threshold: MrpThresholdRow | null): string | null {
+  return isPreferredSupplierProcurementEligible(threshold) ? threshold!.preferred_supplier_id : null;
+}
+
+function resolveSuggestedLeadDays(threshold: MrpThresholdRow | null): number | null {
+  return isPreferredSupplierProcurementEligible(threshold) ? threshold!.lead_time_days : null;
+}
+
 function buildSuggestedAction(
   item: MrpItemRow,
   threshold: MrpThresholdRow | null,
@@ -559,14 +633,15 @@ function buildSuggestedAction(
   isShort: boolean,
   isBelowMin: boolean,
   bucketDate: string,
-  leadDays: number | null,
   todayIso: string,
   singleBucketMode: boolean,
 ): MrpSuggestedAction | null {
   if (!isShort && !isBelowMin) return null;
   const gap = minQty - net > -net ? minQty - net : -net;
   const qtyMicro = ceilGapToLotMultiple(gap, reorderQty);
+  const leadDays = resolveSuggestedLeadDays(threshold);
   const hasLead = leadDays !== null && leadDays !== undefined && Number.isFinite(leadDays);
+  const eligibilityIssue = preferredSupplierEligibilityIssue(threshold);
   let dueDate =
     singleBucketMode && hasLead ? addDaysIso(todayIso, leadDays!) : bucketDate;
   if (dueDate < todayIso) {
@@ -592,7 +667,8 @@ function buildSuggestedAction(
     dueDate: hasLead || !singleBucketMode ? dueDate : null,
     ...(releaseDate ? { releaseDate } : {}),
     ...(isLate ? { isLate } : {}),
-    supplierId: threshold?.preferred_supplier_id ?? null,
+    supplierId: resolveSuggestedSupplierId(threshold),
+    ...(eligibilityIssue ? { preferredSupplierIneligible: eligibilityIssue } : {}),
   };
 }
 
@@ -749,7 +825,6 @@ export function computeMrpPhased(input: {
     const threshold = thresholdByItem.get(itemId) ?? null;
     const minQty = threshold ? toMicro(threshold.min_qty) : 0n;
     const reorderQty = threshold ? toMicro(threshold.reorder_qty) : 0n;
-    const leadDays = threshold?.preferred_supplier_id ? threshold.lead_time_days : null;
     const onHandEntry = onHandByItem.get(itemId) ?? { onHand: 0n, reserved: 0n, excluded: new Set<string>() };
 
     let pab = onHandEntry.onHand - onHandEntry.reserved;
@@ -761,6 +836,8 @@ export function computeMrpPhased(input: {
     let totalSoMicro = 0n;
     let worst: MrpSeverity = 'covered';
     let summaryAction: MrpSuggestedAction | null = null;
+    let horizonSuggestedQtyMicro = 0n;
+    const leadDays = resolveSuggestedLeadDays(threshold);
     const excludedUoms = new Set<string>(onHandEntry.excluded);
 
     for (let i = 0; i < bucketCount; i += 1) {
@@ -798,11 +875,29 @@ export function computeMrpPhased(input: {
           isShort,
           isBelowMin,
           bucketDates[i]!,
-          leadDays,
           todayIso,
           singleBucketMode,
         );
-        if (suggestedAction && summaryAction === null) summaryAction = suggestedAction;
+        if (suggestedAction) {
+          horizonSuggestedQtyMicro += toMicro(suggestedAction.qty);
+          if (summaryAction === null) {
+            const hasLead = leadDays !== null && leadDays !== undefined && Number.isFinite(leadDays);
+            const release = suggestedAction.releaseDate ?? null;
+            summaryAction = {
+              ...suggestedAction,
+              bucketDate: bucketDates[i]!,
+              actionScope: 'next_bucket',
+              netAtBucket: microToFixed(rawPab, 3),
+              gapAtBucket: microToFixed(netRequirementMicro, 3),
+              reorderLotAtBucket: microToFixed(reorderQty, 3),
+              ...(hasLead ? { leadTimeDays: leadDays } : {}),
+              earliestReceiptDate:
+                suggestedAction.isLate && release && hasLead
+                  ? addDaysIso(release, leadDays!)
+                  : null,
+            };
+          }
+        }
       }
 
       const pabAfterPlanned =
@@ -879,6 +974,18 @@ export function computeMrpPhased(input: {
     }
     if (isBelowMinSummary) itemsBelowMin += 1;
     totalDemand += totalDemandMicro;
+
+    if (
+      summaryAction &&
+      bucketCount > 1 &&
+      horizonSuggestedQtyMicro > 0n &&
+      horizonSuggestedQtyMicro !== toMicro(summaryAction.qty)
+    ) {
+      summaryAction = {
+        ...summaryAction,
+        horizonSuggestedQty: formatSuggestedQty(horizonSuggestedQtyMicro),
+      };
+    }
 
     summaryByItem.set(itemId, {
       itemId,
