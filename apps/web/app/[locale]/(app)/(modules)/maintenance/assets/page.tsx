@@ -21,6 +21,7 @@ function buildLabels(t: AssetTranslator): AssetRegisterLabels {
     countLine: t('list.countLine'),
     addAsset: t('list.addAsset'),
     exportCsv: t('list.exportCsv'),
+    editAsset: t('list.editAsset'),
     emptyTitle: t('list.emptyTitle'),
     emptyBody: t('list.emptyBody'),
     col: {
@@ -30,6 +31,7 @@ function buildLabels(t: AssetTranslator): AssetRegisterLabels {
       loto: t('list.col.loto'),
       calibration: t('list.col.calibration'),
       status: t('list.col.status'),
+      actions: t('list.col.actions'),
     },
     lotoYes: t('list.lotoYes'),
     lotoNo: t('list.lotoNo'),
@@ -48,6 +50,7 @@ function buildLabels(t: AssetTranslator): AssetRegisterLabels {
     },
     form: {
       createTitle: t('form.createTitle'),
+      editTitle: t('form.editTitle'),
       code: t('form.code'),
       codePlaceholder: t('form.codePlaceholder'),
       name: t('form.name'),
@@ -58,7 +61,14 @@ function buildLabels(t: AssetTranslator): AssetRegisterLabels {
       submit: t('form.submit'),
       submitting: t('form.submitting'),
       cancel: t('form.cancel'),
+      withdraw: t('form.withdraw'),
+      withdrawing: t('form.withdrawing'),
+      withdrawReason: t('form.withdrawReason'),
+      withdrawReasonPlaceholder: t('form.withdrawReasonPlaceholder'),
+      reactivate: t('form.reactivate'),
+      reactivating: t('form.reactivating'),
       errorRequired: t('form.errorRequired'),
+      errorWithdrawReason: t('form.errorWithdrawReason'),
       errorFailed: t('form.errorFailed'),
       errorForbidden: t('form.errorForbidden'),
       errorConflict: t('form.errorConflict'),
@@ -153,7 +163,12 @@ export default async function MaintenanceAssetsPage({ params }: PageProps) {
         </Link>
       </nav>
 
-      <AssetRegisterClient rows={result.data} labels={labels} canEdit={permissions.canEdit} />
+      <AssetRegisterClient
+        rows={result.data}
+        labels={labels}
+        canEdit={permissions.canEdit}
+        canDeactivate={permissions.canDeactivate}
+      />
     </main>
   );
 }

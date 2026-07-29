@@ -1,6 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createEquipment, getAssetPermissions, listEquipmentAssets } from './asset-actions';
+import {
+  createEquipment,
+  deactivateEquipment,
+  getAssetPermissions,
+  listEquipmentAssets,
+  reactivateEquipment,
+  updateEquipment,
+} from './asset-actions';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
@@ -54,6 +61,8 @@ function makeClient(): QueryClient {
               requires_loto: true,
               requires_calibration: false,
               active: true,
+              deactivated_at: null,
+              deactivation_reason: null,
             },
           ],
           rowCount: 1,
@@ -64,21 +73,45 @@ function makeClient(): QueryClient {
         return { rows: [{ id: EQUIPMENT_ID }], rowCount: 1 };
       }
 
+      if (normalized.startsWith('update public.equipment e') && normalized.includes('name =')) {
+        return { rows: [{ id: EQUIPMENT_ID }], rowCount: 1 };
+      }
+
+      if (normalized.startsWith('update public.equipment e') && normalized.includes('deactivated_at = pg_catalog.now()')) {
+        return { rows: [{ id: EQUIPMENT_ID, site_id: null }], rowCount: 1 };
+      }
+
+      if (normalized.startsWith('update public.equipment e') && normalized.includes('set active = true')) {
+        return { rows: [{ id: EQUIPMENT_ID }], rowCount: 1 };
+      }
+
+      if (normalized.startsWith('update public.equipment e') && normalized.includes('deactivated_at = null')) {
+        return { rows: [{ id: EQUIPMENT_ID }], rowCount: 1 };
+      }
+
+      if (normalized.startsWith('update public.maintenance_schedules s')) {
+        return { rows: [], rowCount: 0 };
+      }
+
+      if (normalized.startsWith('insert into public.maintenance_history')) {
+        return { rows: [], rowCount: 1 };
+      }
+
       return { rows: [], rowCount: 0 };
     }),
   };
 }
 
 beforeEach(() => {
-  grantedPermissions = new Set(['mnt.asset.read', 'mnt.asset.edit']);
+  grantedPermissions = new Set(['mnt.asset.read', 'mnt.asset.edit', 'mnt.asset.deactivate']);
   client = makeClient();
   revalidateMock.mockClear();
 });
 
 describe('getAssetPermissions', () => {
-  it('returns read/edit flags from RBAC', async () => {
+  it('returns read/edit/deactivate flags from RBAC', async () => {
     const result = await getAssetPermissions();
-    expect(result).toEqual({ canRead: true, canEdit: true });
+    expect(result).toEqual({ canRead: true, canEdit: true, canDeactivate: true });
   });
 });
 
@@ -121,6 +154,84 @@ describe('createEquipment', () => {
       name: 'Secondary mixer',
       equipmentType: 'mixer',
     });
+    expect(result).toEqual({ ok: false, reason: 'forbidden' });
+  });
+});
+
+describe('updateEquipment', () => {
+  it('updates mutable fields without changing equipment code', async () => {
+    const result = await updateEquipment({
+      equipmentId: EQUIPMENT_ID,
+      name: 'Renamed mixer',
+      equipmentType: 'mixer',
+      requiresLoto: false,
+      requiresCalibration: true,
+    });
+    expect(result.ok).toBe(true);
+    const updateCall = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      normalize(sql).startsWith('update public.equipment e') && normalize(sql).includes('name ='),
+    );
+    expect(updateCall?.[1]?.[0]).toBe(EQUIPMENT_ID);
+    expect(updateCall?.[1]?.[2]).toBe('Renamed mixer');
+  });
+
+  it('requires mnt.asset.edit', async () => {
+    grantedPermissions.delete('mnt.asset.edit');
+    const result = await updateEquipment({
+      equipmentId: EQUIPMENT_ID,
+      name: 'Renamed mixer',
+      equipmentType: 'mixer',
+      requiresLoto: false,
+      requiresCalibration: true,
+    });
+    expect(result).toEqual({ ok: false, reason: 'forbidden' });
+  });
+});
+
+describe('deactivateEquipment', () => {
+  it('writes withdrawal audit columns and maintenance_history', async () => {
+    const result = await deactivateEquipment({
+      equipmentId: EQUIPMENT_ID,
+      reason: 'Machine scrapped',
+    });
+    expect(result.ok).toBe(true);
+    const withdrawCall = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      normalize(sql).includes('deactivated_at = pg_catalog.now()'),
+    );
+    expect(withdrawCall?.[1]?.[2]).toBe('Machine scrapped');
+    const historyCall = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      normalize(sql).startsWith('insert into public.maintenance_history'),
+    );
+    expect(historyCall).toBeDefined();
+    expect(historyCall?.[1]?.[2]).toBe('Asset withdrawn: Machine scrapped');
+    expect(historyCall?.[1]?.[3]).toBe(USER_ID);
+    expect(normalize(historyCall?.[0] ?? '')).toContain("'cancellation'");
+  });
+
+  it('requires mnt.asset.deactivate', async () => {
+    grantedPermissions.delete('mnt.asset.deactivate');
+    const result = await deactivateEquipment({
+      equipmentId: EQUIPMENT_ID,
+      reason: 'Machine scrapped',
+    });
+    expect(result).toEqual({ ok: false, reason: 'forbidden' });
+  });
+});
+
+describe('reactivateEquipment', () => {
+  it('restores active flag without clearing withdrawal audit columns', async () => {
+    const result = await reactivateEquipment({ equipmentId: EQUIPMENT_ID });
+    expect(result.ok).toBe(true);
+    const reactivateCall = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      normalize(sql).includes('set active = true'),
+    );
+    expect(reactivateCall).toBeDefined();
+    expect(normalize(reactivateCall?.[0] ?? '')).not.toContain('deactivated_at = null');
+  });
+
+  it('requires mnt.asset.deactivate', async () => {
+    grantedPermissions.delete('mnt.asset.deactivate');
+    const result = await reactivateEquipment({ equipmentId: EQUIPMENT_ID });
     expect(result).toEqual({ ok: false, reason: 'forbidden' });
   });
 });

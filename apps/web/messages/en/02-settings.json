@@ -1002,12 +1002,12 @@
     "export_only_notice": "D365 is export-only for MES data.",
     "sync": {
       "title": "D365 sync config",
-      "subtitle": "Pull schedule, push queue, retry policy, and dead-letter queue access.",
+      "subtitle": "Outbound export queue, retry policy, and dead-letter queue access.",
       "save": "Save sync config",
       "saved": "D365 sync config saved",
       "forbiddenTitle": "403 — Owner access required",
       "sections": {
-        "polling": "Polling & sync",
+        "polling": "Export queue",
         "retry": "Retry policy",
         "dlq": "Dead-letter queue"
       },
@@ -1419,7 +1419,7 @@
     "d365": {
       "connection": {
         "title": "D365 connection",
-        "subtitle": "Dynamics 365 Finance & Operations — endpoint, auth, polling schedule.",
+        "subtitle": "Dynamics 365 Finance & Operations — endpoint, auth, and outbound export queue.",
         "testConnection": "Test connection",
         "save": "Save configuration",
         "rotateSecret": "Rotate secret",
@@ -1430,7 +1430,11 @@
         "error": "Unable to load D365 connection.",
         "missingPrerequisites": "D365 connection prerequisites are missing. Configure the endpoint, Azure AD tenant, client ID, and secret reference before saving or enabling sync.",
         "preflightIncomplete": "D365 cannot be enabled until all five reference constants are configured.",
-        "preflightMissing": "Missing D365 constants:"
+        "preflightMissing": "Missing D365 constants:",
+        "notices": {
+          "exportSchedule": "Export queue batch size, retry policy, and worker scheduling are configured on the D365 sync config page. This screen does not store cron schedules; inbound pull from D365 is not supported (R15).",
+          "syncConfigLink": "Open D365 sync config"
+        }
       }
     }
   },
@@ -1637,7 +1641,7 @@
     },
     "activity": {
       "title": "Recent sync activity",
-      "subtitle": "D365 outbox events (shipment.confirmed, wo.confirmation_pushed, cost.posted) + pull (items.imported, bom.imported).",
+      "subtitle": "D365 outbox events (shipment.confirmed, wo.confirmation_pushed, cost.posted). Monopilot → D365 export only — inbound pull/import is not supported.",
       "columns": {
         "when": "When",
         "integration": "Integration",

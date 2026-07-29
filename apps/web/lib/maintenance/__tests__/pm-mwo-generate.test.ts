@@ -24,6 +24,7 @@ type QueryClient = {
 
 let duplicateOpenMwo = false;
 let scheduleNextDueDate = '2026-07-01';
+let equipmentActive = true;
 const SCHEDULE_INTERVAL_DAYS = 30;
 let client: QueryClient;
 
@@ -37,6 +38,9 @@ function makeClient(): QueryClient {
       const n = normalize(sql);
 
       if (n.startsWith('select s.id::text from public.maintenance_schedules')) {
+        if (!n.includes('e.active = true')) {
+          return { rows: [{ id: 'leaked-schedule' }], rowCount: 1 };
+        }
         const warningDays = 7;
         const dueCutoff = new Date('2026-07-08T00:00:00.000Z');
         const dueDate = new Date(`${scheduleNextDueDate}T00:00:00.000Z`);
@@ -49,6 +53,9 @@ function makeClient(): QueryClient {
       }
 
       if (n.includes('from public.maintenance_schedules s') && n.includes('join public.equipment e')) {
+        if (!equipmentActive) {
+          return { rows: [], rowCount: 0 };
+        }
         return {
           rows: [
             {
@@ -104,6 +111,7 @@ function makeClient(): QueryClient {
 beforeEach(() => {
   duplicateOpenMwo = false;
   scheduleNextDueDate = '2026-07-01';
+  equipmentActive = true;
   client = makeClient();
 });
 
@@ -156,12 +164,32 @@ describe('generateMwoFromPmScheduleCore', () => {
     const insert = vi.mocked(client.query).mock.calls.find((c) => normalize(c[0]).startsWith('insert into public.maintenance_work_orders'));
     expect(insert?.[1]?.[2]).toBe('pm_schedule');
   });
+
+  it('refuses generation when equipment is withdrawn from service', async () => {
+    equipmentActive = false;
+
+    const result = await generateMwoFromPmScheduleCore(
+      { orgId: ORG_ID, actorUserId: null, client },
+      SCHEDULE_ID,
+      { skipDueWindowCheck: true },
+    );
+
+    expect(result).toEqual({ ok: false, reason: 'not_found', message: 'schedule not found' });
+    const scheduleLookup = vi.mocked(client.query).mock.calls.find((c) =>
+      normalize(c[0]).includes('join public.equipment e'),
+    );
+    expect(normalize(scheduleLookup?.[0] ?? '')).toContain('e.active = true');
+  });
 });
 
 describe('listDuePmScheduleIds', () => {
-  it('returns calendar-due active schedule ids', async () => {
+  it('returns calendar-due active schedule ids for active equipment only', async () => {
     const ids = await listDuePmScheduleIds({ orgId: ORG_ID, actorUserId: null, client });
     expect(ids).toEqual([SCHEDULE_ID]);
+    const scan = vi.mocked(client.query).mock.calls.find((c) =>
+      normalize(c[0]).startsWith('select s.id::text from public.maintenance_schedules'),
+    );
+    expect(normalize(scan?.[0] ?? '')).toContain('e.active = true');
   });
 });
 

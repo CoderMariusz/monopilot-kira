@@ -1045,12 +1045,12 @@
     "d365": {
       "sync": {
         "title": "Konfiguracja synchronizacji D365",
-        "subtitle": "Harmonogram pobierania, kolejka wysyłania, polityka ponowień i dostęp do kolejki dead-letter.",
+        "subtitle": "Kolejka eksportu wychodzącego, polityka ponowień i dostęp do kolejki dead-letter.",
         "save": "Zapisz konfigurację synchronizacji",
         "saved": "Konfiguracja synchronizacji D365 zapisana",
         "forbiddenTitle": "403 — wymagany dostęp właściciela",
         "sections": {
-          "polling": "Odpytywanie i synchronizacja",
+          "polling": "Kolejka eksportu",
           "retry": "Polityka ponowień",
           "dlq": "Kolejka dead-letter"
         },
@@ -1063,7 +1063,7 @@
         },
         "hints": {
           "pullCron": "Użyj poprawnego 5-polowego wyrażenia cron.",
-          "batchSize": "Rekordy pobierane lub wysyłane w jednej partii workera.",
+          "batchSize": "Rekordy eksportowane w jednej partii workera.",
           "pushQueue": "Kolejkuje wychodzące zmiany MES dla eksportowej synchronizacji D365.",
           "maxAttempts": "Liczba ponowień workera przed przeniesieniem elementu do kolejki dead-letter.",
           "retryBackoff": "Minuty między próbami ponowienia."
@@ -1077,6 +1077,7 @@
           "enabled": "Włączone",
           "disabled": "Wyłączone",
           "legacyNotice": "LEGACY-D365. Synchronizacja jest zachowana dla operacji przejściowych; na ekranie SET-082 nie są przechowywane poświadczenia.",
+          "exportOnlyNotice": "R15 tylko eksport: Monopilot → D365. Przychodzące pobieranie/import z D365 nie jest obsługiwane ani konfigurowalne tutaj.",
           "invalidCron": "Nieprawidłowe wyrażenie cron. Użyj poprawnego 5-polowego wyrażenia w stylu cron-parser.",
           "nextRunUnavailable": "Następne uruchomienie niedostępne, dopóki cron nie będzie poprawny.",
           "nextRun": "Następne uruchomienie {date} UTC",
@@ -1090,7 +1091,7 @@
       "d365": {
         "connection": {
           "title": "Połączenie D365",
-          "subtitle": "Dynamics 365 Finance & Operations — endpoint, uwierzytelnianie, harmonogram odpytywania.",
+          "subtitle": "Dynamics 365 Finance & Operations — endpoint, uwierzytelnianie i wychodząca kolejka eksportu.",
           "testConnection": "Testuj połączenie",
           "save": "Zapisz konfigurację",
           "rotateSecret": "Rotuj sekret",
@@ -1105,7 +1106,7 @@
           "sections": {
             "endpoint": "Endpoint",
             "authentication": "Uwierzytelnianie (Azure AD)",
-            "pollingSync": "Polling i synchronizacja",
+            "pollingSync": "Kolejka eksportu",
             "lastTest": "Ostatni test"
           },
           "fields": {
@@ -1115,8 +1116,8 @@
             "clientId": "Client ID",
             "clientSecret": "Client Secret",
             "serviceAccountEmail": "E-mail konta serwisowego",
-            "pollCron": "Harmonogram cron pobierania",
-            "integrationEnabled": "Integracja włączona"
+            "pollCron": "Cron kolejki eksportu",
+            "integrationEnabled": "Integracja eksportowa włączona"
           },
           "hints": {
             "baseUrl": "np. https://apex.operations.dynamics.com",
@@ -1124,8 +1125,8 @@
             "clientId": "Identyfikator klienta Azure App Registration.",
             "clientSecret": "Nigdy nie jest pokazywany po zapisie. Użyj 'Rotate', aby zaktualizować.",
             "serviceAccountEmail": "Zapasowa tożsamość basic-auth.",
-            "pollCron": "Standardowy 5-polowy cron. Przykład: '0 2 * * *' = codziennie 02:00.",
-            "integrationEnabled": "Odzwierciedla flagę `integration.d365.enabled`. Pre-flight uruchamia się przy przełączeniu."
+            "pollCron": "Cron workera eksportu wychodzącego. Przykład: '0 2 * * *' = codziennie 02:00 UTC.",
+            "integrationEnabled": "Włącza eksport Monopilot → D365 po przejściu pre-flight. Przychodzący import z D365 nie jest obsługiwany (R15)."
           },
           "validation": {
             "invalidUuid": "Nieprawidłowy format UUID.",
@@ -1138,6 +1139,9 @@
           },
           "notices": {
             "legacy": "LEGACY-D365. Ta integracja zostanie wycofana, gdy Monopilot zastąpi D365. Odwołuje się do niej integration.d365.so_trigger.enabled (bramkuje Planning SCREEN-13 + kolejkę D365).",
+            "exportOnly": "R15 tylko eksport: Monopilot → D365. Przychodzące pobieranie/import z D365 nie jest obsługiwane.",
+            "exportSchedule": "Rozmiar partii kolejki eksportu, polityka ponowień i harmonogram workera są konfigurowane na stronie konfiguracji synchronizacji D365. Ten ekran nie przechowuje harmonogramów cron; przychodzące pobieranie z D365 nie jest obsługiwane (R15).",
+            "syncConfigLink": "Otwórz konfigurację synchronizacji D365",
             "rotationUnavailable": "Rotacja klucza nie jest jeszcze dostępna.",
             "connected": "Połączono o",
             "failed": "Niepowodzenie — uruchom 'Test connection', aby spróbować ponownie."
@@ -2013,7 +2017,7 @@
         "gallery": "Galeria modali",
         "my_profile": "Mój profil",
         "my_notifications": "Powiadomienia",
-        "d365_cost_import": "Import kosztów D365",
+        "d365_cost_import": "Koszty D365 (tylko eksport)",
         "documents": "Numeracja dokumentów",
         "signoff": "Zasady zatwierdzeń",
         "authorization": "Polityki autoryzacji",
@@ -2229,8 +2233,8 @@
           "desc": "Wyniki badań tylko do odczytu należące do Jakości w kontekście technologii."
         },
         "costImport": {
-          "title": "Import kosztów D365",
-          "desc": "Opcjonalny import kosztów z D365 — lokalna historia pozostaje źródłem prawdy."
+          "title": "Polityka eksportu kosztów D365",
+          "desc": "R15 tylko eksport — lokalna historia kosztów pozostaje źródłem prawdy; przychodzące pobieranie z D365 nie jest obsługiwane."
         },
         "shelfLife": {
           "title": "Termin przydatności",
@@ -3484,12 +3488,12 @@
       }
     },
     "costImport": {
-      "title": "Import kosztów z D365",
-      "subtitle": "Opcjonalne źródło integracyjne — lokalna historia kosztów pozostaje źródłem prawdy. Stan wyłączonego D365 utrzymuje ten ekran tylko do odczytu i nigdy nie blokuje zwolnienia fabrycznego.",
+      "title": "Polityka eksportu kosztów D365",
+      "subtitle": "Integracja R15 tylko eksport — lokalna historia kosztów pozostaje źródłem prawdy. Przychodzący import kosztów z D365 nie jest obsługiwany; aktualizacje eksportu przepływają tylko Monopilot → D365.",
       "breadcrumb": {
         "technical": "Technologia",
         "costs": "Koszty",
-        "d365Import": "Import D365",
+        "d365Import": "Polityka eksportu kosztów",
         "settings": "Ustawienia",
         "integrations": "Integracje",
         "d365": "D365"
@@ -7603,7 +7607,6 @@
       "createPo": "Utwórz ZZ",
       "createTo": "Utwórz transfer",
       "runSequencing": "Uruchom sekwencjonowanie",
-      "triggerD365": "Pobierz z D365",
       "notAvailable": "Jeszcze niedostępne",
       "runSequencingHint": "Optymalizator sekwencji nie jest jeszcze zbudowany — użyj tablicy harmonogramu linii"
     },

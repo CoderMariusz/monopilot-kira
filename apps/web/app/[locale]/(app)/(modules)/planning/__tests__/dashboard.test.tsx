@@ -9,7 +9,7 @@
  *   - alert panels (real WO + PO + TO alert lists, empty-states),
  *   - upcoming schedule (WO tab live + grouped-by-day rows, PO/TO tabs link to
  *     the live list screens),
- *   - header actions (Create WO/PO/TO links + disabled sequencing/D365 buttons),
+ *   - header actions (Create WO/PO/TO links + disabled sequencing button),
  *   - groupScheduleByDay (7-day buckets, ascending, empty-state safe),
  *   - i18n key coverage across en/pl/ro/uk (incl. the W9-M2 mrp.* namespace).
  */
@@ -49,7 +49,6 @@ const HEADER_LABELS = {
   createPo: "Create PO",
   createTo: "Create TO",
   runSequencing: "Run sequencing",
-  triggerD365: "Trigger D365 pull",
   notAvailable: "Not available yet",
 };
 
@@ -111,7 +110,7 @@ describe("Planning alert panels (parity: dashboard.jsx:62-126)", () => {
 });
 
 describe("Planning header actions (parity: dashboard.jsx:25-29)", () => {
-  it("links Create WO/PO/TO and disables sequencing + D365 with a not-available title", () => {
+  it("links Create WO/PO/TO, disables sequencing with a not-available title, and does not advertise D365 pull", () => {
     render(
       <PlanningHeaderActions
         createWoHref="/en/planning/work-orders?new=1"
@@ -134,11 +133,14 @@ describe("Planning header actions (parity: dashboard.jsx:25-29)", () => {
       "/en/planning/transfer-orders",
     );
 
-    for (const key of ["runSequencing", "triggerD365"]) {
+    for (const key of ["runSequencing"]) {
       const btn = screen.getByTestId(`planning-action-${key}`);
       expect(btn).toBeDisabled();
       expect(btn).toHaveAttribute("title", "Not available yet");
     }
+
+    expect(screen.queryByTestId("planning-action-triggerD365")).toBeNull();
+    expect(screen.queryByRole("button", { name: /trigger d365 pull/i })).toBeNull();
   });
 });
 

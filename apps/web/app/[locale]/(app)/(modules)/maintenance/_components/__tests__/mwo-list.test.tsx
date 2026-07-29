@@ -107,8 +107,10 @@ const LABELS: MwoListLabels = {
   },
   pm: {
     title: 'PM schedules',
-    subtitle: 'List and generate-from-due only — schedule create/edit is not available yet.',
+    subtitle: 'Define calendar-day recurrence; due schedules feed the PM engine.',
     empty: 'No PM schedules yet.',
+    createSchedule: '+ Create PM schedule',
+    editSchedule: 'Edit',
     col: {
       equipment: 'Equipment',
       type: 'Type',
@@ -130,6 +132,31 @@ const LABELS: MwoListLabels = {
     generating: 'Generating…',
     generateFailed: 'Could not generate the MWO from this schedule.',
     colActions: 'Actions',
+    form: {
+      createTitle: 'Create PM schedule',
+      editTitle: 'Edit PM schedule',
+      equipment: 'Equipment',
+      equipmentPlaceholder: 'Select equipment…',
+      scheduleType: 'Schedule type',
+      intervalValue: 'Repeat every',
+      intervalUnit: 'calendar days',
+      warningDays: 'Warning window',
+      firstDueDate: 'First due date',
+      nextDueDate: 'Next due date',
+      active: 'Schedule active',
+      submit: 'Save schedule',
+      submitting: 'Saving…',
+      cancel: 'Cancel',
+      errorRequired: 'Equipment and interval are required.',
+      errorFailed: 'Could not save the PM schedule.',
+      errorForbidden: 'Forbidden',
+      type: {
+        preventive: 'Preventive',
+        calibration: 'Calibration',
+        sanitation: 'Sanitation',
+        inspection: 'Inspection',
+      },
+    },
   },
 };
 
@@ -180,6 +207,7 @@ const PM_ROWS: PmScheduleRow[] = [
     scheduleType: 'preventive',
     intervalBasis: 'calendar_days',
     intervalValue: 30,
+    warningDays: 7,
     nextDueDate: '2026-07-01',
     lastCompletedAt: null,
     active: true,
@@ -188,11 +216,13 @@ const PM_ROWS: PmScheduleRow[] = [
   },
 ];
 
-const PERMS = { canCreate: true, canExecute: true, canCancel: true };
+const PERMS = { canCreate: true, canExecute: true, canCancel: true, canManagePm: true };
 
 function renderScreen(overrides: Partial<Parameters<typeof MwoListScreen>[0]> = {}) {
   const createMwoAction = vi.fn().mockResolvedValue({ ok: true, data: OPEN_ROW });
   const generateMwoFromPmScheduleAction = vi.fn().mockResolvedValue({ ok: true, data: OPEN_ROW });
+  const createPmScheduleAction = vi.fn().mockResolvedValue({ ok: true, data: PM_ROWS[0] });
+  const updatePmScheduleAction = vi.fn().mockResolvedValue({ ok: true, data: PM_ROWS[0] });
   const transitionMwoAction = vi.fn().mockResolvedValue({ ok: true, data: { ...OPEN_ROW, state: 'in_progress' } });
   const utils = render(
     <MwoListScreen
@@ -204,11 +234,20 @@ function renderScreen(overrides: Partial<Parameters<typeof MwoListScreen>[0]> = 
       permissions={PERMS}
       createMwoAction={createMwoAction}
       generateMwoFromPmScheduleAction={generateMwoFromPmScheduleAction}
+      createPmScheduleAction={createPmScheduleAction}
+      updatePmScheduleAction={updatePmScheduleAction}
       transitionMwoAction={transitionMwoAction}
       {...overrides}
     />,
   );
-  return { ...utils, createMwoAction, generateMwoFromPmScheduleAction, transitionMwoAction };
+  return {
+    ...utils,
+    createMwoAction,
+    generateMwoFromPmScheduleAction,
+    createPmScheduleAction,
+    updatePmScheduleAction,
+    transitionMwoAction,
+  };
 }
 
 beforeEach(() => {
@@ -254,7 +293,7 @@ describe('MwoListScreen — list + tabs', () => {
   });
 
   it('hides create + transition controls when RBAC flags are off', () => {
-    renderScreen({ permissions: { canCreate: false, canExecute: false, canCancel: false } });
+    renderScreen({ permissions: { canCreate: false, canExecute: false, canCancel: false, canManagePm: false } });
 
     expect(screen.queryByTestId('mwo-create-open')).not.toBeInTheDocument();
     expect(screen.queryByTestId(`mwo-start-${OPEN_ROW.id}`)).not.toBeInTheDocument();
@@ -372,9 +411,17 @@ describe('MwoListScreen — PM schedules view', () => {
 
     fireEvent.click(screen.getByTestId('mwo-view-pm'));
     expect(screen.getByTestId('pm-schedule-card')).toBeInTheDocument();
-    expect(screen.getByTestId('pm-scope-notice')).toHaveTextContent(/not available yet/i);
+    expect(screen.getByTestId('pm-scope-notice')).toHaveTextContent(/calendar-day recurrence/i);
     expect(screen.getByText('EQ-01')).toBeInTheDocument();
     expect(screen.getByText('30 days')).toBeInTheDocument();
+  });
+
+  it('opens the PM schedule create modal when permitted', () => {
+    renderScreen();
+
+    fireEvent.click(screen.getByTestId('mwo-view-pm'));
+    fireEvent.click(screen.getByTestId('pm-schedule-create-open'));
+    expect(screen.getByTestId('pm-schedule-create-modal')).toBeInTheDocument();
   });
 
   it('renders the honest PM empty state', () => {

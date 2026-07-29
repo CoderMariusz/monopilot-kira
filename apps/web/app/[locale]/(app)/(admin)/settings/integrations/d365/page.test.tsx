@@ -233,7 +233,7 @@ describe('T-061 D365 connection prototype parity and behavior', () => {
     expect(screen.getByText(/LEGACY-D365/i)).toBeInTheDocument();
     expect(screen.getByText(/integration\.d365\.so_trigger\.enabled/i)).toBeInTheDocument();
 
-    expect(sectionTitles()).toEqual(['Endpoint', 'Authentication (Azure AD)', 'Polling & sync', 'Last test']);
+    expect(sectionTitles()).toEqual(['Endpoint', 'Authentication (Azure AD)', 'Export queue', 'Last test']);
     expect(screen.getByRole('textbox', { name: /base url/i })).toHaveAttribute('type', 'url');
     expect(screen.getByRole('textbox', { name: /base url/i })).toHaveAttribute('data-slot', 'input');
     expect(screen.getByRole('combobox', { name: /environment/i })).toHaveAttribute('data-slot', 'select-trigger');
@@ -242,8 +242,13 @@ describe('T-061 D365 connection prototype parity and behavior', () => {
     expect(screen.getByLabelText(/client secret/i)).toHaveAttribute('type', 'password');
     expect(screen.getByRole('button', { name: /rotate secret/i })).toHaveAttribute('data-slot', 'button');
     expect(screen.getByRole('textbox', { name: /service account email/i })).toHaveAttribute('type', 'email');
-    expect(screen.getByRole('textbox', { name: /pull cron schedule/i })).toHaveValue('0 2 * * *');
-    expect(screen.getByRole('switch', { name: /integration enabled/i })).toHaveAttribute('data-slot', 'switch');
+    expect(screen.queryByRole('textbox', { name: /pull cron schedule|export queue cron/i })).toBeNull();
+    expect(screen.getByTestId('d365-connection-export-schedule-notice')).toHaveTextContent(/sync config page/i);
+    expect(screen.getByRole('link', { name: /open d365 sync config/i })).toHaveAttribute(
+      'href',
+      '/en/settings/integrations/d365/sync',
+    );
+    expect(screen.getByRole('switch', { name: /export integration enabled/i })).toHaveAttribute('data-slot', 'switch');
     expect(screen.getByText(/Connected at/i)).toHaveTextContent(/Connected at.*138ms.*Production/s);
 
     const buttons = within(root).getAllByRole('button').map((button) => button.textContent?.trim()).filter(Boolean);
@@ -392,7 +397,7 @@ describe('T-061 D365 connection prototype parity and behavior', () => {
       expect(screen.getByRole('combobox', { name: /environment/i })).toHaveAttribute('aria-disabled', 'true');
       expect(screen.getByRole('textbox', { name: /tenant id/i })).toBeDisabled();
       expect(screen.getByRole('textbox', { name: /client id/i })).toBeDisabled();
-      expect(screen.getByRole('switch', { name: /integration enabled/i })).toBeDisabled();
+      expect(screen.getByRole('switch', { name: /export integration enabled/i })).toBeDisabled();
       expect(screen.getByRole('alert')).toHaveTextContent(/D365.*(prerequisite|configuration|environment|missing)/i);
       expect(document.body).not.toHaveTextContent(/settings\./i);
     } finally {

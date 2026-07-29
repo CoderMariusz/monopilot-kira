@@ -6,8 +6,8 @@
  *   - Create WO  → links to /planning/work-orders?new=1
  *   - Create PO  → links to /planning/purchase-orders (tables landed in mig 262)
  *   - Create TO  → links to /planning/transfer-orders (mig 263)
- *   - Run sequencing / Trigger D365 → disabled with a "Not available yet"
- *     title (no sequencing/D365 backend exists).
+ *   - Run sequencing → disabled with a "Not available yet" title (no optimizer
+ *     backend exists). D365 inbound pull is not surfaced — R15 export-only.
  *
  * Pure presentational; the route hrefs are composed upstream (locale-prefixed).
  */
@@ -21,7 +21,6 @@ export type PlanningHeaderLabels = {
   /** W8: honest title for the still-disabled sequencing button — points at the
    * live /planning/schedule board (no optimizer backend exists). */
   runSequencingHint?: string;
-  triggerD365: string;
   notAvailable: string;
 };
 
@@ -38,7 +37,6 @@ export function PlanningHeaderActions({
 }) {
   const disabled = [
     { key: "runSequencing", label: labels.runSequencing, title: labels.runSequencingHint ?? labels.notAvailable },
-    { key: "triggerD365", label: labels.triggerD365, title: labels.notAvailable },
   ];
 
   return (

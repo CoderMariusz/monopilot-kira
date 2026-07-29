@@ -55,6 +55,10 @@ import {
   generateMwoFromPmScheduleCore,
   OPEN_BACKLOG_STATES as PM_OPEN_BACKLOG_STATES,
 } from '../../../../../../lib/maintenance/pm-mwo-generate';
+import {
+  createPmScheduleSchema,
+  updatePmScheduleSchema,
+} from '../_types/pm-schedule-schemas';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -72,6 +76,7 @@ const MNT_MWO_EXECUTE_PERMISSION = 'mnt.mwo.execute';
 const MNT_MWO_CANCEL_PERMISSION = 'mnt.mwo.cancel';
 const MNT_LOTO_APPLY_PERMISSION = 'mnt.loto.apply';
 const MNT_LOTO_CLEAR_PERMISSION = 'mnt.loto.clear';
+const MNT_PM_CREATE_PERMISSION = 'mnt.pm.create';
 
 // ── Closed vocabularies (migration 201 CHECK constraints) ────────────────────
 export type MwoState =
@@ -188,6 +193,7 @@ export type PmScheduleRow = {
   scheduleType: 'preventive' | 'calibration' | 'sanitation' | 'inspection';
   intervalBasis: 'calendar_days' | 'usage_hours' | 'usage_cycles';
   intervalValue: number;
+  warningDays: number;
   nextDueDate: string | null;
   lastCompletedAt: string | null;
   active: boolean;
@@ -202,6 +208,7 @@ export type MwoPermissions = {
   canCancel: boolean;
   canLotoApply: boolean;
   canLotoClear: boolean;
+  canManagePm: boolean;
 };
 
 // ── zod input schemas ─────────────────────────────────────────────────────────
@@ -593,7 +600,7 @@ async function allocateMwoNumber(ctx: MaintenanceContext): Promise<string> {
 export async function getMwoPermissions(): Promise<MwoPermissions> {
   try {
     return await withOrgContext(async (ctx: MaintenanceContext): Promise<MwoPermissions> => {
-      const [canRead, canCreate, canExecute, canCancel, canLotoApply, canLotoClear] =
+      const [canRead, canCreate, canExecute, canCancel, canLotoApply, canLotoClear, canManagePm] =
         await Promise.all([
           hasPermission(ctx, MNT_READ_PERMISSION),
           hasPermission(ctx, MNT_MWO_REQUEST_PERMISSION),
@@ -601,8 +608,9 @@ export async function getMwoPermissions(): Promise<MwoPermissions> {
           hasPermission(ctx, MNT_MWO_CANCEL_PERMISSION),
           hasPermission(ctx, MNT_LOTO_APPLY_PERMISSION),
           hasPermission(ctx, MNT_LOTO_CLEAR_PERMISSION),
+          hasPermission(ctx, MNT_PM_CREATE_PERMISSION),
         ]);
-      return { canRead, canCreate, canExecute, canCancel, canLotoApply, canLotoClear };
+      return { canRead, canCreate, canExecute, canCancel, canLotoApply, canLotoClear, canManagePm };
     });
   } catch (err) {
     console.error('[maintenance] getMwoPermissions failed', err);
@@ -613,6 +621,7 @@ export async function getMwoPermissions(): Promise<MwoPermissions> {
       canCancel: false,
       canLotoApply: false,
       canLotoClear: false,
+      canManagePm: false,
     };
   }
 }
@@ -910,12 +919,14 @@ export async function createMwo(input: {
         return { ok: false, reason: 'forbidden' };
       }
 
-      // Validate the equipment link inside the org scope.
-      let equipment = await ctx.client.query<{ id: string; equipment_code: string; name: string }>(
-        `select id::text, equipment_code, name
+      // Validate the equipment link inside the org scope and lock the row so a
+      // concurrent withdrawal cannot slip through before the INSERT.
+      let equipment = await ctx.client.query<{ id: string; equipment_code: string; name: string; active: boolean }>(
+        `select id::text, equipment_code, name, active
            from public.equipment
           where org_id = app.current_org_id()
             and id = $1::uuid
+          for update
           limit 1`,
         [parsed.equipmentId],
       );
@@ -945,17 +956,21 @@ export async function createMwo(input: {
           [lineRow.id, lineRow.site_id, lineRow.code, lineRow.name, ctx.userId],
         );
 
-        equipment = await ctx.client.query<{ id: string; equipment_code: string; name: string }>(
-          `select id::text, equipment_code, name
+        equipment = await ctx.client.query<{ id: string; equipment_code: string; name: string; active: boolean }>(
+          `select id::text, equipment_code, name, active
              from public.equipment
             where org_id = app.current_org_id()
               and (id = $1::uuid or equipment_code = $2)
             order by (id = $1::uuid) desc
+            for update
             limit 1`,
           [lineRow.id, lineRow.code],
         );
         equipmentRow = equipment.rows[0];
         if (!equipmentRow) throw new Error('line equipment projection failed');
+      }
+      if (!equipmentRow.active) {
+        return { ok: false, reason: 'error', message: 'equipment is withdrawn from service' };
       }
 
       const mwoNumber = await allocateMwoNumber(ctx);
@@ -1595,8 +1610,217 @@ export async function transitionMwo(input: {
 }
 
 /**
- * Simple PM schedule list (read-only this slice — the PM cron engine + editor
- * are T-003/T-009 follow-ons). Joins the migration-201 equipment registry for
+ * Create a calendar-day PM schedule with computed next due date.
+ * Gate: mnt.pm.create. Equipment must be active.
+ */
+export async function createPmSchedule(input: {
+  equipmentId: string;
+  scheduleType: PmScheduleRow['scheduleType'];
+  intervalValue: number;
+  intervalBasis?: 'calendar_days';
+  warningDays?: number;
+  firstDueDate?: string;
+}): Promise<ActionResult<PmScheduleRow>> {
+  try {
+    const parsed = createPmScheduleSchema.parse(input);
+    return await withOrgContext(async (ctx: MaintenanceContext): Promise<ActionResult<PmScheduleRow>> => {
+      if (!(await hasPermission(ctx, MNT_PM_CREATE_PERMISSION))) {
+        return { ok: false, reason: 'forbidden' };
+      }
+
+      const equipment = await ctx.client.query<{ id: string; site_id: string | null; active: boolean }>(
+        `select id::text, site_id::text, active
+           from public.equipment
+          where org_id = app.current_org_id()
+            and id = $1::uuid
+          for update
+          limit 1`,
+        [parsed.equipmentId],
+      );
+      const equipmentRow = equipment.rows[0];
+      if (!equipmentRow) return { ok: false, reason: 'not_found', message: 'equipment not found' };
+      if (!equipmentRow.active) {
+        return { ok: false, reason: 'error', message: 'equipment is withdrawn from service' };
+      }
+
+      const inserted = await ctx.client.query<{
+        id: string;
+        schedule_type: PmScheduleRow['scheduleType'];
+        interval_basis: PmScheduleRow['intervalBasis'];
+        interval_value: number;
+        warning_days: number;
+        next_due_date: string | null;
+        last_completed_at: Date | string | null;
+        active: boolean;
+        equipment_code: string;
+        equipment_name: string;
+      }>(
+        `insert into public.maintenance_schedules (
+           org_id, site_id, equipment_id, schedule_type, interval_basis, interval_value,
+           warning_days, next_due_date, active, created_by, updated_by
+         )
+         values (
+           app.current_org_id(), $1::uuid, $2::uuid, $3, $4, $5,
+           $6, coalesce($7::date, pg_catalog.now()::date), true, $8::uuid, $8::uuid
+         )
+         returning id::text,
+                   schedule_type,
+                   interval_basis,
+                   interval_value,
+                   warning_days,
+                   next_due_date::text,
+                   last_completed_at,
+                   active,
+                   (select equipment_code from public.equipment where id = $2::uuid) as equipment_code,
+                   (select name from public.equipment where id = $2::uuid) as equipment_name`,
+        [
+          equipmentRow.site_id,
+          parsed.equipmentId,
+          parsed.scheduleType,
+          parsed.intervalBasis,
+          parsed.intervalValue,
+          parsed.warningDays,
+          parsed.firstDueDate ?? null,
+          ctx.userId,
+        ],
+      );
+      const row = inserted.rows[0];
+      if (!row) throw new Error('pm schedule insert returned no row');
+
+      revalidateLocalized('/maintenance');
+      return {
+        ok: true,
+        data: {
+          id: row.id,
+          scheduleType: row.schedule_type,
+          intervalBasis: row.interval_basis,
+          intervalValue: Number(row.interval_value),
+          warningDays: Number(row.warning_days ?? 7),
+          nextDueDate: row.next_due_date,
+          lastCompletedAt: toIso(row.last_completed_at),
+          active: Boolean(row.active),
+          equipmentCode: row.equipment_code,
+          equipmentName: row.equipment_name,
+        },
+      };
+    });
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      return { ok: false, reason: 'error', message: err.message };
+    }
+    return { ok: false, reason: 'error', message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/**
+ * Update recurrence / next due / active flag on an existing PM schedule.
+ * Gate: mnt.pm.create.
+ */
+export async function updatePmSchedule(input: {
+  scheduleId: string;
+  intervalValue?: number;
+  warningDays?: number;
+  nextDueDate?: string;
+  active?: boolean;
+}): Promise<ActionResult<PmScheduleRow>> {
+  try {
+    const parsed = updatePmScheduleSchema.parse(input);
+    return await withOrgContext(async (ctx: MaintenanceContext): Promise<ActionResult<PmScheduleRow>> => {
+      if (!(await hasPermission(ctx, MNT_PM_CREATE_PERMISSION))) {
+        return { ok: false, reason: 'forbidden' };
+      }
+
+      if (parsed.active === true) {
+        const equipmentCheck = await ctx.client.query<{ active: boolean }>(
+          `select e.active
+             from public.maintenance_schedules s
+             join public.equipment e
+               on e.id = s.equipment_id
+              and e.org_id = s.org_id
+            where s.org_id = app.current_org_id()
+              and s.id = $1::uuid
+            limit 1`,
+          [parsed.scheduleId],
+        );
+        if (!equipmentCheck.rows[0]?.active) {
+          return {
+            ok: false,
+            reason: 'error',
+            message: 'equipment is withdrawn from service',
+          };
+        }
+      }
+
+      const updated = await ctx.client.query<{
+        id: string;
+        schedule_type: PmScheduleRow['scheduleType'];
+        interval_basis: PmScheduleRow['intervalBasis'];
+        interval_value: number;
+        warning_days: number;
+        next_due_date: string | null;
+        last_completed_at: Date | string | null;
+        active: boolean;
+        equipment_code: string | null;
+        equipment_name: string | null;
+      }>(
+        `update public.maintenance_schedules s
+            set interval_value = coalesce($2::int, s.interval_value),
+                warning_days = coalesce($3::int, s.warning_days),
+                next_due_date = coalesce($4::date, s.next_due_date),
+                active = coalesce($5::boolean, s.active),
+                updated_by = $6::uuid,
+                updated_at = pg_catalog.now()
+          where s.org_id = app.current_org_id()
+            and s.id = $1::uuid
+        returning s.id::text,
+                  s.schedule_type,
+                  s.interval_basis,
+                  s.interval_value,
+                  s.warning_days,
+                  s.next_due_date::text,
+                  s.last_completed_at,
+                  s.active,
+                  (select e.equipment_code from public.equipment e where e.id = s.equipment_id) as equipment_code,
+                  (select e.name from public.equipment e where e.id = s.equipment_id) as equipment_name`,
+        [
+          parsed.scheduleId,
+          parsed.intervalValue ?? null,
+          parsed.warningDays ?? null,
+          parsed.nextDueDate ?? null,
+          parsed.active ?? null,
+          ctx.userId,
+        ],
+      );
+      const row = updated.rows[0];
+      if (!row) return { ok: false, reason: 'not_found' };
+
+      revalidateLocalized('/maintenance');
+      return {
+        ok: true,
+        data: {
+          id: row.id,
+          scheduleType: row.schedule_type,
+          intervalBasis: row.interval_basis,
+          intervalValue: Number(row.interval_value),
+          warningDays: Number(row.warning_days ?? 7),
+          nextDueDate: row.next_due_date,
+          lastCompletedAt: toIso(row.last_completed_at),
+          active: Boolean(row.active),
+          equipmentCode: row.equipment_code,
+          equipmentName: row.equipment_name,
+        },
+      };
+    });
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      return { ok: false, reason: 'error', message: err.message };
+    }
+    return { ok: false, reason: 'error', message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/**
+ * PM schedule list. Joins the migration-201 equipment registry for
  * code/name. Read gate: mnt.asset.read.
  */
 export async function listPmSchedules(): Promise<ActionResult<PmScheduleRow[]>> {
@@ -1610,6 +1834,7 @@ export async function listPmSchedules(): Promise<ActionResult<PmScheduleRow[]>> 
         schedule_type: PmScheduleRow['scheduleType'];
         interval_basis: PmScheduleRow['intervalBasis'];
         interval_value: number;
+        warning_days: number;
         next_due_date: string | null;
         last_completed_at: Date | string | null;
         active: boolean;
@@ -1620,6 +1845,7 @@ export async function listPmSchedules(): Promise<ActionResult<PmScheduleRow[]>> 
                 s.schedule_type,
                 s.interval_basis,
                 s.interval_value,
+                s.warning_days,
                 s.next_due_date::text,
                 s.last_completed_at,
                 s.active,
@@ -1639,6 +1865,7 @@ export async function listPmSchedules(): Promise<ActionResult<PmScheduleRow[]>> 
           scheduleType: r.schedule_type,
           intervalBasis: r.interval_basis,
           intervalValue: Number(r.interval_value),
+          warningDays: Number(r.warning_days ?? 7),
           nextDueDate: r.next_due_date,
           lastCompletedAt: toIso(r.last_completed_at),
           active: Boolean(r.active),

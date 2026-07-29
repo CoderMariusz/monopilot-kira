@@ -1002,12 +1002,12 @@
     "export_only_notice": "D365 este doar pentru export pentru datele MES.",
     "sync": {
       "title": "Configurare sincronizare D365",
-      "subtitle": "Program de extragere, coadă de trimitere, politică de reîncercare și acces la coada de mesaje moarte.",
+      "subtitle": "Coadă de export ieșire, politică de reîncercare și acces la coada de mesaje moarte.",
       "save": "Salvează configurarea sincronizării",
       "saved": "Configurarea sincronizării D365 a fost salvată",
       "forbiddenTitle": "403 — Acces de proprietar necesar",
       "sections": {
-        "polling": "Extragere și sincronizare",
+        "polling": "Coadă export",
         "retry": "Politică de reîncercare",
         "dlq": "Coadă de mesaje moarte"
       },
@@ -1414,7 +1414,11 @@
         "error": "Conexiunea D365 nu poate fi încărcată.",
         "missingPrerequisites": "Lipsesc cerințele preliminare ale conexiunii D365. Configurează punctul final, chiriașul Azure AD, ID-ul de client și referința secretului înainte de salvare sau activarea sincronizării.",
         "preflightIncomplete": "D365 nu poate fi activat până când nu sunt configurate toate cele cinci constante de referință.",
-        "preflightMissing": "Constante D365 lipsă:"
+        "preflightMissing": "Constante D365 lipsă:",
+        "notices": {
+          "exportSchedule": "Dimensiunea lotului coadei de export, politica de reîncercare și programarea workerului sunt configurate pe pagina de configurare sync D365. Acest ecran nu stochează cron; extragerea inbound din D365 nu este suportată (R15).",
+          "syncConfigLink": "Deschide configurarea sync D365"
+        }
       }
     }
   },
@@ -1621,7 +1625,7 @@
     },
     "activity": {
       "title": "Activitate recentă de sincronizare",
-      "subtitle": "Evenimente din coada D365 (shipment.confirmed, wo.confirmation_pushed, cost.posted) + pull (items.imported, bom.imported).",
+      "subtitle": "Evenimente din coada D365 (shipment.confirmed, wo.confirmation_pushed, cost.posted). Doar export Monopilot → D365 — extragerea/importul nu este suportat.",
       "columns": {
         "when": "Când",
         "integration": "Integrare",

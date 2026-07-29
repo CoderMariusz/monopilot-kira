@@ -6,8 +6,9 @@ import { Badge } from '@monopilot/ui/Badge';
 import { Card } from '@monopilot/ui/Card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
-import type { PmScheduleRow } from '../_actions/mwo-actions';
+import type { EquipmentOption, PmScheduleRow } from '../_actions/mwo-actions';
 import type { GenerateMwoFromPmScheduleAction, MwoListLabels } from './mwo-list.client';
+import { PmScheduleFormModal } from './pm-schedule-form-modal';
 import { fmtDate, fmtDateTime } from './mwo-list.client';
 
 function isScheduleDue(nextDueDate: string | null): boolean {
@@ -16,22 +17,48 @@ function isScheduleDue(nextDueDate: string | null): boolean {
   return nextDueDate <= today;
 }
 
-/** PM schedule list with due-schedule → MWO generation (pm-schedules.jsx list + bridge). */
+type CreatePmScheduleAction = (input: {
+  equipmentId: string;
+  scheduleType: PmScheduleRow['scheduleType'];
+  intervalValue: number;
+  warningDays?: number;
+  firstDueDate?: string;
+}) => Promise<{ ok: boolean; reason?: string; message?: string }>;
+
+type UpdatePmScheduleAction = (input: {
+  scheduleId: string;
+  intervalValue?: number;
+  warningDays?: number;
+  nextDueDate?: string;
+  active?: boolean;
+}) => Promise<{ ok: boolean; reason?: string; message?: string }>;
+
+/** PM schedule list with recurrence editor and due-schedule → MWO generation. */
 export function PmScheduleList({
   pmSchedules,
+  equipment,
   labels,
+  canManage,
   canGenerate,
+  createPmScheduleAction,
+  updatePmScheduleAction,
   generateMwoFromPmScheduleAction,
-  onGenerated,
+  onChanged,
 }: {
   pmSchedules: PmScheduleRow[];
+  equipment: EquipmentOption[];
   labels: MwoListLabels;
+  canManage: boolean;
   canGenerate: boolean;
+  createPmScheduleAction: CreatePmScheduleAction;
+  updatePmScheduleAction: UpdatePmScheduleAction;
   generateMwoFromPmScheduleAction: GenerateMwoFromPmScheduleAction;
-  onGenerated: () => void;
+  onChanged: () => void;
 }) {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [modalMode, setModalMode] = useState<'create' | 'edit' | null>(null);
+  const [editingSchedule, setEditingSchedule] = useState<PmScheduleRow | null>(null);
 
   const handleGenerate = async (scheduleId: string) => {
     setBusyId(scheduleId);
@@ -42,19 +69,31 @@ export function PmScheduleList({
       setError(result.message ?? labels.pm.generateFailed);
       return;
     }
-    onGenerated();
+    onChanged();
+  };
+
+  const closeModal = () => {
+    setModalMode(null);
+    setEditingSchedule(null);
   };
 
   return (
     <Card data-testid="pm-schedule-card" className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      {/* ponytail: surface existing subtitle so list isn't mistaken for a full PM editor */}
-      <p
-        data-testid="pm-scope-notice"
-        role="note"
-        className="border-b border-slate-100 bg-slate-50 px-4 py-2 text-xs text-slate-600"
-      >
-        {labels.pm.subtitle}
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-slate-50 px-4 py-2">
+        <p data-testid="pm-scope-notice" role="note" className="text-xs text-slate-600">
+          {labels.pm.subtitle}
+        </p>
+        {canManage ? (
+          <button
+            type="button"
+            data-testid="pm-schedule-create-open"
+            onClick={() => setModalMode('create')}
+            className="rounded-md bg-slate-900 px-2.5 py-1 text-xs font-semibold text-white hover:bg-slate-800"
+          >
+            {labels.pm.createSchedule}
+          </button>
+        ) : null}
+      </div>
       {error ? (
         <p role="alert" className="border-b border-red-100 bg-red-50 px-4 py-2 text-sm text-red-700">
           {error}
@@ -74,7 +113,7 @@ export function PmScheduleList({
               <TableHead scope="col">{labels.pm.col.nextDue}</TableHead>
               <TableHead scope="col">{labels.pm.col.lastCompleted}</TableHead>
               <TableHead scope="col">{labels.pm.col.active}</TableHead>
-              {canGenerate ? <TableHead scope="col">{labels.pm.colActions}</TableHead> : null}
+              <TableHead scope="col">{labels.pm.colActions}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -105,29 +144,71 @@ export function PmScheduleList({
                       {s.active ? labels.pm.activeYes : labels.pm.activeNo}
                     </Badge>
                   </TableCell>
-                  {canGenerate ? (
-                    <TableCell>
-                      {due ? (
-                        <button
-                          type="button"
-                          data-testid={`pm-generate-${s.id}`}
-                          disabled={busyId === s.id}
-                          onClick={() => void handleGenerate(s.id)}
-                          className="rounded-md bg-slate-900 px-2.5 py-1 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
-                        >
-                          {busyId === s.id ? labels.pm.generating : labels.pm.generateMwo}
-                        </button>
-                      ) : (
-                        <span className="text-xs text-slate-400">—</span>
-                      )}
-                    </TableCell>
-                  ) : null}
+                  <TableCell className="space-x-2">
+                    {canManage ? (
+                      <button
+                        type="button"
+                        data-testid={`pm-edit-${s.id}`}
+                        onClick={() => {
+                          setEditingSchedule(s);
+                          setModalMode('edit');
+                        }}
+                        className="rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                      >
+                        {labels.pm.editSchedule}
+                      </button>
+                    ) : null}
+                    {canGenerate && due ? (
+                      <button
+                        type="button"
+                        data-testid={`pm-generate-${s.id}`}
+                        disabled={busyId === s.id}
+                        onClick={() => void handleGenerate(s.id)}
+                        className="rounded-md bg-slate-900 px-2.5 py-1 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
+                      >
+                        {busyId === s.id ? labels.pm.generating : labels.pm.generateMwo}
+                      </button>
+                    ) : (
+                      !canManage ? <span className="text-xs text-slate-400">—</span> : null
+                    )}
+                  </TableCell>
                 </TableRow>
               );
             })}
           </TableBody>
         </Table>
       )}
+
+      {modalMode === 'create' ? (
+        <PmScheduleFormModal
+          mode="create"
+          equipment={equipment}
+          labels={labels.pm.form}
+          createPmScheduleAction={createPmScheduleAction}
+          updatePmScheduleAction={updatePmScheduleAction}
+          onClose={closeModal}
+          onSaved={() => {
+            closeModal();
+            onChanged();
+          }}
+        />
+      ) : null}
+
+      {modalMode === 'edit' && editingSchedule ? (
+        <PmScheduleFormModal
+          mode="edit"
+          schedule={editingSchedule}
+          equipment={equipment}
+          labels={labels.pm.form}
+          createPmScheduleAction={createPmScheduleAction}
+          updatePmScheduleAction={updatePmScheduleAction}
+          onClose={closeModal}
+          onSaved={() => {
+            closeModal();
+            onChanged();
+          }}
+        />
+      ) : null}
     </Card>
   );
 }

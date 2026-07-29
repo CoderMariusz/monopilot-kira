@@ -59,6 +59,7 @@ export type D365SyncLabels = {
     enabled: string;
     disabled: string;
     legacyNotice: string;
+    exportOnlyNotice: string;
     invalidCron: string;
     nextRunUnavailable: string;
     nextRun: string;
@@ -70,88 +71,13 @@ export type D365SyncLabels = {
 
 const prototypeSource = 'prototypes/design/Monopilot Design System/settings/admin-screens.jsx:27-107';
 
-const cronField = z.string().refine(isValidFiveFieldCron, {
-  message: 'Invalid cron expression. Use a valid cron-parser style 5-field expression.',
-});
-
-const syncConfigSchema = z.object({
-  pull_cron: cronField,
+/** Visible export-queue fields only — legacy `pull_cron` is preserved on save but not validated here. */
+const visibleSyncConfigSchema = z.object({
   batch_size: z.number().int().min(1).max(1000),
   max_attempts: z.number().int().min(1).max(20),
   retry_backoff_minutes: z.number().int().min(1).max(1440),
   push_queue_enabled: z.boolean(),
 });
-
-function isValidFiveFieldCron(value: string) {
-  const fields = value.trim().split(/\s+/);
-  if (fields.length !== 5) return false;
-  const ranges: Array<[number, number]> = [
-    [0, 59],
-    [0, 23],
-    [1, 31],
-    [1, 12],
-    [0, 7],
-  ];
-  return fields.every((field, index) => isCronField(field, ranges[index]![0], ranges[index]![1]));
-}
-
-function isCronField(field: string, min: number, max: number) {
-  if (!field) return false;
-  return field.split(',').every((part) => isCronPart(part, min, max));
-}
-
-function isCronPart(part: string, min: number, max: number) {
-  const [base, step, extra] = part.split('/');
-  if (extra !== undefined) return false;
-  if (step !== undefined && !/^[1-9]\d*$/.test(step)) return false;
-  if (base === '*') return true;
-
-  const range = base.split('-');
-  if (range.length === 1) return isCronNumber(range[0]!, min, max);
-  if (range.length === 2) {
-    const [start, end] = range;
-    if (!isCronNumber(start!, min, max) || !isCronNumber(end!, min, max)) return false;
-    return Number(start) <= Number(end);
-  }
-  return false;
-}
-
-function isCronNumber(value: string, min: number, max: number) {
-  if (!/^\d+$/.test(value)) return false;
-  const parsed = Number(value);
-  return parsed >= min && parsed <= max;
-}
-
-function nextRunPreview(cron: string, locale: string, labels: D365SyncLabels) {
-  if (!isValidFiveFieldCron(cron)) return labels.status.nextRunUnavailable;
-
-  const [minuteField, hourField] = cron.trim().split(/\s+/);
-  const now = new Date();
-  const next = new Date(now);
-  const minute = firstCronValue(minuteField!, 0, 59) ?? 0;
-  const hour = hourField === '*' || hourField?.startsWith('*/') ? now.getUTCHours() : firstCronValue(hourField!, 0, 23);
-
-  next.setUTCSeconds(0, 0);
-  next.setUTCMinutes(minute);
-  if (hour !== null && hour !== undefined) next.setUTCHours(hour);
-  if (next <= now) {
-    if (hourField === '*' || hourField?.startsWith('*/')) next.setUTCHours(next.getUTCHours() + 1);
-    else next.setUTCDate(next.getUTCDate() + 1);
-  }
-
-  return labels.status.nextRun.replace('{date}', new Intl.DateTimeFormat(locale || 'en', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-    timeZone: 'UTC',
-  }).format(next));
-}
-
-function firstCronValue(field: string, min: number, max: number) {
-  if (field === '*' || field.startsWith('*/')) return min;
-  const candidate = field.split(',')[0]?.split('-')[0];
-  if (!candidate || !isCronNumber(candidate, min, max)) return null;
-  return Number(candidate);
-}
 
 function formatAppliedAt(value: string | null, locale: string, labels: D365SyncLabels) {
   if (!value) return labels.status.notAppliedYet;
@@ -217,7 +143,6 @@ export function D365SyncConfigForm({
   locale: string;
   updateD365SyncConfig?: (input: UpdateD365SyncConfigInput) => Promise<{ ok: true } | { ok: false; message: string }>;
 }) {
-  const [pullCron, setPullCron] = React.useState(config.pull_cron);
   const [batchSize, setBatchSize] = React.useState(String(config.batch_size));
   const [maxAttempts, setMaxAttempts] = React.useState(String(config.max_attempts));
   const [retryBackoff, setRetryBackoff] = React.useState(String(config.retry_backoff_minutes));
@@ -226,28 +151,28 @@ export function D365SyncConfigForm({
   const [actionError, setActionError] = React.useState<string | null>(null);
   const [pending, setPending] = React.useState(false);
 
-  const payload = {
-    pull_cron: pullCron,
+  const visiblePayload = {
     batch_size: Number(batchSize),
     max_attempts: Number(maxAttempts),
     retry_backoff_minutes: Number(retryBackoff),
     push_queue_enabled: pushQueueEnabled,
   };
-  const parsed = syncConfigSchema.safeParse(payload);
-  const cronError = pullCron.trim() && !cronField.safeParse(pullCron).success
-    ? labels.status.invalidCron
-    : null;
+  const parsed = visibleSyncConfigSchema.safeParse(visiblePayload);
   const canSubmit = parsed.success && !pending;
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setStatus(null);
     setActionError(null);
-    const next = syncConfigSchema.safeParse(payload);
+    const next = visibleSyncConfigSchema.safeParse(visiblePayload);
     if (!next.success) return;
+    const savePayload: UpdateD365SyncConfigInput = {
+      ...next.data,
+      pull_cron: config.pull_cron,
+    };
     setPending(true);
     try {
-      const result = await updateD365SyncConfig?.(next.data as UpdateD365SyncConfigInput);
+      const result = await updateD365SyncConfig?.(savePayload);
       if (!result || result.ok) setStatus(labels.saved);
       else if (result.ok === false) setActionError(result.message);
     } finally {
@@ -284,30 +209,12 @@ export function D365SyncConfigForm({
         {labels.status.legacyNotice}
       </div>
 
+      <div className="alert alert-blue" role="note" data-testid="d365-sync-export-only-notice">
+        {labels.status.exportOnlyNotice}
+      </div>
+
       <form id="d365-sync-config-form" onSubmit={onSubmit} className="space-y-4">
         <Section title={labels.sections.polling}>
-          <Field
-            field="pull_cron"
-            label={labels.fields.pullCron}
-            hint={labels.hints.pullCron}
-            error={cronError}
-          >
-            <label className="sr-only" htmlFor="d365-pull-cron">
-              {labels.fields.pullCron}
-            </label>
-            <Input
-              id="d365-pull-cron"
-              aria-label={labels.fields.pullCron}
-              className="form-input font-mono"
-              value={pullCron}
-              onChange={(event) => setPullCron(event.currentTarget.value)}
-              onBlur={() => setPullCron((value) => value.trim().replace(/\s+/g, ' '))}
-              style={{ width: 220 }}
-            />
-            <p className="mt-2 text-xs text-muted-foreground" aria-live="polite">
-              {nextRunPreview(pullCron, locale, labels)}
-            </p>
-          </Field>
           <Field field="batch_size" label={labels.fields.batchSize} hint={labels.hints.batchSize}>
             <Input
               id="d365-batch-size"

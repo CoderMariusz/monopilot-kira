@@ -10,7 +10,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createMwo, generateMwoFromPmSchedule, getMwoById, getMwoOverviewStats, listEquipmentForMwo, listMwos, listPmSchedules, transitionMwo, updateMwo, verifyMwoLotoLockout, verifyMwoLotoRelease } from '../mwo-actions';
+import { createMwo, createPmSchedule, generateMwoFromPmSchedule, getMwoById, getMwoOverviewStats, listEquipmentForMwo, listMwos, listPmSchedules, transitionMwo, updateMwo, updatePmSchedule, verifyMwoLotoLockout, verifyMwoLotoRelease } from '../mwo-actions';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
@@ -37,6 +37,7 @@ let requiresLoto = false;
 let lotoLockoutUserId: string | null = null;
 let lotoReleaseUserId: string | null = null;
 let duplicateOpenMwo = false;
+let scheduleEquipmentActive = true;
 let overviewPlanned = 0;
 let client: QueryClient;
 
@@ -220,10 +221,20 @@ function makeClient(): QueryClient {
         };
       }
 
-      // createMwo: equipment org-scope validation.
+      // createMwo / createPmSchedule: equipment org-scope validation.
       if (normalized.includes('from public.equipment') && normalized.includes('id = $1::uuid')) {
+        if (normalized.includes('site_id::text, active')) {
+          return {
+            rows: equipmentExists
+              ? [{ id: EQUIPMENT_ID, site_id: SITE_ID, active: true }]
+              : [],
+            rowCount: equipmentExists ? 1 : 0,
+          };
+        }
         return {
-          rows: equipmentExists ? [{ id: EQUIPMENT_ID, equipment_code: 'EQ-01', name: 'Mixer 1' }] : [],
+          rows: equipmentExists
+            ? [{ id: EQUIPMENT_ID, equipment_code: 'EQ-01', name: 'Mixer 1', active: true }]
+            : [],
           rowCount: equipmentExists ? 1 : 0,
         };
       }
@@ -353,6 +364,39 @@ function makeClient(): QueryClient {
         return { rows: [{ released_at: new Date('2026-06-11T10:00:00Z') }], rowCount: 1 };
       }
 
+      // updatePmSchedule: withdrawn-equipment guard when re-activating.
+      if (
+        normalized.includes('from public.maintenance_schedules s') &&
+        normalized.includes('join public.equipment e') &&
+        normalized.includes('select e.active')
+      ) {
+        return {
+          rows: scheduleEquipmentActive ? [{ active: true }] : [{ active: false }],
+          rowCount: 1,
+        };
+      }
+
+      // updatePmSchedule: field update.
+      if (normalized.startsWith('update public.maintenance_schedules s') && normalized.includes('interval_value = coalesce')) {
+        return {
+          rows: [
+            {
+              id: SCHEDULE_ID,
+              schedule_type: 'preventive',
+              interval_basis: 'calendar_days',
+              interval_value: 30,
+              warning_days: 7,
+              next_due_date: '2026-07-01',
+              last_completed_at: null,
+              active: true,
+              equipment_code: 'EQ-01',
+              equipment_name: 'Mixer line equipment',
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+
       // transitionMwo: advance PM schedule on completion.
       if (normalized.startsWith('update public.maintenance_schedules s')) {
         return { rows: [{ id: String(params?.[0]) }], rowCount: 1 };
@@ -416,6 +460,7 @@ function makeClient(): QueryClient {
               schedule_type: 'preventive',
               interval_basis: 'calendar_days',
               interval_value: 30,
+              warning_days: 7,
               next_due_date: '2026-07-01',
               last_completed_at: null,
               active: true,
@@ -459,6 +504,26 @@ function makeClient(): QueryClient {
           : { rows: [], rowCount: 0 };
       }
 
+      if (normalized.startsWith('insert into public.maintenance_schedules')) {
+        return {
+          rows: [
+            {
+              id: SCHEDULE_ID,
+              schedule_type: 'preventive',
+              interval_basis: 'calendar_days',
+              interval_value: 30,
+              warning_days: 7,
+              next_due_date: '2026-08-01',
+              last_completed_at: null,
+              active: true,
+              equipment_code: 'EQ-01',
+              equipment_name: 'Mixer 1',
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+
       return { rows: [], rowCount: 0 };
     }),
   };
@@ -476,6 +541,7 @@ beforeEach(() => {
     'mnt.mwo.cancel',
     'mnt.loto.apply',
     'mnt.loto.clear',
+    'mnt.pm.create',
   ]);
   equipmentExists = true;
   productionLineExists = false;
@@ -486,6 +552,7 @@ beforeEach(() => {
   lotoLockoutUserId = null;
   lotoReleaseUserId = null;
   duplicateOpenMwo = false;
+  scheduleEquipmentActive = true;
   overviewPlanned = 0;
   client = makeClient();
   revalidateMock.mockClear();
@@ -1082,6 +1149,7 @@ describe('listPmSchedules', () => {
       scheduleType: 'preventive',
       intervalBasis: 'calendar_days',
       intervalValue: 30,
+      warningDays: 7,
       nextDueDate: '2026-07-01',
       active: true,
       equipmentCode: 'EQ-01',
@@ -1185,6 +1253,53 @@ describe('generateMwoFromPmSchedule', () => {
     const result = await generateMwoFromPmSchedule({ scheduleId: SCHEDULE_ID });
 
     expect(result).toEqual({ ok: false, reason: 'forbidden' });
+  });
+});
+
+describe('createPmSchedule', () => {
+  it('inserts a calendar-day schedule with pg_catalog.now()::date default due date', async () => {
+    const result = await createPmSchedule({
+      equipmentId: EQUIPMENT_ID,
+      scheduleType: 'preventive',
+      intervalValue: 30,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.reason);
+    expect(result.data.id).toBe(SCHEDULE_ID);
+    const insert = calls().find((c) => c.sql.startsWith('insert into public.maintenance_schedules'));
+    expect(insert?.sql).toContain('pg_catalog.now()::date');
+    expect(insert?.params?.[1]).toBe(EQUIPMENT_ID);
+    expect(revalidateMock).toHaveBeenCalledWith('/maintenance');
+  });
+
+  it('forbids callers without mnt.pm.create', async () => {
+    grantedPermissions.delete('mnt.pm.create');
+
+    const result = await createPmSchedule({
+      equipmentId: EQUIPMENT_ID,
+      scheduleType: 'preventive',
+      intervalValue: 30,
+    });
+
+    expect(result).toEqual({ ok: false, reason: 'forbidden' });
+  });
+});
+
+describe('updatePmSchedule', () => {
+  it('refuses re-activating a schedule for withdrawn equipment', async () => {
+    scheduleEquipmentActive = false;
+
+    const result = await updatePmSchedule({
+      scheduleId: SCHEDULE_ID,
+      active: true,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'error',
+      message: 'equipment is withdrawn from service',
+    });
   });
 });
 

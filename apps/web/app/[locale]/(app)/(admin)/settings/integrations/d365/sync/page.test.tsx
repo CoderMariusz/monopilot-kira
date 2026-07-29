@@ -40,7 +40,7 @@ vi.mock('next-intl/server', () => ({
       'settings.d365.sync.save': 'Save sync config',
       'settings.d365.sync.saved': 'D365 sync config saved',
       'settings.d365.sync.forbiddenTitle': '403 — Owner access required',
-      'settings.d365.sync.sections.polling': 'Polling & sync translated',
+      'settings.d365.sync.sections.polling': 'Export queue translated',
       'settings.d365.sync.sections.retry': 'Retry policy translated',
       'settings.d365.sync.sections.dlq': 'Dead-letter queue translated',
       'settings.d365.sync.fields.pullCron': 'Pull schedule cron translated',
@@ -52,6 +52,7 @@ vi.mock('next-intl/server', () => ({
       'settings.d365.sync.status.lastApplied': 'Last applied',
       'settings.d365.sync.status.appliedBy': 'Applied by {user}',
       'settings.d365.sync.status.legacyNotice': 'LEGACY-D365. Sync is retained for transition operations; no credentials are stored on this SET-082 screen.',
+      'settings.d365.sync.status.exportOnlyNotice': 'R15 export-only: inbound pull is not supported.',
       'settings.d365.sync.status.nextRun': 'Next run {date} UTC',
       'settings.d365.sync.status.nextRunUnavailable': 'Next run unavailable until the cron is valid.',
       'settings.d365.sync.status.invalidCron': 'Invalid cron expression. Use a valid cron-parser style 5-field expression.',
@@ -264,7 +265,7 @@ describe('T-111 D365 sync config behavior', () => {
     cleanup();
   });
 
-  it('renders owner form with header applied metadata, push queue, retry policy, cron preview, and DLQ link', async () => {
+  it('renders owner form with export-only notice, push queue, retry policy, and DLQ link (no inbound pull cron field)', async () => {
     await renderD365SyncPage();
 
     const root = syncScreen();
@@ -277,12 +278,12 @@ describe('T-111 D365 sync config behavior', () => {
     expect(appliedStrip).toHaveTextContent(/2026-05-20|May 20, 2026/i);
     expect(appliedStrip).toHaveTextContent(/Marta Owner/i);
 
-    expect(screen.getByRole('textbox', { name: /pull schedule.*cron/i })).toHaveValue('15 */2 * * *');
+    expect(screen.getByTestId('d365-sync-export-only-notice')).toHaveTextContent(/export-only|inbound pull/i);
+    expect(screen.queryByRole('textbox', { name: /pull schedule.*cron/i })).toBeNull();
     expect(screen.getByRole('spinbutton', { name: /batch size/i })).toHaveValue(25);
     expect(screen.getByRole('spinbutton', { name: /max attempts/i })).toHaveValue(2);
     expect(screen.getByRole('spinbutton', { name: /retry backoff/i })).toHaveValue(10);
     expect(screen.getByRole('switch', { name: /push queue/i })).toHaveAttribute('aria-checked', 'true');
-    expect(screen.getByText(/next run/i)).toHaveTextContent(/next run/i);
     expect(screen.getByRole('link', { name: /dead-letter queue/i })).toHaveAttribute('href', syncConfig.dlq_href);
   });
 
@@ -290,8 +291,8 @@ describe('T-111 D365 sync config behavior', () => {
     await renderD365SyncPage();
 
     const root = syncScreen();
-    expect(within(root).getByText(/polling & sync translated/i)).toBeInTheDocument();
-    expect(within(root).getByRole('textbox', { name: /pull schedule cron translated/i })).toHaveValue('15 */2 * * *');
+    expect(within(root).getByText(/export queue translated/i)).toBeInTheDocument();
+    expect(within(root).queryByRole('textbox', { name: /pull schedule cron translated/i })).toBeNull();
     expect(within(root).getByRole('spinbutton', { name: /batch size translated/i })).toHaveValue(25);
     expect(within(root).getByRole('switch', { name: /push queue translated/i })).toHaveAttribute('aria-checked', 'true');
     expect(root).not.toHaveTextContent('Standard 5-field cron. Example: \'0 * * * *\' = hourly.');
@@ -335,30 +336,18 @@ describe('T-111 D365 sync config behavior', () => {
     expect(root).not.toHaveTextContent('Running endpoint, Azure AD, and polling pre-flight checks.');
   });
 
-  it("surfaces inline Zod-style cron validation and disables Submit for invalid cron '*/x * * * *'", async () => {
-    const user = userEvent.setup();
+  it('does not expose an inbound pull cron editor on the sync config form', async () => {
     await renderD365SyncPage();
 
-    const cron = screen.getByRole('textbox', { name: /pull schedule.*cron/i });
-    const submit = screen.getByRole('button', { name: /save sync config|submit/i });
-    expect(submit).toBeEnabled();
-
-    await user.clear(cron);
-    await user.type(cron, '*/x * * * *');
-    await user.tab();
-
-    await waitFor(() => expect(submit).toBeDisabled());
-    const field = cron.closest('[data-field="pull_cron"]') ?? cron.parentElement ?? document.body;
-    expect(within(field as HTMLElement).getByText(/invalid cron|valid cron expression|cron-parser/i)).toBeVisible();
+    expect(screen.queryByRole('textbox', { name: /pull schedule.*cron/i })).toBeNull();
+    expect(screen.queryByText(/pull schedule cron translated/i)).toBeNull();
   });
 
-  it("calls T-030 updateD365SyncConfig with valid cron '0 * * * *', batch_size=100, max_attempts=3, then renders a success toast", async () => {
+  it('calls T-030 updateD365SyncConfig with preserved pull_cron, batch_size=100, max_attempts=3, then renders a success toast', async () => {
     const user = userEvent.setup();
     const updateD365SyncConfig = vi.fn(async () => ({ ok: true as const }));
     await renderD365SyncPage({ updateD365SyncConfig });
 
-    await user.clear(screen.getByRole('textbox', { name: /pull schedule.*cron/i }));
-    await user.type(screen.getByRole('textbox', { name: /pull schedule.*cron/i }), '0 * * * *');
     await user.clear(screen.getByRole('spinbutton', { name: /batch size/i }));
     await user.type(screen.getByRole('spinbutton', { name: /batch size/i }), '100');
     await user.clear(screen.getByRole('spinbutton', { name: /max attempts/i }));
@@ -368,13 +357,38 @@ describe('T-111 D365 sync config behavior', () => {
     await waitFor(() => {
       expect(updateD365SyncConfig).toHaveBeenCalledWith(
         expect.objectContaining({
-          pull_cron: '0 * * * *',
+          pull_cron: '15 */2 * * *',
           batch_size: 100,
           max_attempts: 3,
         }),
       );
     });
     expect(screen.getByRole('status')).toHaveTextContent(/d365 sync config saved|saved/i);
+  });
+
+  it('allows saving export settings when legacy pull_cron is invalid (hidden field is not validated)', async () => {
+    const user = userEvent.setup();
+    const updateD365SyncConfig = vi.fn(async () => ({ ok: true as const }));
+    await renderD365SyncPage({
+      config: { ...syncConfig, pull_cron: '*/x * * * *' },
+      updateD365SyncConfig,
+    });
+
+    const save = screen.getByRole('button', { name: /save sync config|submit/i });
+    expect(save).toBeEnabled();
+
+    await user.clear(screen.getByRole('spinbutton', { name: /batch size/i }));
+    await user.type(screen.getByRole('spinbutton', { name: /batch size/i }), '100');
+    await user.click(save);
+
+    await waitFor(() => {
+      expect(updateD365SyncConfig).toHaveBeenCalledWith(
+        expect.objectContaining({
+          pull_cron: '*/x * * * *',
+          batch_size: 100,
+        }),
+      );
+    });
   });
 
   it('shows pending submit state while the owner save mutation is in flight', async () => {

@@ -160,9 +160,10 @@ export type MwoListLabels = {
   };
   pm: {
     title: string;
-    /** Honest scope note — list + generate-from-due only; no schedule editor yet. */
     subtitle: string;
     empty: string;
+    createSchedule: string;
+    editSchedule: string;
     col: {
       equipment: string;
       type: string;
@@ -179,6 +180,26 @@ export type MwoListLabels = {
     generating: string;
     generateFailed: string;
     colActions: string;
+    form: {
+      createTitle: string;
+      editTitle: string;
+      equipment: string;
+      equipmentPlaceholder: string;
+      scheduleType: string;
+      intervalValue: string;
+      intervalUnit: string;
+      warningDays: string;
+      firstDueDate: string;
+      nextDueDate: string;
+      active: string;
+      submit: string;
+      submitting: string;
+      cancel: string;
+      errorRequired: string;
+      errorFailed: string;
+      errorForbidden: string;
+      type: Record<PmScheduleRow['scheduleType'], string>;
+    };
   };
 };
 
@@ -186,6 +207,7 @@ export type MwoActionPermissions = {
   canCreate: boolean;
   canExecute: boolean;
   canCancel: boolean;
+  canManagePm: boolean;
 };
 
 type MwoActionFailureReason =
@@ -211,6 +233,26 @@ export type CreateMwoAction = (input: {
 }) => Promise<CreateResult>;
 
 export type GenerateMwoFromPmScheduleAction = (input: { scheduleId: string }) => Promise<CreateResult>;
+
+type PmScheduleMutationResult =
+  | { ok: true; data: PmScheduleRow }
+  | { ok: false; reason?: string; message?: string };
+
+export type CreatePmScheduleAction = (input: {
+  equipmentId: string;
+  scheduleType: PmScheduleRow['scheduleType'];
+  intervalValue: number;
+  warningDays?: number;
+  firstDueDate?: string;
+}) => Promise<PmScheduleMutationResult>;
+
+export type UpdatePmScheduleAction = (input: {
+  scheduleId: string;
+  intervalValue?: number;
+  warningDays?: number;
+  nextDueDate?: string;
+  active?: boolean;
+}) => Promise<PmScheduleMutationResult>;
 
 export type TransitionMwoAction = (input: {
   mwoId: string;
@@ -245,6 +287,8 @@ export function MwoListScreen({
   permissions,
   createMwoAction,
   generateMwoFromPmScheduleAction,
+  createPmScheduleAction,
+  updatePmScheduleAction,
   transitionMwoAction,
 }: {
   rows: MwoListRow[];
@@ -256,6 +300,8 @@ export function MwoListScreen({
   permissions: MwoActionPermissions;
   createMwoAction: CreateMwoAction;
   generateMwoFromPmScheduleAction: GenerateMwoFromPmScheduleAction;
+  createPmScheduleAction: CreatePmScheduleAction;
+  updatePmScheduleAction: UpdatePmScheduleAction;
   transitionMwoAction: TransitionMwoAction;
 }) {
   const router = useRouter();
@@ -379,10 +425,14 @@ export function MwoListScreen({
       {view === 'pm' ? (
         <PmScheduleList
           pmSchedules={pmSchedules}
+          equipment={equipment}
           labels={labels}
+          canManage={permissions.canManagePm}
           canGenerate={permissions.canCreate}
+          createPmScheduleAction={createPmScheduleAction}
+          updatePmScheduleAction={updatePmScheduleAction}
           generateMwoFromPmScheduleAction={generateMwoFromPmScheduleAction}
-          onGenerated={() => router.refresh()}
+          onChanged={() => router.refresh()}
         />
       ) : (
         <>

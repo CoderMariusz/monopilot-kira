@@ -105,7 +105,7 @@ async function getIntegrationLabels(locale: string): Promise<IntegrationLabels> 
     activitySubtitle: translate(
       t,
       'activity.subtitle',
-      'D365 outbox events (shipment.confirmed, wo.confirmation_pushed, cost.posted) + pull (items.imported, bom.imported).',
+      'D365 outbox events (shipment.confirmed, wo.confirmation_pushed, cost.posted). Monopilot → D365 export only — inbound pull/import is not supported.',
     ),
     columnWhen: translate(t, 'activity.columns.when', 'When'),
     columnIntegration: translate(t, 'activity.columns.integration', 'Integration'),

@@ -15,9 +15,9 @@
  * PO/TO KPI tiles show real open counts and the PO/TO alert panels show real
  * overdue documents. No fake numbers.
  *
- * Header actions: Create WO/PO/TO link to the live screens. Run sequencing /
- * Trigger D365 stay disabled with a "Not available yet" title (no sequencing
- * solver / D365 backend exists yet — that copy is still true).
+ * Header actions: Create WO/PO/TO link to the live screens. Run sequencing stays
+ * disabled with a "Not available yet" title (no sequencing solver yet). D365
+ * inbound pull is not advertised — R15 export-only.
  *
  * UI states: loading (Suspense skeleton, no CLS), empty (zero KPIs + empty
  * schedule/alert copy), error (failed read → banner, never a 500), permission-
@@ -263,7 +263,6 @@ export default async function PlanningRoutePage({ params }: PlanningPageProps) {
               // Honest copy: the optimizer is still not built — the title now
               // points at the live /planning/schedule board instead.
               runSequencingHint: t("actions.runSequencingHint"),
-              triggerD365: t("actions.triggerD365"),
               notAvailable: t("actions.notAvailable"),
             }}
           />

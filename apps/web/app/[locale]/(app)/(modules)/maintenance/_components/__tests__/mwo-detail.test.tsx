@@ -70,10 +70,17 @@ const LABELS: MwoDetailLabels = {
     errorFailed: '', errorIllegal: '', errorForbidden: '',
   },
   pm: {
-    title: '', subtitle: '', empty: '', col: { equipment: '', type: '', interval: '', nextDue: '', lastCompleted: '', active: '', actions: '' },
+    title: '', subtitle: '', empty: '', createSchedule: '', editSchedule: '',
+    col: { equipment: '', type: '', interval: '', nextDue: '', lastCompleted: '', active: '', actions: '' },
     type: { preventive: 'Preventive', calibration: '', sanitation: '', inspection: '' },
     intervalUnit: { calendar_days: 'days', usage_hours: '', usage_cycles: '' },
     activeYes: '', activeNo: '', generateMwo: '', generating: '', generateFailed: '', colActions: '',
+    form: {
+      createTitle: '', editTitle: '', equipment: '', equipmentPlaceholder: '', scheduleType: '',
+      intervalValue: '', intervalUnit: '', warningDays: '', firstDueDate: '', nextDueDate: '', active: '',
+      submit: '', submitting: '', cancel: '', errorRequired: '', errorFailed: '', errorForbidden: '',
+      type: { preventive: 'Preventive', calibration: '', sanitation: '', inspection: '' },
+    },
   },
   detail: {
     breadcrumbList: 'Work orders',

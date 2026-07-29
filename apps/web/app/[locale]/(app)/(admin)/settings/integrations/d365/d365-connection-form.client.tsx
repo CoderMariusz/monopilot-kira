@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { z } from 'zod';
+import Link from 'next/link';
 
 import { Button } from '@monopilot/ui/Button';
 import { Card, CardContent, CardHeader } from '@monopilot/ui/Card';
@@ -91,6 +92,9 @@ export type D365Labels = {
   };
   notices?: {
     legacy?: string;
+    exportOnly?: string;
+    exportSchedule?: string;
+    syncConfigLink?: string;
     rotationUnavailable?: string;
     connected?: string;
     failed?: string;
@@ -119,6 +123,7 @@ type D365ConnectionFormProps = D365ConnectionActions & {
   labels: D365Labels;
   initialTestConnectionOpen?: boolean;
   preflight?: D365ConstantPreflight;
+  syncConfigHref?: string;
 };
 
 const prototypeSource = 'prototypes/design/Monopilot Design System/settings/admin-screens.jsx:27-103';
@@ -134,7 +139,6 @@ const d365ConnectionSchema = z.object({
   }),
   clientId: z.string().min(8, { message: 'Too short.' }),
   serviceAccountEmail: z.string(),
-  pollCron: z.string().regex(/^(\S+\s+){4}\S+$/, { message: 'Cron must have 5 space-separated fields.' }),
   enabled: z.boolean(),
 });
 
@@ -290,11 +294,13 @@ function ReadyD365ConnectionForm({
   testD365Connection,
   initialTestConnectionOpen = false,
   preflight,
+  syncConfigHref,
 }: D365ConnectionActions & {
   config: D365ConnectionConfig;
   labels: D365Labels;
   initialTestConnectionOpen?: boolean;
   preflight?: D365ConstantPreflight;
+  syncConfigHref?: string;
 }) {
   const [baseUrl, setBaseUrl] = React.useState(config.baseUrl);
   const [environment, setEnvironment] = React.useState<D365Environment>(config.environment);
@@ -302,23 +308,24 @@ function ReadyD365ConnectionForm({
   const [clientId, setClientId] = React.useState(config.clientId);
   const [secretPlaceholder, setSecretPlaceholder] = React.useState(config.clientSecretSet ? '●●●●●●●●●●●●' : '');
   const [serviceAccountEmail, setServiceAccountEmail] = React.useState(config.serviceAccountEmail);
-  const [pollCron, setPollCron] = React.useState(config.pollCron);
   const [enabled, setEnabled] = React.useState(config.enabled);
   const [dialogOpen, setDialogOpen] = React.useState(initialTestConnectionOpen);
   const [toast, setToast] = React.useState<string | null>(null);
 
-  const payload = { baseUrl, environment, tenantId, clientId, serviceAccountEmail, pollCron, enabled };
+  const payload = { baseUrl, environment, tenantId, clientId, serviceAccountEmail, enabled };
   const urlInvalid = baseUrl.trim() && !(baseUrl.startsWith('https://') && baseUrl.toLowerCase().includes('.dynamics.com')) ? labels.urlInvalid : null;
   const tenantInvalid = tenantId.trim() && !/^[0-9a-f-]{36}$/i.test(tenantId) ? (labels.validation?.invalidUuid ?? 'Invalid UUID format.') : null;
   const clientInvalid = clientId.trim() && clientId.length < 8 ? (labels.validation?.tooShort ?? 'Too short.') : null;
-  const cronInvalid = pollCron.trim() && pollCron.trim().split(/\s+/).length !== 5 ? (labels.validation?.cronFiveFields ?? 'Cron must have 5 space-separated fields.') : null;
-  const allValid = Boolean(baseUrl.trim() && tenantId.trim() && clientId.trim() && pollCron.trim()) && !urlInvalid && !tenantInvalid && !clientInvalid && !cronInvalid;
+  const allValid = Boolean(baseUrl.trim() && tenantId.trim() && clientId.trim()) && !urlInvalid && !tenantInvalid && !clientInvalid;
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const next = d365ConnectionSchema.safeParse(payload);
     if (!next.success) return;
-    await saveD365Connection?.(payload);
+    await saveD365Connection?.({
+      ...payload,
+      pollCron: config.pollCron,
+    });
   }
 
   async function onRotateSecret() {
@@ -356,6 +363,11 @@ function ReadyD365ConnectionForm({
             <span className="font-mono">integration.d365.so_trigger.enabled</span> (gates Planning SCREEN-13 + D365 Queue).
           </>
         )}
+      </div>
+
+      <div className="alert alert-blue" role="note" data-testid="d365-connection-export-only-notice">
+        {labels.notices?.exportOnly ??
+          'R15 export-only: Monopilot → D365 only. Inbound pull/import from D365 is not supported.'}
       </div>
 
       <form id="d365-connection-form" onSubmit={onSubmit} className="space-y-4">
@@ -438,27 +450,32 @@ function ReadyD365ConnectionForm({
           </Field>
         </Section>
 
-        <Section title={labels.sections?.pollingSync ?? 'Polling & sync'}>
-          <Field field="pollCron" label={labels.fields?.pollCron ?? 'Pull cron schedule'} htmlFor="d365-poll-cron" hint={labels.hints?.pollCron ?? "Standard 5-field cron. Example: '0 2 * * *' = daily 02:00."} error={cronInvalid}>
-            <Input
-              id="d365-poll-cron"
-              data-slot="input"
-              value={pollCron}
-              onChange={(event) => setPollCron(event.currentTarget.value)}
-              className="form-input font-mono"
-              style={{ width: 200 }}
-            />
-          </Field>
+        <Section title={labels.sections?.pollingSync ?? 'Export queue'}>
+          <div
+            className="border-t border-border py-4 text-sm text-muted-foreground"
+            data-testid="d365-connection-export-schedule-notice"
+          >
+            {labels.notices?.exportSchedule ??
+              'Export queue batch size, retry policy, and worker scheduling are configured on the D365 sync config page. This screen does not store cron schedules; inbound pull from D365 is not supported (R15).'}
+            {syncConfigHref ? (
+              <>
+                {' '}
+                <Link href={syncConfigHref} className="font-medium text-[var(--blue-700)] underline">
+                  {labels.notices?.syncConfigLink ?? 'Open D365 sync config'}
+                </Link>
+              </>
+            ) : null}
+          </div>
           <Field
             field="enabled"
-            label={labels.fields?.integrationEnabled ?? 'Integration enabled'}
+            label={labels.fields?.integrationEnabled ?? 'Export integration enabled'}
             htmlFor="d365-enabled"
-            hint={labels.hints?.integrationEnabled ?? 'Mirrors `integration.d365.enabled` flag. Pre-flight runs on toggle.'}
+            hint={labels.hints?.integrationEnabled ?? 'Enables Monopilot → D365 export when pre-flight passes. Inbound import from D365 is not supported (R15).'}
             error={constantsIncomplete ? preflightWarning : null}
           >
             <Switch
               id="d365-enabled"
-              aria-label={labels.fields?.integrationEnabled ?? 'Integration enabled'}
+              aria-label={labels.fields?.integrationEnabled ?? 'Export integration enabled'}
               checked={enabled}
               onCheckedChange={onEnabledChange}
               disabled={constantsIncomplete}
@@ -511,6 +528,7 @@ export default function D365ConnectionForm({
   testD365Connection,
   initialTestConnectionOpen,
   preflight,
+  syncConfigHref,
 }: D365ConnectionFormProps) {
   if (state === 'error') return <StateCard labels={labels} state="error" />;
   if (state === 'loading') return <StateCard labels={labels} state="loading" />;
@@ -525,6 +543,7 @@ export default function D365ConnectionForm({
       testD365Connection={testD365Connection}
       initialTestConnectionOpen={initialTestConnectionOpen}
       preflight={preflight}
+      syncConfigHref={syncConfigHref}
     />
   );
 }

@@ -150,6 +150,7 @@ export async function generateMwoFromPmScheduleCore(
         and e.org_id = s.org_id
       where s.org_id = app.current_org_id()
         and s.id = $1::uuid
+        and e.active = true
       limit 1`,
     [scheduleId],
   );
@@ -241,8 +242,12 @@ export async function listDuePmScheduleIds(ctx: PmMwoTxnContext): Promise<string
   const { rows } = await ctx.client.query<{ id: string }>(
     `select s.id::text
        from public.maintenance_schedules s
+       join public.equipment e
+         on e.id = s.equipment_id
+        and e.org_id = s.org_id
       where s.org_id = app.current_org_id()
         and s.active = true
+        and e.active = true
         and s.interval_basis = 'calendar_days'
         and s.next_due_date is not null
         and s.next_due_date <= (pg_catalog.now()::date + make_interval(days => coalesce(s.warning_days, 7)::int))

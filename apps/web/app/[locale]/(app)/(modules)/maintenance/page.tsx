@@ -23,6 +23,7 @@ import { PageHeader } from '@monopilot/ui/PageHeader';
 
 import {
   createMwo,
+  createPmSchedule,
   generateMwoFromPmSchedule,
   getMwoPermissions,
   getMwoOverviewStats,
@@ -30,6 +31,7 @@ import {
   listMwos,
   listPmSchedules,
   transitionMwo,
+  updatePmSchedule,
 } from './_actions/mwo-actions';
 import { getMaintenanceTranslator, type MaintenanceTranslator } from './maintenance-labels';
 import { buildMwoListLabels } from './_components/mwo-detail-labels';
@@ -116,9 +118,12 @@ async function ListContent({ locale }: { locale: string }) {
         canCreate: permissions.canCreate,
         canExecute: permissions.canExecute,
         canCancel: permissions.canCancel,
+        canManagePm: permissions.canManagePm,
       }}
       createMwoAction={createMwo}
       generateMwoFromPmScheduleAction={generateMwoFromPmSchedule}
+      createPmScheduleAction={createPmSchedule}
+      updatePmScheduleAction={updatePmSchedule}
       transitionMwoAction={transitionMwo}
     />
   );

@@ -159,9 +159,11 @@ function GuardedField({
 function MissingPrerequisitesConnectionScreen({
   labels,
   missingPrerequisites,
+  syncConfigHref,
 }: {
   labels: D365Labels;
   missingPrerequisites: string;
+  syncConfigHref?: string;
 }) {
   return (
     <GuardedRoot>
@@ -229,12 +231,24 @@ function MissingPrerequisitesConnectionScreen({
           </GuardedField>
         </GuardedSection>
 
-        <GuardedSection title={labels.sections?.pollingSync ?? 'Polling & sync'}>
-          <GuardedField field="pollCron" label={labels.fields?.pollCron ?? 'Pull cron schedule'} htmlFor="d365-poll-cron" hint={labels.hints?.pollCron ?? "Standard 5-field cron. Example: '0 2 * * *' = daily 02:00."}>
-            <Input id="d365-poll-cron" data-slot="input" value="" disabled className="font-mono" style={{ width: 200 }} />
-          </GuardedField>
-          <GuardedField field="enabled" label={labels.fields?.integrationEnabled ?? 'Integration enabled'} htmlFor="d365-enabled" hint={labels.hints?.integrationEnabled ?? 'Mirrors `integration.d365.enabled` flag. Pre-flight runs on toggle.'}>
-            <Switch id="d365-enabled" aria-label={labels.fields?.integrationEnabled ?? 'Integration enabled'} checked={false} disabled />
+        <GuardedSection title={labels.sections?.pollingSync ?? 'Export queue'}>
+          <div
+            className="border-t border-slate-100 py-4 text-sm text-slate-600"
+            data-testid="d365-connection-export-schedule-notice"
+          >
+            {labels.notices?.exportSchedule ??
+              'Export queue batch size, retry policy, and worker scheduling are configured on the D365 sync config page. This screen does not store cron schedules; inbound pull from D365 is not supported (R15).'}
+            {syncConfigHref ? (
+              <>
+                {' '}
+                <a href={syncConfigHref} className="font-medium text-blue-700 underline">
+                  {labels.notices?.syncConfigLink ?? 'Open D365 sync config'}
+                </a>
+              </>
+            ) : null}
+          </div>
+          <GuardedField field="enabled" label={labels.fields?.integrationEnabled ?? 'Export integration enabled'} htmlFor="d365-enabled" hint={labels.hints?.integrationEnabled ?? 'Enables Monopilot → D365 export when pre-flight passes. Inbound import from D365 is not supported (R15).'}>
+            <Switch id="d365-enabled" aria-label={labels.fields?.integrationEnabled ?? 'Export integration enabled'} checked={false} disabled />
           </GuardedField>
         </GuardedSection>
 
@@ -262,7 +276,9 @@ export default async function D365ConnectionPage(propsInput: unknown) {
   // Tests inject `config`/`preflight` directly for deterministic rendering; the
   // production route supplies neither, which is the signal to query live data.
   const configInjected = Object.prototype.hasOwnProperty.call(props, 'config');
-  await params;
+  const resolvedParams = await params;
+  const locale = resolvedParams?.locale ?? 'en';
+  const syncConfigHref = `/${locale}/settings/integrations/d365/sync`;
   const resolvedSearchParams = await searchParams;
   const initialTestConnectionOpen = resolvedSearchParams?.modal === 'd365Test';
   const t = await getTranslations();
@@ -271,7 +287,7 @@ export default async function D365ConnectionPage(propsInput: unknown) {
     subtitle: label(
       'settings.integrations.d365.connection.subtitle',
       t('settings.integrations.d365.connection.subtitle'),
-      'Dynamics 365 Finance & Operations — endpoint, auth, polling schedule.',
+      'Dynamics 365 Finance & Operations — endpoint, auth, and outbound export queue.',
     ),
     testConnection: label('settings.integrations.d365.connection.testConnection', t('settings.integrations.d365.connection.testConnection'), 'Test connection'),
     save: label('settings.integrations.d365.connection.save', t('settings.integrations.d365.connection.save'), 'Save configuration'),
@@ -297,7 +313,7 @@ export default async function D365ConnectionPage(propsInput: unknown) {
   labels.sections = {
     endpoint: label('settings.integrations.d365.connection.sections.endpoint', t('settings.integrations.d365.connection.sections.endpoint'), 'Endpoint'),
     authentication: label('settings.integrations.d365.connection.sections.authentication', t('settings.integrations.d365.connection.sections.authentication'), 'Authentication (Azure AD)'),
-    pollingSync: label('settings.integrations.d365.connection.sections.pollingSync', t('settings.integrations.d365.connection.sections.pollingSync'), 'Polling & sync'),
+    pollingSync: label('settings.integrations.d365.connection.sections.pollingSync', t('settings.integrations.d365.connection.sections.pollingSync'), 'Export queue'),
     lastTest: label('settings.integrations.d365.connection.sections.lastTest', t('settings.integrations.d365.connection.sections.lastTest'), 'Last test'),
   };
   labels.fields = {
@@ -307,8 +323,8 @@ export default async function D365ConnectionPage(propsInput: unknown) {
     clientId: label('settings.integrations.d365.connection.fields.clientId', t('settings.integrations.d365.connection.fields.clientId'), 'Client ID'),
     clientSecret: label('settings.integrations.d365.connection.fields.clientSecret', t('settings.integrations.d365.connection.fields.clientSecret'), 'Client Secret'),
     serviceAccountEmail: label('settings.integrations.d365.connection.fields.serviceAccountEmail', t('settings.integrations.d365.connection.fields.serviceAccountEmail'), 'Service account email'),
-    pollCron: label('settings.integrations.d365.connection.fields.pollCron', t('settings.integrations.d365.connection.fields.pollCron'), 'Pull cron schedule'),
-    integrationEnabled: label('settings.integrations.d365.connection.fields.integrationEnabled', t('settings.integrations.d365.connection.fields.integrationEnabled'), 'Integration enabled'),
+    pollCron: label('settings.integrations.d365.connection.fields.pollCron', t('settings.integrations.d365.connection.fields.pollCron'), 'Export queue cron'),
+    integrationEnabled: label('settings.integrations.d365.connection.fields.integrationEnabled', t('settings.integrations.d365.connection.fields.integrationEnabled'), 'Export integration enabled'),
   };
   labels.hints = {
     baseUrl: label('settings.integrations.d365.connection.hints.baseUrl', t('settings.integrations.d365.connection.hints.baseUrl'), 'e.g. https://apex.operations.dynamics.com'),
@@ -316,8 +332,8 @@ export default async function D365ConnectionPage(propsInput: unknown) {
     clientId: label('settings.integrations.d365.connection.hints.clientId', t('settings.integrations.d365.connection.hints.clientId'), 'Azure App Registration client ID.'),
     clientSecret: label('settings.integrations.d365.connection.hints.clientSecret', t('settings.integrations.d365.connection.hints.clientSecret'), "Never shown after save. Use 'Rotate' to update."),
     serviceAccountEmail: label('settings.integrations.d365.connection.hints.serviceAccountEmail', t('settings.integrations.d365.connection.hints.serviceAccountEmail'), 'Fallback basic-auth identity.'),
-    pollCron: label('settings.integrations.d365.connection.hints.pollCron', t('settings.integrations.d365.connection.hints.pollCron'), "Standard 5-field cron. Example: '0 2 * * *' = daily 02:00."),
-    integrationEnabled: label('settings.integrations.d365.connection.hints.integrationEnabled', t('settings.integrations.d365.connection.hints.integrationEnabled'), 'Mirrors `integration.d365.enabled` flag. Pre-flight runs on toggle.'),
+    pollCron: label('settings.integrations.d365.connection.hints.pollCron', t('settings.integrations.d365.connection.hints.pollCron'), "Cron for the outbound export worker. Example: '0 2 * * *' = daily 02:00 UTC."),
+    integrationEnabled: label('settings.integrations.d365.connection.hints.integrationEnabled', t('settings.integrations.d365.connection.hints.integrationEnabled'), 'Enables Monopilot → D365 export when pre-flight passes. Inbound import from D365 is not supported (R15).'),
   };
   labels.validation = {
     invalidUuid: label('settings.integrations.d365.connection.validation.invalidUuid', t('settings.integrations.d365.connection.validation.invalidUuid'), 'Invalid UUID format.'),
@@ -330,6 +346,21 @@ export default async function D365ConnectionPage(propsInput: unknown) {
   };
   labels.notices = {
     legacy: label('settings.integrations.d365.connection.notices.legacy', t('settings.integrations.d365.connection.notices.legacy'), 'LEGACY-D365. This integration will be retired when Monopilot replaces D365. Referenced by integration.d365.so_trigger.enabled (gates Planning SCREEN-13 + D365 Queue).'),
+    exportOnly: label(
+      'settings.integrations.d365.connection.notices.exportOnly',
+      t('settings.integrations.d365.connection.notices.exportOnly'),
+      'R15 export-only: Monopilot → D365 only. Inbound pull/import from D365 is not supported.',
+    ),
+    exportSchedule: label(
+      'settings.integrations.d365.connection.notices.exportSchedule',
+      t('settings.integrations.d365.connection.notices.exportSchedule'),
+      'Export queue batch size, retry policy, and worker scheduling are configured on the D365 sync config page. This screen does not store cron schedules; inbound pull from D365 is not supported (R15).',
+    ),
+    syncConfigLink: label(
+      'settings.integrations.d365.connection.notices.syncConfigLink',
+      t('settings.integrations.d365.connection.notices.syncConfigLink'),
+      'Open D365 sync config',
+    ),
     rotationUnavailable: label('settings.integrations.d365.connection.notices.rotationUnavailable', t('settings.integrations.d365.connection.notices.rotationUnavailable'), 'Key rotation is not available yet.'),
     connected: label('settings.integrations.d365.connection.notices.connected', t('settings.integrations.d365.connection.notices.connected'), 'Connected at'),
     failed: label('settings.integrations.d365.connection.notices.failed', t('settings.integrations.d365.connection.notices.failed'), "Failed — run 'Test connection' to retry."),
@@ -341,7 +372,13 @@ export default async function D365ConnectionPage(propsInput: unknown) {
   );
 
   if (state === 'ready' && !config) {
-    return <MissingPrerequisitesConnectionScreen labels={labels} missingPrerequisites={missingPrerequisites} />;
+    return (
+      <MissingPrerequisitesConnectionScreen
+        labels={labels}
+        missingPrerequisites={missingPrerequisites}
+        syncConfigHref={syncConfigHref}
+      />
+    );
   }
 
   // Real data: derive the five-constant enable gate from reference_tables.
@@ -361,6 +398,7 @@ export default async function D365ConnectionPage(propsInput: unknown) {
       testD365Connection={testD365Connection ?? (config ? testRuntimeD365Connection : undefined)}
       initialTestConnectionOpen={initialTestConnectionOpen}
       preflight={preflight}
+      syncConfigHref={syncConfigHref}
     />
   );
 }

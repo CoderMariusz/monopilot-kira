@@ -1065,12 +1065,12 @@
     "d365": {
       "sync": {
         "title": "D365 sync configuration",
-        "subtitle": "Pull schedule, push queue, retry policy, and dead-letter queue access.",
+        "subtitle": "Outbound export queue, retry policy, and dead-letter queue access.",
         "save": "Save sync config",
         "saved": "D365 sync config saved",
         "forbiddenTitle": "403 — Owner access required",
         "sections": {
-          "polling": "Polling & sync",
+          "polling": "Export queue",
           "retry": "Retry policy",
           "dlq": "Dead-letter queue"
         },
@@ -1083,7 +1083,7 @@
         },
         "hints": {
           "pullCron": "Use a valid 5-field cron expression.",
-          "batchSize": "Records pulled or pushed per worker batch.",
+          "batchSize": "Records exported per worker batch.",
           "pushQueue": "Enqueues outbound MES changes for D365 export-only sync.",
           "maxAttempts": "Worker retries before moving the item to the dead-letter queue.",
           "retryBackoff": "Minutes between retry attempts."
@@ -1097,6 +1097,7 @@
           "enabled": "Enabled",
           "disabled": "Disabled",
           "legacyNotice": "LEGACY-D365. Sync is retained for transition operations; no credentials are stored on this SET-082 screen.",
+          "exportOnlyNotice": "R15 export-only: Monopilot → D365 only. Inbound pull/import from D365 is not supported or configurable here.",
           "invalidCron": "Invalid cron expression. Use a valid cron-parser style 5-field expression.",
           "nextRunUnavailable": "Next run unavailable until the cron is valid.",
           "nextRun": "Next run {date} UTC",
@@ -1110,7 +1111,7 @@
       "d365": {
         "connection": {
           "title": "D365 connection",
-          "subtitle": "Dynamics 365 Finance & Operations — endpoint, auth, polling schedule.",
+          "subtitle": "Dynamics 365 Finance & Operations — endpoint, auth, and outbound export queue.",
           "testConnection": "Test connection",
           "save": "Save configuration",
           "rotateSecret": "Rotate secret",
@@ -1125,7 +1126,7 @@
           "sections": {
             "endpoint": "Endpoint",
             "authentication": "Authentication (Azure AD)",
-            "pollingSync": "Polling & sync",
+            "pollingSync": "Export queue",
             "lastTest": "Last test"
           },
           "fields": {
@@ -1135,8 +1136,8 @@
             "clientId": "Client ID",
             "clientSecret": "Client Secret",
             "serviceAccountEmail": "Service account email",
-            "pollCron": "Pull cron schedule",
-            "integrationEnabled": "Integration enabled"
+            "pollCron": "Export queue cron",
+            "integrationEnabled": "Export integration enabled"
           },
           "hints": {
             "baseUrl": "e.g. https://apex.operations.dynamics.com",
@@ -1144,8 +1145,8 @@
             "clientId": "Azure App Registration client ID.",
             "clientSecret": "Never shown after save. Use 'Rotate' to update.",
             "serviceAccountEmail": "Fallback basic-auth identity.",
-            "pollCron": "Standard 5-field cron. Example: '0 2 * * *' = daily 02:00.",
-            "integrationEnabled": "Mirrors `integration.d365.enabled` flag. Pre-flight runs on toggle."
+            "pollCron": "Cron for the outbound export worker. Example: '0 2 * * *' = daily 02:00 UTC.",
+            "integrationEnabled": "Enables Monopilot → D365 export when pre-flight passes. Inbound import from D365 is not supported (R15)."
           },
           "validation": {
             "invalidUuid": "Invalid UUID format.",
@@ -1158,6 +1159,9 @@
           },
           "notices": {
             "legacy": "LEGACY-D365. This integration will be retired when Monopilot replaces D365. Referenced by integration.d365.so_trigger.enabled (gates Planning SCREEN-13 + D365 Queue).",
+            "exportOnly": "R15 export-only: Monopilot → D365 only. Inbound pull/import from D365 is not supported.",
+            "exportSchedule": "Export queue batch size, retry policy, and worker scheduling are configured on the D365 sync config page. This screen does not store cron schedules; inbound pull from D365 is not supported (R15).",
+            "syncConfigLink": "Open D365 sync config",
             "rotationUnavailable": "Key rotation is not available yet.",
             "connected": "Connected at",
             "failed": "Failed — run 'Test connection' to retry."
@@ -2033,7 +2037,7 @@
         "gallery": "Modal gallery",
         "my_profile": "My profile",
         "my_notifications": "Notifications",
-        "d365_cost_import": "D365 cost import",
+        "d365_cost_import": "D365 cost (export-only)",
         "documents": "Document numbering",
         "signoff": "Sign-off policies",
         "authorization": "Authorization policies",
@@ -4900,8 +4904,8 @@
           "desc": "Read-only Quality-owned lab results in Technical context."
         },
         "costImport": {
-          "title": "D365 cost import",
-          "desc": "Optional D365 cost pull — local history stays source of truth."
+          "title": "D365 cost export policy",
+          "desc": "R15 export-only — local cost history stays source of truth; inbound D365 pull is not supported."
         },
         "shelfLife": {
           "title": "Shelf life",
@@ -6164,12 +6168,12 @@
       }
     },
     "costImport": {
-      "title": "Cost import from D365",
-      "subtitle": "Optional integration source — local cost history remains the source of truth. The D365-disabled state keeps this surface read-only and never blocks factory release.",
+      "title": "D365 cost export policy",
+      "subtitle": "R15 export-only integration — local cost history remains the source of truth. Inbound cost import from D365 is not supported; export updates flow Monopilot → D365 only.",
       "breadcrumb": {
         "technical": "Technical",
         "costs": "Costs",
-        "d365Import": "D365 import",
+        "d365Import": "Cost export policy",
         "settings": "Settings",
         "integrations": "Integrations",
         "d365": "D365"
@@ -8610,7 +8614,6 @@
       "createPo": "Create PO",
       "createTo": "Create TO",
       "runSequencing": "Run sequencing",
-      "triggerD365": "Trigger D365 pull",
       "notAvailable": "Not available yet",
       "runSequencingHint": "Sequencing optimizer not built yet — use the Line schedule board"
     },
@@ -13250,13 +13253,15 @@
         "countLine": "{total} assets · {loto} require LOTO",
         "addAsset": "+ Add asset",
         "exportCsv": "Export CSV",
+        "editAsset": "Edit",
         "col": {
           "code": "Code",
           "name": "Name",
           "type": "Type",
           "loto": "LOTO",
           "calibration": "Calibration",
-          "status": "Status"
+          "status": "Status",
+          "actions": "Actions"
         },
         "lotoYes": "Required",
         "lotoNo": "—",
@@ -13267,6 +13272,7 @@
       },
       "form": {
         "createTitle": "Add maintenance asset",
+        "editTitle": "Edit maintenance asset",
         "code": "Asset code",
         "codePlaceholder": "e.g. MIX-01",
         "name": "Name",
@@ -13277,7 +13283,14 @@
         "submit": "Save asset",
         "submitting": "Saving…",
         "cancel": "Cancel",
+        "withdraw": "Withdraw from service",
+        "withdrawing": "Withdrawing…",
+        "withdrawReason": "Withdrawal reason",
+        "withdrawReasonPlaceholder": "Why is this asset being withdrawn?",
+        "reactivate": "Return to service",
+        "reactivating": "Reactivating…",
         "errorRequired": "Code and name are required.",
+        "errorWithdrawReason": "A withdrawal reason of at least 3 characters is required.",
         "errorFailed": "Could not save the asset. Please try again.",
         "errorForbidden": "You do not have permission to edit maintenance assets.",
         "errorConflict": "An asset with this code already exists."

@@ -5,7 +5,12 @@ import { useMemo, useState } from 'react';
 
 import { toCsv } from '../../../../../../../lib/shared/download';
 import type { EquipmentAssetRow } from '../_types/asset-schemas';
-import { createEquipment } from '../_actions/asset-actions';
+import {
+  createEquipment,
+  deactivateEquipment,
+  reactivateEquipment,
+  updateEquipment,
+} from '../_actions/asset-actions';
 import { AssetFormModal, type AssetFormLabels } from './asset-form-modal';
 
 export type AssetRegisterLabels = {
@@ -15,6 +20,7 @@ export type AssetRegisterLabels = {
   exportCsv: string;
   emptyTitle: string;
   emptyBody: string;
+  editAsset: string;
   col: {
     code: string;
     name: string;
@@ -22,6 +28,7 @@ export type AssetRegisterLabels = {
     loto: string;
     calibration: string;
     status: string;
+    actions: string;
   };
   lotoYes: string;
   lotoNo: string;
@@ -59,14 +66,17 @@ export function AssetRegisterClient({
   rows,
   labels,
   canEdit,
+  canDeactivate,
 }: {
   rows: EquipmentAssetRow[];
   labels: AssetRegisterLabels;
   canEdit: boolean;
+  canDeactivate: boolean;
 }) {
   const router = useRouter();
   const [search, setSearch] = useState('');
-  const [showCreate, setShowCreate] = useState(false);
+  const [modalMode, setModalMode] = useState<'create' | 'edit' | null>(null);
+  const [editingAsset, setEditingAsset] = useState<EquipmentAssetRow | null>(null);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -83,6 +93,16 @@ export function AssetRegisterClient({
     .replace('{loto}', String(lotoCount));
 
   const csvHref = buildCsvHref(filtered, labels);
+
+  const closeModal = () => {
+    setModalMode(null);
+    setEditingAsset(null);
+  };
+
+  const openEdit = (row: EquipmentAssetRow) => {
+    setEditingAsset(row);
+    setModalMode('edit');
+  };
 
   return (
     <div data-testid="asset-register" className="flex flex-col gap-4">
@@ -108,7 +128,7 @@ export function AssetRegisterClient({
           {canEdit ? (
             <button
               type="button"
-              onClick={() => setShowCreate(true)}
+              onClick={() => setModalMode('create')}
               data-testid="asset-register-add"
               className="rounded-lg bg-slate-950 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800"
             >
@@ -138,6 +158,7 @@ export function AssetRegisterClient({
                 <th className="px-4 py-3">{labels.col.loto}</th>
                 <th className="px-4 py-3">{labels.col.calibration}</th>
                 <th className="px-4 py-3">{labels.col.status}</th>
+                {canEdit ? <th className="px-4 py-3">{labels.col.actions}</th> : null}
               </tr>
             </thead>
             <tbody>
@@ -161,6 +182,18 @@ export function AssetRegisterClient({
                   <td className="px-4 py-3 text-slate-700">
                     {row.active ? labels.statusActive : labels.statusInactive}
                   </td>
+                  {canEdit ? (
+                    <td className="px-4 py-3">
+                      <button
+                        type="button"
+                        data-testid={`asset-edit-${row.equipmentCode}`}
+                        onClick={() => openEdit(row)}
+                        className="rounded-md border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                      >
+                        {labels.editAsset}
+                      </button>
+                    </td>
+                  ) : null}
                 </tr>
               ))}
             </tbody>
@@ -168,13 +201,36 @@ export function AssetRegisterClient({
         </div>
       )}
 
-      {showCreate ? (
+      {modalMode === 'create' ? (
         <AssetFormModal
+          mode="create"
           labels={labels.form}
+          canDeactivate={false}
           createEquipmentAction={createEquipment}
-          onClose={() => setShowCreate(false)}
+          updateEquipmentAction={updateEquipment}
+          deactivateEquipmentAction={deactivateEquipment}
+          reactivateEquipmentAction={reactivateEquipment}
+          onClose={closeModal}
           onSaved={() => {
-            setShowCreate(false);
+            closeModal();
+            router.refresh();
+          }}
+        />
+      ) : null}
+
+      {modalMode === 'edit' && editingAsset ? (
+        <AssetFormModal
+          mode="edit"
+          asset={editingAsset}
+          labels={labels.form}
+          canDeactivate={canDeactivate}
+          createEquipmentAction={createEquipment}
+          updateEquipmentAction={updateEquipment}
+          deactivateEquipmentAction={deactivateEquipment}
+          reactivateEquipmentAction={reactivateEquipment}
+          onClose={closeModal}
+          onSaved={() => {
+            closeModal();
             router.refresh();
           }}
         />

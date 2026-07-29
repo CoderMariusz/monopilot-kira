@@ -1002,12 +1002,12 @@
     "export_only_notice": "D365 jest tylko eksportem dla danych MES.",
     "sync": {
       "title": "Konfiguracja synchronizacji D365",
-      "subtitle": "Harmonogram pobierania, kolejka wysyłki, polityka ponowień i dostęp do dead-letter queue.",
+      "subtitle": "Kolejka eksportu wychodzącego, polityka ponowień i dostęp do kolejki dead-letter.",
       "save": "Zapisz konfigurację synchronizacji",
       "saved": "Konfiguracja synchronizacji D365 zapisana",
       "forbiddenTitle": "403 — wymagany dostęp właściciela",
       "sections": {
-        "polling": "Pobieranie i synchronizacja",
+        "polling": "Kolejka eksportu",
         "retry": "Polityka ponowień",
         "dlq": "Dead-letter queue"
       },
@@ -1430,7 +1430,11 @@
         "error": "Nie można załadować połączenia D365.",
         "missingPrerequisites": "Brakuje wymagań wstępnych połączenia D365. Skonfiguruj punkt końcowy, dzierżawcę Azure AD, identyfikator klienta i odwołanie do sekretu przed zapisaniem lub włączeniem synchronizacji.",
         "preflightIncomplete": "D365 nie można włączyć, dopóki nie skonfigurowano wszystkich pięciu stałych referencyjnych.",
-        "preflightMissing": "Brakujące stałe D365:"
+        "preflightMissing": "Brakujące stałe D365:",
+        "notices": {
+          "exportSchedule": "Rozmiar partii kolejki eksportu, polityka ponowień i harmonogram workera są konfigurowane na stronie konfiguracji synchronizacji D365. Ten ekran nie przechowuje harmonogramów cron; przychodzące pobieranie z D365 nie jest obsługiwane (R15).",
+          "syncConfigLink": "Otwórz konfigurację synchronizacji D365"
+        }
       }
     }
   },
@@ -1637,7 +1641,7 @@
     },
     "activity": {
       "title": "Ostatnia aktywność synchronizacji",
-      "subtitle": "Zdarzenia outbox D365 (shipment.confirmed, wo.confirmation_pushed, cost.posted) + pobieranie (items.imported, bom.imported).",
+      "subtitle": "Zdarzenia outbox D365 (shipment.confirmed, wo.confirmation_pushed, cost.posted). Tylko eksport Monopilot → D365 — przychodzące pobieranie/import nie jest obsługiwane.",
       "columns": {
         "when": "Kiedy",
         "integration": "Integracja",

@@ -128,6 +128,9 @@ export const equipment = pgTable(
     calibrationIntervalDays: integer('calibration_interval_days'),
     l3ExtCols: jsonb('l3_ext_cols').notNull().default('{}'), // ADR-028 L3 tenant extension
     active: boolean('active').notNull().default(true),
+    deactivatedAt: timestamp('deactivated_at', { withTimezone: true }),
+    deactivatedBy: uuid('deactivated_by').references(() => users.id, { onDelete: 'set null' }),
+    deactivationReason: text('deactivation_reason'),
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
     updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

@@ -109,7 +109,7 @@ const EXPECTED_SETTINGS_NAV = [
     items: [
       { key: "d365-conn", label: "D365 connection", icon: "⇆" },
       { key: "d365-mapping", label: "D365 field mapping", icon: "↔" },
-      { key: "d365-cost-import", label: "D365 cost import", icon: "⇣" },
+      { key: "d365-cost-import", label: "D365 cost (export-only)", icon: "⇣" },
       { key: "d365-dlq", label: "D365 DLQ (shipping)", icon: "!" },
       { key: "rules", label: "Rules registry", icon: "✦" },
       { key: "flags", label: "Feature flags (L)", icon: "◨" },

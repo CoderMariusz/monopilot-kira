@@ -13,6 +13,9 @@ vi.mock('next/navigation', () => ({
 
 vi.mock('../_actions/asset-actions', () => ({
   createEquipment: vi.fn(async () => ({ ok: true })),
+  updateEquipment: vi.fn(async () => ({ ok: true })),
+  deactivateEquipment: vi.fn(async () => ({ ok: true })),
+  reactivateEquipment: vi.fn(async () => ({ ok: true })),
 }));
 
 const labels = {
@@ -20,6 +23,7 @@ const labels = {
   countLine: '{total} assets · {loto} require LOTO',
   addAsset: '+ Add asset',
   exportCsv: 'Export CSV',
+  editAsset: 'Edit',
   emptyTitle: 'No assets registered yet',
   emptyBody: 'Add the first machine.',
   col: {
@@ -29,6 +33,7 @@ const labels = {
     loto: 'LOTO',
     calibration: 'Calibration',
     status: 'Status',
+    actions: 'Actions',
   },
   lotoYes: 'Required',
   lotoNo: '—',
@@ -39,6 +44,7 @@ const labels = {
   types: { mixer: 'Mixer' },
   form: {
     createTitle: 'Add maintenance asset',
+    editTitle: 'Edit maintenance asset',
     code: 'Asset code',
     codePlaceholder: 'e.g. MIX-01',
     name: 'Name',
@@ -49,7 +55,14 @@ const labels = {
     submit: 'Save asset',
     submitting: 'Saving…',
     cancel: 'Cancel',
+    withdraw: 'Withdraw from service',
+    withdrawing: 'Withdrawing…',
+    withdrawReason: 'Withdrawal reason',
+    withdrawReasonPlaceholder: 'Why is this asset being withdrawn?',
+    reactivate: 'Return to service',
+    reactivating: 'Reactivating…',
     errorRequired: 'Code and name are required.',
+    errorWithdrawReason: 'A withdrawal reason is required.',
     errorFailed: 'Could not save the asset.',
     errorForbidden: 'Forbidden',
     errorConflict: 'Duplicate code',
@@ -57,25 +70,21 @@ const labels = {
   },
 };
 
+const row = {
+  id: '1',
+  equipmentCode: 'MIX-01',
+  name: 'Main mixer',
+  equipmentType: 'mixer',
+  requiresLoto: true,
+  requiresCalibration: false,
+  active: true,
+  deactivatedAt: null,
+  deactivationReason: null,
+};
+
 describe('AssetRegisterClient', () => {
   it('renders equipment rows and opens create modal', () => {
-    render(
-      <AssetRegisterClient
-        canEdit
-        labels={labels}
-        rows={[
-          {
-            id: '1',
-            equipmentCode: 'MIX-01',
-            name: 'Main mixer',
-            equipmentType: 'mixer',
-            requiresLoto: true,
-            requiresCalibration: false,
-            active: true,
-          },
-        ]}
-      />,
-    );
+    render(<AssetRegisterClient canEdit canDeactivate labels={labels} rows={[row]} />);
 
     expect(screen.getByTestId('asset-register-table')).toBeInTheDocument();
     expect(screen.getByTestId('asset-row-MIX-01')).toBeInTheDocument();
@@ -83,5 +92,13 @@ describe('AssetRegisterClient', () => {
 
     fireEvent.click(screen.getByTestId('asset-register-add'));
     expect(screen.getByTestId('asset-create-modal')).toBeInTheDocument();
+  });
+
+  it('opens the edit modal from the row action', () => {
+    render(<AssetRegisterClient canEdit canDeactivate labels={labels} rows={[row]} />);
+
+    fireEvent.click(screen.getByTestId('asset-edit-MIX-01'));
+    expect(screen.getByTestId('asset-edit-modal')).toBeInTheDocument();
+    expect(screen.getByTestId('asset-edit-code')).not.toHaveAttribute('readonly');
   });
 });

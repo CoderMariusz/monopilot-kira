@@ -103,7 +103,7 @@ export default async function D365SyncPage(propsInput: D365SyncPageProps = {}) {
     subtitle: label(
       'd365.sync.subtitle',
       t('d365.sync.subtitle'),
-      'Pull schedule, push queue, retry policy, and dead-letter queue access.',
+      'Outbound export queue, retry policy, and dead-letter queue access.',
     ),
     save: label('d365.sync.save', t('d365.sync.save'), 'Save sync config'),
     saved: label('d365.sync.saved', t('d365.sync.saved'), 'D365 sync config saved'),
@@ -113,7 +113,7 @@ export default async function D365SyncPage(propsInput: D365SyncPageProps = {}) {
       '403 — Owner access required',
     ),
     sections: {
-      polling: label('d365.sync.sections.polling', t('d365.sync.sections.polling'), 'Polling & sync'),
+      polling: label('d365.sync.sections.polling', t('d365.sync.sections.polling'), 'Export queue'),
       retry: label('d365.sync.sections.retry', t('d365.sync.sections.retry'), 'Retry policy'),
       dlq: label('d365.sync.sections.dlq', t('d365.sync.sections.dlq'), 'Dead-letter queue'),
     },
@@ -126,7 +126,7 @@ export default async function D365SyncPage(propsInput: D365SyncPageProps = {}) {
     },
     hints: {
       pullCron: label('d365.sync.hints.pullCron', t('d365.sync.hints.pullCron'), 'Use a valid 5-field cron expression.'),
-      batchSize: label('d365.sync.hints.batchSize', t('d365.sync.hints.batchSize'), 'Records pulled or pushed per worker batch.'),
+      batchSize: label('d365.sync.hints.batchSize', t('d365.sync.hints.batchSize'), 'Records exported per worker batch.'),
       pushQueue: label('d365.sync.hints.pushQueue', t('d365.sync.hints.pushQueue'), 'Enqueues outbound MES changes for D365 export-only sync.'),
       maxAttempts: label('d365.sync.hints.maxAttempts', t('d365.sync.hints.maxAttempts'), 'Worker retries before moving the item to the dead-letter queue.'),
       retryBackoff: label('d365.sync.hints.retryBackoff', t('d365.sync.hints.retryBackoff'), 'Minutes between retry attempts.'),
@@ -140,6 +140,11 @@ export default async function D365SyncPage(propsInput: D365SyncPageProps = {}) {
       enabled: label('d365.sync.status.enabled', t('d365.sync.status.enabled'), 'Enabled'),
       disabled: label('d365.sync.status.disabled', t('d365.sync.status.disabled'), 'Disabled'),
       legacyNotice: label('d365.sync.status.legacyNotice', t('d365.sync.status.legacyNotice'), 'LEGACY-D365. Sync is retained for transition operations; no credentials are stored on this SET-082 screen.'),
+      exportOnlyNotice: label(
+        'd365.sync.status.exportOnlyNotice',
+        t('d365.sync.status.exportOnlyNotice'),
+        'R15 export-only: Monopilot → D365 only. Inbound pull/import from D365 is not supported or configurable here.',
+      ),
       invalidCron: label('d365.sync.status.invalidCron', t('d365.sync.status.invalidCron'), 'Invalid cron expression. Use a valid cron-parser style 5-field expression.'),
       nextRunUnavailable: label('d365.sync.status.nextRunUnavailable', t('d365.sync.status.nextRunUnavailable'), 'Next run unavailable until the cron is valid.'),
       nextRun: label('d365.sync.status.nextRun', t('d365.sync.status.nextRun'), 'Next run {date} UTC'),

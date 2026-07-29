@@ -20,9 +20,28 @@ export const createEquipmentSchema = z.object({
   requiresCalibration: z.boolean().default(false),
 });
 
+export const updateEquipmentSchema = z.object({
+  equipmentId: z.string().uuid(),
+  equipmentCode: z.string().trim().min(1).max(64).optional(),
+  name: z.string().trim().min(1).max(200),
+  equipmentType: z.enum(EQUIPMENT_TYPES),
+  requiresLoto: z.boolean(),
+  requiresCalibration: z.boolean(),
+});
+
+export const deactivateEquipmentSchema = z.object({
+  equipmentId: z.string().uuid(),
+  reason: z.string().trim().min(3).max(500),
+});
+
+export const reactivateEquipmentSchema = z.object({
+  equipmentId: z.string().uuid(),
+});
+
 export type AssetPermissions = {
   canRead: boolean;
   canEdit: boolean;
+  canDeactivate: boolean;
 };
 
 export type EquipmentAssetRow = {
@@ -33,4 +52,6 @@ export type EquipmentAssetRow = {
   requiresLoto: boolean;
   requiresCalibration: boolean;
   active: boolean;
+  deactivatedAt: string | null;
+  deactivationReason: string | null;
 };
