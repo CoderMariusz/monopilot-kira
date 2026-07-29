@@ -202,3 +202,45 @@ część nie ma ścieżki usunięcia przez interfejs (prognozy, drukarki z zale�
 
 **Stan końcowy: 12 fal planu naprawczego na produkcji, regresja końcowa 11/11 bez cofnięcia,
 wszystkie znalezione po drodze blokery zamknięte i udowodnione na żywym środowisku.**
+
+---
+
+## Ostatnie domknięcie — rozwiązywanie urządzenia w harmonogramie PM (`3e5d0159`)
+
+Weryfikacja poprzedniej poprawki od razu odsłoniła kolejny P1: modal PM startował z pierwszą
+pozycją listy (alfabetycznie `BAKE`), która jest wierszem `production_lines`, a walidacja
+akceptowała wyłącznie `equipment`. **Dla Apex 22 tylko 3 z 12 pozycji były realnym urządzeniem** —
+więc pierwsze kliknięcie „Save" bez ręcznej zmiany zawsze zawodziło.
+
+Sąsiedni `createMwo()` miał poprawny fallback z auto-provisioningiem; ścieżka PM go nie miała.
+Naprawione wspólnym helperem użytym w obu akcjach. **Świadomie nie zawęziłem listy do samych
+`equipment`** — użytkownik ma prawo zaplanować przegląd linii produkcyjnej, a sąsiednia ścieżka
+już to umożliwia; zawężenie odebrałoby funkcję zamiast naprawić niespójność.
+
+**Dowód na produkcji:** `BAKE` (`6191e588-…`) **nie istniał** w `public.equipment` (3 wiersze).
+Po zapisie bez zmiany urządzenia:
+- `maintenance_schedules 2b55ab84-…` → `equipment_id = 6191e588-…`, `created_at 04:03:27.483804+00`
+- `equipment 6191e588-…` → BAKE, `equipment_type=production_line`, `created_at 04:03:27.483804+00`
+
+**Znaczniki czasu identyczne co do mikrosekundy** — auto-provisioning w tej samej transakcji.
+Licznik `equipment` 3 → 4. Kontrola przeciwna: `MWO-2026-00004` utworzone na tej samej linii,
+czyli naprawa jednej ścieżki nie zepsuła drugiej. `/en/maintenance`: 200, **0 komunikatów w konsoli**.
+
+### Uczciwie nieudowodnione
+- gałąź odrzucenia linii **nieaktywnej** — takie linie nie trafiają na listę, więc nie dało się
+  jej wywołać przez interfejs;
+- błąd **sprzed** poprawki nie został odtworzony na prodzie (świadomie nie klikano „Save" na starym
+  buildzie, żeby przełączenie aliasu w trakcie akcji nie zafałszowało wyniku) — ale różnica stanu
+  bazy 3 → 4 jest jednoznaczna.
+
+### Zastane, nie wprowadzone tą poprawką (do backlogu)
+- auto-provisionowane urządzenie ma `parent_line_id == id` (samoreferencja) — starszy `LINE1`
+  wygląda identycznie, więc to zachowanie odziedziczone po `createMwo`;
+- **trzy różne linie Apex 22 mają ten sam kod `LINE01`** — dropdown pokazuje nieodróżnialne
+  pozycje. To problem danych, nie kodu;
+- modal PM startuje z realną pierwszą pozycją, a modal MWO z zaślepką — dwa sąsiadujące modale
+  zachowują się różnie; to brak zaślepki w PM był bezpośrednią przyczyną pierwotnego błędu.
+
+### Gotcha z weryfikacji
+Naiwny grep po `"Something went wrong"` w payloadzie strony daje **26 fałszywych trafień** —
+to łańcuchy i18n (`errorGeneric`), nie stan błędu. Sprawdzaj przez `innerText`, nie przez surowy HTML.
