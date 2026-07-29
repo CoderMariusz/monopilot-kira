@@ -53,6 +53,10 @@ vi.mock('../../../../../../lib/site/site-context', () => ({
   getActiveSiteId: vi.fn(async () => SITE_ID),
 }));
 
+vi.mock('../../../../../../lib/i18n/revalidate-localized', () => ({
+  revalidateLocalized: vi.fn(),
+}));
+
 function normalize(sql: string): string {
   return sql.replace(/\s+/g, ' ').trim().toLowerCase();
 }
@@ -203,7 +207,14 @@ function makeClient(): QueryClient {
       if (q.startsWith('select id::text, status, qa_status, quantity::text')) {
         const ids = Array.isArray(params[0]) ? (params[0] as string[]) : [];
         return {
-          rows: ids.map((id) => ({ id, status: 'available', qa_status: 'pending', quantity: id === LP_ID_2 ? '6.250000' : '12.500000' })),
+          rows: ids.map((id) => ({
+            id,
+            status: 'available',
+            qa_status: 'pending',
+            quantity: id === LP_ID_2 ? '6.250000' : '12.500000',
+            uom: 'kg',
+            catch_weight_kg: null,
+          })),
           rowCount: ids.length,
         };
       }

@@ -79,6 +79,9 @@ function makeWasteUnitContext(options?: { lpQuantity?: string; lpReserved?: stri
           quantity: Number(options.lpQuantity),
           reservedQty: Number(options.lpReserved ?? '0'),
           status: 'available',
+          qaStatus: 'released',
+          uom: 'kg',
+          locationId: randomUUID(),
         }
       : null,
     wasteRows: [] as Array<{ id: string; lp_id: string | null }>,
@@ -101,6 +104,11 @@ function makeWasteUnitContext(options?: { lpQuantity?: string; lpReserved?: stri
             {
               id: state.lp.id,
               has_available: state.lp.quantity - state.lp.reservedQty >= qty,
+              status: state.lp.status,
+              qa_status: state.lp.qaStatus,
+              uom: state.lp.uom,
+              location_id: state.lp.locationId,
+              site_id: seed.siteId,
             },
           ],
         };
@@ -110,9 +118,10 @@ function makeWasteUnitContext(options?: { lpQuantity?: string; lpReserved?: stri
         const qty = Number(params[2]);
         if (state.lp.quantity - qty < state.lp.reservedQty) return { rows: [] };
         state.lp.quantity -= qty;
-        if (state.lp.quantity <= 0) state.lp.status = 'consumed';
+        if (state.lp.quantity <= 0) state.lp.status = 'destroyed';
         return { rows: [{ id: state.lp.id, quantity: state.lp.quantity.toFixed(6) }] };
       }
+      if (normalized.startsWith('insert into public.stock_moves')) return { rows: [] };
       if (normalized.startsWith('insert into public.wo_waste_log')) {
         const lp = (params[9] ?? null) as string | null;
         state.wasteRows.push({ id: wasteId, lp_id: lp });

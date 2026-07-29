@@ -54,6 +54,7 @@ let boxesVoided = 0;
 let boxContentsVoided = 0;
 
 vi.mock('@monopilot/e-sign', () => ({
+  hashESignSubject: vi.fn(() => 'signed-bol-subject-hash'),
   signEvent: vi.fn(async () => ({ signatureId: SIGNATURE_ID })),
 }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
@@ -134,7 +135,12 @@ function makeClient(): QueryClient {
       }
 
       if (q.startsWith('select sh.id::text') && q.includes('for update of sh')) {
-        return shipment ? { rows: [shipment], rowCount: 1 } : { rows: [], rowCount: 0 };
+        return shipment
+          ? {
+              rows: [{ ...shipment, box_count: 1, bol_payload: { shipmentId: SHIPMENT_ID } }],
+              rowCount: 1,
+            }
+          : { rows: [], rowCount: 0 };
       }
 
       if (q.startsWith('select sh.id::text') && q.includes('box_count')) {
@@ -156,6 +162,8 @@ function makeClient(): QueryClient {
             {
               lp_id: LP_ID,
               lp_number: 'LP-1',
+              product_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+              uom: 'kg',
               site_id: SITE_ID,
               shipped_qty: '6.000',
               prior_status: 'available',
@@ -297,6 +305,9 @@ function makeClient(): QueryClient {
 
       if (q.includes('from public.items i') && q.includes('as qty_kg')) {
         return { rows: [{ qty_kg: String(params?.[0] ?? '0'), resolved: true }], rowCount: 1 };
+      }
+      if (q.includes('from public.e_sign_log')) {
+        return { rows: [{ ok: true }], rowCount: 1 };
       }
       if (q.includes('with existing as materialized') && q.includes('computed.qty_kg::text as "qtykg"')) {
         const qtyKg = String(params?.[2] ?? '0');

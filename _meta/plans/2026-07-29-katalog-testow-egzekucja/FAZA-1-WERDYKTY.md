@@ -132,3 +132,49 @@ Usuwanie danych osobowych zostawia trzy odwołania. To nie jest defekt kosmetycz
 
 **Anty-testy wykryte łącznie: 6** (`WH-066`, `WH-125`, `TEC-275`, `NSA-145`, `XC-047`, oraz
 `PLN-015` w wariancie „testy asertują rozjazd").
+
+---
+
+## Partia 4 — 12 ID (domeny `SFQ`, `PRD`)
+
+**Bilans: 0 PASS, 3 FAIL (defekty kodu), 9 bez testu kontraktowego.**
+Żaden PASS nie przyznany na testach opartych wyłącznie na atrapach.
+
+| ID | dziś | podstawa |
+|---|---|---|
+| `PRD-083` | **FAIL — defekt kodu** | filtr `complete` wykonuje dokładne `dual_sign_off_status = $2`, nie toleruje legacy `completed` (`changeover-actions.ts:361`). Suita 21 PASS/1 skip nie sprawdza tego wariantu |
+| `SFQ-072` | **FAIL — defekt kodu + ANTY-TEST** | kod woła preflight przed GRN/LP i rzuca `unresolved_uom`; kontrakt wymaga **zapisać receipt** i wykluczyć tylko WAC (`receive-po-line.ts:55`, `book-receipt-wac.ts:176`). Zielony test wymaga odrzucenia przed zapisami — utrwala defekt |
+| `SFQ-075` | **FAIL — defekt kodu** | akcja mapuje `unsupported_currency` na prefiksowany `wac_unsupported_currency`, a `unknown_currency` na generyczne `error` — oba sprzeczne z katalogiem (`receive-po-line.ts:103`) |
+| `PRD-058`, `PRD-061`, `SFQ-043`, `SFQ-050`, `SFQ-067`, `SFQ-069`, `SFQ-102`, `SFQ-107`, `SFQ-116` | **brak testu kontraktowego** | testy istnieją i są zielone (160 zielonych łącznie), ale oparte na atrapach SQL; nie dowodzą stanu trwałego, pełnego łańcucha bramek ani site-scope na prawdziwych użytkownikach |
+
+### 🔴 Dwa defekty ZNALEZIONE POZA KATALOGIEM — przez uruchomienie testów real-DB
+Silnik nie mógł ich uruchomić (sandbox blokuje bazę). Uruchomiłem sam na klonie `t2`:
+
+```
+× upsert-wac.pg.test.ts > output then completed-cancel nets WAC back to the pre-output state
+  AssertionError: expected false to be true
+
+× upsert-wac.pg.test.ts > converts g to kg by exact decimal division and leaves kg/each/box untouched
+  expected { qtyKg: '0', resolved: false } to deeply equal { qtyKg: '0.100125', resolved: true }
+```
+
+**Konwersja gramów na kilogramy zwraca `0` i `resolved: false`.** 100,125 g powinno dać
+0,100125 kg. Skutek: średni koszt ważony liczony na zerowej ilości — **po cichu, bez błędu**.
+Drugi defekt: WAC nie wraca do stanu sprzed outputu po anulowaniu.
+
+**Tego nie wykryły testy na atrapach. Wykryło uruchomienie przeciw prawdziwemu Postgresowi.**
+To jest, w jednym zdaniu, uzasadnienie całej tej kampanii.
+
+---
+
+## Bilans Fazy 1 po czterech partiach: 37 z 55 ID
+
+| Werdykt | Ile |
+|---|---|
+| **PASS** | 7 |
+| **FAIL — potwierdzony defekt kodu** | 13 |
+| **brak testu kontraktowego** | 17 |
+| Pozostało | 18 (11 `UI-*` w toku + 7 `E2E`) |
+
+**Anty-testy wykryte łącznie: 8.**
+**Defekty znalezione poza katalogiem: 2** (konwersja g→kg, netting WAC po anulowaniu).
