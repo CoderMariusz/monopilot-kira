@@ -1,5 +1,132 @@
 # Noc 2026-07-28/29 — Fale 7-12. **Plan naprawczy ZAMKNIĘTY.**
 
+> **RAPORT ZBIORCZY** (stan 05:53). Poniżej sekcja wykonawcza; szczegóły techniczne dalej.
+
+## 1. Ile fal zamkniętych
+
+**Sześć fal tej nocy (7, 8, 9, 10, 11, 12)** — a ponieważ fale 1-6 poszły w poprzednie noce,
+**cały 12-falowy plan naprawczy po audycie przeglądarkowym z 16.07 jest zamknięty.**
+Zlecenie ownera obejmowało fale 7-11; Fala 12 zmieściła się dodatkowo.
+
+Po zamknięciu fal doszły **cztery naprawy blokerów wykrytych dopiero przez weryfikację
+na żywym prodzie** — każda też zamknięta i udowodniona.
+
+## 2. Commity na produkcji (10, wszystkie wdrożone i zweryfikowane)
+
+| Commit | Co |
+|---|---|
+| `5b1a5187` | **Fale 7+8** — ZZ/GRN/nośniki, druk etykiet, przydatność, lokalizacje (mig 527) |
+| `20988b30` | **Fala 9** — MRP, transfery, łańcuchy WO, scheduler (mig 528) |
+| `ce072fdf` | **Fala 10** + domknięcie 2×P0 Fali 9 + żywa awaria `/en/production` |
+| `d5c2319f` | **Fala 11** — jakość/NCR, wysyłki/zamówienia (mig 541) |
+| `6bd4ad17` | **Fala 12** — utrzymanie ruchu, D365 export-only (mig 542) |
+| `53ea8a73` | i18n jakości (trzeci katalog tłumaczeń) + resztkowy fail-open zapisu |
+| `df07daa7` | **bloker**: tworzenie harmonogramu PM wywracało cały ekran |
+| `3e5d0159` | harmonogram PM odrzucał 9 z 12 pozycji własnej listy urządzeń |
+| `71f8424c`, `8ea0e02c` | raporty i dowody |
+
+Migracje: **527, 528, 541, 542** — każda PREPARE-owana **3× pod rząd** na owner-prodzie przed wdrożeniem.
+Bramka przy każdym commicie: typecheck + suita rdzenia + suita UI (osobno) + build.
+
+## 3. Znaleziska cross-review
+
+| Fala | Znalezisk | Werdykty |
+|---|---|---|
+| 7 | 11 (w tym 1 bloker builda) | FIX-FIRST |
+| 8 | 18 | FIX-FIRST ×4 |
+| 9 | **31** | FIX-FIRST ×5 |
+| 10 | 13 | FIX-FIRST ×5 |
+| 11 | **24** | FIX-FIRST ×4, **1 tor CZYSTY** |
+| 12 | 11 | FIX-FIRST ×2 |
+| **Razem** | **~108** | jeden jedyny tor bez uwag |
+
+**Najważniejsza wartość cross-review:** w **czterech torach główny finding NIE był naprawiony**,
+mimo raportu twierdzącego inaczej (F9: przyczyna awarii „Save this run", guard transferów
+odrzucający *każdy* transfer mixed-UoM, TO zamykane z brakującą ilością; F11: fail-open w jakości).
+Bramka tego nie widzi — sprawdza, czy kod działa, nie czy robi to, co obiecuje raport.
+
+## 4. Co UDOWODNIONE E2E na żywym prodzie
+
+Siedem osobnych raportów E2E, każdy z twardym stanem trwałym (id wierszy, wartości kolumn,
+dosłowne teksty z ekranu) — nigdy „strona się otworzyła".
+
+- **Fale 7+8:** 6/7 — m.in. `received_qty = 0.000600` zapisane przy jednoczesnym odrzuceniu
+  7. miejsca; guard lokalizacji w **obie** strony (odmowa z zapasem, sukces na pustej).
+- **Fala 9:** twarda bramka wdrożeniowa zdana (wiersze z pustym zakładem widoczne — mierzyłem,
+  że **wszystkie 4 produkcyjne wiersze** mają `site_id IS NULL`, więc filtr wykluczający NULL
+  wygasiłby ekrany MRP do zera); dwie prognozy dla tej samej pozycji i tygodnia w różnych
+  zakładach zapisane obie (sens mig 528); propagacja dat w łańcuchu WO w jednej transakcji.
+- **Fala 10:** **4/4 P0 zamknięte** — `mrp_runs` 3→4 ze `status=completed` i zerem błędów runtime;
+  historia MRP widoczna przy wybranym zakładzie; `/en/production` renderuje treść; edycja
+  globalnego progu bez duplikatu.
+- **Fala 11:** wszystkie punkty. Najostrzejszy dowód nocy: wilgotność **25%** przy specyfikacji
+  10-14 z **ręcznie przestawionym werdyktem na „Pass"** → **serwer odmówił**, baza nietknięta;
+  podmiana nazwy parametru **w wychodzącym żądaniu** → też odmowa, bo guard czyta parametry
+  **z bazy**, nie z ładunku klienta = **nieomijalny z przeglądarki**. Podpisany Fail dał komplet:
+  `HLD-00001029` + `NCR-00001007` + LP na `on_hold`.
+- **Fala 12:** korekta i wycofanie aktywu (wiersz zostaje ze śladem, znika z selektora: 13→12 pozycji);
+  ślad wycofania przeżywa reaktywację i **nie** jest klasyfikowany jako awaria; D365 bez obietnic importu.
+- **Regresja końcowa: 11/11 modułów bez cofnięcia** — żadna z 12 fal nie zepsuła wcześniejszej.
+- **Domknięcia:** harmonogram PM tworzy się (**pierwszy wiersz `maintenance_schedules` w całej bazie**),
+  auto-provisioning potwierdzony **identycznymi znacznikami czasu co do mikrosekundy**
+  (jedna transakcja), komunikaty jakości po ludzku.
+
+## 5. Co NIEUDOWODNIONE — i dlaczego
+
+Rozróżniam „działa" od „udowodniłem, że działa tam, gdzie trzeba". Poniższe **nie** zostały
+zaliczone, mimo że kod je obsługuje:
+
+| Punkt | Powód |
+|---|---|
+| Serwerowa odmowa plombowania **pustej** wysyłki | harness zablokował manipulację wyłączonym przyciskiem w DOM — czyli **zadziałała zasada bezpieczeństwa**. Interfejs blokuje poprawnie i z właściwą jednostką, ale gałęzi serwerowej nie wywołano po drucie |
+| Serwerowa odmowa **jawnego zera** przestoju | zatrzymał **klient** — w logu sieciowym brak POST-a. Bramka serwerowa istnieje w kodzie, ale się nie wykonała |
+| Bramka uprawnień na **reaktywacji** aktywu | konto testowe **ma** `mnt.asset.deactivate`, więc behawioralnie nie do sprawdzenia. Dowód **statyczny** (`asset-actions.ts:313`) |
+| Trigger migracji 527 (okno wdrożenia) | nowa aplikacja wstawia kolumnę **wprost**, więc gałąź fallback nie odpaliła |
+| Wielopoziomowy łańcuch WO (2+ poziomy) | **0 wierszy** w self-joinie `wo_dependencies` — na prodzie są tylko łańcuchy jednopoziomowe |
+| Zablokowany dostawca w MRP | istnieje `E2E-A-SUP-BLOCKED`, ale **nie jest preferowany** nigdzie; sztucznie go nie tworzyłem |
+| Podwójne liczenie obłożenia (PF-R12-02) | horyzont 7 dni pusty — same `0h` |
+| Kontrole `final`/`in-process`, wiele aktywnych specyfikacji | wszystkie specyfikacje na prodzie są `incoming`, wszystkie kontrole to `lp` |
+| Odrzucenie **nieaktywnej** linii w harmonogramie PM | takie linie nie trafiają na listę, więc nie da się wywołać przez interfejs |
+| Odtworzenie błędu **sprzed** poprawki PM | świadomie nie klikano „Save" na starym buildzie, żeby przełączenie aliasu w trakcie akcji nie zafałszowało wyniku |
+
+## 6. Nowe defekty wykryte po drodze (spoza planu naprawczego)
+
+**Naprawione tej nocy:**
+- `/en/production` w stanie błędu na produkcji (`text / numeric`, 42883), gdy bliźniaczy
+  `/production/wos` działał — **żywa awaria**
+- **Tworzenie harmonogramów przeglądów nigdy w historii nie zadziałało** — `TypeError` wywracał
+  cały ekran; **0 wierszy `maintenance_schedules` w całej bazie**. Przeszło bramkę CI, bo
+  operator `!` uciszył typecheck
+- Harmonogram PM odrzucał **9 z 12** pozycji własnej listy urządzeń
+- **Trzeci katalog tłumaczeń** `_meta/i18n-staging/` — importowany przez ~20 modułów, pominięty
+  w moim wzorcu commitowania; poprawione komunikaty jakości nigdy nie weszły na prod
+- Resztkowy fail-open: parametr z literówką w nazwie i wartością 25% przy limicie 14%
+  zapisywał się z zielonym PASS
+- Dashboard produkcji **w ogóle nie filtrował po zakładzie** (KPI 4/5 vs listy 3)
+
+**Zgłoszone, świadomie nienaprawione:** patrz sekcja „Do backlogu" niżej.
+
+## 7. Co zostało
+
+**Nic w toku.** Drzewo robocze czyste, zero pracujących silników, ostatnie wdrożenie READY,
+zero błędów runtime.
+
+**Wymaga decyzji ownera (nie kod):**
+- **`MWO-2026-00003`** — `in_progress` od 11 dni, `mwo_loto_checklists.released_at = NULL`, czyli
+  **blokada LOTO formalnie założona na czynnej maszynie**, przy pustych listach odciętych źródeł
+  energii i założonych kłódek. Zapis bezpieczeństwa — nie ruszałem.
+- **Rezydua danych testowych na produkcji** z siedmiu weryfikacji: zamówienia sprzedaży, wysyłka,
+  blokada + NCR, ograniczenie alergenowe, przebiegi MRP, zadania druku, przestoje, prognozy,
+  transfer, aktywa `REGR-FINAL-*`, 2 drukarki `E2E-FAL78`, harmonogram PM, `MWO-2026-00004`.
+  Pełne listy z identyfikatorami w raportach poszczególnych fal. **Nic nie kasowałem** — części
+  nie da się usunąć przez interfejs (prognozy, drukarki z zależnościami).
+- **Trzy różne linie Apex 22 mają ten sam kod `LINE01`** — dropdown pokazuje nieodróżnialne
+  pozycje. Problem danych, nie kodu.
+
+---
+
+## Szczegóły techniczne
+
 Owner zlecił fale 7-11 do 6:00. Zmieściły się wszystkie, a po nich jeszcze **Fala 12** —
 czyli cały 12-falowy plan naprawczy po audycie przeglądarkowym z 16.07 jest na produkcji.
 
