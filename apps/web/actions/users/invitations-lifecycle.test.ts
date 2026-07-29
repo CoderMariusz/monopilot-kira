@@ -22,6 +22,8 @@ const {
   _revalidateLocalized,
   _mockCreateSupabaseAuthAdmin,
   _mockCreateServerSupabaseClient,
+  _getResendConfiguration,
+  _sendResendEmail,
 } = vi.hoisted(() => ({
   _withOrgContextRunner: vi.fn(),
   _mockGenerateLink: vi.fn(),
@@ -29,6 +31,8 @@ const {
   _revalidateLocalized: vi.fn(),
   _mockCreateSupabaseAuthAdmin: vi.fn(),
   _mockCreateServerSupabaseClient: vi.fn(),
+  _getResendConfiguration: vi.fn(),
+  _sendResendEmail: vi.fn(),
 }));
 
 vi.mock('../../lib/auth/with-org-context', () => ({
@@ -39,6 +43,11 @@ vi.mock('../../lib/auth/with-org-context', () => ({
 
 vi.mock('../../lib/i18n/revalidate-localized', () => ({
   revalidateLocalized: _revalidateLocalized,
+}));
+
+vi.mock('../email/resend', () => ({
+  getResendConfiguration: _getResendConfiguration,
+  sendResendEmail: _sendResendEmail,
 }));
 
 // `auth.admin.*` needs the SERVICE-ROLE client. The previous version of this
@@ -81,6 +90,12 @@ type InvitationRow = {
 };
 
 type QueryCall = { sql: string; params: unknown[] };
+type EmailLogRow = {
+  id: string;
+  status: string;
+  providerMessageId: string | null;
+  lastErrorSummary: string | null;
+};
 
 type FakeClientOptions = {
   hasPermission: boolean;
@@ -94,6 +109,7 @@ type FakeClient = {
   updates: QueryCall[];
   outboxEvents: QueryCall[];
   auditLog: QueryCall[];
+  emailLog: EmailLogRow[];
   query: (sql: string, params?: unknown[]) => Promise<{ rows: unknown[]; rowCount: number }>;
 };
 
@@ -226,6 +242,7 @@ function makeClient(opts: FakeClientOptions): FakeClient {
     updates: [],
     outboxEvents: [],
     auditLog: [],
+    emailLog: [],
     async query(sql: string, params: unknown[] = []) {
       client.calls.push({ sql, params });
       const norm = normalizeSql(sql);
@@ -283,6 +300,27 @@ function makeClient(opts: FakeClientOptions): FakeClient {
         return { rows: [], rowCount: 1 };
       }
 
+      if (norm.startsWith('insert into public.email_delivery_log')) {
+        _operations.push('query:email_log_insert');
+        client.emailLog.push({
+          id: String(params[0]),
+          status: String(params[5]),
+          providerMessageId: typeof params[6] === 'string' ? params[6] : null,
+          lastErrorSummary: typeof params[7] === 'string' ? params[7] : null,
+        });
+        return { rows: [{ id: params[0] }], rowCount: 1 };
+      }
+
+      if (norm.startsWith('update public.email_delivery_log')) {
+        _operations.push('query:email_log_update');
+        const row = client.emailLog.find((entry) => entry.id === params[0]);
+        if (!row) return { rows: [], rowCount: 0 };
+        row.status = String(params[2]);
+        row.providerMessageId = typeof params[3] === 'string' ? params[3] : null;
+        row.lastErrorSummary = typeof params[4] === 'string' ? params[4] : null;
+        return { rows: [{ id: row.id }], rowCount: 1 };
+      }
+
       return { rows: [], rowCount: 0 };
     },
   };
@@ -333,6 +371,15 @@ beforeEach(() => {
   vi.resetModules();
   vi.clearAllMocks();
   _operations.length = 0;
+  process.env.NEXT_PUBLIC_APP_URL = 'https://app.example.com';
+  _getResendConfiguration.mockReturnValue({
+    ok: true,
+    config: {
+      apiKey: '[REDACTED_TEST_RESEND_KEY]',
+      from: 'Monopilot <no-reply@example.test>',
+    },
+  });
+  _sendResendEmail.mockResolvedValue({ status: 'sent', messageId: 'invite-message-123' });
   _withOrgContextRunner.mockImplementation(async (action: (ctx: unknown) => Promise<unknown>) =>
     action({ userId: ACTOR_USER_ID, orgId: ORG_ID, sessionToken: 'session-token', client: currentClient }),
   );
@@ -439,9 +486,13 @@ describe('Pending Invitations lifecycle Server Actions (TASK-000208/T-124 RED)',
     // `not_admin` in production, which made this whole success path unreachable.
     expect(_mockCreateSupabaseAuthAdmin).toHaveBeenCalled();
     expect(_mockCreateServerSupabaseClient).not.toHaveBeenCalled();
-    // …and the action must not claim delivery it cannot perform: this repo has no
-    // email transport, so a successful resend rotates the token and says so.
-    expect(data.delivery).toBe('none');
+    expect(data).toMatchObject({ delivery: 'email', messageId: 'invite-message-123' });
+    expect(_sendResendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: ['pending@example.com'],
+        text: expect.stringContaining('/api/auth/invite/accept?token=new-token-1'),
+      }),
+    );
     expect(_operations.indexOf('query:seat_limit')).toBeGreaterThan(_operations.indexOf('query:invitation_lookup'));
     expect(_operations.indexOf('query:active_user_count')).toBeGreaterThan(_operations.indexOf('query:seat_limit'));
     expect(_operations.indexOf('auth:generateLink')).toBeGreaterThan(_operations.indexOf('query:active_user_count'));
@@ -457,6 +508,14 @@ describe('Pending Invitations lifecycle Server Actions (TASK-000208/T-124 RED)',
     expect(currentClient.updates[0].params).toContain('new-token-1');
     expect(currentClient.outboxEvents.map((call) => eventType(call.params))).toContain('settings.user.invitation_resent');
     expect(currentClient.auditLog).toHaveLength(1);
+    expect(currentClient.emailLog).toEqual([
+      {
+        id: expect.any(String),
+        status: 'sent',
+        providerMessageId: 'invite-message-123',
+        lastErrorSummary: null,
+      },
+    ]);
   });
 
   it('resends an expired invitation and reports the expired resend path instead of treating it as immutable', async () => {
@@ -467,7 +526,7 @@ describe('Pending Invitations lifecycle Server Actions (TASK-000208/T-124 RED)',
     );
 
     expect(data).toMatchObject({ invitationId: EXPIRED_ID, email: 'expired@example.com', resendKind: 'expired' });
-    expect(data.delivery).toBe('none');
+    expect(data.delivery).toBe('email');
     expect(currentClient.updates).toHaveLength(1);
     expect(currentClient.outboxEvents.map((call) => eventType(call.params))).toContain('settings.user.invitation_resent');
     expect(currentClient.auditLog).toHaveLength(1);
@@ -487,6 +546,50 @@ describe('Pending Invitations lifecycle Server Actions (TASK-000208/T-124 RED)',
     expect(currentClient.updates).toHaveLength(0);
     expect(currentClient.outboxEvents).toHaveLength(0);
     expect(currentClient.auditLog).toHaveLength(0);
+  });
+
+  it('records failed and never sent when Resend configuration is missing', async () => {
+    _getResendConfiguration.mockReturnValueOnce({
+      ok: false,
+      code: 'PROVIDER_NOT_CONFIGURED',
+      reason: 'Missing required email environment variable: RESEND_API_KEY',
+    });
+    const { resendInvitation } = await loadLifecycle();
+
+    expectError(await resendInvitation({ invitationId: PENDING_ID, inviteToken: 'pending-token' }), 'email_not_configured');
+
+    expect(_sendResendEmail).not.toHaveBeenCalled();
+    expect(currentClient.updates).toHaveLength(0);
+    expect(currentClient.emailLog).toEqual([
+      {
+        id: expect.any(String),
+        status: 'failed',
+        providerMessageId: null,
+        lastErrorSummary: expect.stringContaining('RESEND_API_KEY'),
+      },
+    ]);
+    expect(currentClient.emailLog.some((row) => row.status === 'sent')).toBe(false);
+  });
+
+  it('changes the queued log to failed, never sent, when Resend rejects the invitation', async () => {
+    _sendResendEmail.mockResolvedValueOnce({
+      status: 'failed',
+      code: 'PROVIDER_SEND_FAILED',
+      reason: 'Resend rejected the request',
+    });
+    const { resendInvitation } = await loadLifecycle();
+
+    expectError(await resendInvitation({ invitationId: PENDING_ID, inviteToken: 'pending-token' }), 'invite_failed');
+
+    expect(currentClient.emailLog).toEqual([
+      {
+        id: expect.any(String),
+        status: 'failed',
+        providerMessageId: null,
+        lastErrorSummary: 'Resend rejected the request',
+      },
+    ]);
+    expect(currentClient.emailLog.some((row) => row.status === 'sent')).toBe(false);
   });
 
   it('revokes a pending invitation only, clears the active invite token but keeps expiry for audit listing, and writes audit/outbox records', async () => {

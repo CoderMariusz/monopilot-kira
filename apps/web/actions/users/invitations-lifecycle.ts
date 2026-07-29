@@ -1,11 +1,15 @@
 'use server';
 
+import { randomUUID } from 'node:crypto';
+
 import { withOrgContext } from '../../lib/auth/with-org-context';
 import { revalidateLocalized } from '../../lib/i18n/revalidate-localized';
+import { getResendConfiguration, sendResendEmail, type ResendConfiguration } from '../email/resend';
 import { createSupabaseAuthAdmin } from './supabase-admin';
 
 const INVITE_TTL_SECONDS = 604800;
 const INVITE_PERMISSION = 'settings.users.invite';
+const INVITATION_EMAIL_SUBJECT = 'You have been invited to Monopilot';
 const OUTBOX_EVENT_BY_LIFECYCLE_ACTION = {
   'settings.user.invitation_resent': 'user.invited',
   'settings.user.invitation_revoked': 'audit.recorded',
@@ -128,22 +132,7 @@ export type InvitationLifecycleInput = {
   inviteToken: string;
 };
 
-/**
- * `delivery` is what the caller is allowed to CLAIM happened.
- *
- * `'none'` — the invite token was rotated and the audit/outbox rows were written,
- * but NO email left the system. This repo has no outbound email transport: the
- * only `resend.emails.send()` call (actions/email/test-provider.ts) is dead code
- * behind a query against `integration_settings` columns that no migration
- * creates, and the outbox consumers only log. Supabase's own mailer cannot help
- * either — acceptance runs through THIS app's `/api/auth/invite/accept?token=`,
- * matched against `public.users.invite_token`, not through a GoTrue magic link.
- * So the operator must be told to pass the link on out of band.
- *
- * ponytail: a literal `'none'` rather than a delivery abstraction. When a real
- * transport lands, widen this to `'email'` and send before returning ok.
- */
-export type InvitationDelivery = 'none';
+export type InvitationDelivery = 'email';
 
 export type ResendInvitationResult =
   | {
@@ -154,6 +143,7 @@ export type ResendInvitationResult =
         expiresAt: string;
         resendKind: 'pending' | 'expired';
         delivery: InvitationDelivery;
+        messageId: string;
       };
     }
   | {
@@ -166,6 +156,7 @@ export type ResendInvitationResult =
         | 'stale_token'
         | 'seat_limit_exceeded'
         | 'invite_failed'
+        | 'email_not_configured'
         | 'persistence_failed';
     };
 
@@ -174,6 +165,18 @@ export type RevokeInvitationResult =
   | {
       ok: false;
       error: 'invalid_input' | 'forbidden' | 'not_found' | 'invalid_state' | 'stale_token' | 'persistence_failed';
+    };
+
+type PrepareResendResult =
+  | { ready: false; result: ResendInvitationResult }
+  | {
+      ready: true;
+      config: ResendConfiguration;
+      invitationId: string;
+      email: string;
+      expiresAt: string;
+      resendKind: 'pending' | 'expired';
+      acceptUrl: string;
     };
 
 function isUuid(value: unknown): value is string {
@@ -322,6 +325,74 @@ async function writeOutbox(
   );
 }
 
+async function insertInvitationEmailLog(
+  client: QueryClient,
+  params: {
+    id: string;
+    orgId: string;
+    email: string;
+    status: 'queued' | 'failed';
+    messageId: string | null;
+    error: string | null;
+    invitationId: string;
+  },
+): Promise<void> {
+  await client.query(
+    `insert into public.email_delivery_log
+       (id, org_id, trigger_code, recipient_email, subject, status, provider_message_id, last_error_summary, payload)
+     values ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9::jsonb)`,
+    [
+      params.id,
+      params.orgId,
+      'settings.user.invitation_resent',
+      params.email,
+      INVITATION_EMAIL_SUBJECT,
+      params.status,
+      params.messageId,
+      params.error,
+      JSON.stringify({ invitation_id: params.invitationId, provider: 'resend' }),
+    ],
+  );
+}
+
+async function updateInvitationEmailLog(
+  client: QueryClient,
+  params: {
+    id: string;
+    orgId: string;
+    status: 'sent' | 'failed';
+    messageId: string | null;
+    error: string | null;
+  },
+): Promise<void> {
+  const result = await client.query<{ id: string }>(
+    `update public.email_delivery_log
+        set status = $3,
+            provider_message_id = $4,
+            last_error_summary = $5,
+            updated_at = pg_catalog.now()
+      where id = $1::uuid
+        and org_id = $2::uuid
+      returning id`,
+    [params.id, params.orgId, params.status, params.messageId, params.error],
+  );
+  if ((result.rowCount ?? result.rows.length) !== 1) {
+    throw new Error('INVITATION_EMAIL_LOG_UPDATE_FAILED');
+  }
+}
+
+function inviteAcceptUrl(token: string): string | null {
+  const base = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (!base) return null;
+  try {
+    const url = new URL('/api/auth/invite/accept', base);
+    url.searchParams.set('token', token);
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
 export async function listInvitations(): Promise<ListInvitationsResult> {
   try {
     return await withOrgContext<ListInvitationsResult>(async (ctx): Promise<ListInvitationsResult> => {
@@ -353,22 +424,45 @@ export async function resendInvitation(input: InvitationLifecycleInput): Promise
     return { ok: false, error: 'invalid_input' };
   }
   const inviteToken = normalizeToken(input.inviteToken)!;
+  const emailLogId = randomUUID();
 
   try {
-    return await withOrgContext<ResendInvitationResult>(async (ctx): Promise<ResendInvitationResult> => {
+    const prepared = await withOrgContext<PrepareResendResult>(async (ctx): Promise<PrepareResendResult> => {
       const context = ctx as OrgContextLike;
       if (!(await hasInvitePermission(context))) {
-        return { ok: false, error: 'forbidden' };
+        return { ready: false, result: { ok: false, error: 'forbidden' } };
       }
 
       const invitation = await readInvitation(context.client, input.invitationId, context.orgId);
-      if (!invitation) return { ok: false, error: 'not_found' };
+      if (!invitation) return { ready: false, result: { ok: false, error: 'not_found' } };
 
       const status = invitationStatus(invitation);
-      if (status !== 'pending' && status !== 'expired') return { ok: false, error: 'invalid_state' };
-      if (invitation.invite_token !== inviteToken) return { ok: false, error: 'stale_token' };
+      if (status !== 'pending' && status !== 'expired') {
+        return { ready: false, result: { ok: false, error: 'invalid_state' } };
+      }
+      if (invitation.invite_token !== inviteToken) {
+        return { ready: false, result: { ok: false, error: 'stale_token' } };
+      }
       if (!(await ensureSeatAvailable(context.client, context.orgId))) {
-        return { ok: false, error: 'seat_limit_exceeded' };
+        return { ready: false, result: { ok: false, error: 'seat_limit_exceeded' } };
+      }
+
+      const configuration = getResendConfiguration();
+      if (!configuration.ok) {
+        await insertInvitationEmailLog(context.client, {
+          id: emailLogId,
+          orgId: context.orgId,
+          email: invitation.email,
+          status: 'failed',
+          messageId: null,
+          error: configuration.reason,
+          invitationId: invitation.id,
+        });
+        console.error('[resendInvitation] provider_not_configured', {
+          invitationId: invitation.id,
+          reason: configuration.reason,
+        });
+        return { ready: false, result: { ok: false, error: 'email_not_configured' } };
       }
 
       const expiresAt = new Date(Date.now() + INVITE_TTL_SECONDS * 1000);
@@ -403,15 +497,38 @@ export async function resendInvitation(input: InvitationLifecycleInput): Promise
           invitationId: invitation.id,
           err: error instanceof Error ? error.message : String(error),
         });
-        return { ok: false, error: 'invite_failed' };
+        return { ready: false, result: { ok: false, error: 'invite_failed' } };
       }
-      if (linkResponse.error) return { ok: false, error: 'invite_failed' };
+      if (linkResponse.error) {
+        return { ready: false, result: { ok: false, error: 'invite_failed' } };
+      }
       const newInviteToken =
         linkResponse.data?.properties?.hashed_token ??
         linkResponse.data?.properties?.email_otp ??
         linkResponse.data?.user?.id ??
         null;
-      if (!newInviteToken) return { ok: false, error: 'invite_failed' };
+      if (!newInviteToken) {
+        return { ready: false, result: { ok: false, error: 'invite_failed' } };
+      }
+
+      const acceptUrl = inviteAcceptUrl(newInviteToken);
+      if (!acceptUrl) {
+        const reason = 'Missing or invalid required email environment variable: NEXT_PUBLIC_APP_URL';
+        await insertInvitationEmailLog(context.client, {
+          id: emailLogId,
+          orgId: context.orgId,
+          email: invitation.email,
+          status: 'failed',
+          messageId: null,
+          error: reason,
+          invitationId: invitation.id,
+        });
+        console.error('[resendInvitation] provider_not_configured', {
+          invitationId: invitation.id,
+          reason,
+        });
+        return { ready: false, result: { ok: false, error: 'email_not_configured' } };
+      }
 
       const updated = await context.client.query(
         `update public.users
@@ -424,7 +541,9 @@ export async function resendInvitation(input: InvitationLifecycleInput): Promise
             and is_active = false`,
         [newInviteToken, expiresAt.toISOString(), invitation.id, context.orgId, inviteToken],
       );
-      if ((updated.rowCount ?? 0) < 1) return { ok: false, error: 'stale_token' };
+      if ((updated.rowCount ?? 0) < 1) {
+        return { ready: false, result: { ok: false, error: 'stale_token' } };
+      }
 
       const beforeState = {
         invitation_id: invitation.id,
@@ -440,27 +559,83 @@ export async function resendInvitation(input: InvitationLifecycleInput): Promise
       };
       await writeAuditLog(context, 'settings.user.invitation_resent', beforeState, afterState);
       await writeOutbox(context, 'settings.user.invitation_resent', afterState);
-
-      try {
-        revalidateLocalized('/settings/users');
-        revalidateLocalized('/settings/invitations');
-      } catch {
-        // Unit tests and non-Next callers do not provide a static-generation store.
-      }
+      await insertInvitationEmailLog(context.client, {
+        id: emailLogId,
+        orgId: context.orgId,
+        email: invitation.email,
+        status: 'queued',
+        messageId: null,
+        error: null,
+        invitationId: invitation.id,
+      });
 
       return {
-        ok: true,
-        data: {
-          invitationId: invitation.id,
-          email: invitation.email,
-          expiresAt: expiresAt.toISOString(),
-          resendKind: status,
-          // Token rotated + audited, but nothing was emailed — see InvitationDelivery.
-          delivery: 'none',
-        },
+        ready: true,
+        config: configuration.config,
+        invitationId: invitation.id,
+        email: invitation.email,
+        expiresAt: expiresAt.toISOString(),
+        resendKind: status,
+        acceptUrl,
       };
     });
-  } catch {
+
+    if (!prepared.ready) return prepared.result;
+
+    const delivery = await sendResendEmail({
+      config: prepared.config,
+      to: [prepared.email],
+      subject: INVITATION_EMAIL_SUBJECT,
+      text: [
+        'You have been invited to Monopilot.',
+        `Accept your invitation: ${prepared.acceptUrl}`,
+        `This invitation expires at ${prepared.expiresAt}.`,
+      ].join('\n'),
+      idempotencyKey: `invitation/${prepared.invitationId}/${emailLogId}`,
+    });
+
+    await withOrgContext(async ({ client, orgId }) => {
+      await updateInvitationEmailLog(client as QueryClient, {
+        id: emailLogId,
+        orgId,
+        status: delivery.status,
+        messageId: delivery.status === 'sent' ? delivery.messageId : null,
+        error: delivery.status === 'failed' ? delivery.reason : null,
+      });
+    });
+
+    try {
+      revalidateLocalized('/settings/users');
+      revalidateLocalized('/settings/invitations');
+    } catch {
+      // Unit tests and non-Next callers do not provide a static-generation store.
+    }
+
+    if (delivery.status === 'failed') {
+      console.error('[resendInvitation] provider_send_failed', {
+        invitationId: prepared.invitationId,
+        code: delivery.code,
+        reason: delivery.reason,
+      });
+      return { ok: false, error: 'invite_failed' };
+    }
+
+    return {
+      ok: true,
+      data: {
+        invitationId: prepared.invitationId,
+        email: prepared.email,
+        expiresAt: prepared.expiresAt,
+        resendKind: prepared.resendKind,
+        delivery: 'email',
+        messageId: delivery.messageId,
+      },
+    };
+  } catch (error) {
+    console.error('[resendInvitation] persistence_failed', {
+      invitationId: input.invitationId,
+      err: error instanceof Error ? error.message : String(error),
+    });
     return { ok: false, error: 'persistence_failed' };
   }
 }

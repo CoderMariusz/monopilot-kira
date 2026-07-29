@@ -55,8 +55,8 @@ function makeClient(): QueryClient {
         return { rows: [{ total: 120 }], rowCount: 1 };
       }
       if (q.includes('order by move_date desc')) {
-        const limit = Number(params?.[1] ?? 50);
-        const offset = Number(params?.[2] ?? 0);
+        const limit = Number(params?.[2] ?? 50);
+        const offset = Number(params?.[3] ?? 0);
         const allRows = Array.from({ length: 120 }, (_, index) => makeMoveRow(index + 1));
         return {
           rows: allRows.slice(offset, offset + limit),
@@ -85,9 +85,14 @@ describe('listStockMoves pagination', () => {
     expect(result.data.items).toHaveLength(20);
     expect(result.data.hasMore).toBe(false);
 
+    const countCall = vi
+      .mocked(client.query)
+      .mock.calls.find(([sql]) => normalize(String(sql)).includes('select count(*)::int as total'));
+    expect(countCall?.[1]).toEqual([null, SITE_ID]);
+
     const dataCall = vi
       .mocked(client.query)
       .mock.calls.find(([sql]) => normalize(String(sql)).includes('order by move_date desc'));
-    expect(dataCall?.[1]).toEqual([null, 50, 100, SITE_ID]);
+    expect(dataCall?.[1]).toEqual([null, SITE_ID, 50, 100]);
   });
 });

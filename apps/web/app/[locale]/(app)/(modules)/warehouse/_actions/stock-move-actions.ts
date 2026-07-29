@@ -75,7 +75,7 @@ const UNIFIED_MOVEMENTS_CTE = `
              left join public.locations fl on fl.org_id = app.current_org_id() and fl.id = sm.from_location_id
              left join public.locations tl on tl.org_id = app.current_org_id() and tl.id = sm.to_location_id
             where sm.org_id = app.current_org_id()
-              and sm.site_id = $4::uuid
+              and sm.site_id = $2::uuid
 
            union all
 
@@ -105,7 +105,7 @@ const UNIFIED_MOVEMENTS_CTE = `
              left join public.license_plates lp2 on lp2.org_id = app.current_org_id() and lp2.id = h.lp_id
              left join public.locations tl2 on tl2.org_id = app.current_org_id() and tl2.id = lp2.location_id
             where h.org_id = app.current_org_id()
-              and h.site_id = $4::uuid
+              and h.site_id = $2::uuid
          )`;
 
 export async function listStockMoves(
@@ -140,7 +140,7 @@ export async function listStockMoves(
          select count(*)::int as total
            from unified
           where ($1::text is null or move_type = $1)`,
-          [moveType, page.limit, page.offset, s],
+          [moveType, s],
         ),
         ctx.client.query<{
         id: string;
@@ -163,8 +163,8 @@ export async function listStockMoves(
            from unified
           where ($1::text is null or move_type = $1)
           order by move_date desc, id desc
-          limit $2::integer offset $3::integer`,
-          [moveType, page.limit, page.offset, s],
+          limit $3::integer offset $4::integer`,
+          [moveType, s, page.limit, page.offset],
         ),
       ]);
 

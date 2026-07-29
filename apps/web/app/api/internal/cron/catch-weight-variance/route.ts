@@ -1,5 +1,5 @@
 /**
- * T-031 — POST /api/internal/cron/catch-weight-variance
+ * T-031 — GET|POST /api/internal/cron/catch-weight-variance
  *
  * Nightly catch-weight variance roll-up (PRD §8.5). Walks every org, sets org
  * context per org, computes the per-(item,day) variance vs the org threshold,
@@ -110,7 +110,7 @@ export async function runVarianceForOrg(
   }
 }
 
-export async function POST(req: Request): Promise<Response> {
+async function handleCatchWeightVariance(req: Request): Promise<Response> {
   if (!authorizeCron(req)) return json({ error: 'unauthorized' }, 401);
 
   const url = new URL(req.url);
@@ -153,4 +153,14 @@ export async function POST(req: Request): Promise<Response> {
   } finally {
     await pool.end();
   }
+}
+
+/** Vercel Cron entry point (vercel.json schedules HTTP GET). */
+export async function GET(req: Request): Promise<Response> {
+  return handleCatchWeightVariance(req);
+}
+
+/** Manual / ops invocation (Bearer CRON_SECRET). */
+export async function POST(req: Request): Promise<Response> {
+  return handleCatchWeightVariance(req);
 }

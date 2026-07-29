@@ -40,11 +40,11 @@ import path from 'node:path';
 
 import { expect, test, type Page } from '@playwright/test';
 
+import { signIn } from './_shared/parity-login';
+
 // ── env / paths ────────────────────────────────────────────────────────────────
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL;
-const adminEmail = process.env.PLAYWRIGHT_ADMIN_EMAIL ?? 'admin@monopilot.test';
-const adminPassword = process.env.PLAYWRIGHT_ADMIN_PASSWORD ?? '';
 const artifactDir = path.resolve(__dirname, 'artifacts/PURCHASING-CHAIN-E2E');
 const L = 'en'; // locale segment
 
@@ -59,21 +59,6 @@ function url(route: string): string {
 async function shot(page: Page, name: string): Promise<void> {
   ensureDir();
   await page.screenshot({ path: path.join(artifactDir, `${name}.png`), fullPage: true });
-}
-
-// ── auth (mirrors npd-full-lifecycle.spec.ts / npd-project-gate-flow.spec.ts) ──
-
-async function signIn(page: Page): Promise<void> {
-  await page.goto(url(`/${L}/login`), { waitUntil: 'domcontentloaded' });
-  const email = page.getByLabel(/work email/i).or(page.locator('input[type="email"]'));
-  await email.fill(adminEmail);
-  const password = page
-    .getByLabel(/password/i)
-    .or(page.locator('input[type="password"]'))
-    .first();
-  await password.fill(adminPassword);
-  await page.getByRole('button', { name: /sign in|log in|submit/i }).click();
-  await page.waitForURL((u) => !u.pathname.endsWith('/login'), { timeout: 15_000 });
 }
 
 /** Read the value of a (possibly read-only) input by testid. */

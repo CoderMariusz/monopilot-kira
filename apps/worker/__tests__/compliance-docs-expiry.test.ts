@@ -243,7 +243,10 @@ run('T-085 compliance docs expiry scan worker integration', () => {
       version: 2,
     });
 
-    const sendEmail = vi.fn<ComplianceDocsExpiryEmailSender>(async () => ({ messageId: 'msg-085' }));
+    const sendEmail = vi.fn<ComplianceDocsExpiryEmailSender>(async () => ({
+      status: 'sent',
+      messageId: 'msg-085',
+    }));
     const registry = new JobRegistry({ pool: owner, logger: createLoggerStub() });
     registerComplianceDocsExpiryScan(registry, { sendEmail });
 

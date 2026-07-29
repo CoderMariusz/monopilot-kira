@@ -13,6 +13,7 @@ import { hashESignSubject } from '@monopilot/e-sign';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { setPin } from '../../../../../../../../../packages/auth/src/verify-pin.js';
+import { TEST_PERSONAS } from '../../../../../../../../../packages/db/seeds/test-personas.js';
 import {
   databaseUrl,
   withActionActor,
@@ -32,12 +33,18 @@ const BAD_PIN = '000000';
 const ENERGY_SOURCES = ['Main electrical supply — breaker locked open'];
 const APPLIED_TAGS = ['Lock L-104 / tag T-104'];
 
+const secondSignerPersona = TEST_PERSONAS.find((persona) => persona.key === 'second_signer');
+if (!secondSignerPersona) {
+  throw new Error('TEST_PERSONAS must include the canonical second_signer persona');
+}
+
 const seed = {
   tenantId: randomUUID(),
   orgId: randomUUID(),
   lockoutUserId: randomUUID(),
-  releaseUserId: randomUUID(),
+  releaseUserId: secondSignerPersona.userId,
   roleId: randomUUID(),
+  secondSignerRoleId: randomUUID(),
   equipmentId: randomUUID(),
   mwoId: randomUUID(),
 };
@@ -107,33 +114,77 @@ async function seedOrg(): Promise<void> {
     [seed.roleId, seed.orgId],
   );
   seed.roleId = roleRow.rows[0]?.id ?? seed.roleId;
+  const secondSignerRoleRow = await owner.query<{ id: string }>(
+    `insert into public.roles (id, org_id, code, slug, name, permissions)
+     values ($1, $2, $3, $3, $4, $5::jsonb)
+     on conflict (org_id, slug) do update
+       set name = excluded.name,
+           permissions = excluded.permissions
+     returning id`,
+    [
+      seed.secondSignerRoleId,
+      seed.orgId,
+      secondSignerPersona.roleCode,
+      secondSignerPersona.roleName,
+      JSON.stringify(secondSignerPersona.permissions),
+    ],
+  );
+  seed.secondSignerRoleId = secondSignerRoleRow.rows[0]?.id ?? seed.secondSignerRoleId;
   await owner.query(`select public.seed_maintenance_permissions_for_org($1)`, [seed.orgId]);
   await owner.query(
     `insert into public.role_permissions (role_id, permission)
-     values ($1, 'mnt.loto.apply')
+     values ($1, 'mnt.loto.apply'),
+            ($1, 'mnt.loto.clear')
      on conflict (role_id, permission) do nothing`,
     [seed.roleId],
   );
-  for (const userId of [seed.lockoutUserId, seed.releaseUserId]) {
+  if (secondSignerPersona.permissions.length > 0) {
     await owner.query(
-      `insert into public.users (id, org_id, email, name, role_id)
-       values ($1, $2, $3, $4, $5)
-       on conflict (id) do nothing`,
-      [
-        userId,
-        seed.orgId,
-        `n39-loto-${userId.slice(0, 8)}@example.test`,
-        `N-39 User ${userId.slice(0, 8)}`,
-        seed.roleId,
-      ],
-    );
-    await owner.query(
-      `insert into public.user_roles (org_id, user_id, role_id)
-       values ($1, $2, $3)
-       on conflict do nothing`,
-      [seed.orgId, userId, seed.roleId],
+      `insert into public.role_permissions (role_id, permission)
+       select $1::uuid, permission
+         from unnest($2::text[]) as permission
+       on conflict (role_id, permission) do nothing`,
+      [seed.secondSignerRoleId, secondSignerPersona.permissions],
     );
   }
+  await owner.query(
+    `insert into public.users (id, org_id, email, name, role_id)
+     values ($1, $2, $3, $4, $5)
+     on conflict (id) do nothing`,
+    [
+      seed.lockoutUserId,
+      seed.orgId,
+      `n39-loto-${seed.lockoutUserId.slice(0, 8)}@example.test`,
+      `N-39 User ${seed.lockoutUserId.slice(0, 8)}`,
+      seed.roleId,
+    ],
+  );
+  await owner.query(
+    `insert into public.users (id, org_id, email, name, role_id)
+     values ($1, $2, $3, $4, $5)
+     on conflict (id) do nothing`,
+    [
+      secondSignerPersona.userId,
+      seed.orgId,
+      secondSignerPersona.email,
+      secondSignerPersona.name,
+      seed.secondSignerRoleId,
+    ],
+  );
+  await owner.query(
+    `insert into public.user_roles (org_id, user_id, role_id)
+     values ($1, $2, $3),
+            ($1, $4, $5),
+            ($1, $4, $3)
+     on conflict do nothing`,
+    [
+      seed.orgId,
+      seed.lockoutUserId,
+      seed.roleId,
+      secondSignerPersona.userId,
+      seed.secondSignerRoleId,
+    ],
+  );
   await owner.query(
     `insert into public.equipment (id, org_id, equipment_code, name, equipment_type, requires_loto)
      values ($1, $2, 'EQ-LOTO-01', 'Critical mixer', 'Mixer', true)
@@ -350,6 +401,17 @@ run('N-39 MWO LOTO e-sign (real DB)', () => {
       new Set([seed.lockoutUserId, seed.releaseUserId]),
     );
     expect(lockoutRows[0]?.nonce).not.toBe(lockoutRows[1]?.nonce);
+
+    const replay = await withActionActor(seed.lockoutUserId, seed.orgId, () =>
+      verifyMwoLotoLockout(lockoutInput()),
+    );
+    expect(replay).toEqual({
+      ok: false,
+      reason: 'error',
+      message: 'LOTO lockout is already verified',
+    });
+    expect(await readLotoRow()).toEqual(loto);
+    expect(await readEsignRows('mnt.loto.lockout')).toEqual(lockoutRows);
   });
 
   it('rejects release while the MWO is still open', async () => {
@@ -437,10 +499,31 @@ run('N-39 MWO LOTO e-sign (real DB)', () => {
     );
     expect(start.ok).toBe(true);
 
+    const sameActorRelease = await withActionActor(seed.releaseUserId, seed.orgId, () =>
+      verifyMwoLotoRelease({ mwoId: seed.mwoId, signature: { password: RELEASE_PIN } }),
+    );
+    expect(sameActorRelease).toEqual({
+      ok: false,
+      reason: 'loto_same_actor',
+      message: 'LOTO release signer must be distinct from the lockout verifier',
+    });
+    expect((await readLotoRow()).released_by).toBeNull();
+    expect(await readEsignRows('mnt.loto.release')).toHaveLength(0);
+
     const release = await withActionActor(seed.lockoutUserId, seed.orgId, () =>
       verifyMwoLotoRelease({ mwoId: seed.mwoId, signature: { password: LOCKOUT_PIN } }),
     );
     expect(release.ok).toBe(true);
+
+    const releasedLoto = await readLotoRow();
+    const releaseRows = await readEsignRows('mnt.loto.release');
+    expectEsignRowsForLotoSubject(releaseRows, 'mnt.loto.release', 1);
+
+    await withActionActor(seed.lockoutUserId, seed.orgId, () =>
+      verifyMwoLotoRelease({ mwoId: seed.mwoId, signature: { password: LOCKOUT_PIN } }),
+    );
+    expect(await readLotoRow()).toEqual(releasedLoto);
+    expect(await readEsignRows('mnt.loto.release')).toEqual(releaseRows);
 
     const complete = await withActionActor(seed.lockoutUserId, seed.orgId, () =>
       transitionMwo({ mwoId: seed.mwoId, to: 'completed' }),
@@ -450,14 +533,12 @@ run('N-39 MWO LOTO e-sign (real DB)', () => {
     expect(complete.data.state).toBe('completed');
 
     const loto = await readLotoRow();
+    expect(loto).toEqual(releasedLoto);
     expect(loto.lockout_applied_by).toBe(seed.lockoutUserId);
     expect(loto.zero_energy_verified_by).toBe(seed.releaseUserId);
     expect(loto.released_by).toBe(seed.lockoutUserId);
 
     const lockoutRows = await readEsignRows('mnt.loto.lockout');
     expectEsignRowsForLotoSubject(lockoutRows, 'mnt.loto.lockout', 2);
-
-    const releaseRows = await readEsignRows('mnt.loto.release');
-    expectEsignRowsForLotoSubject(releaseRows, 'mnt.loto.release', 1);
   });
 });

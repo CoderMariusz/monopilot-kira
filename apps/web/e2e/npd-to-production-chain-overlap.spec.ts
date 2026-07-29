@@ -48,9 +48,9 @@ import path from 'node:path';
 
 import { expect, test, type Page } from '@playwright/test';
 
+import { signIn } from './_shared/parity-login';
+
 const baseURL = process.env.PLAYWRIGHT_BASE_URL;
-const adminEmail = process.env.PLAYWRIGHT_ADMIN_EMAIL ?? 'admin@monopilot.test';
-const adminPassword = process.env.PLAYWRIGHT_ADMIN_PASSWORD ?? '';
 
 const artifactDir = path.resolve(__dirname, 'artifacts/npd-to-production-chain-overlap');
 
@@ -64,20 +64,6 @@ function url(route: string): string {
 
 function shot(page: Page, name: string): Promise<Buffer> {
   return page.screenshot({ path: path.join(artifactDir, name), fullPage: true });
-}
-
-/** Email + password sign-in — same pattern as npd-full-lifecycle.spec.ts. */
-async function signIn(page: Page): Promise<void> {
-  await page.goto(url('/en/login'), { waitUntil: 'domcontentloaded' });
-  const emailInput = page.getByLabel(/work email/i).or(page.locator('input[type="email"]'));
-  await emailInput.fill(adminEmail);
-  const passwordInput = page
-    .getByLabel(/password/i)
-    .or(page.locator('input[type="password"]'))
-    .first();
-  await passwordInput.fill(adminPassword);
-  await page.getByRole('button', { name: /sign in|log in|submit/i }).click();
-  await page.waitForURL((u) => !u.pathname.endsWith('/login'), { timeout: 15_000 });
 }
 
 test.describe('NPD → production chain + schedule-overlap flow', () => {

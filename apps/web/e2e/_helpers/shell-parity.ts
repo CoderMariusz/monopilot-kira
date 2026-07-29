@@ -91,7 +91,14 @@ export const shellSelectors = {
 
 export function resolveWebRoot(): string {
   const cwd = process.cwd();
-  if (existsSync(path.join(cwd, 'e2e')) && existsSync(path.join(cwd, 'package.json'))) return cwd;
+  // Znacznikiem musi być `e2e/_helpers`, nie samo `e2e`: KORZEŃ REPO ma i `e2e/` (z artefaktami),
+  // i `package.json`, więc słabszy warunek uznawał korzeń za katalog aplikacji. Wtedy
+  // resolveRepoRoot() (dwa poziomy wyżej) wskazywał KATALOG DOMOWY, a `pnpm --filter web dev`
+  // skanował wszystkie repozytoria użytkownika ("Scope: 2 of 71 projects") i startował serwer
+  // deweloperski z CUDZEGO checkoutu. `e2e/_helpers` istnieje wyłącznie w apps/web.
+  if (existsSync(path.join(cwd, 'e2e/_helpers')) && existsSync(path.join(cwd, 'package.json'))) {
+    return cwd;
+  }
   return path.join(cwd, 'apps/web');
 }
 
@@ -277,6 +284,30 @@ function authCookieValue(): string {
   return `base64-${Buffer.from(JSON.stringify(session)).toString('base64url')}`;
 }
 
+/**
+ * Install the harness session cookie on a browser context.
+ *
+ * Shared with the flow specs' signIn (`e2e/_shared/parity-login.ts`) so the local
+ * run has exactly one auth mechanism: this cookie + the fake Supabase Auth server
+ * spawned by startLocalShellParityHarness().
+ */
+export async function installHarnessAuthCookie(
+  context: BrowserContext,
+  baseURL: string,
+  supabaseUrl: string,
+): Promise<void> {
+  await context.addCookies([
+    {
+      name: authCookieName(supabaseUrl),
+      value: authCookieValue(),
+      url: baseURL,
+      httpOnly: false,
+      sameSite: 'Lax',
+      expires: Math.floor(Date.now() / 1000) + 3600,
+    },
+  ]);
+}
+
 type RouteConflictMove = {
   activePath: string;
   disabledPath: string;
@@ -337,7 +368,11 @@ export async function startLocalShellParityHarness(): Promise<ShellParityHarness
   }
 
   const output: string[] = [];
-  const child = spawn('pnpm', ['--filter', 'web', 'dev'], {
+  // Filtr PO ŚCIEŻCE, nie po nazwie: `--filter web` rozwijało się w tym kontekście do
+  // "Scope: 2 of 71 projects" i startowało DWA `next dev` na tym samym porcie —
+  // drugi padał na EADDRINUSE, a harness raportował to jako "server exited early".
+  // Filtr ścieżkowy może wskazać dokładnie jeden projekt.
+  const child = spawn('pnpm', ['--filter', './apps/web', 'dev'], {
     cwd: resolveRepoRoot(),
     env: {
       ...process.env,
@@ -366,16 +401,7 @@ export async function startLocalShellParityHarness(): Promise<ShellParityHarness
     supabaseUrl,
     server_identity: `Next dev server cwd=${resolveRepoRoot()} baseURL=${baseURL} fakeSupabase=${supabaseUrl}`,
     async installAuthCookie(context: BrowserContext) {
-      await context.addCookies([
-        {
-          name: authCookieName(supabaseUrl),
-          value: authCookieValue(),
-          url: baseURL,
-          httpOnly: false,
-          sameSite: 'Lax',
-          expires: Math.floor(Date.now() / 1000) + 3600,
-        },
-      ]);
+      await installHarnessAuthCookie(context, baseURL, supabaseUrl);
     },
     async close() {
       await killProcess(child);

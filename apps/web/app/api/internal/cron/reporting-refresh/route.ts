@@ -88,7 +88,7 @@ const REPORTING_MATVIEW_QUERY = `
      and mv.matviewname like 'mv\\_reporting\\_%' escape '\\'
    order by mv.matviewname asc`;
 
-export async function POST(req: Request): Promise<Response> {
+async function handleReportingRefresh(req: Request): Promise<Response> {
   const auth = authorizeCron(req);
   if (!auth.ok) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), {
@@ -157,4 +157,14 @@ export async function POST(req: Request): Promise<Response> {
     client?.release();
     await pool.end();
   }
+}
+
+/** Vercel Cron entry point (vercel.json schedules HTTP GET). */
+export async function GET(req: Request): Promise<Response> {
+  return handleReportingRefresh(req);
+}
+
+/** Manual / ops invocation (Bearer CRON_SECRET). */
+export async function POST(req: Request): Promise<Response> {
+  return handleReportingRefresh(req);
 }

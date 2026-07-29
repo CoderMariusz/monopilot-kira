@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
@@ -23,13 +23,18 @@ vi.mock('../../lib/auth/has-permission', () => ({
 }));
 
 vi.mock('resend', () => ({
-  Resend: vi.fn().mockImplementation(() => ({
-    emails: { send: _resendSend },
-  })),
+  Resend: class {
+    emails = { send: _resendSend };
+  },
 }));
 
 type QueryCall = { sql: string; params: readonly unknown[] };
 type AuditRow = { action: string; resource_id: string; after_state: unknown };
+type EmailLogRow = {
+  status: string;
+  provider_message_id: string | null;
+  last_error_summary: string | null;
+};
 type EmailConfigInput = {
   triggerCode: string;
   recipientsTo: string;
@@ -45,6 +50,7 @@ type EmailActionResult =
 type FakeClient = {
   calls: QueryCall[];
   auditRows: AuditRow[];
+  emailRows: EmailLogRow[];
   referenceRows: Array<Record<string, unknown>>;
   query: <T = Record<string, unknown>>(
     sql: string,
@@ -63,6 +69,13 @@ beforeEach(() => {
     action({ userId: USER_ID, orgId: ORG_ID, sessionToken: 'session-token-stub', client: currentClient }),
   );
   _resendSend.mockResolvedValue({ data: { id: 'email_probe_123' }, error: null });
+  process.env.RESEND_API_KEY = '[REDACTED_TEST_RESEND_KEY]';
+  process.env.RESEND_FROM_EMAIL = 'Monopilot <no-reply@example.test>';
+});
+
+afterEach(() => {
+  delete process.env.RESEND_API_KEY;
+  delete process.env.RESEND_FROM_EMAIL;
 });
 
 describe('email_config Server Actions (T-031 RED)', () => {
@@ -145,7 +158,20 @@ describe('email_config Server Actions (T-031 RED)', () => {
     const ok = await testEmailProvider({ to: PROBE_TO });
 
     expect(ok).toMatchObject({ status: 'ok', message_id: 'email_probe_123' });
-    expect(_resendSend).toHaveBeenCalledWith(expect.objectContaining({ to: [PROBE_TO] }));
+    expect(_resendSend).toHaveBeenCalledWith(
+      expect.objectContaining({
+        from: 'Monopilot <no-reply@example.test>',
+        to: [PROBE_TO],
+      }),
+      expect.objectContaining({ idempotencyKey: expect.any(String) }),
+    );
+    expect(currentClient.emailRows).toEqual([
+      {
+        status: 'sent',
+        provider_message_id: 'email_probe_123',
+        last_error_summary: null,
+      },
+    ]);
     expect(currentClient.auditRows, 'successful provider test must write exactly one audit row').toHaveLength(1);
     expect(currentClient.auditRows[0]?.action).toBe('email.provider.test');
 
@@ -154,7 +180,38 @@ describe('email_config Server Actions (T-031 RED)', () => {
     const authFailed = await testEmailProvider({ to: PROBE_TO });
 
     expect(authFailed).toMatchObject({ status: 'error', code: 'PROVIDER_AUTH_FAILED' });
+    expect(currentClient.emailRows).toEqual([
+      {
+        status: 'failed',
+        provider_message_id: null,
+        last_error_summary: expect.stringContaining('mock Resend auth failed'),
+      },
+    ]);
     expect(currentClient.auditRows, 'invalid provider credentials must not write audit rows').toHaveLength(0);
+  });
+
+  it('records failed, never sent, when RESEND_API_KEY is missing', async () => {
+    delete process.env.RESEND_API_KEY;
+    const testEmailProvider = await loadAction<
+      (input: { to: string }) => Promise<EmailActionResult>
+    >('test-provider.ts', 'testEmailProvider', () => import(`${__dirname}/test-provider.ts`) as Promise<Record<string, unknown>>);
+
+    const result = await testEmailProvider({ to: PROBE_TO });
+
+    expect(result).toMatchObject({
+      status: 'error',
+      code: 'PROVIDER_NOT_CONFIGURED',
+      message: expect.stringContaining('RESEND_API_KEY'),
+    });
+    expect(_resendSend).not.toHaveBeenCalled();
+    expect(currentClient.emailRows).toEqual([
+      {
+        status: 'failed',
+        provider_message_id: null,
+        last_error_summary: expect.stringContaining('RESEND_API_KEY'),
+      },
+    ]);
+    expect(currentClient.emailRows.some((row) => row.status === 'sent')).toBe(false);
   });
 });
 
@@ -179,6 +236,7 @@ function makeClient(): FakeClient {
   const client: FakeClient = {
     calls: [],
     auditRows: [],
+    emailRows: [],
     referenceRows: [],
     async query<T = Record<string, unknown>>(sql: string, params: readonly unknown[] = []) {
       client.calls.push({ sql, params });
@@ -197,11 +255,13 @@ function makeClient(): FakeClient {
           rowCount: 5,
         };
       }
-      if (normalized.includes('from public.integration_settings') || normalized.includes('from public.org_integrations')) {
-        return { rows: [{ provider: 'resend', api_key_vault_ref: 'vault://email/resend/test' }] as T[], rowCount: 1 };
-      }
-      if (normalized.includes('vault') || normalized.includes('secret')) {
-        return { rows: [{ secret_value: '[REDACTED_TEST_RESEND_KEY]' }] as T[], rowCount: 1 };
+      if (normalized.startsWith('insert into public.email_delivery_log')) {
+        client.emailRows.push({
+          status: String(params[5]),
+          provider_message_id: typeof params[6] === 'string' ? params[6] : null,
+          last_error_summary: typeof params[7] === 'string' ? params[7] : null,
+        });
+        return { rows: [{ id: params[0] }] as T[], rowCount: 1 };
       }
       if (normalized.startsWith('insert into public.reference_tables') || normalized.startsWith('update public.reference_tables')) {
         client.referenceRows.push({ params });

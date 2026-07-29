@@ -37,13 +37,13 @@ export type ComplianceDocsExpiryEmail = {
   text: string;
 };
 
-export type ComplianceDocsExpiryEmailResult = {
-  messageId?: string | null;
-};
+export type ComplianceDocsExpiryEmailResult =
+  | { status: 'sent'; messageId: string }
+  | { status: 'failed'; error: string };
 
 export type ComplianceDocsExpiryEmailSender = (
   email: ComplianceDocsExpiryEmail,
-) => Promise<ComplianceDocsExpiryEmailResult | void>;
+) => Promise<ComplianceDocsExpiryEmailResult>;
 
 export type ComplianceDocsExpiryScanOptions = {
   sendEmail?: ComplianceDocsExpiryEmailSender;
@@ -68,7 +68,7 @@ export async function runComplianceDocsExpiryScan(
   pool: pg.Pool,
   opts: ComplianceDocsExpiryScanOptions = {},
 ): Promise<{ expiring: number; expired: number; emailsSent: number }> {
-  const sendEmail = opts.sendEmail ?? queueOnlyEmailSender;
+  const sendEmail = opts.sendEmail ?? sendComplianceEmailViaResend;
   const client = await pool.connect();
   let expiring = 0;
   let expired = 0;
@@ -102,11 +102,26 @@ export async function runComplianceDocsExpiryScan(
         const recipients = await loadExpiredDocRecipients(client, row);
         if (recipients.length > 0) {
           const email = buildExpiredEmail(row, recipients);
-          const sendResult = await sendEmail(email);
-          const messageId = sendResult?.messageId ?? null;
-          await logExpiredEmail(client, row, recipients, messageId);
-          await markExpiredNotified(client, row.doc_id);
-          emailsSent += 1;
+          let sendResult: ComplianceDocsExpiryEmailResult;
+          try {
+            sendResult = await sendEmail(email);
+          } catch (error) {
+            sendResult = {
+              status: 'failed',
+              error: error instanceof Error ? error.message : String(error),
+            };
+          }
+          await logExpiredEmail(client, row, recipients, sendResult);
+          if (sendResult.status === 'sent') {
+            await markExpiredNotified(client, row.doc_id);
+            emailsSent += 1;
+          } else {
+            console.error('[compliance-docs-expiry] email_send_failed', {
+              docId: row.doc_id,
+              orgId: row.org_id,
+              reason: sendResult.error,
+            });
+          }
         }
       }
     }
@@ -230,7 +245,7 @@ async function logExpiredEmail(
   client: pg.PoolClient,
   row: ScanRow,
   recipients: string[],
-  messageId: string | null,
+  result: ComplianceDocsExpiryEmailResult,
 ): Promise<void> {
   for (const recipient of recipients) {
     await client.query(
@@ -241,14 +256,17 @@ async function logExpiredEmail(
          subject,
          status,
          provider_message_id,
+         last_error_summary,
          payload
        )
-       values ($1::uuid, 'compliance_doc.expired', $2, $3, 'sent', $4, $5::jsonb)`,
+       values ($1::uuid, 'compliance_doc.expired', $2, $3, $4, $5, $6, $7::jsonb)`,
       [
         row.org_id,
         recipient,
         `Compliance document expired: ${row.title}`,
-        messageId,
+        result.status,
+        result.status === 'sent' ? result.messageId : null,
+        result.status === 'failed' ? result.error.slice(0, 500) : null,
         JSON.stringify({
           docId: row.doc_id,
           productCode: row.product_code,
@@ -269,8 +287,79 @@ async function markExpiredNotified(client: pg.PoolClient, docId: string): Promis
   );
 }
 
-async function queueOnlyEmailSender(): Promise<ComplianceDocsExpiryEmailResult> {
-  return { messageId: null };
+export async function sendComplianceEmailViaResend(
+  email: ComplianceDocsExpiryEmail,
+): Promise<ComplianceDocsExpiryEmailResult> {
+  const apiKey = process.env.RESEND_API_KEY?.trim();
+  if (!apiKey) {
+    return {
+      status: 'failed',
+      error: 'Missing required email environment variable: RESEND_API_KEY',
+    };
+  }
+  const from = process.env.RESEND_FROM_EMAIL?.trim();
+  if (!from) {
+    return {
+      status: 'failed',
+      error: 'Missing required email environment variable: RESEND_FROM_EMAIL',
+    };
+  }
+
+  try {
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${apiKey}`,
+        'content-type': 'application/json',
+        'idempotency-key': `compliance-doc-expired/${email.docId}/${email.expiresAt ?? 'unknown'}`,
+      },
+      body: JSON.stringify({
+        from,
+        to: email.to,
+        subject: email.subject,
+        text: email.text,
+      }),
+    });
+    const rawBody = await response.text();
+    let body: Record<string, unknown>;
+    try {
+      body = rawBody ? JSON.parse(rawBody) as Record<string, unknown> : {};
+    } catch {
+      return {
+        status: 'failed',
+        error: `Resend returned an invalid response body (HTTP ${response.status})`,
+      };
+    }
+
+    if (!response.ok) {
+      return {
+        status: 'failed',
+        error: redactSecret(
+          String(body.message ?? `Resend rejected the request (HTTP ${response.status})`).slice(0, 500),
+          apiKey,
+        ),
+      };
+    }
+    if (typeof body.id !== 'string' || body.id.length === 0) {
+      return {
+        status: 'failed',
+        error: 'Resend accepted no message: provider response did not contain a message id',
+      };
+    }
+    return { status: 'sent', messageId: body.id };
+  } catch (error) {
+    return {
+      status: 'failed',
+      error: redactSecret(
+        error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500),
+        apiKey,
+      ),
+    };
+  }
+}
+
+function redactSecret(value: string, secret: string): string {
+  return secret ? value.replaceAll(secret, '[REDACTED]') : value;
 }
 
 function normalizeDate(value: Date | string | null): string | null {

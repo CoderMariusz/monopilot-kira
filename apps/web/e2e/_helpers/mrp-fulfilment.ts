@@ -5,9 +5,9 @@
  * is unset (default in CI / an isolated worktree) every describe block SKIPS via
  * `test.skip(!baseURL, …)`. Playwright still collects them so `--list` works.
  *
- * signIn mirrors the copy-pasted helper in npd-full-lifecycle.spec.ts /
- * npd-project-gate-flow.spec.ts — hoisted here so the three sibling specs share
- * one authentication path instead of duplicating it three times.
+ * signIn re-exports the single shared sign-in step (e2e/_shared/parity-login.ts)
+ * so every flow spec authenticates the same way — form login against a deployed
+ * app, shell-parity session cookie when E2E_LOCAL=1.
  *
  * Credentials come from env only (red-line: no real secrets in test code):
  *   PLAYWRIGHT_ADMIN_EMAIL     (default admin@monopilot.test)
@@ -17,6 +17,8 @@ import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 
 import type { Page } from '@playwright/test';
+
+import { signIn as sharedSignIn } from '../_shared/parity-login';
 
 export const baseURL = process.env.PLAYWRIGHT_BASE_URL;
 export const adminEmail = process.env.PLAYWRIGHT_ADMIN_EMAIL ?? 'admin@monopilot.test';
@@ -35,23 +37,12 @@ export function ensureArtifactDir(label: string): string {
 }
 
 /**
- * Sign in via /en/login using email + password. Waits for the redirect away
- * from /login to confirm the Supabase session took.
+ * Sign in for the live specs. Delegates to the single shared step
+ * (e2e/_shared/parity-login.ts), which logs in with the form against a deployed
+ * app and installs the shell-parity session cookie when E2E_LOCAL=1.
  */
 export async function signIn(page: Page): Promise<void> {
-  await page.goto(url('/en/login'), { waitUntil: 'domcontentloaded' });
-
-  const emailInput = page.getByLabel(/work email/i).or(page.locator('input[type="email"]')).first();
-  await emailInput.fill(adminEmail);
-
-  const passwordInput = page
-    .getByLabel(/password/i)
-    .or(page.locator('input[type="password"]'))
-    .first();
-  await passwordInput.fill(adminPassword);
-
-  await page.getByRole('button', { name: /sign in|log in|submit/i }).click();
-  await page.waitForURL((u) => !u.pathname.endsWith('/login'), { timeout: 15_000 });
+  await sharedSignIn(page, baseURL ?? '');
 }
 
 /**

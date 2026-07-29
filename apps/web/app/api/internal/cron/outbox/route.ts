@@ -2,10 +2,8 @@
  * Outbox worker cron entry point.
  *
  * Cron contract:
- *   - Invoked every 1 minute by Vercel cron (configured in vercel.json — pending
- *     wave-2 deploy wiring).
- *   - HTTP method: POST (cron endpoints are POST in this codebase; matches
- *     T-034 drift route convention as ratified by Sprint A.7 audit fixup).
+ *   - Invoked by Vercel cron via HTTP GET (configured in vercel.json).
+ *   - POST is retained for manual/ops invocations.
  *
  * Auth:
  *   - Vercel platform cron header `x-vercel-cron: 1`, OR
@@ -231,7 +229,7 @@ function authorizeCron(req: Request): AuthDecision {
   return { ok: false, reason: 'no_cron_signal' };
 }
 
-export async function POST(req: Request): Promise<Response> {
+async function handleOutbox(req: Request): Promise<Response> {
   const auth = authorizeCron(req);
   if (!auth.ok) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), {
@@ -316,4 +314,14 @@ export async function POST(req: Request): Promise<Response> {
     client.release();
     await pool.end();
   }
+}
+
+/** Vercel Cron entry point (vercel.json schedules HTTP GET). */
+export async function GET(req: Request): Promise<Response> {
+  return handleOutbox(req);
+}
+
+/** Manual / ops invocation (Bearer CRON_SECRET). */
+export async function POST(req: Request): Promise<Response> {
+  return handleOutbox(req);
 }

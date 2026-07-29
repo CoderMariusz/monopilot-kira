@@ -31,18 +31,19 @@ test.describe("Planning Dashboard parity (dashboard.jsx:4-262)", () => {
 
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 
-    // KPI strip: 4 tiles, 2 of them honest "not live yet".
+    // KPI strip: 4 tiles; PO/TO are live since migs 262/263.
     const kpis = page.getByTestId("planning-kpis");
     await expect(kpis).toBeVisible();
     await expect(page.getByTestId("planning-kpi-openWos")).toBeVisible();
-    await expect(page.getByTestId("planning-kpi-openPos")).toHaveAttribute("data-not-live", "true");
-    await expect(page.getByTestId("planning-kpi-openTos")).toHaveAttribute("data-not-live", "true");
+    await expect(page.getByTestId("planning-kpi-openPos")).not.toHaveAttribute("data-not-live", "true");
+    await expect(page.getByTestId("planning-kpi-openTos")).not.toHaveAttribute("data-not-live", "true");
 
-    // Header actions: Create WO link + disabled PO/TO/sequencing/D365.
+    // Header actions: Create WO/PO/TO links + disabled sequencing; no D365 pull control.
     await expect(page.getByTestId("planning-action-createWo")).toHaveAttribute("href", /\/planning\/work-orders\?new=1/);
-    await expect(page.getByTestId("planning-action-createPo")).toBeDisabled();
+    await expect(page.getByTestId("planning-action-createPo")).toHaveAttribute("href", /\/planning\/purchase-orders/);
+    await expect(page.getByTestId("planning-action-createTo")).toHaveAttribute("href", /\/planning\/transfer-orders/);
     await expect(page.getByTestId("planning-action-runSequencing")).toBeDisabled();
-    await expect(page.getByTestId("planning-action-triggerD365")).toBeDisabled();
+    await expect(page.getByTestId("planning-action-triggerD365")).toHaveCount(0);
 
     // Alert + schedule regions present (empty-state safe).
     await expect(page.getByTestId("planning-alert-cols")).toBeVisible();

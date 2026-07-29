@@ -39,6 +39,7 @@ const userId = randomUUID();
 // org's 'admin'-slug role on org insert — baseSeed adopts that row's id instead
 // of colliding on roles_org_id_slug_key with a fresh uuid.
 let roleId = randomUUID();
+const fgItemId = randomUUID();
 const bomHeaderId = randomUUID();
 const factorySpecId = randomUUID();
 const SUPERVISOR_PIN = '824193';
@@ -149,6 +150,33 @@ async function baseSeed(): Promise<void> {
       where id = $1`,
     [bomHeaderId, userId],
   );
+  // The released WO snapshot must bind to a real, same-org factory spec whose
+  // BOM matches active_bom_header_id. A random UUID here makes every legal
+  // start fail in validateReleasedSnapshotBindings before lifecycle behavior
+  // is exercised.
+  await owner.query(
+    `insert into public.items
+       (id, org_id, item_code, item_type, name, uom_base, created_by)
+     values ($1, $2, $3, 'fg', 'E1 Finished Good', 'kg', $4)
+     on conflict (id) do nothing`,
+    [fgItemId, orgId, `FG-E1-ITEM-${fgItemId.slice(0, 8)}`, userId],
+  );
+  await owner.query(
+    `insert into public.factory_specs
+       (id, org_id, fg_item_id, spec_code, version, status, source,
+        bom_header_id, bom_version, approved_by, approved_at, created_by)
+     values ($1, $2, $3, $4, 1, 'approved_for_factory', 'technical',
+             $5, 1, $6, pg_catalog.now(), $6)
+     on conflict (id) do nothing`,
+    [
+      factorySpecId,
+      orgId,
+      fgItemId,
+      `FS-E1-${factorySpecId.slice(0, 8)}`,
+      bomHeaderId,
+      userId,
+    ],
+  );
   // Seed the supervisor PIN for the close e-sign (argon2id via setPin).
   await setPin(userId, SUPERVISOR_PIN);
 }
@@ -156,7 +184,7 @@ async function baseSeed(): Promise<void> {
 /** Create a fresh WO (with its schedule_outputs + materials) and return its id. */
 async function seedWorkOrder(opts?: { withSegregation?: boolean }): Promise<{ woId: string; componentId: string }> {
   const woId = randomUUID();
-  const productId = randomUUID();
+  const productId = fgItemId;
   const componentId = randomUUID();
   const allergen = opts?.withSegregation ? `'{"segregation_required": true}'::jsonb` : 'null';
   await owner.query(
@@ -222,9 +250,11 @@ async function cleanup(): Promise<void> {
     'outbox_events',
     'e_sign_log',
     'audit_events',
+    'factory_specs',
     'bom_snapshots',
     'bom_lines',
     'bom_headers',
+    'items',
   ]) {
     await owner.query(`delete from public.${t} where org_id = $1`, [orgId]).catch(() => undefined);
   }
@@ -236,6 +266,23 @@ async function outboxTypes(woId: string): Promise<string[]> {
     [orgId, woId],
   );
   return res.rows.map((r) => r.event_type);
+}
+
+async function waitForBlockedCasWaiters(expected: number): Promise<void> {
+  const deadline = Date.now() + 5_000;
+  while (Date.now() < deadline) {
+    const { rows } = await owner.query<{ waiter_count: number }>(
+      `select count(*)::int as waiter_count
+         from pg_catalog.pg_stat_activity
+        where datname = pg_catalog.current_database()
+          and pid <> pg_catalog.pg_backend_pid()
+          and wait_event_type = 'Lock'
+          and query like '%update public.wo_executions%'`,
+    );
+    if (Number(rows[0]?.waiter_count) >= expected) return;
+    await new Promise((resolveWait) => setTimeout(resolveWait, 10));
+  }
+  throw new Error(`expected ${expected} concurrent WO CAS waiters`);
 }
 
 run('08-production E1 — WO lifecycle (REAL DB integration)', () => {
@@ -301,12 +348,17 @@ run('08-production E1 — WO lifecycle (REAL DB integration)', () => {
     expect(result.data.status).toBe('in_progress');
     expect(result.data.outputsMaterialized).toBe(2);
 
-    const outputs = await owner.query<{ output_type: string }>(
-      `select output_type from public.wo_outputs where org_id = $1 and wo_id = $2 order by output_type`,
+    const outputs = await owner.query<{ output_type: string; qty_kg: string }>(
+      `select output_type, qty_kg
+         from public.wo_outputs
+        where org_id = $1 and wo_id = $2
+        order by output_type`,
       [orgId, woId],
     );
     // planning 'byproduct' → production 'by_product'; 'primary' stays.
     expect(outputs.rows.map((r) => r.output_type).sort()).toEqual(['by_product', 'primary']);
+    // Materialized rows are placeholders, not fabricated production output.
+    expect(outputs.rows.map((r) => Number(r.qty_kg))).toEqual([0, 0]);
 
     const exec = await owner.query<{ status: string; version: number }>(
       `select status, version from public.wo_executions where org_id = $1 and wo_id = $2`,
@@ -315,7 +367,23 @@ run('08-production E1 — WO lifecycle (REAL DB integration)', () => {
     expect(exec.rows[0]?.status).toBe('in_progress');
     expect(Number(exec.rows[0]?.version)).toBe(1);
 
-    expect(await outboxTypes(woId)).toContain('production.wo.started');
+    const wo = await owner.query<{
+      status: string;
+      active_bom_header_id: string | null;
+      active_factory_spec_id: string | null;
+    }>(
+      `select status, active_bom_header_id::text, active_factory_spec_id::text
+         from public.work_orders
+        where org_id = $1 and id = $2`,
+      [orgId, woId],
+    );
+    expect(wo.rows[0]).toEqual({
+      status: 'in_progress',
+      active_bom_header_id: bomHeaderId,
+      active_factory_spec_id: factorySpecId,
+    });
+
+    expect((await outboxTypes(woId)).filter((type) => type === 'production.wo.started')).toHaveLength(1);
 
     const snap = await owner.query(
       `select 1 from public.bom_snapshots where org_id = $1 and work_order_id = $2`,
@@ -357,6 +425,16 @@ run('08-production E1 — WO lifecycle (REAL DB integration)', () => {
       [orgId, woId],
     );
     expect(open.rowCount).toBe(1);
+    const openedOutbox = await owner.query<{ state: string | null }>(
+      `select payload->>'state' as state
+         from public.outbox_events
+        where org_id = $1
+          and aggregate_id = $2
+          and event_type = 'production.downtime.recorded'
+          and payload->>'state' = 'opened'`,
+      [orgId, woId],
+    );
+    expect(openedOutbox.rows).toEqual([{ state: 'opened' }]);
 
     const resumed = await withOrgContext((ctx: ProductionContext) =>
       resumeWo(ctx, { woId, transactionId: randomUUID() }),
@@ -461,13 +539,54 @@ run('08-production E1 — WO lifecycle (REAL DB integration)', () => {
     const b = await withOrgContext((ctx: ProductionContext) => startWo(ctx, { woId, transactionId: txn, lineId: 'L1' }));
     expect(a.ok && b.ok).toBe(true);
 
-    const events = await owner.query(
+    let events = await owner.query(
       `select 1 from public.wo_events where org_id = $1 and wo_id = $2 and event_type='start'`,
       [orgId, woId],
     );
     expect(events.rowCount).toBe(1); // exactly one append for the replayed txn
-    const outputs = await owner.query(`select 1 from public.wo_outputs where org_id = $1 and wo_id = $2`, [orgId, woId]);
+    let outputs = await owner.query(`select 1 from public.wo_outputs where org_id = $1 and wo_id = $2`, [orgId, woId]);
     expect(outputs.rowCount).toBe(2); // no double-materialization
+    let startedOutbox = (await outboxTypes(woId)).filter(
+      (type) => type === 'production.wo.started',
+    );
+    expect(startedOutbox).toHaveLength(1);
+
+    let execution = await owner.query<{ status: string; version: number }>(
+      `select status, version from public.wo_executions where org_id = $1 and wo_id = $2`,
+      [orgId, woId],
+    );
+    expect(execution.rows[0]?.status).toBe('in_progress');
+    expect(Number(execution.rows[0]?.version)).toBe(1);
+
+    // A fresh transaction is not a replay: START from in_progress must reject
+    // without appending an event, bumping the version, or adding outputs.
+    const freshTxn = await withOrgContext((ctx: ProductionContext) =>
+      startWo(ctx, { woId, transactionId: randomUUID(), lineId: 'L1' }),
+    );
+    expect(freshTxn.ok).toBe(false);
+    if (freshTxn.ok) throw new Error('expected a fresh START transaction to be rejected');
+    expect(freshTxn.error).toBe('invalid_state_transition');
+
+    events = await owner.query(
+      `select 1 from public.wo_events where org_id = $1 and wo_id = $2 and event_type='start'`,
+      [orgId, woId],
+    );
+    outputs = await owner.query(
+      `select 1 from public.wo_outputs where org_id = $1 and wo_id = $2`,
+      [orgId, woId],
+    );
+    execution = await owner.query<{ status: string; version: number }>(
+      `select status, version from public.wo_executions where org_id = $1 and wo_id = $2`,
+      [orgId, woId],
+    );
+    startedOutbox = (await outboxTypes(woId)).filter(
+      (type) => type === 'production.wo.started',
+    );
+    expect(events.rowCount).toBe(1);
+    expect(outputs.rowCount).toBe(2);
+    expect(startedOutbox).toHaveLength(1);
+    expect(execution.rows[0]?.status).toBe('in_progress');
+    expect(Number(execution.rows[0]?.version)).toBe(1);
   });
 
   it('pause is idempotent under R14 transaction_id replay (single open downtime row)', async () => {
@@ -503,34 +622,76 @@ run('08-production E1 — WO lifecycle (REAL DB integration)', () => {
 
   it('optimistic-lock: two concurrent transitions on the same version — exactly one wins', async () => {
     const { woId } = await seedWorkOrder();
-    await withOrgContext((ctx: ProductionContext) => startWo(ctx, { woId, transactionId: randomUUID(), lineId: 'L1' }));
+    const started = await withOrgContext((ctx: ProductionContext) =>
+      startWo(ctx, { woId, transactionId: randomUUID(), lineId: 'L1' }),
+    );
+    expect(started.ok).toBe(true);
+    const beforeRace = await owner.query<{ status: string; version: number }>(
+      `select status, version from public.wo_executions where org_id = $1 and wo_id = $2`,
+      [orgId, woId],
+    );
+    expect(beforeRace.rows[0]?.status).toBe('in_progress');
+    expect(Number(beforeRace.rows[0]?.version)).toBe(1);
 
-    // Two concurrent COMPLETE attempts (distinct txn ids) racing the SAME version.
-    // The CAS loser now THROWS WoConcurrentModificationError (so withOrgContext
-    // rolls back its orphan wo_events row) — use allSettled so the rejection of
-    // the losing txn does not abort the winner.
-    const [r1, r2] = await Promise.allSettled([
-      withOrgContext((ctx: ProductionContext) =>
-        applyTransition(ctx, { woId, verb: 'complete', transactionId: randomUUID() }),
-      ),
-      withOrgContext((ctx: ProductionContext) =>
-        applyTransition(ctx, { woId, verb: 'complete', transactionId: randomUUID() }),
-      ),
-    ]);
+    // Hold the execution row only after both contenders have read version N and
+    // reached their CAS UPDATE. Releasing the lock then guarantees a real CAS
+    // miss instead of allowing a late contender to observe the winner's final
+    // state and merely return invalid_state_transition.
+    const blocker = await owner.connect();
+    type TransitionResult = Awaited<ReturnType<typeof applyTransition>>;
+    let contenders: [
+      Promise<TransitionResult>,
+      Promise<TransitionResult>,
+    ] | null = null;
+    let raceResults: [
+      PromiseSettledResult<TransitionResult>,
+      PromiseSettledResult<TransitionResult>,
+    ] | null = null;
+    try {
+      await blocker.query('begin');
+      await blocker.query(
+        `select 1
+           from public.wo_executions
+          where org_id = $1 and wo_id = $2
+          for update`,
+        [orgId, woId],
+      );
+      contenders = [
+        withOrgContext((ctx: ProductionContext) =>
+          applyTransition(ctx, { woId, verb: 'complete', transactionId: randomUUID() }),
+        ),
+        withOrgContext((ctx: ProductionContext) =>
+          applyTransition(ctx, { woId, verb: 'complete', transactionId: randomUUID() }),
+        ),
+      ];
+      await waitForBlockedCasWaiters(2);
+      await blocker.query('commit');
+      raceResults = await Promise.allSettled(contenders);
+    } finally {
+      await blocker.query('rollback').catch(() => undefined);
+      blocker.release();
+      if (contenders && !raceResults) {
+        raceResults = await Promise.allSettled(contenders);
+      }
+    }
+    if (!raceResults) throw new Error('WO CAS contenders did not settle');
+    const [r1, r2] = raceResults;
 
     const oks = [r1, r2].filter(
       (r) => r.status === 'fulfilled' && r.value.ok,
     ).length;
-    // The loser either threw WoConcurrentModificationError (CAS miss) or — if the
-    // winner committed first and bumped status out of in_progress — returned an
-    // invalid_state_transition result. Either is a single losing outcome.
     const conflicts = [r1, r2].filter(
-      (r) =>
-        (r.status === 'rejected' && r.reason instanceof WoConcurrentModificationError) ||
-        (r.status === 'fulfilled' && !r.value.ok && r.value.error === 'invalid_state_transition'),
+      (r) => r.status === 'rejected' && r.reason instanceof WoConcurrentModificationError,
     ).length;
     expect(oks).toBe(1);
     expect(conflicts).toBe(1);
+    const conflict = [r1, r2].find(
+      (r): r is PromiseRejectedResult =>
+        r.status === 'rejected' && r.reason instanceof WoConcurrentModificationError,
+    );
+    expect((conflict?.reason as WoConcurrentModificationError | undefined)?.expectedVersion).toBe(
+      Number(beforeRace.rows[0]?.version),
+    );
 
     // The losing txn must NOT have committed an orphan wo_events 'complete' row:
     // exactly one complete event exists (from the winner).
@@ -545,7 +706,7 @@ run('08-production E1 — WO lifecycle (REAL DB integration)', () => {
       [orgId, woId],
     );
     expect(exec.rows[0]?.status).toBe('completed');
-    expect(Number(exec.rows[0]?.version)).toBe(2); // start(1) + exactly one complete(2)
+    expect(Number(exec.rows[0]?.version)).toBe(Number(beforeRace.rows[0]?.version) + 1);
   });
 
   it('cancel is a terminal branch from a non-closed state and emits production.wo.closed', async () => {

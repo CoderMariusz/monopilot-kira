@@ -44,11 +44,11 @@ async function loadRoute(): Promise<RouteModule> {
   return (await import(path)) as RouteModule;
 }
 
-function makeRequest(headers?: HeadersInit): Request {
+function makeRequest(headers?: HeadersInit, method = 'POST'): Request {
   return new Request(
     'https://web.test/api/internal/cron/reporting-refresh',
     {
-      method: 'POST',
+      method,
       headers,
     },
   );
@@ -199,5 +199,26 @@ describe('POST /api/internal/cron/reporting-refresh', () => {
     ]);
     expect(currentClient.release).toHaveBeenCalledTimes(1);
     expect(currentPool.end).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('GET /api/internal/cron/reporting-refresh', () => {
+  it('uses the same authorization and refresh handler as POST', async () => {
+    currentClient = makeClient([
+      { matviewname: 'mv_reporting_inventory_aging', has_unique_index: true },
+    ]);
+    currentPool = makePool(currentClient);
+    const route = await loadRoute();
+
+    const response = await route.GET(
+      makeRequest({ 'x-vercel-cron': '1' }, 'GET'),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await readJson(response)).toEqual({
+      ok: true,
+      refreshed: 1,
+      errors: [],
+    });
   });
 });

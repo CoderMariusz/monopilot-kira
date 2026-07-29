@@ -1,10 +1,13 @@
 'use server';
 
+import { randomUUID } from 'node:crypto';
+
 import { hasPermission } from '../../lib/auth/has-permission';
 import { withOrgContext } from '../../lib/auth/with-org-context';
+import { getResendConfiguration, sendResendEmail } from './resend';
 
 const EMAIL_CONFIG_EDIT_PERMISSION = 'settings.email_config.edit';
-const RESEND_MODULE = 'resend';
+const TEST_SUBJECT = 'Monopilot email provider test';
 
 export type TestEmailProviderInput = {
   to?: string;
@@ -34,37 +37,10 @@ type OrgActionContext = {
   client: QueryClient;
 };
 
-type ProviderConfigRow = {
-  provider?: string | null;
-  api_key_vault_ref?: string | null;
-  secret_ref?: string | null;
-  vault_ref?: string | null;
-};
-
-type SecretRow = {
-  secret_value?: string | null;
-  value?: string | null;
-};
-
-type ResendSendResult = {
-  data?: { id?: string | null } | null;
-  error?: unknown;
-};
-
-type ResendClient = {
-  emails: {
-    send(input: Record<string, unknown>): Promise<ResendSendResult>;
-  };
-};
-
-type ResendFactory = {
-  (apiKey: string): ResendClient;
-  new (apiKey: string): ResendClient;
-};
-
 export async function testEmailProvider(input: TestEmailProviderInput): Promise<TestEmailProviderResult> {
   const to = normalizeEmail(input?.to);
   if (!to) return { status: 'error', code: 'INVALID_INPUT' };
+  const logId = randomUUID();
 
   try {
     return await withOrgContext(async ({ userId, orgId, client }: OrgActionContext): Promise<TestEmailProviderResult> => {
@@ -72,27 +48,78 @@ export async function testEmailProvider(input: TestEmailProviderInput): Promise<
         return { status: 'error', code: 'FORBIDDEN' };
       }
 
-      const providerConfig = await loadResendConfig(client);
-      const vaultRef = providerConfig?.api_key_vault_ref ?? providerConfig?.secret_ref ?? providerConfig?.vault_ref;
-      if (!vaultRef) return { status: 'error', code: 'PROVIDER_NOT_CONFIGURED' };
+      const configuration = getResendConfiguration();
+      if (!configuration.ok) {
+        await writeEmailDeliveryLog(client, {
+          id: logId,
+          orgId,
+          to,
+          status: 'failed',
+          messageId: null,
+          error: configuration.reason,
+        });
+        console.error('[testEmailProvider] provider_not_configured', {
+          orgId,
+          reason: configuration.reason,
+        });
+        return {
+          status: 'error',
+          code: configuration.code,
+          message: configuration.reason,
+        };
+      }
 
-      const apiKey = await loadVaultSecret(client, vaultRef);
-      if (!apiKey) return { status: 'error', code: 'PROVIDER_NOT_CONFIGURED' };
+      const delivery = await sendResendEmail({
+        config: configuration.config,
+        to: [to],
+        subject: TEST_SUBJECT,
+        text: 'This is a Monopilot email provider probe.',
+        idempotencyKey: `email-provider-test/${logId}`,
+      });
+      if (delivery.status === 'failed') {
+        await writeEmailDeliveryLog(client, {
+          id: logId,
+          orgId,
+          to,
+          status: 'failed',
+          messageId: null,
+          error: delivery.reason,
+        });
+        console.error('[testEmailProvider] provider_send_failed', {
+          orgId,
+          code: delivery.code,
+          reason: delivery.reason,
+        });
+        return {
+          status: 'error',
+          code: delivery.code,
+          message: delivery.reason,
+        };
+      }
 
-      const sent = await sendResendProbe(apiKey, to);
-      if (sent.status === 'error') return sent;
+      await writeEmailDeliveryLog(client, {
+        id: logId,
+        orgId,
+        to,
+        status: 'sent',
+        messageId: delivery.messageId,
+        error: null,
+      });
 
       await writeAuditLog(client, {
         orgId,
         userId,
         action: 'email.provider.test',
         resourceId: 'resend',
-        afterState: { provider: 'resend', to, message_id: sent.message_id },
+        afterState: { provider: 'resend', to, message_id: delivery.messageId },
       });
 
-      return sent;
+      return { status: 'ok', message_id: delivery.messageId };
     });
-  } catch {
+  } catch (error) {
+    console.error('[testEmailProvider] persistence_failed', {
+      reason: error instanceof Error ? error.message : String(error),
+    });
     return { status: 'error', code: 'PERSISTENCE_FAILED' };
   }
 }
@@ -104,76 +131,33 @@ function normalizeEmail(value: unknown): string | null {
   return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(trimmed) ? trimmed : null;
 }
 
-async function loadResendConfig(client: QueryClient): Promise<ProviderConfigRow | null> {
-  const { rows } = await client.query<ProviderConfigRow>(
-    `select provider, api_key_vault_ref, secret_ref, vault_ref
-       from public.integration_settings
-      where org_id = app.current_org_id()
-        and provider = 'resend'
-      limit 1`,
+async function writeEmailDeliveryLog(
+  client: QueryClient,
+  params: {
+    id: string;
+    orgId: string;
+    to: string;
+    status: 'sent' | 'failed';
+    messageId: string | null;
+    error: string | null;
+  },
+): Promise<void> {
+  await client.query(
+    `insert into public.email_delivery_log
+       (id, org_id, trigger_code, recipient_email, subject, status, provider_message_id, last_error_summary, payload)
+     values ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9::jsonb)`,
+    [
+      params.id,
+      params.orgId,
+      'email.provider.test',
+      params.to,
+      TEST_SUBJECT,
+      params.status,
+      params.messageId,
+      params.error,
+      JSON.stringify({ provider: 'resend', kind: 'provider_probe' }),
+    ],
   );
-  return rows[0] ?? null;
-}
-
-async function loadVaultSecret(client: QueryClient, vaultRef: string): Promise<string | null> {
-  const { rows } = await client.query<SecretRow>(
-    `select secret_value, value
-       from app.vault_secrets
-      where org_id = app.current_org_id()
-        and vault_ref = $1
-      limit 1`,
-    [vaultRef],
-  );
-  const value = rows[0]?.secret_value ?? rows[0]?.value;
-  return typeof value === 'string' && value.length > 0 ? value : null;
-}
-
-async function sendResendProbe(apiKey: string, to: string): Promise<TestEmailProviderResult> {
-  try {
-    const mod = (await import(RESEND_MODULE)) as unknown as {
-      Resend?: ResendFactory;
-      default?: ResendFactory;
-    };
-    const ResendCtor = mod.Resend ?? mod.default;
-    if (!ResendCtor) return { status: 'error', code: 'PROVIDER_SEND_FAILED' };
-
-    const resend = createResendClient(ResendCtor, apiKey);
-    const result = await resend.emails.send({
-      from: 'Monopilot <no-reply@monopilot.local>',
-      to: [to],
-      subject: 'Monopilot email provider test',
-      text: 'This is a Monopilot email provider probe.',
-    });
-
-    if (result.error) return mapProviderError(result.error);
-    const messageId = result.data?.id;
-    if (!messageId) return { status: 'error', code: 'PROVIDER_SEND_FAILED' };
-    return { status: 'ok', message_id: messageId };
-  } catch (error) {
-    return mapProviderError(error);
-  }
-}
-
-function createResendClient(factory: ResendFactory, apiKey: string): ResendClient {
-  try {
-    return factory(apiKey);
-  } catch {
-    return new factory(apiKey);
-  }
-}
-
-function mapProviderError(error: unknown): TestEmailProviderResult {
-  if (isProviderAuthError(error)) return { status: 'error', code: 'PROVIDER_AUTH_FAILED' };
-  return { status: 'error', code: 'PROVIDER_SEND_FAILED' };
-}
-
-function isProviderAuthError(error: unknown): boolean {
-  if (!error || typeof error !== 'object') return false;
-  const record = error as Record<string, unknown>;
-  const status = record.statusCode ?? record.status ?? record.code;
-  if (status === 401 || status === 403 || status === '401' || status === '403') return true;
-  const message = String(record.message ?? record.name ?? '').toLowerCase();
-  return message.includes('auth') || message.includes('unauthorized') || message.includes('forbidden') || message.includes('api key');
 }
 
 async function writeAuditLog(

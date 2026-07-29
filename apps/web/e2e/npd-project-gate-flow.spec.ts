@@ -38,10 +38,11 @@ import path from 'node:path';
 
 import { expect, test } from '@playwright/test';
 
+import { signIn } from './_shared/parity-login';
+
 // ── env guards ───────────────────────────────────────────────────────────────
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL;
-const adminEmail = process.env.PLAYWRIGHT_ADMIN_EMAIL ?? 'admin@monopilot.test';
 const adminPassword = process.env.PLAYWRIGHT_ADMIN_PASSWORD ?? '';
 
 // ── artifact paths ───────────────────────────────────────────────────────────
@@ -85,28 +86,6 @@ async function runAxe(
 
 function url(route: string): string {
   return `${baseURL}${route}`;
-}
-
-/**
- * Sign in via the /en/login page using email + password credentials.
- * Uses the merged LoginCard (T-057 auth path) that is live at Gate-5.
- */
-async function signIn(page: import('@playwright/test').Page): Promise<void> {
-  await page.goto(url('/en/login'), { waitUntil: 'domcontentloaded' });
-
-  const emailInput = page.getByLabel(/work email/i).or(page.locator('input[type="email"]'));
-  await emailInput.fill(adminEmail);
-
-  const passwordInput = page
-    .getByLabel(/password/i)
-    .or(page.locator('input[type="password"]'))
-    .first();
-  await passwordInput.fill(adminPassword);
-
-  await page.getByRole('button', { name: /sign in|log in|submit/i }).click();
-
-  // Wait for redirect away from /login to confirm auth success.
-  await page.waitForURL((u) => !u.pathname.endsWith('/login'), { timeout: 15_000 });
 }
 
 /**

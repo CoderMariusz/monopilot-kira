@@ -1,7 +1,14 @@
+/**
+ * Identyfikatory testowe MUSZĄ różnić się od tych w `layout.tsx`. Wcześniej szkielet nosił
+ * dokładnie te same (`app-shell`, `app-topbar`, `app-sidebar`, `app-shell-main`), a w trakcie
+ * strumieniowania Next.js szkielet i prawdziwa powłoka współistnieją w DOM — każda asercja
+ * o powłoce trafiała wtedy na dwa elementy i padała jako "strict mode violation".
+ * Szkielet ładowania nie jest powłoką aplikacji i nie powinien się nią przedstawiać.
+ */
 export default function AppRouteGroupLoading() {
   return (
     <div
-      data-testid="app-shell"
+      data-testid="app-shell-loading"
       className="grid min-h-screen bg-shell-bg text-shell-fg"
       style={{
         minHeight: '100vh',
@@ -11,7 +18,7 @@ export default function AppRouteGroupLoading() {
       aria-busy="true"
     >
       <header
-        data-testid="app-topbar"
+        data-testid="app-topbar-loading"
         role="banner"
         className="flex shrink-0 items-center gap-4 border-b border-shell-border bg-shell-surface px-6 text-shell-fg"
         style={{ height: 'var(--shell-topbar-h)', gridColumn: '1 / -1', gridRow: '1 / 2' }}
@@ -21,7 +28,7 @@ export default function AppRouteGroupLoading() {
         <div className="ml-auto h-10 w-10 rounded-full bg-shell-active" />
       </header>
       <aside
-        data-testid="app-sidebar"
+        data-testid="app-sidebar-loading"
         role="navigation"
         aria-label="Primary"
         className="w-sidebar shrink-0 border-r border-shell-border bg-shell-bg px-4 py-5 text-shell-fg"
@@ -37,7 +44,7 @@ export default function AppRouteGroupLoading() {
           ))}
         </div>
       </aside>
-      <main data-testid="app-shell-main" className="min-w-0 overflow-auto bg-slate-50 p-6">
+      <main data-testid="app-shell-main-loading" className="min-w-0 overflow-auto bg-slate-50 p-6">
         <div className="mx-auto max-w-3xl rounded-xl border border-shell-border bg-white p-8 shadow-sm">
           <div className="mb-6 h-7 w-36 rounded-full bg-shell-active" />
           <div className="mb-3 h-9 w-64 rounded bg-shell-active" />
