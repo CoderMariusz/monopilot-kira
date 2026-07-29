@@ -9,7 +9,9 @@ czyli cały 12-falowy plan naprawczy po audycie przeglądarkowym z 16.07 jest na
 | 9 | `20988b30` | MRP, transfery, łańcuchy WO, scheduler | 528 | +50 rdzeń, 0 regresów | 2 P0 wykryte |
 | 10 | `ce072fdf` | produkcja, scheduler, kalibracja **+ P0 Fali 9** | — | +20 rdzeń / +6 UI | **4/4 P0 zamknięte** |
 | 11 | `d5c2319f` | jakość/NCR, wysyłki/zamówienia | 541 | +50 rdzeń, 0 regresów | **wszystkie punkty** |
-| 12 | `6bd4ad17` | utrzymanie ruchu, D365 export-only | 542 | +10/+7, **0 nowych czerwonych** | w toku |
+| 12 | `6bd4ad17` | utrzymanie ruchu, D365 export-only | 542 | +10/+7, **0 nowych czerwonych** | 3/4 + bloker |
+| — | `53ea8a73` | i18n jakości (trzeci katalog) + resztkowy fail-open | — | +16/+7, 0 czerwonych | — |
+| — | `df07daa7` | bloker: tworzenie harmonogramu PM wywracało ekran | — | 0 czerwonych | **udowodnione** |
 
 Fale 7 i 8 poszły jednym commitem: ich tory pracowały w tym samym drzewie i zmiany były
 przeplecione w tych samych modułach. Rozdzielanie po ścieżkach było bezpośrednią przyczyną
@@ -51,7 +53,7 @@ nośnik na `on_hold`. Bramka podpisu nie była obchodzona.
 
 ## WZORZEC NOCY: guard chroniący jeden przypadek zamraża sąsiednie
 
-To wracało **sześć razy** w sześciu niezależnych obszarach:
+To wracało **osiem razy** w ośmiu niezależnych obszarach:
 
 | gdzie | co guard miał chronić | co zamroził |
 |---|---|---|
@@ -148,3 +150,55 @@ realna krótka przerwa → wiersz zachowany z czasem w sekundach. Udowodnione na
 - luka etykiet dla `chain_child_not_editable` i `chain_dependency_cycle` (degradują łagodnie)
 - zastane z poprzednich nocy: martwa bramka migracyjna CI, partycje `audit_log` do 2027-01-01,
   SCIM CREATE, brak działającej wysyłki maili
+
+---
+
+## Regresja końcowa (tor T3 Fali 12) — 11/11 bez cofnięcia
+
+Przejście przez wszystkie moduły dotknięte 12 falami: **żadna fala nie zepsuła wcześniejszej.**
+KPI produkcji 3/3 zgodne z bazą · MRP zapisuje przebieg · wiersze z pustym zakładem widoczne ·
+przyjęcie `1.234567` kg bez zaokrąglenia · lokalizacja pusta się dezaktywuje, z zapasem odmawia ·
+anulowane WO pokazuje stały czas przy starcie sprzed 11 dni.
+
+Kalibracja **zablokowana przez bramkę dwuosobowego podpisu** (brak drugiego uprawnionego) —
+to poprawne zachowanie, nie usterka.
+
+### Jedno znalezisko blokujące — i lekcja o bramce
+**Tworzenie harmonogramu przeglądów było martwe** (`TypeError` wywracał cały ekran Utrzymania
+ruchu; **0 wierszy `maintenance_schedules` w całej bazie**). Przyczyna:
+`updatePayload` z `schedule!.id` budowany **bezwarunkowo** przed rozgałęzieniem create/edit.
+
+**Operator `!` uciszył typecheck — dlatego bramka CI nie miała szans tego złapać.**
+To jest granica tej bramki: `!` zamienia błąd kompilacji w awarię produkcyjną. Naprawione
+(`df07daa7`) z testem renderującym modal w trybie create.
+
+### Do uwagi ownera (bezpieczeństwo, nie kod)
+**`MWO-2026-00003`** — `in_progress` od 11 dni, `mwo_loto_checklists.released_at = NULL`,
+czyli **blokada LOTO formalnie założona na czynnej maszynie**, przy pustych listach odciętych
+źródeł energii i założonych kłódek. Nie ruszałem tego — to zapis bezpieczeństwa, nie usterka.
+
+**`NIGHT-R20-…-AST`** — artefakt audytu, `active=t`, występuje jako pełnoprawna maszyna
+w każdym selektorze; ma bliźniaczy przyrząd `-CAL`, nigdy nie kalibrowany.
+
+### Rezydua danych testowych na produkcji
+Weryfikacje tej nocy zostawiły: 2 zamówienia sprzedaży, 1 wysyłkę, 1 blokadę + 1 NCR,
+1 ograniczenie alergenowe, kilka przebiegów MRP z wymaganiami, zadania druku, 2 przestoje,
+2 prognozy, 1 transfer, aktywa `REGR-FINAL-*`, 2 drukarki `E2E-FAL78`.
+Pełna lista z identyfikatorami w raportach poszczególnych fal. **Nic nie kasowałem** —
+część nie ma ścieżki usunięcia przez interfejs (prognozy, drukarki z zależnościami).
+
+---
+
+## Domknięcie — obie ostatnie poprawki udowodnione na produkcji
+
+| punkt | dowód |
+|---|---|
+| Tworzenie harmonogramu PM | wiersz `21f47bbf-5c7d-4ec3-83f9-a5f9df95d3b1` w `maintenance_schedules` (LINE1, `preventive`, interwał 14, ostrzeżenie 3 dni). **Pierwszy harmonogram PM w całej bazie.** |
+| Gałąź edycji tego samego modala | prefill poprawny, po zapisie `interval_value=21`, `warning_days=5`, nowa data |
+| Brak `TypeError` | osobny czysty przebieg: Submit → konsola **0 błędów, 0 ostrzeżeń** — dokładnie ta linia, która wcześniej wywracała cały ekran |
+| Komunikat zapisu wyniku | dosłownie: *„Enter a measured value for every parameter before saving."* |
+| Komunikat przy podpisie | dosłownie: *„Measure every parameter required by the active specification before signing a Pass decision."* — bramka **nie obchodzona** |
+| Zakładka PM spójna z funkcją | *„Define calendar-day recurrence; due schedules feed the PM engine and can generate MWOs."* zamiast „read-only list" |
+
+**Stan końcowy: 12 fal planu naprawczego na produkcji, regresja końcowa 11/11 bez cofnięcia,
+wszystkie znalezione po drodze blokery zamknięte i udowodnione na żywym środowisku.**
