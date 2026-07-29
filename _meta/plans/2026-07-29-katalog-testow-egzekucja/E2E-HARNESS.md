@@ -236,6 +236,78 @@ Tożsamość harnessu (`shell-parity.ts:134-152`):
 - `HARNESS_ORG_ID  = '00000000-0000-0000-0000-000000000002'` (Apex)
 - email `shell.parity@monopilot.local`
 
+### 4.0 Wybór tożsamości (persony) — dodane 2026-07-29
+
+Domyślna tożsamość jest **niezmieniona** (`11111111-…-111111111111`), więc wszystkie istniejące
+specy działają bez modyfikacji. Persona podaje się jako **czwarty, opcjonalny argument**:
+
+```ts
+import { signIn } from './_shared/parity-login';
+await signIn(page, baseURL, 'en', 'no_module_access');   // klucz persony
+await signIn(page, baseURL, 'en', '7f290000-0000-4000-8000-000000000004'); // wprost public.users.id
+
+// niżej, jeśli potrzebujesz samego ciasteczka (bez nawigacji):
+import { installHarnessAuthCookie } from './_helpers/shell-parity';
+await installHarnessAuthCookie(context, baseURL, supabaseUrl, 'admin');
+// albo z uchwytu harnessu:
+await harness.installAuthCookie(context, 'second_signer');
+```
+
+Klucze: `harness` (domyślny), `admin`, `no_asset_deactivate`, `second_signer`,
+`single_site_operator`, `no_module_access` — rejestr `HARNESS_PERSONAS`
+(`e2e/_helpers/shell-parity.ts`). UUID-y są kopią z `packages/db/seeds/test-personas.ts`
+(nie da się go zaimportować: kończy się `await main()` na najwyższym poziomie, a transform
+CommonJS Playwrighta odmawia `require()`).
+
+**Jak to działa (i dlaczego nie da się prościej).** Fałszywy serwer auth żyje w procesie
+runnera (`scripts/e2e-local-run.ts`), a ciasteczko pisze **inny** proces — worker Playwrighta.
+Wspólny rejestr nie przechodzi przez tę granicę, więc tożsamość jedzie **wewnątrz access
+tokena**: `shell-parity-access-token~<userId>`. `GET /auth/v1/user` czyta nagłówek `Bearer`
+i odpowiada tą personą. Separatorem jest `~`, nigdy `.` — token ma pozostać nie-JWT-em dla
+supabase-js. Domyślna tożsamość zachowuje token dosłownie, więc zachowanie sprzed zmiany
+jest bit w bit takie samo. `POST /auth/v1/token` nadal odpowiada domyślną tożsamością —
+to ścieżka odświeżenia sesji, a ciasteczko ma `expires_at` +1 h.
+
+**Trzy warstwy — sprawdzone przebiegiem, nie założone** (`e2e/persona-permission-gate.spec.ts`):
+middleware (fałszywy GoTrue oddaje personę spod tokena), layout `(app)` (renderuje powłokę
+zamiast `redirect('/login')`), `withOrgContext` (`select org_id … where id = $1` trafia na
+wiersz persony; topbar pokazuje `public.users.name` przez `loadShellIdentity()`, a sidebar
+jest przefiltrowany zbiorem uprawnień TEJ persony). Persony muszą być wcześniej zaseedowane —
+bez wiersza w `public.users` dostaniesz przekierowanie albo wyjątek, nie odmowę uprawnień.
+
+### 4.0.1 ⛔ Czego personami NIE udowodnisz dzisiaj — bramka zapisu
+
+**Kontrola przeciwna na akcji zapisującej (odmówiono personie A / przeszło personie B, ze
+zmianą stanu w bazie) jest DZIŚ nieosiągalna.** Dwa niezależne blokery, oba zmierzone:
+
+1. **React nie hydratuje pod tym harnessem.** Zmierzone na `/en/login` i
+   `/en/planning/reorder-thresholds`: `document` nie ma klucza `__reactContainer$`, prawdziwe
+   kliknięcie w `[data-testid=app-topbar-user-trigger]` nie przełącza `aria-expanded`, a lista
+   sterowana `useEffect` stoi na `loading` przez 120 s. Tak samo przy
+   `browser.newContext({ serviceWorkers: 'block' })` (0 rejestracji SW). Zero `pageerror`,
+   zero nieudanych żądań, zero 4xx; `window.next` istnieje, react-dom się ładuje.
+   **Skutek: każda Server Action odpalana z `onClick` — czyli prawie każdy zapis w tej
+   aplikacji — jest w przeglądarce nieosiągalna.** To defekt środowiska/aplikacji, nie person;
+   wymaga osobnego śledztwa (podejrzany: strumień RSC / runtime Turbopacka w dev).
+2. **Tylko cztery formularze Server Action w `apps/web` działają bez JS** (submit natywny,
+   więc bloker 1 by ich nie dotyczył) — i żaden nie pokazuje obu stron:
+   - `(auth)/login` — uwierzytelnianie, nie bramka uprawnień;
+   - `settings/infra/locations` `importCsvAction` — submit **i** input pliku mają
+     `disabled={!canImport}` (`settings.infra.update`);
+   - `settings/schema/new` `publishColumnAction` — submit jest `disabled`, gdy
+     `getTenantVariations()` odmawia `settings.org.read`, czyli dla każdej persony poza `admin`.
+     14 ról Apex pasuje do strony odmownej (`settings.org.read` bez `settings.schema.edit`),
+     ale **żadna nie ma przypisanego użytkownika**;
+   - `settings/schema/preview` `publishShadowDraft` — nie jest wyłączony, ale niewykonalna jest
+     strona **pozytywna**: `callerHasSchemaAdmin` (`packages/schema-driven`) wymaga **sluga** roli
+     `org.schema.admin`, a nie ma w Apex ani jednego użytkownika z tą rolą (persona `admin` ma
+     slug `admin`).
+
+Gdy hydracja zostanie naprawiona, gotowa para czeka: `upsertReorderThreshold`
+(`planning/_actions/reorder-thresholds.ts`, bramka `npd.planning.write`) pod **niebramkowanym**
+przyciskiem „+ Add threshold" (`thresholds-view.tsx:176-184`), stan trwały w
+`public.reorder_thresholds` (dziś 0 wierszy), `admin` ma to uprawnienie, `no_module_access` nie.
+
 ### 4.1 PUŁAPKA — harness się nie uruchomi, dopóki istnieje `.auth/user.json`
 
 Specy używają wzorca (np. `apps/web/e2e/walking-skeleton.spec.ts:33-35,46-51`):

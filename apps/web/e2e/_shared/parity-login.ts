@@ -14,7 +14,7 @@
  */
 import type { Page } from '@playwright/test';
 
-import { installHarnessAuthCookie } from '../_helpers/shell-parity';
+import { installHarnessAuthCookie, type HarnessIdentity } from '../_helpers/shell-parity';
 
 const adminEmail = process.env.PLAYWRIGHT_ADMIN_EMAIL ?? 'admin@monopilot.test';
 const adminPassword = process.env.PLAYWRIGHT_ADMIN_PASSWORD ?? '';
@@ -22,11 +22,19 @@ const adminPassword = process.env.PLAYWRIGHT_ADMIN_PASSWORD ?? '';
 /** True when the run is driven by scripts/e2e-local.sh against the local database. */
 export const isLocalHarnessRun = process.env.E2E_LOCAL === '1';
 
-/** Sign in against `baseURL` (defaults to PLAYWRIGHT_BASE_URL, which every flow spec gates on). */
+/**
+ * Sign in against `baseURL` (defaults to PLAYWRIGHT_BASE_URL, which every flow spec gates on).
+ *
+ * `identity` picks WHICH user signs in — a persona key from HARNESS_PERSONAS or a
+ * bare `public.users.id`. It only works on the local harness (there is no password
+ * to type against a deployed app), and it defaults to the historical shell-parity
+ * user so every existing caller is unchanged.
+ */
 export async function signIn(
   page: Page,
   baseURL: string = process.env.PLAYWRIGHT_BASE_URL ?? '',
   locale = 'en',
+  identity: HarnessIdentity = 'harness',
 ): Promise<void> {
   if (isLocalHarnessRun) {
     const supabaseUrl = process.env.E2E_LOCAL_SUPABASE_URL;
@@ -35,8 +43,17 @@ export async function signIn(
         'E2E_LOCAL=1 but E2E_LOCAL_SUPABASE_URL is unset — start the run via scripts/e2e-local.sh so the fake Supabase Auth server exists.',
       );
     }
-    await installHarnessAuthCookie(page.context(), baseURL, supabaseUrl);
+    await installHarnessAuthCookie(page.context(), baseURL, supabaseUrl, identity);
     return;
+  }
+
+  // Fail loudly instead of silently signing in as PLAYWRIGHT_ADMIN_EMAIL: a
+  // permission-gate spec that thinks it is a restricted persona but is really the
+  // admin would report a green that proves nothing.
+  if (identity !== 'harness') {
+    throw new Error(
+      `signIn(identity="${identity}") needs the local harness (E2E_LOCAL=1); form login can only use PLAYWRIGHT_ADMIN_EMAIL.`,
+    );
   }
 
   await page.goto(`${baseURL}/${locale}/login`, { waitUntil: 'domcontentloaded' });

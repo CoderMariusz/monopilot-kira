@@ -133,30 +133,102 @@ export type ShellParityHarness = {
   appPort: number;
   supabaseUrl: string;
   server_identity: string;
-  installAuthCookie(context: BrowserContext): Promise<void>;
+  installAuthCookie(context: BrowserContext, identity?: HarnessIdentity): Promise<void>;
   close(): Promise<void>;
 };
 
 const HARNESS_ACCESS_TOKEN = 'shell-parity-access-token';
 export const HARNESS_USER_ID = '11111111-1111-4111-8111-111111111111';
 export const HARNESS_ORG_ID = '00000000-0000-0000-0000-000000000002';
-const HARNESS_USER = {
-  id: HARNESS_USER_ID,
-  aud: 'authenticated',
-  role: 'authenticated',
-  email: 'shell.parity@monopilot.local',
-  app_metadata: { provider: 'email', providers: ['email'] },
-  user_metadata: {
-    name: 'Shell Parity',
-    full_name: 'Shell Parity',
-    org_id: HARNESS_ORG_ID,
-    org_name: 'Apex',
-    language: 'en',
-    locale: 'en',
-  },
-  created_at: '2026-05-20T00:00:00.000Z',
-  updated_at: '2026-05-20T00:00:00.000Z',
-};
+
+/**
+ * Identities the harness can sign in as.
+ *
+ * `harness` is the DEFAULT and keeps the pre-existing behaviour byte for byte
+ * (same user id, same access token) so every existing spec is unaffected.
+ * The five personas are the deterministic UUIDs from
+ * `packages/db/seeds/test-personas.ts`; they are copied here rather than
+ * imported because that seed file ends in a top-level `await main()`, which
+ * Playwright's CommonJS transform refuses to `require()`.
+ *
+ * All six live in the Apex org, so `withOrgContext`'s
+ * `select org_id from public.users where id = $1` resolves for each of them —
+ * seed them first (`TEST_PERSONAS_CONFIRM_TEST_DB=YES … seeds/test-personas.ts`)
+ * or the app redirects/throws instead of denying.
+ */
+export const HARNESS_PERSONAS = {
+  harness: { userId: HARNESS_USER_ID, email: 'shell.parity@monopilot.local', name: 'Shell Parity' },
+  admin: { userId: '7f290000-0000-4000-8000-000000000001', email: 'persona.admin@monopilot.test', name: 'Test Persona — Admin' },
+  no_asset_deactivate: { userId: '7f290000-0000-4000-8000-000000000002', email: 'persona.no-asset-deactivate@monopilot.test', name: 'Test Persona — No Asset Deactivate' },
+  second_signer: { userId: '7f290000-0000-4000-8000-000000000003', email: 'persona.second-signer@monopilot.test', name: 'Test Persona — Second Signer' },
+  single_site_operator: { userId: '7f290000-0000-4000-8000-000000000004', email: 'persona.single-site-operator@monopilot.test', name: 'Test Persona — Single Site Operator' },
+  no_module_access: { userId: '7f290000-0000-4000-8000-000000000005', email: 'persona.no-module-access@monopilot.test', name: 'Test Persona — No Module Access' },
+} as const;
+
+export type HarnessPersonaKey = keyof typeof HARNESS_PERSONAS;
+/** A persona key from {@link HARNESS_PERSONAS}, or a bare `public.users.id`. */
+export type HarnessIdentity = HarnessPersonaKey | (string & {});
+
+type HarnessIdentityRecord = { userId: string; email: string; name: string };
+
+const HARNESS_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function resolveHarnessIdentity(identity: HarnessIdentity = 'harness'): HarnessIdentityRecord {
+  const known = HARNESS_PERSONAS[identity as HarnessPersonaKey];
+  if (known) return known;
+  if (HARNESS_UUID_RE.test(identity)) {
+    return { userId: identity, email: `${identity}@monopilot.local`, name: identity };
+  }
+  throw new Error(
+    `Unknown harness identity "${identity}"; pass one of ${Object.keys(HARNESS_PERSONAS).join(', ')} or a public.users id.`,
+  );
+}
+
+function harnessUser(identity: HarnessIdentityRecord) {
+  return {
+    id: identity.userId,
+    aud: 'authenticated',
+    role: 'authenticated',
+    email: identity.email,
+    app_metadata: { provider: 'email', providers: ['email'] },
+    user_metadata: {
+      name: identity.name,
+      full_name: identity.name,
+      org_id: HARNESS_ORG_ID,
+      org_name: 'Apex',
+      language: 'en',
+      locale: 'en',
+    },
+    created_at: '2026-05-20T00:00:00.000Z',
+    updated_at: '2026-05-20T00:00:00.000Z',
+  };
+}
+
+const HARNESS_USER = harnessUser(HARNESS_PERSONAS.harness);
+
+/**
+ * The chosen identity travels INSIDE the access token: the fake auth server runs
+ * in the runner process (scripts/e2e-local-run.ts) while the cookie is written
+ * from a Playwright worker, so a shared registry would not cross the process
+ * boundary. Separator is `~`, never `.`, so supabase-js keeps treating the value
+ * as an opaque non-JWT string. The default identity keeps the legacy token
+ * verbatim.
+ */
+function accessTokenFor(identity: HarnessIdentityRecord): string {
+  return identity.userId === HARNESS_USER_ID
+    ? HARNESS_ACCESS_TOKEN
+    : `${HARNESS_ACCESS_TOKEN}~${identity.userId}`;
+}
+
+function userForAccessToken(token: string | undefined) {
+  const prefix = `${HARNESS_ACCESS_TOKEN}~`;
+  // No token / the legacy token / anything unrecognised → the default identity,
+  // which is exactly what this endpoint answered before personas existed.
+  if (!token?.startsWith(prefix)) return HARNESS_USER;
+  const userId = token.slice(prefix.length);
+  const known = Object.values(HARNESS_PERSONAS).find((persona) => persona.userId === userId);
+  return harnessUser(known ?? { userId, email: `${userId}@monopilot.local`, name: userId });
+}
 
 async function findOpenPort(preferred: number): Promise<number> {
   for (let port = preferred; port < preferred + 100; port += 1) {
@@ -186,10 +258,16 @@ function createFakeSupabaseAuthServer(): Server {
   return http.createServer((req, res) => {
     const requestUrl = new URL(req.url ?? '/', 'http://127.0.0.1');
     if (requestUrl.pathname === '/auth/v1/user') {
+      // The endpoint middleware (session-check.ts) and supabase-js getUser() both
+      // hit — answering with the persona that owns the bearer token is what makes
+      // the layout gate and withOrgContext see the SELECTED user, not the default.
+      const bearer = /^Bearer\s+(.+)$/i.exec(req.headers.authorization ?? '')?.[1];
       res.writeHead(200, { 'content-type': 'application/json' });
-      res.end(JSON.stringify(HARNESS_USER));
+      res.end(JSON.stringify(userForAccessToken(bearer)));
       return;
     }
+    // ponytail: /auth/v1/token always answers as the default identity. It is only
+    // reached on a session refresh, and the cookie is minted with expires_at +1h.
     if (requestUrl.pathname === '/auth/v1/token') {
       const expiresAt = Math.floor(Date.now() / 1000) + 3600;
       res.writeHead(200, { 'content-type': 'application/json' });
@@ -225,6 +303,60 @@ async function waitForHealthy(url: string, child: ChildProcessWithoutNullStreams
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
   throw new Error(`Timed out waiting for ${url}; last error=${lastError}; output=${output.join('').slice(-2000)}`);
+}
+
+/**
+ * Fail loudly if the dev server refuses its own origin.
+ *
+ * A blocked /_next/webpack-hmr upgrade costs us hydration (see the --hostname
+ * comment on the spawn below) but produces no browser-visible error, so without
+ * this probe the whole suite degrades into "the page renders, nothing clicks".
+ * We do the handshake at socket level because a blocked upgrade never becomes a
+ * parsable HTTP response — Next writes a bare "Unauthorized" onto the Duplex.
+ */
+async function assertDevHmrUpgradeAccepted(appPort: number): Promise<void> {
+  const response = await new Promise<string>((resolve, reject) => {
+    const socket = net.connect(appPort, '127.0.0.1', () => {
+      socket.write(
+        [
+          'GET /_next/webpack-hmr HTTP/1.1',
+          `Host: 127.0.0.1:${appPort}`,
+          'Upgrade: websocket',
+          'Connection: Upgrade',
+          // Must decode to exactly 16 bytes or the ws server answers 400 before
+          // the origin check ever runs. This is "the sample nonce" from RFC 6455.
+          'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==',
+          'Sec-WebSocket-Version: 13',
+          `Origin: http://127.0.0.1:${appPort}`,
+          '',
+          '',
+        ].join('\r\n'),
+      );
+    });
+    let buffered = '';
+    socket.on('data', (chunk) => {
+      buffered += chunk.toString('latin1');
+      if (buffered.includes('\r\n\r\n') || buffered.length > 512) {
+        socket.destroy();
+        resolve(buffered);
+      }
+    });
+    socket.on('error', reject);
+    socket.setTimeout(10_000, () => {
+      socket.destroy();
+      reject(new Error('timed out probing the dev HMR websocket'));
+    });
+    socket.on('close', () => resolve(buffered));
+  });
+
+  if (!/^HTTP\/1\.1 101/.test(response)) {
+    throw new Error(
+      'Next dev refused the /_next/webpack-hmr websocket upgrade ' +
+        `(answered ${JSON.stringify(response.slice(0, 120))}). React will not hydrate, so no ` +
+        'click reaches a Server Action. Expected `next dev --hostname 127.0.0.1` to put this ' +
+        'origin on the allowedDevOrigins list.',
+    );
+  }
 }
 
 function killProcess(child: ChildProcessWithoutNullStreams): Promise<void> {
@@ -271,15 +403,15 @@ function authCookieName(supabaseUrl: string): string {
   return `sb-${projectRef}-auth-token`;
 }
 
-function authCookieValue(): string {
+function authCookieValue(identity: HarnessIdentityRecord): string {
   const expiresAt = Math.floor(Date.now() / 1000) + 3600;
   const session = {
-    access_token: HARNESS_ACCESS_TOKEN,
+    access_token: accessTokenFor(identity),
     refresh_token: 'shell-parity-refresh-token',
     token_type: 'bearer',
     expires_in: 3600,
     expires_at: expiresAt,
-    user: HARNESS_USER,
+    user: harnessUser(identity),
   };
   return `base64-${Buffer.from(JSON.stringify(session)).toString('base64url')}`;
 }
@@ -290,16 +422,21 @@ function authCookieValue(): string {
  * Shared with the flow specs' signIn (`e2e/_shared/parity-login.ts`) so the local
  * run has exactly one auth mechanism: this cookie + the fake Supabase Auth server
  * spawned by startLocalShellParityHarness().
+ *
+ * `identity` selects WHO the browser is: a key of {@link HARNESS_PERSONAS} or a
+ * bare `public.users.id`. It defaults to the historical shell-parity user, so
+ * callers that omit it behave exactly as before.
  */
 export async function installHarnessAuthCookie(
   context: BrowserContext,
   baseURL: string,
   supabaseUrl: string,
+  identity: HarnessIdentity = 'harness',
 ): Promise<void> {
   await context.addCookies([
     {
       name: authCookieName(supabaseUrl),
-      value: authCookieValue(),
+      value: authCookieValue(resolveHarnessIdentity(identity)),
       url: baseURL,
       httpOnly: false,
       sameSite: 'Lax',
@@ -372,7 +509,20 @@ export async function startLocalShellParityHarness(): Promise<ShellParityHarness
   // "Scope: 2 of 71 projects" i startowało DWA `next dev` na tym samym porcie —
   // drugi padał na EADDRINUSE, a harness raportował to jako "server exited early".
   // Filtr ścieżkowy może wskazać dokładnie jeden projekt.
-  const child = spawn('pnpm', ['--filter', './apps/web', 'dev'], {
+  // `--hostname 127.0.0.1` is NOT cosmetic: without it React never hydrates here.
+  // Next 16 blocks every /_next/* dev resource whose Origin host is not in
+  // ['*.localhost', 'localhost', ...allowedDevOrigins, <dev server hostname>]
+  // (next/dist/server/lib/router-utils/block-cross-site-dev.js:52, called from
+  // router-server.js:615 for the socket upgrade). `next dev` without --hostname
+  // leaves that last entry undefined, so our baseURL host 127.0.0.1 is refused:
+  // the HMR websocket upgrade gets a bare "Unauthorized" written onto the Duplex
+  // (no status line ⇒ ERR_INVALID_HTTP_RESPONSE) and app-index's `await
+  // initialServerResponse` never settles, so hydrateRoot() is never reached.
+  // The failure is SILENT — no pageerror, no 4xx, no failed request — and
+  // installBrowserErrorSpies below deliberately drops the webpack-hmr console
+  // error, so nothing surfaces it. Passing the hostname puts 127.0.0.1 in the
+  // allowlist and also binds the dev server to loopback only.
+  const child = spawn('pnpm', ['--filter', './apps/web', 'dev', '--hostname', '127.0.0.1'], {
     cwd: resolveRepoRoot(),
     env: {
       ...process.env,
@@ -388,6 +538,7 @@ export async function startLocalShellParityHarness(): Promise<ShellParityHarness
 
   try {
     await waitForHealthy(`${baseURL}/en/login`, child, output);
+    await assertDevHmrUpgradeAccepted(appPort);
   } catch (error) {
     await killProcess(child);
     restoreRouteConflicts();
@@ -400,8 +551,8 @@ export async function startLocalShellParityHarness(): Promise<ShellParityHarness
     appPort,
     supabaseUrl,
     server_identity: `Next dev server cwd=${resolveRepoRoot()} baseURL=${baseURL} fakeSupabase=${supabaseUrl}`,
-    async installAuthCookie(context: BrowserContext) {
-      await installHarnessAuthCookie(context, baseURL, supabaseUrl);
+    async installAuthCookie(context: BrowserContext, identity: HarnessIdentity = 'harness') {
+      await installHarnessAuthCookie(context, baseURL, supabaseUrl, identity);
     },
     async close() {
       await killProcess(child);
