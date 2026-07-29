@@ -56,7 +56,7 @@ function mainQueryCalls() {
 }
 
 function stockMoveDataQuery() {
-  return mainQueryCalls().find(([sql]) => normalize(String(sql)).includes('limit $2::integer offset $3::integer'));
+  return mainQueryCalls().find(([sql]) => normalize(String(sql)).includes('limit $3::integer offset $4::integer'));
 }
 
 beforeEach(() => {
@@ -95,9 +95,9 @@ describe('warehouse list action site scoping', () => {
     expect(dataQuery).toBeDefined();
     const [sql, params] = dataQuery as [string, unknown[]];
     const normalized = normalize(String(sql));
-    expect(normalized).toContain('sm.site_id = $4::uuid');
-    expect(normalized).toContain('h.site_id = $4::uuid');
-    expect(params).toEqual([null, 50, 0, SITE_ID]);
+    expect(normalized).toContain('sm.site_id = $2::uuid');
+    expect(normalized).toContain('h.site_id = $2::uuid');
+    expect(params).toEqual([null, SITE_ID, 50, 0]);
     expect(getActiveSiteIdMock).toHaveBeenCalledWith({ client });
   });
 
