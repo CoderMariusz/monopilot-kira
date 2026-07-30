@@ -22,6 +22,7 @@ export type DirectAdjustErrorCode =
   | 'site_required'
   | 'use_count_session'
   | 'invalid_quantity'
+  | 'uom_conversion_unavailable'
   | 'invalid_expiry_date'
   | 'invalid_input'
   | 'esign_failed'
@@ -41,6 +42,7 @@ export const DIRECT_ADJUST_ERROR_CODES: readonly DirectAdjustErrorCode[] = [
   'site_required',
   'use_count_session',
   'invalid_quantity',
+  'uom_conversion_unavailable',
   'invalid_expiry_date',
   'invalid_input',
   'esign_failed',

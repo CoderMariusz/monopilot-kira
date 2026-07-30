@@ -160,6 +160,7 @@ function buildLabels(t: ReturnType<typeof getAdjustmentsTranslator>): DirectAdju
       site_required: t('errors.site_required'),
       use_count_session: t('errors.use_count_session'),
       invalid_quantity: t('errors.invalid_quantity'),
+      uom_conversion_unavailable: t('errors.uom_conversion_unavailable'),
       invalid_expiry_date: t('errors.invalid_expiry_date'),
       invalid_input: t('errors.invalid_input'),
       esign_failed: t('errors.esign_failed'),

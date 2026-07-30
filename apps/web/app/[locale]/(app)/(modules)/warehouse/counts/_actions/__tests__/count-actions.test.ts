@@ -54,6 +54,7 @@ type QueryCall = { sql: string; params: readonly unknown[] };
 let client: QueryClient;
 let queries: QueryCall[];
 let systemQty: string;
+let physicalSystemQty: string;
 let returnedCountedQty: string;
 let returnedVarianceQty: string;
 let applyLine: ApplyLine;
@@ -230,6 +231,10 @@ function makeClient(): QueryClient {
         return { rows: [{ system_qty: systemQty, uom: 'kg' }], rowCount: 1 };
       }
 
+      if (n.startsWith('select coalesce(sum(lp.quantity)') && n.includes('from public.license_plates lp')) {
+        return { rows: [{ system_qty: physicalSystemQty, uom: 'kg' }], rowCount: 1 };
+      }
+
       if (n.includes("feature_flags->>'count_variance_warn_pct'")) {
         return { rows: [{ warn_pct: countVarianceWarnPct }], rowCount: 1 };
       }
@@ -362,6 +367,7 @@ function makeClient(): QueryClient {
 beforeEach(async () => {
   queries = [];
   systemQty = '5';
+  physicalSystemQty = '5';
   returnedCountedQty = '0';
   returnedVarianceQty = '0';
   applyLine = makeApplyLine();
@@ -417,7 +423,11 @@ describe('stock count actions', () => {
     expect(insert!.params).toEqual([SITE_ID, WAREHOUSE_ID, 'cycle']);
     const seed = queries.find((q) => normalize(q.sql).startsWith('insert into public.count_lines'));
     expect(seed).toBeTruthy();
-    expect(seed!.params).toEqual([SESSION_ID, WAREHOUSE_ID, ['consumed', 'merged', 'shipped']]);
+    expect(seed!.params).toEqual([
+      SESSION_ID,
+      WAREHOUSE_ID,
+      ['consumed', 'shipped', 'destroyed', 'merged', 'returned'],
+    ]);
     expect(revalidateLocalized).toHaveBeenCalledWith('/warehouse/counts', 'page');
   });
 
@@ -428,7 +438,8 @@ describe('stock count actions', () => {
     const stockCount = queries.find((q) => normalize(q.sql).includes('count(*)::int as line_count'));
     expect(stockCount).toBeTruthy();
     const seed = queries.find((q) => normalize(q.sql).startsWith('insert into public.count_lines'));
-    expect(normalize(seed!.sql)).toContain('greatest(lp.quantity - lp.reserved_qty, 0)');
+    expect(normalize(seed!.sql)).toContain("lp.quantity, 'pending'");
+    expect(normalize(seed!.sql)).not.toContain('lp.quantity - lp.reserved_qty');
     expect(seed!.params[0]).toBe(SESSION_ID);
     expect(seed!.params[1]).toBe(WAREHOUSE_ID);
   });
@@ -484,9 +495,58 @@ describe('stock count actions', () => {
     expect(insert?.params).toEqual([SESSION_ID, LOCATION_ID, ITEM_ID, null, '5', '8', '3', USER_ID]);
   });
 
+  it.each([
+    {
+      caseName: 'received/pending LP 50 kg',
+      viewQty: '0',
+      physicalQty: '50',
+      countedQty: '50',
+    },
+    {
+      caseName: 'available/released LP 100 kg with 30 kg reserved',
+      viewQty: '70',
+      physicalQty: '100',
+      countedQty: '100',
+    },
+  ])('uses physical on-hand for $caseName, so a correct count has zero variance', async ({
+    viewQty,
+    physicalQty,
+    countedQty,
+  }) => {
+    systemQty = viewQty;
+    physicalSystemQty = physicalQty;
+
+    const result = await recordCount({
+      sessionId: SESSION_ID,
+      locationId: LOCATION_ID,
+      itemId: ITEM_ID,
+      countedQty,
+    });
+
+    expect(result.varianceQty).toBe('0');
+    const onHandRead = queries.find((q) => normalize(q.sql).includes('as system_qty'));
+    expect(normalize(onHandRead!.sql)).toContain('sum(lp.quantity)');
+    expect(normalize(onHandRead!.sql)).not.toContain('v_inventory_available');
+  });
+
+  it('still detects a real 5 kg physical surplus', async () => {
+    systemQty = '0';
+    physicalSystemQty = '50';
+
+    const result = await recordCount({
+      sessionId: SESSION_ID,
+      locationId: LOCATION_ID,
+      itemId: ITEM_ID,
+      countedQty: '55',
+    });
+
+    expect(result.varianceQty).toBe('5');
+  });
+
   it('emits a soft variance warning when |variance%| exceeds the configured threshold', async () => {
     // system 10, counted 13 → variance +3 → 30% > 10% threshold → WARN fires.
     systemQty = '10';
+    physicalSystemQty = '10';
     countVarianceWarnPct = '10';
 
     const result = await recordCount({
@@ -510,6 +570,7 @@ describe('stock count actions', () => {
   it('fires the warning the same way for an under-count (negative variance) past threshold', async () => {
     // system 10, counted 8 → variance -2 → 20% > 10% threshold → WARN fires.
     systemQty = '10';
+    physicalSystemQty = '10';
     countVarianceWarnPct = '10';
 
     const result = await recordCount({
@@ -530,6 +591,7 @@ describe('stock count actions', () => {
   it('does NOT emit a variance warning when |variance%| is at or under the threshold', async () => {
     // system 10, counted 11 → variance +1 → 10% == 10% threshold → no WARN.
     systemQty = '10';
+    physicalSystemQty = '10';
     countVarianceWarnPct = '10';
 
     const result = await recordCount({
@@ -546,6 +608,7 @@ describe('stock count actions', () => {
   it('disables the variance warning entirely when the threshold is configured to 0', async () => {
     // Huge variance but threshold 0 → opt-out → no WARN.
     systemQty = '10';
+    physicalSystemQty = '10';
     countVarianceWarnPct = '0';
 
     const result = await recordCount({
@@ -621,7 +684,8 @@ describe('stock count actions', () => {
 
   it("stale-system rejection: live on-hand drift triggers 'stock_changed_recount_required'", async () => {
     applyLine = makeApplyLine({ system_qty: '5', counted_qty: '8', variance_qty: '3' });
-    systemQty = '6';
+    systemQty = '5';
+    physicalSystemQty = '6';
 
     await expect(
       approveAndApplyVariance({ countLineId: COUNT_LINE_ID, signature: { password: '123456' } }),
@@ -656,6 +720,7 @@ describe('stock count actions', () => {
     const LP_BOX = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
     const LP_KG = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
     systemQty = '3';
+    physicalSystemQty = '3';
     applyLine = makeApplyLine({ system_qty: '3', counted_qty: '0', variance_qty: '-3', lp_id: null });
     shrinkageLps = [
       { id: LP_EACH, site_id: SITE_ID, status: 'available', quantity: '1', reserved_qty: '0', uom: 'each' },
@@ -703,6 +768,7 @@ describe('stock count actions', () => {
 
   it('multi-LP FEFO shrinkage drain spreads a reduction across LPs in order', async () => {
     systemQty = '9';
+    physicalSystemQty = '9';
     applyLine = makeApplyLine({ system_qty: '9', counted_qty: '2', variance_qty: '-7', lp_id: null });
     shrinkageLps = [
       {
@@ -773,6 +839,7 @@ describe('stock count actions', () => {
 
   it("shrinkage apply rejects without supervisor PIN as 'supervisor_pin_required'", async () => {
     systemQty = '9';
+    physicalSystemQty = '9';
     applyLine = makeApplyLine({ system_qty: '9', counted_qty: '2', variance_qty: '-7', lp_id: null });
 
     await expect(
@@ -786,6 +853,7 @@ describe('stock count actions', () => {
 
   it('single-operator large shrinkage write-off is rejected without a distinct supervisor', async () => {
     systemQty = '1000';
+    physicalSystemQty = '1000';
     applyLine = makeApplyLine({ system_qty: '1000', counted_qty: '0', variance_qty: '-1000', lp_id: null });
 
     await expect(

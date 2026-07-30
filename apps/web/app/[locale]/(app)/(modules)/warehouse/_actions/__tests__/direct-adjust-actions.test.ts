@@ -92,6 +92,18 @@ type Behavior = {
   activeHold?: boolean;
   /** Site resolved from the selected LP / warehouse / location. */
   resolvedSiteId?: string | null;
+  /** Item-scoped UoM definition and org conversion factors. */
+  adjustmentUom?: {
+    base_uom: string;
+    secondary_uom: string | null;
+    output_uom: 'base' | 'each' | 'box';
+    net_qty_per_each: string | null;
+    each_per_box: string | null;
+    input_factor_to_base: string | null;
+    input_category: string | null;
+    base_factor_to_base: string | null;
+    base_category: string | null;
+  };
 };
 
 function makeClient(behavior: Behavior = {}): QueryClient {
@@ -103,6 +115,7 @@ function makeClient(behavior: Behavior = {}): QueryClient {
     wacAvgCost = '4.25',
     activeHold = false,
     resolvedSiteId = SITE_ID,
+    adjustmentUom,
   } = behavior;
 
   // `from public.user_roles` is queried both for the initiator and supervisor
@@ -132,6 +145,24 @@ function makeClient(behavior: Behavior = {}): QueryClient {
       }
       if (n.startsWith('select coalesce') && n.includes('site_id')) {
         return { rows: [{ site_id: resolvedSiteId }], rowCount: 1 };
+      }
+      if (n.startsWith('select i.uom_base as base_uom') && n.includes('from public.items i')) {
+        return {
+          rows: [
+            adjustmentUom ?? {
+              base_uom: 'kg',
+              secondary_uom: 'g',
+              output_uom: 'base',
+              net_qty_per_each: null,
+              each_per_box: null,
+              input_factor_to_base: '1',
+              input_category: 'mass',
+              base_factor_to_base: '1',
+              base_category: 'mass',
+            },
+          ],
+          rowCount: 1,
+        };
       }
       if (n.startsWith('insert into public.license_plates')) {
         return { rows: [{ id: LP_ID }], rowCount: 1 };
@@ -262,13 +293,27 @@ describe('applyDirectAdjustment — write paths', () => {
     expect(calls.indexOf(wacWrite!)).toBeGreaterThan(calls.indexOf(findCall('insert into public.lp_state_history')!));
   });
 
-  it('(a2) box UoM increase resolves kg before crediting WAC', async () => {
-    client = makeClient();
+  it('(a2) box UoM increase is normalized once before LP and WAC writes', async () => {
+    client = makeClient({
+      adjustmentUom: {
+        base_uom: 'kg',
+        secondary_uom: null,
+        output_uom: 'box',
+        net_qty_per_each: '0.5',
+        each_per_box: '24',
+        input_factor_to_base: null,
+        input_category: null,
+        base_factor_to_base: '1',
+        base_category: 'mass',
+      },
+    });
     const result = await applyDirectAdjustment(input({ direction: 'increase', quantity: '2', uom: 'box' }));
     expect(result.ok).toBe(true);
 
-    const resolve = findCall('from public.items i', 'as qty_kg');
-    expect(resolve?.params).toEqual(['2', 'box', ITEM_ID]);
+    const normalized = findCall('from public.items i', 'i.uom_secondary as secondary_uom');
+    expect(normalized?.params).toEqual(['box', ITEM_ID]);
+    const mint = findCall('insert into public.license_plates');
+    expect([mint?.params[4], mint?.params[5]]).toEqual(['24', 'kg']);
     const wacWrite = findCall('insert into public.item_wac_state');
     expect(wacWrite?.params?.[2]).toBe('24');
   });
@@ -304,38 +349,89 @@ describe('applyDirectAdjustment — write paths', () => {
     expect(calls.indexOf(wacWrites[0]!)).toBeGreaterThan(calls.indexOf(findCall('insert into public.lp_state_history')!));
   });
 
-  it('(b2) mixed each/box/kg decrease debits WAC per leg using each LP UoM', async () => {
-    const LP_EACH = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
-    const LP_BOX = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
-    const LP_KG = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+  it('(b1) converts a 500 g decrease to 0.5 kg before reducing kg LPs', async () => {
     client = makeClient({
       decreaseLps: [
-        { id: LP_EACH, site_id: null, status: 'available', quantity: '1', reserved_qty: '0', uom: 'each' },
-        { id: LP_BOX, site_id: null, status: 'available', quantity: '1', reserved_qty: '0', uom: 'box' },
-        { id: LP_KG, site_id: null, status: 'available', quantity: '1', reserved_qty: '0', uom: 'kg' },
+        { id: LP_ID, site_id: null, status: 'available', quantity: '1000', reserved_qty: '0', uom: 'kg' },
       ],
+      adjustmentUom: {
+        base_uom: 'kg',
+        secondary_uom: 'g',
+        output_uom: 'base',
+        net_qty_per_each: null,
+        each_per_box: null,
+        input_factor_to_base: '0.001',
+        input_category: 'mass',
+        base_factor_to_base: '1',
+        base_category: 'mass',
+      },
     });
-    stockAdjustmentIds = ['adj-each', 'adj-box', 'adj-kg'];
 
-    const result = await applyDirectAdjustment(decreaseInput({ quantity: '3', uom: 'kg' }));
+    const result = await applyDirectAdjustment(decreaseInput({ quantity: '500', uom: 'g' }));
+
     expect(result.ok).toBe(true);
-
-    const resolveCalls = calls.filter((c) => normalize(c.sql).includes('from public.items i') && normalize(c.sql).includes('as qty_kg'));
-    expect(resolveCalls.map((c) => [c.params[0], c.params[1]])).toEqual([
-      ['1', 'each'],
-      ['1', 'box'],
-      ['1', 'kg'],
-    ]);
-
-    const wacReads = calls.filter((c) => normalize(c.sql).includes('with existing as materialized') && normalize(c.sql).includes('avg_cost_used'));
-    expect(wacReads.map((c) => c.params[2])).toEqual(['0.5', '12', '1']);
-
-    const wacWrites = calls.filter((c) => normalize(c.sql).includes('insert into public.item_wac_state'));
-    expect(wacWrites).toHaveLength(3);
-    const debitedKg = wacWrites.map((c) => Number(c.params[2]));
-    expect(debitedKg.reduce((sum, qty) => sum + qty, 0)).toBeCloseTo(-13.5);
-    expect(debitedKg).toEqual([-0.5, -12, -1]);
+    expect(findCall('from public.license_plates lp', 'lower(lp.uom) = lower($5::text)')?.params[4]).toBe('kg');
+    expect(findCall('update public.license_plates')?.params[1]).toBe('0.5');
   });
+
+  it('(b2) converts a 500 g increase to a 0.5 kg LP and WAC credit', async () => {
+    client = makeClient({
+      adjustmentUom: {
+        base_uom: 'kg',
+        secondary_uom: 'g',
+        output_uom: 'base',
+        net_qty_per_each: null,
+        each_per_box: null,
+        input_factor_to_base: '0.001',
+        input_category: 'mass',
+        base_factor_to_base: '1',
+        base_category: 'mass',
+      },
+    });
+
+    const result = await applyDirectAdjustment(input({ quantity: '500', uom: 'g' }));
+
+    expect(result.ok).toBe(true);
+    const mint = findCall('insert into public.license_plates');
+    expect([mint?.params[4], mint?.params[5]]).toEqual(['0.5', 'kg']);
+    expect(findCall('with existing as materialized', 'delta_value')?.params).toEqual([ORG_ID, ITEM_ID, '0.5', 'GBP']);
+  });
+
+  it.each(['increase', 'decrease'] as const)(
+    '(b3) rejects a defined item UoM with no conversion before writes for %s',
+    async (direction) => {
+      client = makeClient({
+        decreaseLps: [
+          { id: LP_ID, site_id: null, status: 'available', quantity: '1000', reserved_qty: '0', uom: 'kg' },
+        ],
+        adjustmentUom: {
+          base_uom: 'kg',
+          secondary_uom: 'g',
+          output_uom: 'base',
+          net_qty_per_each: null,
+          each_per_box: null,
+          input_factor_to_base: null,
+          input_category: 'mass',
+          base_factor_to_base: '1',
+          base_category: 'mass',
+        },
+      });
+
+      const result = await applyDirectAdjustment(
+        direction === 'increase'
+          ? input({ direction, quantity: '1', uom: 'g' })
+          : decreaseInput({ direction, quantity: '1', uom: 'g' }),
+      );
+
+      expect(result).toEqual({
+        ok: false,
+        error: { code: 'uom_conversion_unavailable', message: 'uom_conversion_unavailable' },
+      });
+      expect(findCall('insert into public.license_plates')).toBeUndefined();
+      expect(findCall('update public.license_plates')).toBeUndefined();
+      expect(findCall('insert into public.stock_adjustments')).toBeUndefined();
+    },
+  );
 
   it('(c) duplicate clientOpId replay short-circuits — no second write', async () => {
     client = makeClient({ replayRow: { adjustment_id: 'adj-existing', lp_id: LP_ID } });

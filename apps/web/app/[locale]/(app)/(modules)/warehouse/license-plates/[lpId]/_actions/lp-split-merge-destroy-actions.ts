@@ -76,12 +76,12 @@ function mapFailure(error: unknown): LpMutationResult {
  * carrying someone else's `lpId` still mutated the row. Same shape as the Move path's
  * `cross_site_move` check (warehouse/_actions/stock-move-actions.ts:273-278).
  *
- * A NULL `lp.site_id` is legacy data, not another tenant's row, so it is deliberately NOT
- * blocked here — org scoping still applies and blocking it would freeze pre-multi-site pallets.
- * `siteId === null` is the explicit ALL-sites (super_admin) bind, which also must not block.
+ * A bound site must reject both a different site and a missing LP site. Producers now stamp
+ * `site_id` before writing, so NULL is malformed data rather than a compatibility mode.
+ * `siteId === null` remains the explicit ALL-sites (super_admin) bind and must not block.
  */
 function isForeignSite(lp: { site_id: string | null }, siteId: string | null): boolean {
-  return Boolean(siteId && lp.site_id && lp.site_id !== siteId);
+  return Boolean(siteId && lp.site_id !== siteId);
 }
 
 function asPositiveQuantity(value: number): string | null {
@@ -400,11 +400,11 @@ export async function splitLp(
       const child = await ctx.client.query<{ id: string }>(
         `with deterministic_child as (
            select (
-             substr(md5($12), 1, 8) || '-' ||
-             substr(md5($12), 9, 4) || '-4' ||
-             substr(md5($12), 14, 3) || '-a' ||
-             substr(md5($12), 18, 3) || '-' ||
-             substr(md5($12), 21, 12)
+             substr(md5($13), 1, 8) || '-' ||
+             substr(md5($13), 9, 4) || '-4' ||
+             substr(md5($13), 14, 3) || '-a' ||
+             substr(md5($13), 18, 3) || '-' ||
+             substr(md5($13), 21, 12)
            )::uuid as id
          )
          insert into public.license_plates (
@@ -422,14 +422,14 @@ export async function splitLp(
                 $5::numeric,
                 0::numeric,
                 $6,
-                'available',
+                $7,
                 'split',
-                $7::uuid,
-                $8,
-                $9::timestamptz,
-                $10,
-                $11::uuid,
-                $11::uuid
+                $8::uuid,
+                $9,
+                $10::timestamptz,
+                $11,
+                $12::uuid,
+                $12::uuid
            from deterministic_child
         on conflict (id) do nothing
         returning id::text`,
@@ -444,6 +444,7 @@ export async function splitLp(
           source.product_id,
           splitQty,
           source.uom,
+          source.status,
           source.id,
           source.batch_number,
           source.expiry_date,
@@ -488,7 +489,7 @@ export async function splitLp(
         lpId: childId,
         siteId: destination.site_id,
         fromState: null,
-        toState: 'available',
+        toState: source.status,
         reasonCode: 'lp_split_genesis',
         reasonText: reason,
         transactionId: uuidFromSeed(`${splitTransactionId}:child-history`),
@@ -669,6 +670,9 @@ export async function mergeLps(primaryLpIdInput: string, secondaryLpIdsInput: st
       if (locked.rows.some((lp) => !SPLIT_MERGE_STATES.has(lp.status))) {
         return failure('only available LPs can be merged');
       }
+      if (secondaries.some((lp) => lp.status !== primary.status)) {
+        return failure('LP status must match before merge');
+      }
       if (locked.rows.some((lp) => !isZeroDecimal(lp.reserved_qty))) {
         return failure('reserved LPs cannot be merged');
       }
@@ -802,7 +806,8 @@ export async function destroyLp(lpIdInput: string, reasonInput: string, clientOp
 
       await ctx.client.query(
         `update public.license_plates
-            set status = 'destroyed',
+            set quantity = 0,
+                status = 'destroyed',
                 updated_by = $2::uuid
           where org_id = app.current_org_id()
             and id = $1::uuid

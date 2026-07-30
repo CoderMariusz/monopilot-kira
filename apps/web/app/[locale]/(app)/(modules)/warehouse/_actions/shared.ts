@@ -37,6 +37,14 @@ export type InventoryResult<T> =
 export const WAREHOUSE_READ_PERMISSION = 'warehouse.inventory.read';
 export const WAREHOUSE_STOCK_MOVE_PERMISSION = 'warehouse.stock.move';
 export const WAREHOUSE_LP_RESERVE_PERMISSION = 'warehouse.lp.reserve';
+/** Terminal LP states that no longer represent physical on-hand inventory. */
+export const PHYSICAL_ON_HAND_EXCLUDED_LP_STATUSES = [
+  'consumed',
+  'shipped',
+  'destroyed',
+  'merged',
+  'returned',
+] as const;
 
 export async function hasWarehousePermission(ctx: WarehouseContext, permission: string): Promise<boolean> {
   const res = await ctx.client.query<{ ok: boolean }>(

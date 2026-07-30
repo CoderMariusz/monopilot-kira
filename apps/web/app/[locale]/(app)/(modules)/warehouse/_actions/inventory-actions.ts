@@ -3,6 +3,7 @@
 import { getActiveSiteId } from '../../../../../../lib/site/site-context';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import {
+  PHYSICAL_ON_HAND_EXCLUDED_LP_STATUSES,
   WAREHOUSE_READ_PERMISSION,
   hasWarehousePermission,
   toIso,
@@ -66,7 +67,7 @@ export async function getInventoryByProduct(): Promise<InventoryResult<Inventory
                 i.name as item_name,
                 coalesce(sum(lp.quantity), 0)::text as total_qty,
                 coalesce(
-                  sum(lp.quantity) filter (
+                  sum(greatest(lp.quantity - lp.reserved_qty, 0)) filter (
                     where lp.status = 'available'
                       and lp.qa_status = 'released'
                   ),
@@ -79,10 +80,11 @@ export async function getInventoryByProduct(): Promise<InventoryResult<Inventory
            left join public.items i on i.org_id = app.current_org_id() and i.id = lp.product_id
           where lp.org_id = app.current_org_id()
             and (lp.site_id = $1::uuid or lp.site_id is null)
-            and lp.status not in ('consumed', 'shipped', 'destroyed', 'merged', 'returned')
+            and lp.quantity > 0
+            and lp.status <> all($2::text[])
           group by lp.product_id, i.item_code, i.name
           order by i.item_code asc nulls last, i.name asc nulls last`,
-        [activeSiteId],
+        [activeSiteId, PHYSICAL_ON_HAND_EXCLUDED_LP_STATUSES],
       );
 
       return {
@@ -135,7 +137,7 @@ export async function getInventoryByLocation(): Promise<InventoryResult<Inventor
                 w.code as warehouse_code,
                 coalesce(sum(lp.quantity), 0)::text as total_qty,
                 coalesce(
-                  sum(lp.quantity) filter (
+                  sum(greatest(lp.quantity - lp.reserved_qty, 0)) filter (
                     where lp.status = 'available'
                       and lp.qa_status = 'released'
                   ),
@@ -147,10 +149,11 @@ export async function getInventoryByLocation(): Promise<InventoryResult<Inventor
            left join public.warehouses w on w.org_id = app.current_org_id() and w.id = lp.warehouse_id
           where lp.org_id = app.current_org_id()
             and (lp.site_id = $1::uuid or lp.site_id is null)
-            and lp.status not in ('consumed', 'shipped', 'destroyed', 'merged', 'returned')
+            and lp.quantity > 0
+            and lp.status <> all($2::text[])
           group by lp.location_id, l.code, lp.warehouse_id, w.code
           order by w.code asc nulls last, l.code asc nulls last`,
-        [activeSiteId],
+        [activeSiteId, PHYSICAL_ON_HAND_EXCLUDED_LP_STATUSES],
       );
 
       return {
@@ -201,7 +204,7 @@ export async function getInventoryByBatch(): Promise<InventoryResult<InventoryBy
                 lp.batch_number,
                 coalesce(sum(lp.quantity), 0)::text as total_qty,
                 coalesce(
-                  sum(lp.quantity) filter (
+                  sum(greatest(lp.quantity - lp.reserved_qty, 0)) filter (
                     where lp.status = 'available'
                       and lp.qa_status = 'released'
                   ),
@@ -213,10 +216,11 @@ export async function getInventoryByBatch(): Promise<InventoryResult<InventoryBy
            left join public.items i on i.org_id = app.current_org_id() and i.id = lp.product_id
           where lp.org_id = app.current_org_id()
             and (lp.site_id = $1::uuid or lp.site_id is null)
-            and lp.status not in ('consumed', 'shipped', 'destroyed', 'merged', 'returned')
+            and lp.quantity > 0
+            and lp.status <> all($2::text[])
           group by lp.product_id, i.item_code, lp.batch_number
           order by i.item_code asc nulls last, lp.batch_number asc nulls last`,
-        [activeSiteId],
+        [activeSiteId, PHYSICAL_ON_HAND_EXCLUDED_LP_STATUSES],
       );
 
       return {

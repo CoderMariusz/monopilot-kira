@@ -37,6 +37,7 @@ let secondaryReservedQty: string;
 let primaryStatus: string;
 let primaryQaStatus: string;
 let secondaryQaStatus: string;
+let secondaryStatus: string;
 let secondaryProductId: string;
 let secondarySiteId: string | null;
 let secondaryWarehouseId: string;
@@ -160,9 +161,9 @@ function makeClient(): QueryClient {
       }
 
       if (q.startsWith('with deterministic_child as') && q.includes('insert into public.license_plates')) {
-        // $12 is the child seed. Each distinct payload mints its own child id, so a replay lookup
+        // $13 is the child seed. Each distinct payload mints its own child id, so a replay lookup
         // for a DIFFERENT payload finds nothing — exactly as the deterministic-uuid insert behaves.
-        const seed = String(params?.[11] ?? '');
+        const seed = String(params?.[12] ?? '');
         const childId = committedSplitSeeds.size === 0 ? CHILD_LP_ID : `${CHILD_LP_ID.slice(0, -1)}${committedSplitSeeds.size}`;
         committedSplitSeeds.set(seed, childId);
         return { rows: [{ id: childId }], rowCount: 1 };
@@ -177,6 +178,7 @@ function makeClient(): QueryClient {
               lp_number: 'LP-002',
               quantity: '4.000000',
               reserved_qty: secondaryReservedQty,
+              status: secondaryStatus,
               qa_status: secondaryQaStatus,
               product_id: secondaryProductId,
               site_id: secondarySiteId,
@@ -219,6 +221,7 @@ beforeEach(() => {
   primaryQuantity = '10.000000';
   secondaryReservedQty = '0.000000';
   primaryStatus = 'available';
+  secondaryStatus = 'available';
   primaryQaStatus = 'released';
   secondaryQaStatus = 'released';
   secondaryProductId = PRODUCT_ID;
@@ -256,6 +259,25 @@ describe('LP split/merge/destroy server actions', () => {
     expect(moves).toHaveLength(2);
     expect(moves.map((call) => call.params?.[3])).toEqual(['adjustment', 'split']);
     expect(moves.map((call) => call.params?.[6])).toEqual(['-4', '4']);
+  });
+
+  it('splitLp keeps 4 kg split from a returned 10 kg LP returned, so pickable stock stays 0 kg', async () => {
+    primaryStatus = 'returned';
+
+    const result = await splitLp(PRIMARY_LP_ID, 4, 'repack returned stock', SPLIT_CLIENT_OP_ID, DEST_LOCATION_ID);
+
+    expect(result).toEqual({ ok: true });
+    const calls = vi.mocked(client.query).mock.calls.map(([sql, params]) => ({ sql: normalize(String(sql)), params }));
+    const childInsert = calls.find((call) => call.sql.startsWith('with deterministic_child as') && call.sql.includes('insert into public.license_plates'));
+    expect(childInsert?.params?.[6]).toBe('returned');
+    const childHistory = calls.find(
+      (call) => call.sql.startsWith('insert into public.lp_state_history') && call.params?.[1] === CHILD_LP_ID,
+    );
+    expect(childHistory?.params?.[3]).toBe('returned');
+  });
+
+  it('splitLp still allows 4 kg split from an available 10 kg LP', async () => {
+    await expect(splitLp(PRIMARY_LP_ID, 4, 'repack available stock', SPLIT_CLIENT_OP_ID, DEST_LOCATION_ID)).resolves.toEqual({ ok: true });
   });
 
   // ── R08-02 · the child pallet goes where it was told ─────────────────────────────────────────
@@ -427,6 +449,31 @@ describe('LP split/merge/destroy server actions', () => {
     expect(primaryMove?.params?.[6]).toBe('4.000000');
   });
 
+  it('mergeLps rejects moving 4 kg from available into a returned 10 kg primary before writes', async () => {
+    primaryStatus = 'returned';
+
+    const result = await mergeLps(PRIMARY_LP_ID, [SECONDARY_LP_ID], 'do not hide available stock');
+
+    expect(result).toEqual({ ok: false, error: 'LP status must match before merge' });
+    const calls = vi.mocked(client.query).mock.calls.map(([sql]) => normalize(String(sql)));
+    expect(calls.some((sql) => sql.startsWith('update public.license_plates'))).toBe(false);
+    expect(calls.some((sql) => sql.startsWith('insert into public.stock_moves'))).toBe(false);
+  });
+
+  it('mergeLps still allows returned 10 kg plus returned 4 kg', async () => {
+    primaryStatus = 'returned';
+    secondaryStatus = 'returned';
+
+    const result = await mergeLps(PRIMARY_LP_ID, [SECONDARY_LP_ID], 'consolidate returned stock');
+
+    expect(result).toEqual({ ok: true });
+    const primaryUpdate = vi
+      .mocked(client.query)
+      .mock.calls.map(([sql, params]) => ({ sql: normalize(String(sql)), params }))
+      .find((call) => call.sql.startsWith('update public.license_plates') && call.sql.includes('quantity = quantity +'));
+    expect(primaryUpdate?.params?.slice(0, 2)).toEqual([PRIMARY_LP_ID, '4.000000']);
+  });
+
   it('mergeLps rejects product_id mismatch before writes', async () => {
     secondaryProductId = OTHER_PRODUCT_ID;
 
@@ -465,6 +512,7 @@ describe('LP split/merge/destroy server actions', () => {
       calls.some(
         (call) =>
           call.sql.startsWith('update public.license_plates') &&
+          call.sql.includes('quantity = 0') &&
           call.sql.includes("status = 'destroyed'") &&
           call.sql.includes("and status <> 'destroyed'"),
       ),

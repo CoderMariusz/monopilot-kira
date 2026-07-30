@@ -146,6 +146,7 @@ function buildLabels(locale: string): DirectAdjustFormLabels {
       site_required: t('errors.site_required'),
       use_count_session: t('errors.use_count_session'),
       invalid_quantity: t('errors.invalid_quantity'),
+      uom_conversion_unavailable: t('errors.uom_conversion_unavailable'),
       invalid_expiry_date: t('errors.invalid_expiry_date'),
       invalid_input: t('errors.invalid_input'),
       esign_failed: t('errors.esign_failed'),
@@ -173,6 +174,8 @@ const ITEM = {
   status: 'active',
   costPerKgEur: null,
   uomBase: 'kg',
+  uomSecondary: 'g',
+  outputUom: 'base',
 };
 
 const SUPERVISOR = {
@@ -242,6 +245,18 @@ describe('DirectAdjustForm — parity + states', () => {
     fireEvent.click(screen.getByTestId('adjust-direction-decrease'));
     expect(screen.getByTestId('adjust-supervisor-block')).toHaveTextContent('Kontrasygnata przełożonego');
   });
+
+  it('offers only the selected item UoMs in a constrained picker', async () => {
+    setup();
+    await chooseItem();
+
+    const uom = screen.getByTestId('adjust-uom');
+    const trigger = within(uom).getByRole('combobox');
+    fireEvent.click(trigger);
+
+    expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual(['kg', 'g']);
+    expect(uom.querySelector('input[type="text"]')).toBeNull();
+  });
 });
 
 describe('DirectAdjustForm — RBAC + flow', () => {
@@ -251,11 +266,10 @@ describe('DirectAdjustForm — RBAC + flow', () => {
       .mockResolvedValue({ ok: false, error: { code: 'forbidden', message: 'forbidden' } });
     setup({ applyAction });
 
-    // Fill the minimal increase form: location + item + qty + uom + reason + password.
+    // Fill the minimal increase form: selecting the item defaults its base UoM.
     selectLocation();
     await chooseItem();
     fireEvent.change(screen.getByTestId('adjust-quantity'), { target: { value: '5' } });
-    fireEvent.change(screen.getByTestId('adjust-uom'), { target: { value: 'kg' } });
     selectReason('found_stock');
     fireEvent.change(screen.getByTestId('adjust-password'), { target: { value: 'secret' } });
 
@@ -278,7 +292,6 @@ describe('DirectAdjustForm — RBAC + flow', () => {
     selectLocation();
     await chooseItem();
     fireEvent.change(screen.getByTestId('adjust-quantity'), { target: { value: '5' } });
-    fireEvent.change(screen.getByTestId('adjust-uom'), { target: { value: 'kg' } });
     selectReason('found_stock');
     fireEvent.change(screen.getByTestId('adjust-password'), { target: { value: 'secret' } });
     fireEvent.click(screen.getByTestId('adjust-submit'));
@@ -297,7 +310,6 @@ describe('DirectAdjustForm — RBAC + flow', () => {
     selectLocation();
     await chooseItem();
     fireEvent.change(screen.getByTestId('adjust-quantity'), { target: { value: '3' } });
-    fireEvent.change(screen.getByTestId('adjust-uom'), { target: { value: 'kg' } });
     selectReason('spillage_damage');
     fireEvent.change(screen.getByTestId('adjust-password'), { target: { value: 'secret' } });
 
@@ -324,7 +336,6 @@ describe('DirectAdjustForm — RBAC + flow', () => {
     selectLocation();
     await chooseItem();
     fireEvent.change(screen.getByTestId('adjust-quantity'), { target: { value: '7' } });
-    fireEvent.change(screen.getByTestId('adjust-uom'), { target: { value: 'kg' } });
     selectReason('found_stock');
     fireEvent.change(screen.getByTestId('adjust-password'), { target: { value: 'secret' } });
 

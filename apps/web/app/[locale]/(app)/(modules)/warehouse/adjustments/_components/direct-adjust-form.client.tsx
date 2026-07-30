@@ -43,6 +43,7 @@ import { useRouter } from 'next/navigation';
 import { anchoredPanelPosition, type AnchoredPanelPosition } from '@monopilot/ui/anchoredPanel';
 import { Select } from '@monopilot/ui/Select';
 
+import { UomSelect } from '../../../../../../../components/forms/uom-select';
 import type {
   DirectAdjustInput,
   DirectAdjustReasonCode,
@@ -67,6 +68,16 @@ const REASON_CODES: readonly DirectAdjustReasonCode[] = [
 ];
 
 type Direction = 'increase' | 'decrease';
+
+function itemUoms(item: ItemPickerOption | null): string[] {
+  if (!item) return [];
+  return Array.from(new Set([
+    item.uomBase,
+    item.uomSecondary,
+    item.outputUom === 'each' || item.outputUom === 'box' ? 'pcs' : null,
+    item.outputUom === 'box' ? 'box' : null,
+  ].filter((uom): uom is string => Boolean(uom))));
+}
 
 export type DirectAdjustFormLabels = {
   intro: string;
@@ -425,7 +436,10 @@ export function DirectAdjustForm({
               <button
                 type="button"
                 data-testid="adjust-item-change"
-                onClick={() => setItem(null)}
+                onClick={() => {
+                  setItem(null);
+                  setUom('');
+                }}
                 className="text-xs font-medium text-sky-700 hover:underline"
               >
                 {labels.itemChange}
@@ -450,7 +464,11 @@ export function DirectAdjustForm({
                 payload: r,
               }));
             }}
-            onSelect={(opt) => setItem(opt.payload as ItemPickerOption)}
+            onSelect={(opt) => {
+              const selected = opt.payload as ItemPickerOption;
+              setItem(selected);
+              setUom(selected.uomBase);
+            }}
           />
         )}
         <span className="text-xs text-slate-400">{labels.itemHelp}</span>
@@ -512,14 +530,18 @@ export function DirectAdjustForm({
           <span className="font-medium text-slate-700">
             {labels.uom} <span aria-hidden className="text-red-500">*</span>
           </span>
-          <input
-            type="text"
-            data-testid="adjust-uom"
-            value={uom}
-            onChange={(e) => setUom(e.target.value)}
-            placeholder={item?.uomBase ?? labels.uomPlaceholder}
-            className="w-28 rounded-md border border-slate-300 px-2.5 py-1.5 focus:border-slate-400 focus:outline-none"
-          />
+          <div data-testid="adjust-uom">
+            <UomSelect
+              value={uom}
+              onValueChange={setUom}
+              labels={{}}
+              units={itemUoms(item)}
+              disabled={!item}
+              placeholder={labels.uomPlaceholder}
+              aria-label={labels.uom}
+              className="w-28"
+            />
+          </div>
         </label>
       </div>
 

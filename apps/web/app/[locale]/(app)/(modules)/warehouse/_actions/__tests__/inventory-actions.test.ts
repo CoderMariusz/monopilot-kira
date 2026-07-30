@@ -25,6 +25,7 @@ type LpFixture = {
   warehouseId: string;
   warehouseCode: string;
   quantity: string;
+  reservedQty: string;
   status: string;
   qaStatus: string;
   expiryDate: string;
@@ -67,10 +68,14 @@ function sumQty(rows: LpFixture[]): string {
   return String(rows.reduce((total, lp) => total + Number(lp.quantity), 0));
 }
 
+function sumPickableQty(rows: LpFixture[]): string {
+  return String(pickableRows(rows).reduce((total, lp) => total + Number(lp.quantity) - Number(lp.reservedQty), 0));
+}
+
 function aggregate(rows: LpFixture[]) {
   return {
     total_qty: sumQty(rows),
-    pickable_qty: sumQty(pickableRows(rows)),
+    pickable_qty: sumPickableQty(rows),
     lp_count: rows.length,
     earliest_expiry_date: rows.map((lp) => lp.expiryDate).sort()[0] ?? null,
   };
@@ -170,6 +175,7 @@ beforeEach(() => {
       warehouseId: WAREHOUSE_ID,
       warehouseCode: 'WH-A',
       quantity: '100',
+      reservedQty: '30',
       status: 'available',
       qaStatus: 'released',
       expiryDate: '2026-07-01T00:00:00.000Z',
@@ -185,6 +191,7 @@ beforeEach(() => {
       warehouseId: WAREHOUSE_ID,
       warehouseCode: 'WH-A',
       quantity: '50',
+      reservedQty: '50',
       status: 'reserved',
       qaStatus: 'released',
       expiryDate: '2026-07-02T00:00:00.000Z',
@@ -200,6 +207,7 @@ beforeEach(() => {
       warehouseId: WAREHOUSE_ID,
       warehouseCode: 'WH-A',
       quantity: '25',
+      reservedQty: '0',
       status: 'blocked',
       qaStatus: 'on_hold',
       expiryDate: '2026-07-03T00:00:00.000Z',
@@ -215,6 +223,7 @@ beforeEach(() => {
       warehouseId: WAREHOUSE_ID,
       warehouseCode: 'WH-A',
       quantity: '999',
+      reservedQty: '0',
       status: 'consumed',
       qaStatus: 'released',
       expiryDate: '2026-06-01T00:00:00.000Z',
@@ -225,7 +234,7 @@ beforeEach(() => {
 });
 
 describe('inventory pivot actions', () => {
-  it('by product totals reserved/blocked LPs, excludes consumed LPs, and only counts released available LPs as pickable', async () => {
+  it('by product totals physical LP quantities but subtracts reservations from pickable quantity', async () => {
     const result = await getInventoryByProduct();
 
     expect(result.ok).toBe(true);
@@ -233,9 +242,9 @@ describe('inventory pivot actions', () => {
     expect(result.data[0]).toMatchObject({
       productId: PRODUCT_ID,
       totalQty: '175',
-      pickableQty: '100',
+      pickableQty: '70',
       quantity: '175',
-      availableQty: '100',
+      availableQty: '70',
       lpCount: 3,
     });
 
@@ -247,14 +256,19 @@ describe('inventory pivot actions', () => {
     const sql = directInventorySql();
     expect(sql).toContain('from public.license_plates lp');
     expect(sql).not.toContain('v_inventory_available');
-    expect(sql).toContain("lp.status not in ('consumed', 'shipped', 'destroyed', 'merged', 'returned')");
-    expect(sql).toContain('sum(lp.quantity) filter ( where lp.status = \'available\' and lp.qa_status = \'released\' )');
+    expect(sql).toContain('lp.status <> all($2::text[])');
+    expect(sql).toContain(
+      "sum(greatest(lp.quantity - lp.reserved_qty, 0)) filter ( where lp.status = 'available' and lp.qa_status = 'released' )",
+    );
     // SW: site scope includes NULL-site stock (F10 owner ruling).
     expect(sql).toContain('(lp.site_id = $1::uuid or lp.site_id is null)');
     const call = vi
       .mocked(client.query)
       .mock.calls.find(([s]) => normalize(s).includes('from public.license_plates lp'));
-    expect(call?.[1]).toEqual([SITE_ID]);
+    expect(call?.[1]).toEqual([
+      SITE_ID,
+      ['consumed', 'shipped', 'destroyed', 'merged', 'returned'],
+    ]);
   });
 
   it('by location uses the same on-hand and pickable scope', async () => {
@@ -266,7 +280,7 @@ describe('inventory pivot actions', () => {
       locationId: LOCATION_ID,
       warehouseId: WAREHOUSE_ID,
       totalQty: '175',
-      pickableQty: '100',
+      pickableQty: '70',
       lpCount: 3,
     });
     const sql = directInventorySql();
@@ -283,7 +297,7 @@ describe('inventory pivot actions', () => {
       productId: PRODUCT_ID,
       batchNumber: 'B-001',
       totalQty: '175',
-      pickableQty: '100',
+      pickableQty: '70',
       lpCount: 3,
     });
     const sql = directInventorySql();

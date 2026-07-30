@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { verifyPin } from '../../../../../../../../packages/auth/src/verify-pin.js';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { creditWacAtAvgCost, debitWac } from '../../../../../../lib/finance/upsert-wac';
-import { microToDecimal, toMicro } from '../../../../../../lib/shared/decimal';
+import { microToDecimal, mulMicro, toMicro } from '../../../../../../lib/shared/decimal';
 import { resolveWriteSiteId } from '../../../../../../lib/site/site-context';
 import { makeLpNumber, makeStockMoveNumber } from '../../../../../../lib/warehouse/lp-create';
 import {
@@ -46,7 +46,7 @@ const directAdjustInputSchema = z.object({
   lpId: z.string().uuid().nullable().optional(),
   direction: z.enum(['increase', 'decrease']),
   quantity: z.string().trim().min(1),
-  uom: z.string().trim().min(1),
+  uom: z.string().trim().min(1).max(32),
   reasonCode: DirectAdjustReasonCode,
   reasonText: z.string().trim().optional(),
   batchNumber: z.string().trim().optional(),
@@ -85,6 +85,23 @@ type AdjustmentLeg = {
 type ReplayRow = {
   adjustment_id: string | null;
   lp_id: string;
+};
+
+type NormalizedAdjustmentQuantity = {
+  quantity: string;
+  uom: string;
+};
+
+type ItemAdjustmentUomRow = {
+  base_uom: string;
+  secondary_uom: string | null;
+  output_uom: 'base' | 'each' | 'box';
+  net_qty_per_each: string | null;
+  each_per_box: string | null;
+  input_factor_to_base: string | null;
+  input_category: string | null;
+  base_factor_to_base: string | null;
+  base_category: string | null;
 };
 
 function failure(code: string, message = code): Extract<DirectAdjustResult, { ok: false }> {
@@ -144,9 +161,79 @@ async function readReplay(client: QueryClient, transactionId: string): Promise<R
   return rows[0] ?? null;
 }
 
+async function normalizeAdjustmentQuantity(
+  client: QueryClient,
+  input: { itemId: string; quantity: string; uom: string },
+): Promise<NormalizedAdjustmentQuantity | null> {
+  const { rows } = await client.query<ItemAdjustmentUomRow>(
+    `select i.uom_base as base_uom,
+            i.uom_secondary as secondary_uom,
+            i.output_uom,
+            i.net_qty_per_each::text,
+            i.each_per_box::text,
+            input_uom.factor_to_base::text as input_factor_to_base,
+            input_uom.category as input_category,
+            base_uom.factor_to_base::text as base_factor_to_base,
+            base_uom.category as base_category
+       from public.items i
+       left join public.unit_of_measure input_uom
+         on input_uom.org_id = i.org_id
+        and lower(input_uom.code) = lower($1::text)
+        and input_uom.deleted_at is null
+       left join public.unit_of_measure base_uom
+         on base_uom.org_id = i.org_id
+        and lower(base_uom.code) = lower(i.uom_base)
+        and base_uom.deleted_at is null
+      where i.org_id = app.current_org_id()
+        and i.id = $2::uuid
+      limit 1`,
+    [input.uom, input.itemId],
+  );
+  const row = rows[0];
+  if (!row) return null;
+
+  const enteredUom = input.uom.trim().toLowerCase();
+  const baseUom = row.base_uom.trim().toLowerCase();
+  let quantityBase: bigint | null = null;
+  const entered = toMicro(input.quantity);
+
+  if (enteredUom === baseUom) {
+    quantityBase = entered;
+  } else if (
+    ['pcs', 'each', 'ea', 'szt'].includes(enteredUom)
+    && (row.output_uom === 'each' || row.output_uom === 'box')
+    && row.net_qty_per_each
+  ) {
+    quantityBase = mulMicro(entered, toMicro(row.net_qty_per_each));
+  } else if (
+    enteredUom === 'box'
+    && row.output_uom === 'box'
+    && row.net_qty_per_each
+    && row.each_per_box
+  ) {
+    quantityBase = mulMicro(
+      entered,
+      mulMicro(toMicro(row.net_qty_per_each), toMicro(row.each_per_box)),
+    );
+  } else if (
+    enteredUom === row.secondary_uom?.trim().toLowerCase()
+    && row.input_category
+    && row.input_category === row.base_category
+    && row.input_factor_to_base
+    && row.base_factor_to_base
+  ) {
+    const numerator = entered * toMicro(row.input_factor_to_base);
+    const denominator = toMicro(row.base_factor_to_base);
+    if (denominator > 0n) quantityBase = (numerator + denominator / 2n) / denominator;
+  }
+
+  const quantity = quantityBase === null ? null : parsePositiveQuantity(microToDecimal(quantityBase));
+  return quantity ? { quantity, uom: row.base_uom } : null;
+}
+
 async function selectLpsForDirectDecrease(
   client: QueryClient,
-  input: { warehouseId: string; locationId: string; itemId: string; lpId: string | null; quantity: string },
+  input: { warehouseId: string; locationId: string; itemId: string; lpId: string | null; quantity: string; uom: string },
 ): Promise<AdjustmentLeg[]> {
   // MEDIUM scoping fix: constrain on the LP's REAL warehouse_id so a caller
   // cannot pass a warehouseId that diverges from where the stock actually
@@ -165,12 +252,13 @@ async function selectLpsForDirectDecrease(
         and lp.location_id = $1::uuid
         and lp.product_id = $2::uuid
         and ($3::uuid is null or lp.id = $3::uuid)
+        and lower(lp.uom) = lower($5::text)
         and lp.status = 'available'
         and lp.qa_status = 'released'
         and lp.quantity > lp.reserved_qty
       order by lp.expiry_date asc nulls last, lp.lp_number asc
       for update`,
-    [input.locationId, input.itemId, input.lpId, input.warehouseId],
+    [input.locationId, input.itemId, input.lpId, input.warehouseId, input.uom],
   );
 
   let remaining = toMicro(input.quantity);
@@ -460,8 +548,8 @@ export async function applyDirectAdjustment(input: DirectAdjustInput): Promise<D
   const parsed = directAdjustInputSchema.safeParse(input);
   if (!parsed.success) return failure('invalid_input', 'Invalid direct adjustment input');
 
-  const quantity = parsePositiveQuantity(parsed.data.quantity);
-  if (!quantity) return failure('invalid_quantity', 'Quantity must be greater than zero');
+  const enteredQuantity = parsePositiveQuantity(parsed.data.quantity);
+  if (!enteredQuantity) return failure('invalid_quantity', 'Quantity must be greater than zero');
 
   let expiryDate: string | null;
   try {
@@ -507,6 +595,14 @@ export async function applyDirectAdjustment(input: DirectAdjustInput): Promise<D
         return { ok: true, data: { adjustmentId: replay.adjustment_id, lpId: replay.lp_id } };
       }
 
+      const normalized = await normalizeAdjustmentQuantity(ctx.client, {
+        itemId: parsed.data.itemId,
+        quantity: enteredQuantity,
+        uom: parsed.data.uom,
+      });
+      if (!normalized) return failure('uom_conversion_unavailable');
+      const { quantity, uom } = normalized;
+
       // For a decrease: resolve the FEFO legs BEFORE writing the e-sign receipt
       // so that an insufficient-stock determination never commits a receipt for a
       // doomed adjustment (partial-commit fix). selectLpsForDirectDecrease runs
@@ -520,6 +616,7 @@ export async function applyDirectAdjustment(input: DirectAdjustInput): Promise<D
           itemId: parsed.data.itemId,
           lpId,
           quantity,
+          uom,
         });
         // Defensive guard — selectLpsForDirectDecrease throws when stock is
         // insufficient, so an empty result here is unexpected; abort without a
@@ -556,7 +653,7 @@ export async function applyDirectAdjustment(input: DirectAdjustInput): Promise<D
             lp_id: lpId,
             direction: parsed.data.direction,
             quantity,
-            uom: parsed.data.uom,
+            uom,
             reason_code: parsed.data.reasonCode,
             client_op_id: parsed.data.clientOpId,
           },
@@ -605,7 +702,7 @@ export async function applyDirectAdjustment(input: DirectAdjustInput): Promise<D
           locationId: parsed.data.locationId,
           itemId: parsed.data.itemId,
           quantity,
-          uom: parsed.data.uom,
+          uom,
           batchNumber,
           expiryDate,
         });
@@ -629,7 +726,7 @@ export async function applyDirectAdjustment(input: DirectAdjustInput): Promise<D
           adjustmentId,
           direction: parsed.data.direction,
           quantity,
-          uom: parsed.data.uom,
+          uom,
           reasonCode: parsed.data.reasonCode,
           reasonText,
           transactionId,
@@ -650,7 +747,7 @@ export async function applyDirectAdjustment(input: DirectAdjustInput): Promise<D
           siteId,
           itemId: parsed.data.itemId,
           quantity,
-          uom: parsed.data.uom,
+          uom,
         });
         return { ok: true, data: { adjustmentId, lpId: newLpId } };
       }

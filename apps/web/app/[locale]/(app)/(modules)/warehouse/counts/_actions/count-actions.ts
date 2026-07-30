@@ -11,6 +11,7 @@ import { getActiveSiteId } from '../../../../../../../lib/site/site-context';
 import { makeLpNumber, makeStockMoveNumber } from '../../../../../../../lib/warehouse/lp-create';
 import { microToDecimal, toMicro } from '../../../../../../../lib/shared/decimal';
 import {
+  PHYSICAL_ON_HAND_EXCLUDED_LP_STATUSES,
   hasWarehousePermission,
   uuidFromSeed,
   type QueryClient,
@@ -44,9 +45,6 @@ const DESTROYED_STATUS = 'destroyed';
  * default-WARN tier. Set to 0 in feature_flags to opt OUT entirely.
  */
 const COUNT_VARIANCE_DEFAULT_WARN_PCT = 5;
-/** LP lifecycle states excluded from count snapshots (terminal / no longer on-hand). */
-const COUNT_EXCLUDED_LP_STATUSES = ['consumed', 'merged', 'shipped'] as const;
-
 type SessionRow = {
   id: string;
   warehouse_id: string;
@@ -338,14 +336,16 @@ async function readCurrentOnHand(
   input: { locationId: string; itemId: string; lpId: string | null },
 ): Promise<{ systemQty: string; uom: string | null }> {
   const { rows } = await client.query<{ system_qty: string; uom: string | null }>(
-    `select coalesce(sum(inv.available_qty), 0)::text as system_qty,
-            min(inv.uom) as uom
-       from public.v_inventory_available inv
-      where inv.org_id = app.current_org_id()
-        and inv.location_id = $1::uuid
-        and inv.product_id = $2::uuid
-        and ($3::uuid is null or inv.lp_id = $3::uuid)`,
-    [input.locationId, input.itemId, input.lpId],
+    `select coalesce(sum(lp.quantity), 0)::text as system_qty,
+            min(lp.uom) as uom
+       from public.license_plates lp
+      where lp.org_id = app.current_org_id()
+        and lp.location_id = $1::uuid
+        and lp.product_id = $2::uuid
+        and ($3::uuid is null or lp.id = $3::uuid)
+        and lp.quantity > 0
+        and lp.status <> all($4::text[])`,
+    [input.locationId, input.itemId, input.lpId, PHYSICAL_ON_HAND_EXCLUDED_LP_STATUSES],
   );
   return { systemQty: rows[0]?.system_qty ?? '0', uom: rows[0]?.uom ?? null };
 }
@@ -879,7 +879,7 @@ async function countWarehouseStockLines(client: QueryClient, warehouseId: string
         and lp.location_id is not null
         and lp.quantity > 0
         and lp.status <> all($2::text[])`,
-    [warehouseId, COUNT_EXCLUDED_LP_STATUSES],
+    [warehouseId, PHYSICAL_ON_HAND_EXCLUDED_LP_STATUSES],
   );
   return toInt(rows[0]?.line_count);
 }
@@ -898,7 +898,7 @@ async function seedCountSessionLines(
             lp.location_id,
             lp.product_id,
             lp.id,
-            greatest(lp.quantity - lp.reserved_qty, 0),
+            lp.quantity,
             'pending'
        from public.license_plates lp
       where lp.org_id = app.current_org_id()
@@ -906,7 +906,7 @@ async function seedCountSessionLines(
         and lp.location_id is not null
         and lp.quantity > 0
         and lp.status <> all($3::text[])`,
-    [sessionId, warehouseId, COUNT_EXCLUDED_LP_STATUSES],
+    [sessionId, warehouseId, PHYSICAL_ON_HAND_EXCLUDED_LP_STATUSES],
   );
   return toInt(rowCount);
 }
