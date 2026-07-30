@@ -63,17 +63,24 @@ describe('scanner receive PO service', () => {
     expect(listCall?.params).toEqual([ORG_A, expect.any(Array)]);
   });
 
-  it('rejects receive without warehouse.grn.receive', async () => {
+  it('WH-079 rejects receive without warehouse.grn.receive and audits forbidden', async () => {
     const client = makeReceiveClient({ grantedReceivePermission: false });
 
     await expect(receiveScannerPoLine(client, session, input)).rejects.toMatchObject({
       code: 'forbidden',
       status: 403,
     });
+    expect(findCall(client, 'from public.user_roles')?.params).toEqual([
+      USER_A,
+      ORG_A,
+      'warehouse.grn.receive',
+      ['owner', 'admin', 'org_admin'],
+    ]);
+    expect(findCall(client, 'insert into public.scanner_audit_log')).toBeDefined();
     expect(client.statements).not.toContain('begin');
   });
 
-  it('creates a GRN, GRN item, LP, LP genesis history, audit row, and rolls PO status up', async () => {
+  it('WH-079 allows receive with warehouse.grn.receive and writes the receipt', async () => {
     vi.spyOn(Date, 'now').mockReturnValue(1790000000000);
     vi.spyOn(Math, 'random').mockReturnValue(0.1234);
     const client = makeReceiveClient({ orderedQty: '10.000000', receivedQty: '0.000000', isReceived: true });
@@ -108,6 +115,12 @@ describe('scanner receive PO service', () => {
     // flag OFF (default): no QC inspection is opened and the response says so
     expect(result).toMatchObject({ qcInspectionRequired: false, inspectionId: null });
     expect(findCall(client, 'insert into public.quality_inspections')).toBeUndefined();
+    expect(findCall(client, 'from public.user_roles')?.params).toEqual([
+      USER_A,
+      ORG_A,
+      'warehouse.grn.receive',
+      ['owner', 'admin', 'org_admin'],
+    ]);
   });
 
   it('flips the open draft GRN to completed once the PO rolls up to fully received', async () => {

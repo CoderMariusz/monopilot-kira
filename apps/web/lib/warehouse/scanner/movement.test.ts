@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { moveScannerLp, pickScannerLp, suggestPutawayLocations, WarehouseScannerError } from './movement';
+import { listFefoLps, moveScannerLp, pickScannerLp, suggestPutawayLocations, WarehouseScannerError } from './movement';
 import type { QueryClient } from '../../scanner/db';
 import type { ScannerSessionRow } from '../../scanner/session';
 
@@ -364,6 +364,44 @@ describe('P0 GAP contracts — scanner move and pick', () => {
         lpId: LP_ID,
       }),
     ).resolves.toMatchObject({ ok: true });
+  });
+
+  it('WH-128 keeps an expired released LP visible in the FEFO service', async () => {
+    const client = {
+      query: vi.fn(async (sql: string) => {
+        const q = normalize(sql);
+        const filtersExpired = q.includes('expiry_date') && q.includes('current_date');
+        return {
+          rows: filtersExpired
+            ? []
+            : [{
+                lp_id: LP_ID,
+                lp_number: 'LP-EXPIRED',
+                available_qty: '5',
+                uom: 'kg',
+                expiry_date: '2026-01-01',
+                location_code: 'A-01',
+              }],
+        };
+      }),
+    } as unknown as QueryClient;
+
+    await expect(listFefoLps(client, PRODUCT_ID, 'kg')).resolves.toEqual([
+      expect.objectContaining({ id: LP_ID, lpNumber: 'LP-EXPIRED', expiryDate: '2026-01-01' }),
+    ]);
+  });
+
+  it('WH-128 rejects the same expired LP at pick egress', async () => {
+    const client = makeClient({ lp: { expired: true } });
+
+    await expect(
+      pickScannerLp(client, session, {
+        clientOpId: 'WH-128-expired-pick',
+        woId: WO_ID,
+        materialId: MATERIAL_ID,
+        lpId: LP_ID,
+      }),
+    ).rejects.toMatchObject({ code: 'lp_expired', status: 409 });
   });
 });
 

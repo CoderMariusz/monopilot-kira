@@ -1,4 +1,5 @@
 import { hasPermission } from '../../auth/has-permission';
+import { writeScannerSessionAudit } from '../../scanner/audit';
 import { cleanupTxnOrgContext, registerTxnOrgContext } from '../../scanner/txn-org-context';
 import {
   bookReceiptWacAfterGrnItem,
@@ -327,6 +328,10 @@ export async function receiveScannerPoLine(
       WAREHOUSE_GRN_RECEIVE_PERMISSION,
     ))
   ) {
+    await writeScannerSessionAudit(client, session, 'scanner.receive_po', 'forbidden', {
+      poLineId: input.poLineId,
+      clientOpId: input.clientOpId,
+    });
     throw new ReceivePoError('forbidden', 403);
   }
 
