@@ -232,10 +232,16 @@ function warehouseExportLabel(row: { warehouseCode: string | null; warehouseName
   return row.warehouseCode ?? row.warehouseName ?? '';
 }
 
-const usdFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
-
-function formatUsd(value: number): string {
-  return usdFormatter.format(value);
+// This app has no USD amounts at all — the previous `formatUsd` stamped a `$`
+// on every figure here, including the correct single-currency ones. Format in
+// the currency the row is actually denominated in; `null` means the amount
+// spans several currencies and there is no honest number to show.
+function formatMoney(value: number | null, currency: string | null, placeholder: string): string {
+  if (value === null || currency === null) return placeholder;
+  // ponytail: Intl throws RangeError on a non-ISO code and would blank the whole
+  // client component; a bare 3-letter check is enough, widen if codes ever vary.
+  if (!/^[A-Z]{3}$/.test(currency)) return `${value.toFixed(2)} ${currency}`;
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(value);
 }
 
 // ── Section: production ───────────────────────────────────────────────────────
@@ -815,7 +821,7 @@ function ShipmentsSection({
 
 // ── Section: spend by supplier ────────────────────────────────────────────────
 
-function SpendBySupplierSection({ data }: { data: SpendBySupplierRow[] }) {
+function SpendBySupplierSection({ data, notAvailable }: { data: SpendBySupplierRow[]; notAvailable: string }) {
   return (
     <Card data-testid="rpt-section-spend-by-supplier">
       <CardHeader>
@@ -837,7 +843,13 @@ function SpendBySupplierSection({ data }: { data: SpendBySupplierRow[] }) {
               {data.map((row) => (
                 <TableRow key={row.supplierId}>
                   <TableCell className="text-xs font-medium">{row.supplierName || row.supplierId}</TableCell>
-                  <TableCell className="text-right font-mono text-xs">{formatUsd(row.totalSpend)}</TableCell>
+                  <TableCell
+                    className="text-right font-mono text-xs"
+                    title={row.totalSpend === null ? 'Purchase orders span multiple currencies — no exchange rates configured' : undefined}
+                    data-testid={`rpt-spend-total-${row.supplierId}`}
+                  >
+                    {formatMoney(row.totalSpend, row.currency, notAvailable)}
+                  </TableCell>
                   <TableCell className="text-right font-mono text-xs">{row.lineCount}</TableCell>
                 </TableRow>
               ))}
@@ -914,7 +926,7 @@ export function ReportingOverviewClient({
         exportLabel={labels.page.exportCsv}
         exportDenied={labels.page.exportCsvDenied}
       />
-      <SpendBySupplierSection data={spendBySupplier} />
+      <SpendBySupplierSection data={spendBySupplier} notAvailable={labels.page.notAvailable} />
     </div>
   );
 }

@@ -49,9 +49,20 @@ export async function PoAgingReport() {
             <div className="mt-1 text-xs uppercase text-slate-500">{LABEL_COUNT}</div>
             <div className="mt-4 border-t border-slate-100 pt-3">
               <div className="text-xs font-medium text-slate-500">{LABEL_TOTAL_VALUE}</div>
-              <div className="mt-1 text-base font-semibold tabular-nums text-slate-900">
-                {formatDecimalValue(bucket.total_value)}
-              </div>
+              {bucket.totals.length === 0 ? (
+                <div className="mt-1 text-base font-semibold tabular-nums text-slate-900">
+                  {formatDecimalValue("0")}
+                </div>
+              ) : (
+                bucket.totals.map((total) => (
+                  <div
+                    key={total.currency}
+                    className="mt-1 text-base font-semibold tabular-nums text-slate-900"
+                  >
+                    {formatDecimalValue(total.value)} {total.currency}
+                  </div>
+                ))
+              )}
             </div>
           </article>
         ))}

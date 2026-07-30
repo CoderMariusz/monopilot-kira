@@ -618,3 +618,43 @@ describe('ReportingOverviewClient', () => {
     expect(document.body.textContent).not.toMatch(/\b(production|inventory|quality|procurement|receipts|shipments)\.kpi\./);
   });
 });
+
+// ── Spend by supplier: currency honesty ──────────────────────────────────────
+// This section had NO test at all, which is how `formatUsd` survived: every
+// amount on the screen was stamped `$` in an app with no USD amounts, and a
+// supplier billing in EUR + GBP had its two totals added into a number that is
+// in no currency at all.
+describe('SpendBySupplierSection — currency', () => {
+  const MIXED = '99999999-9999-4999-8999-999999999991';
+  const SINGLE = '99999999-9999-4999-8999-999999999992';
+
+  function renderSpend() {
+    renderOverview({
+      spendBySupplier: [
+        // 1000 EUR + 500 GBP — the sum 1500 is neither euros nor pounds.
+        { supplierId: MIXED, supplierName: 'Mixed Ltd', totalSpend: null, currency: null, lineCount: 2 },
+        { supplierId: SINGLE, supplierName: 'Single Ltd', totalSpend: 1000, currency: 'EUR', lineCount: 1 },
+      ],
+    });
+    return within(screen.getByTestId('rpt-section-spend-by-supplier'));
+  }
+
+  it('formats a single-currency total in ITS OWN currency, never dollars', () => {
+    const spend = renderSpend();
+    expect(spend.getByTestId(`rpt-spend-total-${SINGLE}`)).toHaveTextContent('€1,000.00');
+    expect(spend.queryByText(/\$/)).toBeNull();
+  });
+
+  it('shows no value for a mixed-currency supplier instead of a fabricated 1500', () => {
+    const spend = renderSpend();
+    const cell = spend.getByTestId(`rpt-spend-total-${MIXED}`);
+    expect(cell).toHaveTextContent('—');
+    expect(spend.queryByText(/1,500/)).toBeNull();
+  });
+
+  it('keeps the mixed-currency supplier visible in the ranking (row + line count)', () => {
+    const spend = renderSpend();
+    expect(spend.getByText('Mixed Ltd')).toBeInTheDocument();
+    expect(spend.getAllByRole('row')).toHaveLength(3); // header + 2 suppliers
+  });
+});

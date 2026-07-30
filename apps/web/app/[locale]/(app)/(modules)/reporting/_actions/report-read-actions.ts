@@ -29,6 +29,7 @@ import {
   avgDays,
   hasReportingPermission,
   num,
+  numOrNull,
   pct,
   reportingSiteScope,
   toIso,
@@ -52,7 +53,15 @@ type QtyByUomRow = { uom: string; qty: string };
 export type SpendBySupplierRow = {
   supplierId: string;
   supplierName: string;
-  totalSpend: number;
+  /**
+   * null when the supplier's POs span more than one currency. There are no FX
+   * tables in this system, so summing across currencies would invent a number
+   * that is in no currency at all. Same convention as `sales_orders`
+   * `total_amount_gbp` (see shipping/_actions/so-actions.ts).
+   */
+  totalSpend: number | null;
+  /** ISO code the total is denominated in; null when mixed (see totalSpend). */
+  currency: string | null;
   lineCount: number;
 };
 
@@ -1032,11 +1041,23 @@ export async function getSpendBySupplierCore(
     supplier_id: string;
     supplier_name: string | null;
     total_spend: string | null;
+    currency: string | null;
     line_count: string;
   }>(
+    // `currency` lives on purchase_orders, not on the lines. A supplier billing
+    // in >1 currency gets a null total instead of a cross-currency sum, and is
+    // sorted `nulls last` so it stays IN the ranking (just unranked) rather
+    // than jumping to #1 on an unknown value.
     `select po.supplier_id::text as supplier_id,
             s.name as supplier_name,
-            coalesce(sum(pol.qty * pol.unit_price), 0)::text as total_spend,
+            case when count(distinct coalesce(nullif(upper(trim(po.currency)), ''), 'GBP')) > 1
+                 then null
+                 else coalesce(sum(pol.qty * pol.unit_price), 0)::text
+            end as total_spend,
+            case when count(distinct coalesce(nullif(upper(trim(po.currency)), ''), 'GBP')) > 1
+                 then null
+                 else min(coalesce(nullif(upper(trim(po.currency)), ''), 'GBP'))
+            end as currency,
             count(pol.id)::text as line_count
        from public.purchase_orders po
        join public.purchase_order_lines pol
@@ -1051,7 +1072,11 @@ export async function getSpendBySupplierCore(
         and po.created_at >= $2::timestamptz
         and po.created_at <= $3::timestamptz
       group by po.supplier_id, s.name
-      order by coalesce(sum(pol.qty * pol.unit_price), 0) desc, s.name asc`,
+      order by case when count(distinct coalesce(nullif(upper(trim(po.currency)), ''), 'GBP')) > 1
+                    then null
+                    else coalesce(sum(pol.qty * pol.unit_price), 0)
+               end desc nulls last,
+               s.name asc`,
     [REAL_SPEND_PO_STATUSES, window.fromIso, window.toIso],
   );
 
@@ -1060,7 +1085,8 @@ export async function getSpendBySupplierCore(
     data: res.rows.map((row) => ({
       supplierId: row.supplier_id,
       supplierName: row.supplier_name ?? '',
-      totalSpend: num(row.total_spend),
+      totalSpend: numOrNull(row.total_spend),
+      currency: row.currency,
       lineCount: num(row.line_count),
     })),
   };

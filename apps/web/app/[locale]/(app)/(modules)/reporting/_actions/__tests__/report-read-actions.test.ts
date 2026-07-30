@@ -288,6 +288,7 @@ beforeEach(() => {
       supplier_id: '77777777-7777-4777-8777-777777777777',
       supplier_name: 'Acme Supplies',
       total_spend: '1234.5600',
+      currency: 'GBP',
       line_count: '3',
     },
   ];
@@ -687,6 +688,7 @@ describe('getSpendBySupplier', () => {
         supplierId: '77777777-7777-4777-8777-777777777777',
         supplierName: 'Acme Supplies',
         totalSpend: 1234.56,
+        currency: 'GBP',
         lineCount: 3,
       },
     ]);
