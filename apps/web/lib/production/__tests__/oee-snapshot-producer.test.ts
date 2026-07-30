@@ -83,18 +83,38 @@ describe('computeAvailabilityPct', () => {
 });
 
 describe('computePerformancePct (honesty)', () => {
-  it('standard/actual run time', () => {
-    expect(computePerformancePct(90, 100)).toBe(90);
+  it('standard/actual run time when produced == planned', () => {
+    expect(computePerformancePct(90, 100, 100, 100)).toBe(90);
   });
   it('NULL when no standard-time source — NEVER fabricated', () => {
-    expect(computePerformancePct(null, 100)).toBeNull();
-    expect(computePerformancePct(0, 100)).toBeNull();
+    expect(computePerformancePct(null, 100, 100, 100)).toBeNull();
+    expect(computePerformancePct(0, 100, 100, 100)).toBeNull();
   });
   it('NULL when actual run time is zero', () => {
-    expect(computePerformancePct(60, 0)).toBeNull();
+    expect(computePerformancePct(60, 100, 100, 0)).toBeNull();
   });
   it('clamps faster-than-standard to 100 (DDL CHECK 0..100)', () => {
-    expect(computePerformancePct(120, 100)).toBe(100);
+    expect(computePerformancePct(120, 100, 100, 100)).toBe(100);
+  });
+
+  // Z7: ideal time is for the quantity ACTUALLY produced (PRD 15-OEE §8.1 [2]:
+  // performance = output_qty × ideal_cycle / run_time), not for the whole plan.
+  it('under-production is NOT 100%: 500 of 1000 kg, std 100 min, 80 min run → 62.5', () => {
+    expect(computePerformancePct(100, 1000, 500, 80)).toBe(62.5);
+  });
+  it('full plan produced keeps the plain standard/actual ratio', () => {
+    expect(computePerformancePct(100, 1000, 1000, 80)).toBe(100);
+    expect(computePerformancePct(100, 1000, 1000, 125)).toBe(80);
+  });
+  it('over-production raises performance (and clamps at 100)', () => {
+    expect(computePerformancePct(100, 1000, 1200, 150)).toBe(80);
+  });
+  it('nothing produced in a real run window is a TRUE 0%, not null', () => {
+    expect(computePerformancePct(100, 1000, 0, 80)).toBe(0);
+  });
+  it('NULL when the planned quantity cannot anchor an ideal rate', () => {
+    expect(computePerformancePct(100, 0, 500, 80)).toBeNull();
+    expect(computePerformancePct(100, null, 500, 80)).toBeNull();
   });
 });
 
@@ -126,7 +146,7 @@ describe('computeOeePct (NULL propagation, mirrors GENERATED column)', () => {
 type Call = { sql: string; params: readonly unknown[] };
 
 function makeCtx(script: {
-  wo?: Array<{ line_id: string | null; site_id: string | null }>;
+  wo?: Array<{ line_id: string | null; site_id: string | null; planned_quantity?: string | null }>;
   shift?: Array<{ shift_id: string }>;
   downtime?: Array<{ started_at: string; ended_at: string | null }>;
   expected?: Array<{ expected_min: number | null }>;
@@ -165,7 +185,8 @@ const WO_ID = '00000000-0000-4000-8000-000000000001';
 describe('recordWoCompletionSnapshot (writer)', () => {
   it('inserts the computed A/P/Q row with exact-text kg deltas', async () => {
     const { ctx, calls } = makeCtx({
-      wo: [{ line_id: 'line-uuid-1', site_id: 'site-1' }],
+      // planned 95 = produced 90 good + 5 rejected → ideal time for produced == plan std.
+      wo: [{ line_id: 'line-uuid-1', site_id: 'site-1', planned_quantity: '95.000' }],
       shift: [{ shift_id: 'S1' }],
       downtime: [{ started_at: '2026-06-11T08:10:00Z', ended_at: '2026-06-11T08:40:00Z' }], // 30 min
       expected: [{ expected_min: 81 }],
@@ -197,6 +218,27 @@ describe('recordWoCompletionSnapshot (writer)', () => {
     expect(insert.params[8]).toBe('90.000'); // exact NUMERIC text, no float roundtrip
     expect(insert.params[9]).toBe(30);
     expect(insert.params[10]).toBe('5.000');
+  });
+
+  // Z7 end-to-end through the writer: half the plan produced must NOT score 100 %.
+  it('under-produced WO writes 62.50 performance, not a clamped 100.00', async () => {
+    const { ctx, calls } = makeCtx({
+      wo: [{ line_id: 'line-uuid-1', site_id: 'site-1', planned_quantity: '1000.000' }],
+      downtime: [{ started_at: '2026-06-11T08:10:00Z', ended_at: '2026-06-11T08:50:00Z' }], // 40 min
+      expected: [{ expected_min: 100 }],
+      outputs: [{ good_kg: '500.000', rejected_kg: '0' }], // 500 of 1000 planned
+      insert: [{ id: '43' }],
+    });
+
+    const res = await recordWoCompletionSnapshot(ctx, {
+      woId: WO_ID,
+      startedAt: T0,
+      completedAt: T_END, // 120 min − 40 downtime = 80 run minutes
+    });
+
+    expect(res).toEqual({ recorded: true, snapshotId: '43' });
+    const insert = calls.find((c) => c.sql.includes('insert into public.oee_snapshots'))!;
+    expect(insert.params[5]).toBe('62.50'); // (100/1000 × 500) / 80 — was '100.00'
   });
 
   it('performance is HONEST NULL without a standard-time source', async () => {

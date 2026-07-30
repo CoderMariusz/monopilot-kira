@@ -10,6 +10,8 @@ const TO = new Date('2026-05-20T23:59:59.999Z');
 type QueryCall = { sql: string; params: unknown[] };
 
 let calls: QueryCall[];
+/** Overridable so a test can serve the "no snapshots in window" shape (avg() → NULL). */
+let oeeKpiRow: { oee_avg: string | null; fpq_avg: string | null };
 
 const client = {
   query: vi.fn(async (sql: string, params?: readonly unknown[]) => {
@@ -21,7 +23,7 @@ const client = {
     calls.push({ sql: normalized, params: [...(params ?? [])] });
 
     if (normalized.includes('avg(oee_pct) as oee_avg')) {
-      return { rows: [{ oee_avg: '80.5', fpq_avg: '92.1' }], rowCount: 1 };
+      return { rows: [oeeKpiRow], rowCount: 1 };
     }
     if (normalized.includes('group by pl.code, pl.name')) {
       return {
@@ -52,6 +54,38 @@ vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
 
 beforeEach(() => {
   calls = [];
+  oeeKpiRow = { oee_avg: '80.5', fpq_avg: '92.1' };
+});
+
+describe('getAnalyticsScreen OEE/FPQ — "no data" is not 0%', () => {
+  it('avg() → NULL (no snapshots in window) surfaces as null, NOT 0', async () => {
+    oeeKpiRow = { oee_avg: null, fpq_avg: null };
+    const result = await getAnalyticsScreen({ window: { from: FROM, to: TO } });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.oeeAvgPct).toBeNull();
+    expect(result.data.fpqAvgPct).toBeNull();
+  });
+
+  it('a real zero average still renders as 0, not "no data"', async () => {
+    oeeKpiRow = { oee_avg: '0', fpq_avg: '0.00' };
+    const result = await getAnalyticsScreen({ window: { from: FROM, to: TO } });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.oeeAvgPct).toBe(0);
+    expect(result.data.fpqAvgPct).toBe(0);
+  });
+
+  it('passes real averages through unchanged', async () => {
+    const result = await getAnalyticsScreen({ window: { from: FROM, to: TO } });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.oeeAvgPct).toBe(80.5);
+    expect(result.data.fpqAvgPct).toBe(92.1);
+  });
 });
 
 describe('getAnalyticsScreen period window', () => {

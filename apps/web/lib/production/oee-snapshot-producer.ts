@@ -19,12 +19,16 @@
  *                  open events are clipped at the window end). Clamped to [0, 100].
  *                  If the window is missing/zero, NO row is written (skip — honest).
  *
- *   performance    standard time / actual run time × 100, where standard time =
- *                  SUM(wo_operations.expected_duration_minutes) for the WO and actual
- *                  run time = runtime − downtime. HONEST NULL when the WO has no
- *                  expected-duration rows (we NEVER fabricate an ideal rate) or when
- *                  actual run time is zero. Values > 100 (ran faster than standard)
- *                  clamp to 100 per the DDL CHECK (V-PROD-25, 0..100).
+ *   performance    ideal time for the quantity PRODUCED / actual run time × 100 —
+ *                  PRD 15-OEE §8.1 [2] (`output_qty × ideal_cycle / run_time`). Ideal
+ *                  minutes per unit = SUM(wo_operations.expected_duration_minutes)
+ *                  / work_orders.planned_quantity (the only standard rate in the repo;
+ *                  production_lines has no rated capacity column). Actual run time =
+ *                  runtime − downtime. HONEST NULL when the WO has no expected-duration
+ *                  rows, when planned_quantity cannot anchor an ideal rate, or when
+ *                  actual run time is zero (we NEVER fabricate an ideal rate); zero
+ *                  output inside a real run window is a TRUE 0 %. Values > 100 (ran
+ *                  faster than standard) clamp to 100 per the DDL CHECK (V-PROD-25).
  *
  *   quality        good / (good + rejected + waste) × 100 with
  *                    good     = SUM(wo_outputs.qty_kg) WHERE qa_status <> 'FAILED'
@@ -119,18 +123,42 @@ export function computeAvailabilityPct(runtimeMin: number, downtimeMin: number):
 }
 
 /**
- * Performance % — standard time / actual run time. HONEST NULL when no standard time
- * exists or actual run time is zero. >100 clamps to 100 (DDL CHECK V-PROD-25).
+ * Performance % — ideal time for the quantity ACTUALLY produced / actual run time,
+ * i.e. PRD 15-OEE §8.1 [2] `output_qty × ideal_cycle / run_time` (Nakajima).
+ *
+ * The repo has no per-line rated capacity (production_lines carries no rate column),
+ * so the ideal cycle is derived from the only standard rate that exists: the WO's
+ * routing standard `expectedMinutesForPlan` spread over `plannedQty`
+ * → ideal minutes per unit = expectedMinutesForPlan / plannedQty.
+ *
+ * Using expectedMinutesForPlan directly (the pre-Z7 formula) measured the plan, not the
+ * run: 500 of 1000 planned kg in 80 min scored 100/80 = 125 → clamped 100 %, i.e. the
+ * less you produced the "faster" you looked. Scaled, the same run scores 50/80 = 62.5 %.
+ *
+ * HONEST NULL when no standard time exists, when plannedQty cannot anchor an ideal rate,
+ * or when actual run time is zero — we NEVER fabricate an ideal rate. Producing nothing
+ * inside a real run window is a TRUE 0 %, not "unknown". >100 clamps to 100 (DDL CHECK
+ * V-PROD-25).
  */
 export function computePerformancePct(
-  expectedMinutes: number | null,
+  expectedMinutesForPlan: number | null,
+  plannedQty: number | null,
+  producedQty: number,
   actualRunMinutes: number,
 ): number | null {
-  if (expectedMinutes == null || !Number.isFinite(expectedMinutes) || expectedMinutes <= 0) {
+  if (
+    expectedMinutesForPlan == null ||
+    !Number.isFinite(expectedMinutesForPlan) ||
+    expectedMinutesForPlan <= 0
+  ) {
     return null;
   }
+  if (plannedQty == null || !Number.isFinite(plannedQty) || plannedQty <= 0) return null;
+  if (!Number.isFinite(producedQty)) return null;
   if (!Number.isFinite(actualRunMinutes) || actualRunMinutes <= 0) return null;
-  return clampPct((expectedMinutes / actualRunMinutes) * 100);
+  const idealMinutesForProduced =
+    (expectedMinutesForPlan / plannedQty) * Math.max(producedQty, 0);
+  return clampPct((idealMinutesForProduced / actualRunMinutes) * 100);
 }
 
 /** Quality % — good/(good+rejected+waste). HONEST NULL on a zero denominator. */
@@ -191,8 +219,12 @@ export async function recordWoCompletionSnapshot(
   }
 
   // WO context: line (nullable on the WO) + site.
-  const woRes = await client.query<{ line_id: string | null; site_id: string | null }>(
-    `select production_line_id::text as line_id, site_id
+  const woRes = await client.query<{
+    line_id: string | null;
+    site_id: string | null;
+    planned_quantity: string | null;
+  }>(
+    `select production_line_id::text as line_id, site_id, planned_quantity::text as planned_quantity
        from public.work_orders
       where org_id = app.current_org_id() and id = $1::uuid`,
     [input.woId],
@@ -200,6 +232,10 @@ export async function recordWoCompletionSnapshot(
   if (woRes.rows.length === 0) return { recorded: false, reason: 'wo_not_found' };
   const lineId = woRes.rows[0]!.line_id ?? 'unassigned';
   const siteId = woRes.rows[0]!.site_id ?? null;
+  // Planned qty is in work_orders.uom (the item's base uom) and so is wo_outputs.qty_kg
+  // for this WO — the produced/planned ratio is dimensionless either way.
+  const plannedQty =
+    woRes.rows[0]!.planned_quantity == null ? null : Number(woRes.rows[0]!.planned_quantity);
 
   // Shift: most recent non-null shift on this WO's downtime events; honest fallback.
   const shiftRes = await client.query<{ shift_id: string }>(
@@ -257,7 +293,15 @@ export async function recordWoCompletionSnapshot(
 
   const availabilityPct = computeAvailabilityPct(runtimeMin, downtimeMin);
   if (availabilityPct == null) return { recorded: false, reason: 'zero_runtime' };
-  const performancePct = computePerformancePct(expectedMin, runtimeMin - downtimeMin);
+  // Produced = every registered output row (good + rejected); voided outputs are signed
+  // negative corrections, so the pair already nets. Quality judges the bad units, not P.
+  const producedQty = Number(goodKgText) + Number(rejectedKgText);
+  const performancePct = computePerformancePct(
+    expectedMin,
+    plannedQty,
+    producedQty,
+    runtimeMin - downtimeMin,
+  );
   const qualityPct = computeQualityPct(
     Number(goodKgText),
     Number(rejectedKgText),

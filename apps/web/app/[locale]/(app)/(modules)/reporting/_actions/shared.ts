@@ -62,6 +62,18 @@ export function num(value: string | number | null | undefined): number {
 }
 
 /**
+ * Like `num`, but keeps SQL NULL as null. "No measurement" and "measured zero" are
+ * two different facts; `num` collapses them into an identical-looking 0 on screen.
+ * Use this for aggregates whose absence must render as "no data" (avg/min/max over
+ * an empty window), and `num` only where a missing row genuinely means zero.
+ */
+export function numOrNull(value: string | number | null | undefined): number | null {
+  if (value == null) return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
  * Percentage as a 2-dp decimal string; null when the denominator is 0/absent
  * (honest NULL — never renders a fabricated 0%).
  */

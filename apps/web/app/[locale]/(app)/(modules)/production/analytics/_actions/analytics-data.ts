@@ -15,7 +15,7 @@
  * Every read runs inside `withOrgContext` — RLS scopes to the signed-in org. Gated
  * server-side on `production.oee.read` (migration 185) like the dashboard loader.
  */
-import { num, pct } from '../../../reporting/_actions/shared';
+import { num, numOrNull, pct } from '../../../reporting/_actions/shared';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 
 type QueryClient = {
@@ -129,8 +129,12 @@ export async function getAnalyticsScreen(input?: AnalyticsScreenInput): Promise<
             and snapshot_minute <= $2::timestamptz`,
         [analyticsWindow.from, analyticsWindow.to],
       );
-      const oeeAvgPct = num(oeeKpiRes.rows[0]?.oee_avg);
-      const fpqAvgPct = num(oeeKpiRes.rows[0]?.fpq_avg);
+      // avg() over an empty window (or over rows whose oee_pct/quality_pct are all NULL,
+      // which is every WO with no expected-duration operations) returns SQL NULL. That is
+      // "not measured" — it must reach the UI as null so the tile shows noData. A measured
+      // 0 still arrives as 0 and still renders "0%".
+      const oeeAvgPct = numOrNull(oeeKpiRes.rows[0]?.oee_avg);
+      const fpqAvgPct = numOrNull(oeeKpiRes.rows[0]?.fpq_avg);
 
       // Yield KPI — same definition as Reporting productionSummary:
       // avg(work_orders.yield_percent) over completed WOs in the window (0..1 fraction).
