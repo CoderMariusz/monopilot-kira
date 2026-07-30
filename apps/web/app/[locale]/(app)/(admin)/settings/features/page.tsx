@@ -1,3 +1,4 @@
+import { messageTemplate } from '../../../../../../i18n/message-template';
 import { getTranslations } from 'next-intl/server';
 
 import { toggleModule as toggleModuleAction } from '../../../../../../actions/modules/toggle';
@@ -90,7 +91,7 @@ const BETA_PHASE = 4;
 async function buildLabels(locale: string): Promise<FeaturesLabels> {
   const t = await getTranslations({ locale, namespace: 'settings.features' });
   return LABEL_KEYS.reduce((labels, key) => {
-    labels[key] = t(key);
+    labels[key] = messageTemplate(t, key);
     return labels;
   }, {} as FeaturesLabels);
 }

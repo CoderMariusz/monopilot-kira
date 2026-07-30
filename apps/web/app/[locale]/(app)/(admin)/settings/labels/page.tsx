@@ -1,3 +1,4 @@
+import { messageTemplate } from '../../../../../../i18n/message-template';
 import { getTranslations } from 'next-intl/server';
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
@@ -102,7 +103,7 @@ async function buildLabels(locale: string): Promise<LabelsScreenLabels> {
       deleting: t('editor.deleting'),
       deleteError: t('editor.delete_error'),
       deleteConfirmTitle: t('editor.delete_confirm_title'),
-      deleteConfirmBody: t('editor.delete_confirm_body'),
+      deleteConfirmBody: messageTemplate(t, 'editor.delete_confirm_body'),
       deleteConfirmCancel: t('editor.delete_confirm_cancel'),
       deleteConfirmConfirm: t('editor.delete_confirm_confirm'),
     },

@@ -1,3 +1,4 @@
+import { messageTemplate } from '../../../../../../i18n/message-template';
 import React from 'react';
 import { getTranslations } from 'next-intl/server';
 
@@ -89,7 +90,7 @@ async function buildLabels(locale: string): Promise<ModulesLabels> {
     const t = await getTranslations({ locale, namespace: 'settings.modules' });
     return LABEL_KEYS.reduce((labels, key) => {
       try {
-        labels[key] = t(key);
+        labels[key] = messageTemplate(t, key);
       } catch {
         labels[key] = DEFAULT_LABELS[key];
       }
