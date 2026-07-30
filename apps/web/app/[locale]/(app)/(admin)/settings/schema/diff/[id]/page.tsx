@@ -2,6 +2,7 @@ import { getTranslations } from 'next-intl/server';
 
 import { Card, CardContent } from '@monopilot/ui/Card';
 
+import { messageTemplate } from '../../../../../../../../i18n/message-template';
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
 import { DiffViewer } from './diff-viewer.client';
 import type { DiffVersion } from './diff-viewer.client';
@@ -212,7 +213,11 @@ async function buildLabels(locale: string): Promise<Labels> {
     const t = await getTranslations({ locale, namespace: 'settings.schema_diff' });
     return LABEL_KEYS.reduce((acc, key) => {
       try {
-        acc[key] = t(key, key.endsWith('ed') || key === 'unchanged' ? { count: '{count}' } : undefined);
+        // Every label here is substituted DOWNSTREAM by `interpolate` ({count}, {version},
+        // {id}, {column}…), so read the TEMPLATE. The old `{ count: '{count}' }` argument
+        // re-injected the placeholder for the four count labels only; the other eight
+        // templates got no values and next-intl answered with the dotted key path.
+        acc[key] = t.has(key) ? messageTemplate(t, key) : DEFAULT_LABELS[key];
       } catch {
         acc[key] = DEFAULT_LABELS[key];
       }

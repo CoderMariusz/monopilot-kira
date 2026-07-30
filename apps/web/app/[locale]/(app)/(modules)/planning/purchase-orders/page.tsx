@@ -27,6 +27,7 @@ import { getTranslations } from 'next-intl/server';
 
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
+import { messageTemplate } from '../../../../../../i18n/message-template';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { getActiveSiteId } from '../../../../../../lib/site/site-context';
 import { getUserSites } from '../../../../../../lib/site/get-user-sites';
@@ -58,7 +59,7 @@ function archiveLabel(
   locale: string,
   key: 'list.tabs.archive' | 'list.archivedHint' | 'list.backToActive' | 'create.poNumberPlaceholder' | 'create.poNumberHelp',
 ): string {
-  if (t.has(key)) return t(key);
+  if (t.has(key)) return messageTemplate(t, key);
   const path = key.split('.');
   const staging = archiveTabsStaging as unknown as Record<string, { Planning?: { purchaseOrders?: unknown } }>;
   const pick = (loc: 'en' | 'pl') => {
@@ -129,7 +130,7 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
     importLabel: t('actions.import'),
     bulkImportLabel: t('actions.bulkImport'),
     searchPlaceholder: t('list.searchPlaceholder'),
-    rowsCount: t('list.rowsCount'),
+    rowsCount: messageTemplate(t, 'list.rowsCount'),
     supplierFilterLabel: t('list.supplierFilterLabel'),
     allSuppliers: t('list.allSuppliers'),
     clearFilters: t('list.clearFilters'),
@@ -212,12 +213,14 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
         supplierRequired: t('create.errors.supplierRequired'),
         linesRequired: t('create.errors.linesRequired'),
         priceInvalid: t('create.errors.priceInvalid'),
-        priceRequired: t('create.errors.priceRequired'),
-        linePriceInvalid: t('create.errors.linePriceInvalid'),
-        lineItemRequired: t('create.errors.lineItemRequired'),
-        lineQtyInvalid: t('create.errors.lineQtyInvalid'),
-        lineUomRequired: t('create.errors.lineUomRequired'),
-        lineTaxInvalid: t('create.errors.lineTaxInvalid'),
+        // `Line {line}: …` — the modal substitutes `{line}` itself (create-po-modal
+        // `poLineErrorMessage`), so these must be read as TEMPLATES, not formatted.
+        priceRequired: messageTemplate(t, 'create.errors.priceRequired'),
+        linePriceInvalid: messageTemplate(t, 'create.errors.linePriceInvalid'),
+        lineItemRequired: messageTemplate(t, 'create.errors.lineItemRequired'),
+        lineQtyInvalid: messageTemplate(t, 'create.errors.lineQtyInvalid'),
+        lineUomRequired: messageTemplate(t, 'create.errors.lineUomRequired'),
+        lineTaxInvalid: messageTemplate(t, 'create.errors.lineTaxInvalid'),
         invalid_input: t('errors.invalid_input'),
         forbidden: t('errors.forbidden'),
         not_found: t('errors.not_found'),

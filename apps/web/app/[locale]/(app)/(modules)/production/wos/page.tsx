@@ -20,6 +20,7 @@ import { getTranslations } from 'next-intl/server';
 
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
+import { messageTemplate } from '../../../../../../i18n/message-template';
 import { getActiveSiteId } from '../../../../../../lib/site/site-context';
 import { listWorkOrders, type WoListStatus } from '../_actions/list-work-orders';
 import { getWoListActionContext } from '../_actions/get-wo-action-context';
@@ -182,7 +183,7 @@ async function WoListContent({
         downtimeCategories: actionCtx.data.downtimeCategories,
         shifts: actionCtx.data.shifts,
         lines: actionCtx.data.lines,
-        modalLabels: buildWoModalLabels((k) => at(k)),
+        modalLabels: buildWoModalLabels((k) => messageTemplate(at, k)),
       }
     : null;
 

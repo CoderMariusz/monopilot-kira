@@ -24,6 +24,7 @@ import { getTranslations } from 'next-intl/server';
 
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
+import { messageTemplate } from '../../../../../../../i18n/message-template';
 import { getShipment, packLpIntoBox } from '../../_actions/pack-actions';
 import { shipShipment, sealShipment, generateBol, recordPod } from '../../_actions/ship-actions';
 import { cancelShipment } from '../../_actions/cancelShipment';
@@ -146,7 +147,7 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): ShipmentPa
     boxes: {
       title: t('pack.boxes.title'),
       empty: t('pack.boxes.empty'),
-      boxLabel: t('pack.boxes.boxLabel'),
+      boxLabel: messageTemplate(t, 'pack.boxes.boxLabel'),
       ssccLabel: t('pack.boxes.ssccLabel'),
       noSscc: t('pack.boxes.noSscc'),
       contentsEmpty: t('pack.boxes.contentsEmpty'),
@@ -164,7 +165,7 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): ShipmentPa
       newBox: t('pack.control.newBox'),
       submit: t('pack.control.submit'),
       submitting: t('pack.control.submitting'),
-      success: t('pack.control.success'),
+      success: messageTemplate(t, 'pack.control.success'),
       noPermission: t('pack.control.noPermission'),
     },
     seal: {
@@ -173,8 +174,8 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): ShipmentPa
       noPermission: t('pack.control.sealNoPermission'),
       needsBox: t('pack.control.sealNeedsBox'),
       invalidState: t('pack.control.sealInvalidState'),
-      incompletePack: t('pack.control.sealIncompletePack'),
-      incompletePackSkipped: t('pack.control.sealIncompletePackSkipped'),
+      incompletePack: messageTemplate(t, 'pack.control.sealIncompletePack'),
+      incompletePackSkipped: messageTemplate(t, 'pack.control.sealIncompletePackSkipped'),
     },
     errors: {
       invalid_input: t('pack.errors.invalid_input'),
@@ -236,7 +237,7 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): ShipmentPa
       bol: {
         trigger: t('bol.trigger'),
         triggerRegenerate: t('bol.triggerRegenerate'),
-        title: t('bol.title'),
+        title: messageTemplate(t, 'bol.title'),
         description: t('bol.description'),
         carrierLabel: t('bol.carrierLabel'),
         carrierPlaceholder: t('bol.carrierPlaceholder'),
@@ -274,7 +275,7 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): ShipmentPa
       },
       pod: {
         trigger: t('pod.trigger'),
-        title: t('pod.title'),
+        title: messageTemplate(t, 'pod.title'),
         description: t('pod.description'),
         signedUrlLabel: t('pod.signedUrlLabel'),
         signedUrlHelp: t('pod.signedUrlHelp'),
@@ -304,7 +305,7 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): ShipmentPa
       },
       cancel: {
         trigger: t('cancel.trigger'),
-        title: t('cancel.title'),
+        title: messageTemplate(t, 'cancel.title'),
         intro: t('cancel.intro'),
         reasonCode: t('cancel.reasonCode'),
         reasonPlaceholder: t('cancel.reasonPlaceholder'),

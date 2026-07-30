@@ -20,6 +20,7 @@ import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 
+import { messageTemplate } from '../../../../../../../i18n/message-template';
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
 import { getWorkOrderDetail } from '../../_actions/get-work-order-detail';
@@ -275,14 +276,14 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
   // them in; guarded with `t.has` so a not-yet-merged bundle never throws (EN
   // fallbacks keep it honest live). Mirrors the catch-weight / wo-uom injection.
   const rec = (key: string, fallback: string): string =>
-    t.has(`consumption.record.${key}`) ? t(`consumption.record.${key}`) : fallback;
+    t.has(`consumption.record.${key}`) ? messageTemplate(t, `consumption.record.${key}`) : fallback;
 
   // C-R2 — void/correction labels. Real en+pl land in the bundle; guarded with
   // `t.has` + EN fallback so a not-yet-merged key never throws live (mirrors the
   // desktop-consume / catch-weight staging precedent).
-  const vc = (key: string, fallback: string): string => (t.has(key) ? t(key) : fallback);
+  const vc = (key: string, fallback: string): string => (t.has(key) ? messageTemplate(t, key) : fallback);
   const detailError = (code: string, fallback: string): string =>
-    t.has(`errors.${code}`) ? t(`errors.${code}`) : fallback;
+    t.has(`errors.${code}`) ? messageTemplate(t, `errors.${code}`) : fallback;
 
   const labels: WoDetailLabels = {
     status: {
@@ -728,7 +729,7 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
 
   let actions: WoDetailActions | null = null;
   if (actionCtx.ok) {
-    const modalLabels = buildWoModalLabels((k) => at(k));
+    const modalLabels = buildWoModalLabels((k) => messageTemplate(at, k));
     const detailErrors = {
       invalid_input: detailError('invalid_input', 'Check the fields and try again.'),
       forbidden: detailError('forbidden', 'You do not have permission to perform this action.'),
@@ -770,7 +771,8 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
     // error onto the server-resolved labels object (keys live in
     // _meta/i18n-staging/wo-uom.json until the bundle-merge lane lands; guarded
     // with `at.has` so a not-yet-merged bundle never throws at runtime).
-    const opt = (key: string): string | undefined => (at.has(key) ? at(key) : undefined);
+    const opt = (key: string): string | undefined =>
+      at.has(key) ? messageTemplate(at, key) : undefined;
     modalLabels.output.qtyUom = {
       base: opt('output.qtyUom.base') ?? modalLabels.output.qty,
       each: opt('output.qtyUom.each') ?? 'each',

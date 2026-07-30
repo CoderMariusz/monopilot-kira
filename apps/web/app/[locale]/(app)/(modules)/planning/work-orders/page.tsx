@@ -25,6 +25,7 @@ import { getTranslations } from 'next-intl/server';
 
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
+import { messageTemplate } from '../../../../../../i18n/message-template';
 import { listPlanningWorkOrders } from './_actions/listPlanningWorkOrders';
 import { createWorkOrderFromPlanning } from './_actions/createWorkOrder';
 import { deleteDraftWorkOrder, releaseWorkOrder } from './_actions/releaseWorkOrder';
@@ -62,7 +63,7 @@ function archiveLabel(
   locale: string,
   key: 'list.tabs.archive' | 'list.archivedHint' | 'list.backToActive',
 ): string {
-  if (t.has(key)) return t(key);
+  if (t.has(key)) return messageTemplate(t, key);
   const path = key.split('.');
   const staging = archiveTabsStaging as unknown as Record<string, { Planning?: { workOrders?: unknown } }>;
   const pick = (loc: 'en' | 'pl') => {
@@ -88,15 +89,18 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
   // .json under Planning.workOrders.create.*; F-D08a). `t.has` + inline EN
   // fallback is kept as a defensive seam so a key regression degrades to EN
   // copy instead of throwing at runtime.
-  const opt = (key: string, fallback: string): string => (t.has(key) ? t(key) : fallback);
   // F-D08a — messages that are CLIENT-side `.replace()` templates ("{qty} {unit}
   // = {kg} {base}") must be read with `t.raw`: next-intl's development build
-  // treats `{…}` as ICU arguments and a bare `t(key)` (no values) raises
+  // treats `{…}` as ICU arguments and a bare `t(…)` (no values) raises
   // FORMATTING_ERROR, returning the key path instead of the template (the
   // production build only passes the template through by accident). `t.raw`
-  // returns the literal string in both builds.
+  // returns the literal string in both builds. `messageTemplate` is that read,
+  // so `opt` is template-safe too — `create.chainCreatedWarning` and
+  // `create.factoryReleaseIncomplete.title` came through it and leaked.
+  const opt = (key: string, fallback: string): string =>
+    t.has(key) ? messageTemplate(t, key) : fallback;
   const tpl = (key: string): string => String(t.raw(key));
-  const optTpl = (key: string, fallback: string): string => (t.has(key) ? tpl(key) : fallback);
+  const optTpl = opt;
   return {
     createWo: t('actions.createWo'),
     bulkImportLabel: makeImportLabel(t, 'wo', locale)('actions.bulkImport'),
