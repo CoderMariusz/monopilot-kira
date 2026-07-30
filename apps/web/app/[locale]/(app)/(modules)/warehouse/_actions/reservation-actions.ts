@@ -14,6 +14,7 @@ import {
   type WarehouseResult,
 } from './shared';
 import { revalidateLocalized } from '../../../../../../lib/i18n/revalidate-localized';
+import { LIVE_ALLOCATION_SQL } from '../../shipping/_actions/so-transitions';
 
 export async function listReservations(): Promise<WarehouseResult<ReservationRow[]>> {
   try {
@@ -155,6 +156,32 @@ export async function releaseReservation(input: ReleaseReservationInput): Promis
       );
       const row = updated.rows[0];
       if (!row) return { ok: false, reason: 'not_found' };
+
+      await ctx.client.query(
+        `with released_allocations as (
+           update public.inventory_allocations ia
+              set status = 'released',
+                  released_at = now(),
+                  updated_by = $2::uuid
+            where ia.org_id = app.current_org_id()
+              and ia.license_plate_id = $1::uuid
+              and ia.deleted_at is null
+              and ${LIVE_ALLOCATION_SQL}
+          returning ia.sales_order_line_id, ia.quantity_allocated
+         ),
+         released_by_line as (
+           select sales_order_line_id, sum(quantity_allocated) as quantity_allocated
+             from released_allocations
+            group by sales_order_line_id
+         )
+         update public.sales_order_lines sol
+            set quantity_allocated = greatest(0, sol.quantity_allocated - released_by_line.quantity_allocated),
+                updated_by = $2::uuid
+           from released_by_line
+          where sol.org_id = app.current_org_id()
+            and sol.id = released_by_line.sales_order_line_id`,
+        [lpId, userId],
+      );
 
       if (lp.status !== nextStatus) {
         await ctx.client.query(

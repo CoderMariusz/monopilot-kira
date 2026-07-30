@@ -330,7 +330,12 @@ export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
                   - coalesce(shipped.shipped_qty, 0)
                   - coalesce(sol.quantity_allocated, 0),
                   0
-                ))::text as qty
+                ))::text as qty,
+                sum(greatest(
+                  sol.quantity_ordered
+                  - coalesce(shipped.shipped_qty, 0),
+                  0
+                ))::text as forecast_consumption_qty
            from public.sales_order_lines sol
            join public.sales_orders so
              on so.id = sol.sales_order_id

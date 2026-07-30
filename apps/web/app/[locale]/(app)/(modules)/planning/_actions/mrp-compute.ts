@@ -100,6 +100,12 @@ export type MrpQtyBucket = {
   product_id: string;
   uom: string;
   qty: string | number;
+  /**
+   * Full open SO remainder used only for forecast consumption. `qty` remains
+   * the unallocated remainder used by netting, so reserved stock is not counted
+   * once as unavailable inventory and again as sales-order demand.
+   */
+  forecast_consumption_qty?: string | number;
 };
 
 /** Demand / supply row dated for time-phased bucketing (yyyy-mm-dd). */
@@ -275,6 +281,8 @@ type Acc = {
   forecastDemand: bigint;
   /** Sub-total of `demand` that came from open sales orders (independent demand). */
   soDemand: bigint;
+  /** Full open SO remainder used to consume forecast, including allocated qty. */
+  soForecastConsumption: bigint;
   excludedUoms: Set<string>;
   touched: boolean;
 };
@@ -283,9 +291,12 @@ type Acc = {
 function consumeForecastWithSalesOrders(acc: {
   demand: bigint;
   forecastDemand: bigint;
-  soDemand: bigint;
+  soForecastConsumption: bigint;
 }): void {
-  const consumed = acc.forecastDemand < acc.soDemand ? acc.forecastDemand : acc.soDemand;
+  const consumed =
+    acc.forecastDemand < acc.soForecastConsumption
+      ? acc.forecastDemand
+      : acc.soForecastConsumption;
   acc.demand -= consumed;
   acc.forecastDemand -= consumed;
 }
@@ -375,6 +386,7 @@ export function computeMrp(input: {
         demand: 0n,
         forecastDemand: 0n,
         soDemand: 0n,
+        soForecastConsumption: 0n,
         excludedUoms: new Set(),
         touched: false,
       };
@@ -437,6 +449,15 @@ export function computeMrp(input: {
     acc.demand += q;
     acc.soDemand += q;
   });
+  apply(
+    (input.soDemand ?? []).map((bucket) => ({
+      ...bucket,
+      qty: bucket.forecast_consumption_qty ?? bucket.qty,
+    })),
+    (acc, q) => {
+      acc.soForecastConsumption += q;
+    },
+  );
   for (const acc of accById.values()) consumeForecastWithSalesOrders(acc);
   apply(input.poSupply, (acc, q) => {
     acc.openSupply += q;
@@ -576,6 +597,7 @@ type BucketAcc = {
   demand: bigint;
   forecastDemand: bigint;
   soDemand: bigint;
+  soForecastConsumption: bigint;
   scheduledReceipts: bigint;
   poReceipts: bigint;
   productionReceipts: bigint;
@@ -748,6 +770,7 @@ export function computeMrpPhased(input: {
         demand: 0n,
         forecastDemand: 0n,
         soDemand: 0n,
+        soForecastConsumption: 0n,
         scheduledReceipts: 0n,
         poReceipts: 0n,
         productionReceipts: 0n,
@@ -815,6 +838,15 @@ export function computeMrpPhased(input: {
     acc.demand += q;
     acc.soDemand += q;
   }, true);
+  applyTimed(
+    (input.soDemand ?? []).map((bucket) => ({
+      ...bucket,
+      qty: bucket.forecast_consumption_qty ?? bucket.qty,
+    })),
+    (acc, q) => {
+      acc.soForecastConsumption += q;
+    },
+  );
   for (const perBucket of bucketAcc.values()) {
     for (const acc of perBucket) consumeForecastWithSalesOrders(acc);
   }

@@ -112,7 +112,13 @@ let reworkSelfSupply = false;
 /** demand_forecasts rows the independent-demand read returns (default none). */
 let forecastRows: Array<{ product_id: string; uom: string; iso_week: string; qty: string }> = [];
 /** sales_order_lines rows the SO-demand read returns (default none). */
-let soDemandRows: Array<{ product_id: string; uom: string; need_date: string; qty: string }> = [];
+let soDemandRows: Array<{
+  product_id: string;
+  uom: string;
+  need_date: string;
+  qty: string;
+  forecast_consumption_qty?: string;
+}> = [];
 /** Undated confirmed SO line count returned by the warning probe (default none). */
 let undatedSoLinesMock = 0;
 /** When set, flour item carries pack hierarchy for box-UoM SO demand tests. */
@@ -124,6 +130,11 @@ let openPoSupplierRows: Array<{ item_id: string; supplier_id: string }> = [];
 let supplierSpecLinkRows: Array<{ item_id: string; supplier_id: string }> = [];
 /** Draft-WO schedule output used to prove demand/supply status symmetry. */
 let draftWoSupplyQty: string | null = null;
+/** Makes the SQL mock distinguish full SO remainder from the unallocated remainder. */
+let allocatedSoRemainderProbe: {
+  beforeAllocationNetting: string;
+  afterAllocationNetting: string;
+} | null = null;
 let executed: string[] = [];
 /** Captured DDL-shaped INSERT params. */
 let runInserts: Array<readonly unknown[]> = [];
@@ -465,7 +476,7 @@ function makeClient(): QueryClient {
           rowCount: rows.length,
         };
       }
-      if (normalized.includes('from public.license_plates lp')) {
+      if (normalized.includes('from public.v_inventory_available')) {
         if (failInventoryRead) throw new Error('boom');
         return {
           rows: [{ product_id: FLOUR_ID, uom: 'kg', on_hand: flourOnHand, reserved: flourReserved }],
@@ -522,6 +533,21 @@ function makeClient(): QueryClient {
         expect(params[0]).toEqual([...OPEN_SO_DEMAND_STATUS_EXPECTATION]);
         expect(String(params[1])).toMatch(/^\d{4}-\d{2}-\d{2}$/);
         expect(String(params[2])).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+        const probe = allocatedSoRemainderProbe;
+        if (probe) {
+          const netsAllocated = normalized.includes('coalesce(sol.quantity_allocated, 0)');
+          const qty = netsAllocated ? probe.afterAllocationNetting : probe.beforeAllocationNetting;
+          const rows = [
+            {
+              product_id: FLOUR_ID,
+              uom: 'kg',
+              need_date: MOCK_NEED_DATE,
+              qty,
+              forecast_consumption_qty: probe.beforeAllocationNetting,
+            },
+          ];
+          return { rows, rowCount: rows.length };
+        }
         return { rows: soDemandRows, rowCount: soDemandRows.length };
       }
       if (normalized.includes('from public.purchase_order_lines')) {
@@ -571,6 +597,7 @@ beforeEach(() => {
   openPoSupplierRows = [];
   supplierSpecLinkRows = [];
   draftWoSupplyQty = null;
+  allocatedSoRemainderProbe = null;
   executed = [];
   runInserts = [];
   reqInserts = [];
@@ -740,15 +767,15 @@ describe('runMrp', () => {
     expect(result.data.ranAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     expect(result.data.rows).toHaveLength(2);
 
-    // Flour: 40 + 25 − 80 = −15 → BUY 15; reserved is already in gross demand.
+    // Flour: 40 − 10 + 25 − 80 = −25 → BUY 25 (rm).
     const flour = result.data.rows.find((r) => r.itemCode === 'RM-FLOUR')!;
     expect(flour.onHand).toBe('40.000');
     expect(flour.reserved).toBe('10.000');
     expect(flour.openSupply).toBe('25.000');
     expect(flour.demand).toBe('80.000');
-    expect(flour.net).toBe('-15.000');
+    expect(flour.net).toBe('-25.000');
     expect(flour.severity).toBe('shortage');
-    expect(flour.suggestedAction).toMatchObject({ type: 'buy', qty: '15', supplierId: null });
+    expect(flour.suggestedAction).toMatchObject({ type: 'buy', qty: '25', supplierId: null });
 
     // Dough: 0 + 12 − 20 = −8 → MAKE 8 (intermediate; schedule_outputs counted as supply).
     const dough = result.data.rows.find((r) => r.itemCode === 'INT-DOUGH')!;
@@ -762,15 +789,15 @@ describe('runMrp', () => {
     expect(result.data.kpis.itemsShort).toBe(2);
     expect(result.data.kpis.itemsAnalyzed).toBe(2);
     expect(result.data.kpis.totalDemand).toBe('100.000');
-    // shortage 15 + 8 = 23 of 100 demand → 77% coverage.
-    expect(result.data.kpis.coveragePct).toBe(77);
+    // shortage 25 + 8 = 33 of 100 demand → 67% coverage.
+    expect(result.data.kpis.coveragePct).toBe(67);
   });
 
   it('runs all org-scoped source reads incl. demand_forecasts + sales_order_lines (RLS predicates present)', async () => {
     await runMrp();
     const sources = [
       'public.items',
-      'public.license_plates',
+      'public.v_inventory_available',
       'public.wo_materials',
       'public.demand_forecasts',
       'public.sales_order_lines',
@@ -877,7 +904,7 @@ describe('runMrp', () => {
 
     const flour = result.data.rows.find((r) => r.itemCode === 'RM-FLOUR')!;
     expect(flour.openSupply).toBe('125.000');
-    expect(flour.net).toBe('85.000');
+    expect(flour.net).toBe('75.000');
   });
 
   it('resolves buy planned-order supplier from open PO history when threshold is unset (S13)', async () => {
@@ -952,8 +979,8 @@ describe('runMrp', () => {
   });
 
   it('nets demand_forecasts as INDEPENDENT demand — forecast qty raises the item net requirement (E6)', async () => {
-    // Baseline flour: 40 + 25 − 80 = −15 (buy 15). Add a 30 kg forecast →
-    // demand 80 + 30 = 110, net 40 + 25 − 110 = −45 → buy 45.
+    // Baseline flour: 40 − 10 + 25 − 80 = −25 (buy 25). Add a 30 kg forecast →
+    // demand 80 + 30 = 110, net 40 − 10 + 25 − 110 = −55 → buy 55.
     forecastRows = [{ product_id: FLOUR_ID, uom: 'kg', iso_week: '2026-W24', qty: '30.000' }];
 
     const result = await runMrp();
@@ -963,10 +990,10 @@ describe('runMrp', () => {
     const flour = result.data.rows.find((r) => r.itemCode === 'RM-FLOUR')!;
     expect(flour.demand).toBe('110.000'); // 80 dependent + 30 forecast
     expect(flour.forecastDemand).toBe('30.000');
-    expect(flour.net).toBe('-45.000'); // 30 worse than the −15 baseline
+    expect(flour.net).toBe('-55.000'); // 30 worse than the −25 baseline
     expect(flour.severity).toBe('shortage');
     // Shortage grew by exactly the forecast qty → a larger BUY shortfall order.
-    expect(flour.suggestedAction).toMatchObject({ type: 'buy', qty: '45', supplierId: null });
+    expect(flour.suggestedAction).toMatchObject({ type: 'buy', qty: '55', supplierId: null });
 
     // Dough has no forecast → still pure dependent demand, untouched.
     const dough = result.data.rows.find((r) => r.itemCode === 'INT-DOUGH')!;
@@ -976,8 +1003,8 @@ describe('runMrp', () => {
   });
 
   it('nets confirmed sales-order demand as INDEPENDENT demand — SO qty raises the item net requirement (NN-PLAN-4)', async () => {
-    // Baseline flour: 40 + 25 − 80 = −15 (buy 15). Add a 15 kg confirmed-SO →
-    // demand 80 + 15 = 95, net 40 + 25 − 95 = −30 → buy 30.
+    // Baseline flour: 40 − 10 + 25 − 80 = −25 (buy 25). Add a 15 kg confirmed-SO →
+    // demand 80 + 15 = 95, net 40 − 10 + 25 − 95 = −40 → buy 40.
     soDemandRows = [{ product_id: FLOUR_ID, uom: 'kg', need_date: MOCK_NEED_DATE, qty: '15.000' }];
 
     const result = await runMrp();
@@ -988,20 +1015,23 @@ describe('runMrp', () => {
     expect(flour.demand).toBe('95.000'); // 80 dependent + 15 SO
     expect(flour.soDemand).toBe('15.000');
     expect(flour.forecastDemand).toBe('0.000');
-    expect(flour.net).toBe('-30.000');
+    expect(flour.net).toBe('-40.000');
     expect(flour.severity).toBe('shortage');
-    expect(flour.suggestedAction).toMatchObject({ type: 'buy', qty: '30', supplierId: null });
+    expect(flour.suggestedAction).toMatchObject({ type: 'buy', qty: '40', supplierId: null });
 
     const dough = result.data.rows.find((r) => r.itemCode === 'INT-DOUGH')!;
     expect(dough.soDemand).toBe('0.000');
   });
 
-  it('does not subtract SO-pegged stock a second time from the same open demand', async () => {
+  it('subtracts allocated SO quantity before netting against already-reserved stock', async () => {
     flourOnHand = '100.000';
     flourReserved = '60.000';
     woMaterialRows = [];
     poSupplyRows = [];
-    soDemandRows = [{ product_id: FLOUR_ID, uom: 'kg', need_date: MOCK_NEED_DATE, qty: '60.000' }];
+    allocatedSoRemainderProbe = {
+      beforeAllocationNetting: '60.000',
+      afterAllocationNetting: '0.000',
+    };
 
     const result = await runMrp();
     expect(result.ok).toBe(true);
@@ -1011,8 +1041,8 @@ describe('runMrp', () => {
     expect(flour).toMatchObject({
       onHand: '100.000',
       reserved: '60.000',
-      soDemand: '60.000',
-      demand: '60.000',
+      soDemand: '0.000',
+      demand: '0.000',
       net: '40.000',
       severity: 'covered',
       suggestedAction: null,
@@ -1024,7 +1054,10 @@ describe('runMrp', () => {
     flourReserved = '0.000';
     woMaterialRows = [];
     poSupplyRows = [];
-    soDemandRows = [{ product_id: FLOUR_ID, uom: 'kg', need_date: MOCK_NEED_DATE, qty: '60.000' }];
+    allocatedSoRemainderProbe = {
+      beforeAllocationNetting: '60.000',
+      afterAllocationNetting: '60.000',
+    };
 
     const result = await runMrp();
     expect(result.ok).toBe(true);
@@ -1040,25 +1073,56 @@ describe('runMrp', () => {
   });
 
   it('does not create a purchase suggestion for fully allocated stock', async () => {
-    flourOnHand = '60.000';
-    flourReserved = '60.000';
+    flourOnHand = '0.000';
+    flourReserved = '0.000';
     woMaterialRows = [];
     poSupplyRows = [];
-    soDemandRows = [{ product_id: FLOUR_ID, uom: 'kg', need_date: MOCK_NEED_DATE, qty: '60.000' }];
+    allocatedSoRemainderProbe = {
+      beforeAllocationNetting: '60.000',
+      afterAllocationNetting: '0.000',
+    };
 
     const result = await runMrp();
     expect(result.ok).toBe(true);
     if (!result.ok) return;
 
     expect(result.data.rows.find((row) => row.itemCode === 'RM-FLOUR')).toMatchObject({
-      onHand: '60.000',
-      reserved: '60.000',
-      demand: '60.000',
+      onHand: '0.000',
+      reserved: '0.000',
+      demand: '0.000',
       net: '0.000',
       suggestedAction: null,
     });
     expect(result.data.kpis.itemsShort).toBe(0);
     expect(result.data.plannedOrders).toHaveLength(0);
+  });
+
+  it('uses the full open SO to consume forecast while allocation stays out of net demand', async () => {
+    flourOnHand = '1000.000';
+    flourReserved = '800.000';
+    woMaterialRows = [];
+    poSupplyRows = [];
+    forecastRows = [
+      { product_id: FLOUR_ID, uom: 'kg', iso_week: MOCK_ISO_WEEK, qty: '1000.000' },
+    ];
+    allocatedSoRemainderProbe = {
+      beforeAllocationNetting: '800.000',
+      afterAllocationNetting: '0.000',
+    };
+
+    const result = await runMrp();
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.data.rows.find((row) => row.itemCode === 'RM-FLOUR')).toMatchObject({
+      reserved: '800.000',
+      demand: '200.000',
+      forecastDemand: '200.000',
+      soDemand: '0.000',
+      net: '0.000',
+      severity: 'covered',
+      suggestedAction: null,
+    });
   });
 
   it('tags the persisted run/requirement as independent when SO demand feeds an item (NN-PLAN-4)', async () => {
@@ -1112,7 +1176,7 @@ describe('runMrp', () => {
             rowCount: 1,
           };
         }
-        if (normalized.includes('from public.license_plates lp')) {
+        if (normalized.includes('from public.v_inventory_available')) {
           return { rows: [{ product_id: FLOUR_ID, uom: 'kg', on_hand: '0', reserved: '0' }], rowCount: 1 };
         }
         if (normalized.includes('from public.wo_materials')) {
@@ -1160,6 +1224,8 @@ describe('runMrp', () => {
     expect(soSql).toContain('join public.shipments sh');
     expect(soSql).toContain("sh.status in ('shipped', 'delivered')");
     expect(soSql).toContain('quantity_ordered - coalesce(shipped.shipped_qty, 0)');
+    expect(soSql).toContain('coalesce(sol.quantity_allocated, 0)');
+    expect(soSql).toContain('as forecast_consumption_qty');
     expect(soSql).not.toContain('sol.quantity_shipped');
     expect(soSql).toContain('sum(sbc.quantity) as shipped_qty');
     expect(soSql).toContain('i.uom_base as uom');
@@ -1229,7 +1295,7 @@ describe('runMrp', () => {
     expect(flour.excludedUoms).toEqual([]);
     expect(flour.soDemand).toBe('10.000');
     expect(flour.demand).toBe('90.000'); // 80 dependent + 10 SO
-    expect(flour.net).toBe('-25.000'); // baseline −15 worsened by 10 kg SO demand
+    expect(flour.net).toBe('-35.000'); // baseline −25 worsened by 10 kg SO demand
   });
 
   it('buckets undated confirmed SO demand on the run date and surfaces a warning (P2-06)', async () => {
@@ -1270,7 +1336,7 @@ describe('runMrp', () => {
     const flour = result.data.rows.find((r) => r.itemCode === 'RM-FLOUR')!;
     expect(flour.demand).toBe('84.000'); // 80 dependent + 4 SO remainder
     expect(flour.soDemand).toBe('4.000');
-    expect(flour.net).toBe('-19.000');
+    expect(flour.net).toBe('-29.000');
   });
 
   it('includes partially_delivered SO status in open demand filter (NN-PLAN-4)', async () => {
@@ -1298,7 +1364,7 @@ describe('runMrp', () => {
     const flour = result.data.rows.find((r) => r.itemCode === 'RM-FLOUR')!;
     expect(flour.soDemand).toBe('0.000');
     expect(flour.demand).toBe('80.000'); // dependent only
-    expect(flour.net).toBe('-15.000'); // baseline without SO demand
+    expect(flour.net).toBe('-25.000'); // baseline without SO demand
   });
 
   it('tags the persisted run/requirement as forecast-driven when a forecast feeds an item (E6)', async () => {

@@ -781,6 +781,39 @@ describe('computeMrpPhased — weekly buckets (C3b)', () => {
     });
   });
 
+  it('uses the full open SO to consume forecast even when allocation makes its net demand zero', () => {
+    const { rows } = computeMrpPhased({
+      items: [FG_BREAD],
+      onHand: [{ product_id: FG_BREAD.id, uom: 'kg', on_hand: '1000', reserved: '800' }],
+      demand: [],
+      forecastDemand: [
+        { product_id: FG_BREAD.id, uom: 'kg', qty: '1000', iso_week: '2026-W24' },
+      ],
+      soDemand: [
+        {
+          product_id: FG_BREAD.id,
+          uom: 'kg',
+          qty: '0',
+          forecast_consumption_qty: '800',
+          need_date: '2026-06-11',
+        },
+      ],
+      poSupply: [],
+      productionSupply: [],
+      today,
+      horizonWeeks: 4,
+    });
+
+    expect(rows[0]).toMatchObject({
+      demand: '200.000',
+      forecastDemand: '200.000',
+      soDemand: '0.000',
+      net: '0.000',
+      severity: 'covered',
+      suggestedAction: null,
+    });
+  });
+
   it('counts draft WO materials and matching output on both sides', () => {
     const { rows } = computeMrpPhased({
       items: [FG_BREAD, RM_FLOUR],
