@@ -174,7 +174,21 @@
       "reset_mfa_confirm": "Reset MFA",
       "resetting_mfa": "Resetting…",
       "reset_mfa_success": "MFA enrollment cleared.",
-      "reset_mfa_failed": "Could not reset MFA: {error}."
+      "reset_mfa_failed": "Could not reset MFA: {error}.",
+      "table_mfa": "MFA",
+      "table_last_login": "Останній вхід",
+      "mfa_enrolled": "Налаштовано",
+      "mfa_not_enrolled": "Не налаштовано",
+      "last_login_never": "Ніколи",
+      "deactivate": "Деактивувати",
+      "deactivate_unavailable": "Деактивація недоступна",
+      "deactivate_dialog_title": "Деактивація користувача",
+      "deactivate_dialog_body": "{name} буде вийдено із системи та заблоковано вхід. Історію збережено для аудиту.",
+      "deactivate_confirm": "Деактивувати користувача",
+      "deactivating": "Деактивація…",
+      "deactivate_success": "Користувача деактивовано.",
+      "deactivate_failed": "Не вдалося деактивувати користувача: {error}.",
+      "deactivate_self": "Ви не можете деактивувати власний обліковий запис."
     },
     "units": {
       "title": "Одиниці та перетворення",
@@ -762,7 +776,8 @@
       "invite_user": "+ Запросити користувача",
       "export": "Експортувати",
       "error_load": "Не вдалося завантажити користувачів. Спробуйте оновити сторінку користувачів у налаштуваннях.",
-      "permission_denied": "Доступ заборонено: для керування користувачами та ролями потрібно settings.users.manage."
+      "permission_denied": "Доступ заборонено: для керування користувачами та ролями потрібно settings.users.manage.",
+      "manage_invitations": "Керувати запрошеннями"
     },
     "invitations": {
       "heading": "Pending Invitations",
@@ -1233,7 +1248,12 @@
         "errorRequired": "This field is required.",
         "errorDuplicate": "This code is already used in this site. Please choose another.",
         "errorGeneric": "Something went wrong. Please try again.",
-        "errorWarehouseSiteMismatch": "Warehouse must belong to the same site as the line."
+        "errorWarehouseSiteMismatch": "Warehouse must belong to the same site as the line.",
+        "editSiteSettingsTitle": "Редагування налаштувань майданчика",
+        "fieldOperatingHours": "Години роботи",
+        "fieldHaccpEnabled": "Сертифіковано за HACCP",
+        "fieldHaccpValidUntil": "HACCP діє до",
+        "errorForbidden": "У вас немає дозволу змінювати налаштування майданчика."
       }
     },
     "boms": {
@@ -1771,6 +1791,54 @@
       "confirm_activate": "Activate",
       "toggling": "Saving…",
       "toggle_failed": "Unable to update category status."
+    },
+    "customerPrices": {
+      "eyebrow": "Ціни",
+      "title": "Ціни клієнтів",
+      "subtitle": "Перевизначення відпускних цін для окремих клієнтів. Активні рядки мають пріоритет над прайсовою ціною позиції під час розрахунку рядків замовлення на продаж (спочатку GBP).",
+      "sectionTitle": "Налаштовані ціни",
+      "provenance": "Кожен рядок версіонується датою набуття чинності. У розрахунку цін замовлень використовуються лише невидалені рядки в межах періоду чинності.",
+      "addPrice": "Нова ціна",
+      "emptyCta": "Додати першу ціну",
+      "filterAllCustomers": "Усі клієнти",
+      "filterCustomer": "Клієнт",
+      "columnCustomer": "Клієнт",
+      "columnItem": "Позиція",
+      "columnUnitPrice": "Ціна за одиницю",
+      "columnCurrency": "Валюта",
+      "columnEffectiveFrom": "Діє від",
+      "columnEffectiveTo": "Діє до",
+      "columnStatus": "Статус",
+      "columnActions": "Дії",
+      "editPrice": "Редагувати",
+      "deactivatePrice": "Деактивувати",
+      "statusActive": "Активна",
+      "statusScheduled": "Запланована",
+      "statusExpired": "Термін дії минув",
+      "dialogAddTitle": "Нова ціна клієнта",
+      "dialogEditTitle": "Редагування ціни клієнта",
+      "fieldCustomer": "Клієнт",
+      "fieldItem": "Позиція",
+      "fieldUnitPrice": "Ціна за одиницю",
+      "fieldCurrency": "Валюта",
+      "fieldEffectiveFrom": "Діє від",
+      "fieldEffectiveTo": "Діє до",
+      "fieldEffectiveToHelp": "Залиште порожнім для безстрокового періоду.",
+      "save": "Зберегти ціну",
+      "savePending": "Збереження…",
+      "cancel": "Скасувати",
+      "createSuccess": "Ціну клієнта додано.",
+      "updateSuccess": "Ціну клієнта оновлено.",
+      "deactivateSuccess": "Ціну клієнта деактивовано.",
+      "saveFailed": "Не вдалося зберегти ціну. Перевірте поля та спробуйте ще раз.",
+      "invalidInput": "Виберіть клієнта та позицію, укажіть невід’ємну ціну, валюту та коректні дати.",
+      "conflictError": "Ціна для цього клієнта, позиції та дати початку вже існує.",
+      "insufficientPermission": "Для керування цінами клієнтів потрібен дозвіл settings.org.update.",
+      "loading": "Завантаження цін клієнтів…",
+      "empty": "Ціни клієнтів ще не налаштовано.",
+      "error": "Не вдалося завантажити ціни клієнтів. Спробуйте ще раз незабаром.",
+      "forbidden": "У вас немає дозволу переглядати ціни клієнтів.",
+      "confirmDeactivate": "Деактивувати ціну для {item}?"
     }
   },
   "navigation": {
@@ -2497,7 +2565,8 @@
           "nameRequired": "Name is required (min 1 char).",
           "uomRequired": "Base UoM is required.",
           "netRequired": "Net content per each is required (> 0) for Each / Box output.",
-          "eachPerBoxRequired": "Each per box is required (> 0) for Box output."
+          "eachPerBoxRequired": "Each per box is required (> 0) for Box output.",
+          "codeInvalid": "Код позиції має бути буквено-цифровим, з роздільниками . _ -"
         },
         "intermediateHint": "= WIP (незавершене виробництво)",
         "uomLabels": {
@@ -2635,6 +2704,14 @@
         "errors": {
           "invalid_transition": "This status change is not allowed from the item's current status.",
           "activation_gate_failed": "This item cannot be activated yet — its base unit is not one of the canonical units. Edit the item first."
+        }
+      },
+      "edit": {
+        "title": "Редагувати позицію",
+        "saveChanges": "Зберегти зміни",
+        "saving": "Збереження…",
+        "review": {
+          "ready": "Зміни готові до збереження. Буде створено запис аудиту."
         }
       }
     },
@@ -4201,7 +4278,8 @@
         "archiveConfirmTitle": "Archive this definition?",
         "archiveConfirmBody": "Archived definitions cannot be reused in new formulations. Existing references stay read-only until projects accept updates.",
         "archiveCancel": "Cancel",
-        "archiveConfirm": "Archive"
+        "archiveConfirm": "Archive",
+        "saveCycleError": "Цей склад створив би циклічне посилання WIP."
       },
       "header": {
         "name": "Name",
@@ -4536,7 +4614,15 @@
       "bomOption": "v{version} · {status}",
       "noBomOptionsHelp": "No BOM exists for this FG item yet. Create a shared BOM first.",
       "noBomOptionsTitle": "No matching BOM exists. Create a shared BOM for this finished good first.",
-      "pinSetupLink": "No PIN? Set it in Settings →"
+      "pinSetupLink": "No PIN? Set it in Settings →",
+      "esignTitle": "Квитанції електронного підпису",
+      "esignProgress": "{collected} з {required} обов’язкових підписантів підписали.",
+      "esignOutstanding": "Ще потрібно підписів: {count}.",
+      "noSignatures": "Для цього пакета не зібрано жодної квитанції електронного підпису.",
+      "signatureCurrent": "Поточна",
+      "signatureHistorical": "Історична",
+      "signatureId": "Квитанція {id}",
+      "signatureReason": "Причина: {reason}"
     },
     "eco": {
       "title": "Контроль змін (ECO)",
@@ -4652,6 +4738,11 @@
         "already_exists": "Замовлення з цим кодом уже існує.",
         "invalid_state": "Замовлення вже не в очікуваному стані — оновлено.",
         "persistence_failed": "Не вдалося виконати дію."
+      },
+      "pagination": {
+        "showing": "Показано {shown} з {total}",
+        "previous": "Попередня",
+        "next": "Наступна"
       }
     },
     "items": {
@@ -6923,7 +7014,16 @@
       "generateWarningNoProcesses": "Production BOM created, but no NPD processes were found to build a routing.",
       "generateWarningRoutingDraft": "Routing created as DRAFT — approve and activate it in Technical → Routings so work orders pick up the production steps.",
       "generatePacksPerBoxRequired": "Set packs-per-box on the FG before generating the production BOM.",
-      "revertToNpd": "Повернути до NPD"
+      "revertToNpd": "Повернути до NPD",
+      "revertingToNpd": "Повернення…",
+      "revertModalTitle": "Повернути до NPD",
+      "revertModalBody": "Розблоковує цей проєкт назад до етапу передачі. Будь-яку випущену заводську специфікацію може бути відкликано. Вкажіть причину для журналу аудиту.",
+      "revertReasonLabel": "Причина",
+      "revertReasonPlaceholder": "Чому цей випуск скасовується?",
+      "revertCancel": "Скасувати",
+      "revertConfirm": "Повернути до NPD",
+      "revertError": "Не вдалося повернути до NPD. Спробуйте ще раз.",
+      "revertErrorForbidden": "У вас немає дозволу повертати цей проєкт."
     },
     "pipelineCreate": {
       "title": "Створити проєкт NPD",
@@ -9651,7 +9751,17 @@
           "subtitle": "Complete execution. The output yield gate must be green.",
           "override": "Override reason code",
           "overrideHint": "Required only to override an unmet yield gate.",
-          "overridePlaceholder": "Select an override reason…"
+          "overridePlaceholder": "Select an override reason…",
+          "gateStatusGreen": "Контроль виходу: зелений — споживання в межах допуску.",
+          "gateStatusBlocked": "Контроль виходу: заблоковано — потрібне погодження керівника.",
+          "gateBlocked": "Контроль виходу не пройдено — зареєструйте основний випуск або надайте погодження.",
+          "consumptionOutOfTolerance": "Фактичне споживання виходить за налаштовану смугу допуску.",
+          "actualOutputKg": "Випуск (кг)",
+          "postedConsumptionKg": "Проведене споживання (кг)",
+          "expectedInputKg": "Очікуване завантаження (кг)",
+          "effectiveYieldPct": "Фактичний вихід %",
+          "overridePin": "PIN електронного підпису керівника або пароль облікового запису",
+          "overrideEsignReason": "Причина електронного підпису (CFR-21 частина 11)"
         },
         "close": {
           "title": "Close work order",
@@ -10814,6 +10924,17 @@
         "cancel": "Cancel",
         "submit": "Resolve deviation",
         "submitting": "Resolving…",
+        "policyErrors": {
+          "second_signature_required": "This deviation resolution requires a second electronic signature.",
+          "signer_role_not_allowed": "Your role is not allowed to sign this deviation-resolution slot."
+        },
+        "pendingSignoff": {
+          "title": "First signature recorded — the deviation remains open",
+          "signedBy": "Signed by",
+          "awaitingRole": "Awaiting",
+          "anyAuthorizedSigner": "another authorized signer",
+          "submitSecond": "Add second signature"
+        },
         "formIncomplete": "Complete the corrective action, disposition and password or PIN to continue.",
         "validation": {
           "actionRequired": "A corrective action is required.",
@@ -11467,6 +11588,34 @@
           "second_signature_required": "This critical NCR close requires a second e-signature under the configured sign-off policy.",
           "signer_role_not_allowed": "Your role is not allowed to sign this critical NCR close under the configured sign-off policy."
         }
+      },
+      "createModal": {
+        "lookup": {
+          "sourceRefType": "Джерельне посилання (необов’язково)",
+          "sourceRefTypeHelp": "Пов’яжіть цей NCR з невдалою перевіркою або з відповідним LP.",
+          "sourceRefTypeOptions": {
+            "inspection": "Перевірка",
+            "lp": "License plate (LP)"
+          },
+          "inspectionSearchLabel": "Перевірка",
+          "inspectionSearchPlaceholder": "Пошук за номером перевірки, LP або позицією…",
+          "inspectionSearching": "Пошук перевірок…",
+          "inspectionNoMatch": "Жодна перевірка не відповідає «{query}».",
+          "inspectionChip": "{number} · {reference}",
+          "lpSearchLabel": "License plate (LP)",
+          "lpSearchPlaceholder": "Пошук за номером LP або кодом позиції…",
+          "lpSearching": "Пошук LP…",
+          "lpNoMatch": "Жоден LP не відповідає «{query}».",
+          "lpChip": "{lpNumber} · {itemCode}",
+          "product": "Продукт (необов’язково)",
+          "productHelp": "За замовчуванням береться з обраної перевірки або LP, якщо доступно.",
+          "productSearchPlaceholder": "Пошук за кодом або назвою позиції…",
+          "productSearching": "Пошук продуктів…",
+          "productNoMatch": "Жоден продукт не відповідає «{query}».",
+          "productChip": "{itemCode} · {name}",
+          "clearPick": "Очистити",
+          "resultLine": "{primary} · {secondary}"
+        }
       }
     }
   },
@@ -11521,6 +11670,11 @@
           "title": "No sales orders yet",
           "body": "Create your first sales order to start shipping to customers.",
           "clear": "Clear filters"
+        },
+        "pagination": {
+          "showing": "Показано {shown} з {total}",
+          "previous": "Попередня",
+          "next": "Наступна"
         }
       },
       "create": {
@@ -11760,6 +11914,11 @@
         "empty": {
           "title": "No shipments yet",
           "body": "Create a shipment from an allocated sales order to start packing."
+        },
+        "pagination": {
+          "showing": "Показано {shown} з {total}",
+          "previous": "Попередня",
+          "next": "Наступна"
         }
       },
       "createShipment": {
@@ -13103,11 +13262,13 @@
         "signaturePassword": "E-sign PIN or account password",
         "errorEsign": "Signature failed — check your password or PIN and try again.",
         "calibratorPassword": "Calibrator password",
-        "reviewerUserId": "Reviewer",
-        "reviewerUserIdPlaceholder": "Select an independent reviewer",
         "reviewerPassword": "Reviewer password",
         "dualSignWarning": "Calibration requires two distinct signers — a calibrator and an independent active reviewer.",
-        "errorSod": "The reviewer must be a different active user from the calibrator."
+        "errorSod": "The reviewer must be a different active user from the calibrator.",
+        "reviewer": "Незалежний перевіряючий",
+        "reviewerPlaceholder": "Виберіть відповідного перевіряючого",
+        "reviewerSearchPlaceholder": "Пошук перевіряючого за іменем або e-mail",
+        "reviewerUnavailable": "Немає доступного незалежного перевіряючого для калібрування."
       },
       "types": {
         "scale": "Scale",
@@ -13149,14 +13310,16 @@
           "type": "Тип",
           "loto": "LOTO",
           "calibration": "Калібрування",
-          "status": "Статус"
+          "status": "Статус",
+          "actions": "Дії"
         },
         "lotoYes": "Потрібно",
         "lotoNo": "—",
         "calYes": "Потрібно",
         "calNo": "—",
         "statusActive": "Активний",
-        "statusInactive": "Неактивний"
+        "statusInactive": "Неактивний",
+        "editAsset": "Редагувати"
       },
       "form": {
         "createTitle": "Додати актив обслуговування",
@@ -13173,7 +13336,15 @@
         "errorRequired": "Код і назва обов'язкові.",
         "errorFailed": "Не вдалося зберегти актив. Спробуйте ще раз.",
         "errorForbidden": "Немає дозволу на редагування активів обслуговування.",
-        "errorConflict": "Актив із цим кодом уже існує."
+        "errorConflict": "Актив із цим кодом уже існує.",
+        "editTitle": "Редагувати актив обслуговування",
+        "withdraw": "Вивести з експлуатації",
+        "withdrawing": "Виведення…",
+        "withdrawReason": "Причина виведення",
+        "withdrawReasonPlaceholder": "Чому цей актив виводиться з експлуатації?",
+        "reactivate": "Повернути в експлуатацію",
+        "reactivating": "Повернення…",
+        "errorWithdrawReason": "Потрібна причина виведення щонайменше з 3 символів."
       },
       "types": {
         "mixer": "Міксер",

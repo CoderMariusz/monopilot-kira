@@ -11,7 +11,7 @@
 import type { CustomerListLabels } from './customer-list-view';
 
 /** Minimal translate function shape: t('a.b.c') → string. Matches next-intl's `t`. */
-export type Translate = (key: string) => string;
+export type Translate = ((key: string) => string) & { raw?: (key: string) => unknown };
 
 export function buildCustomerListLabels(t: Translate): CustomerListLabels {
   const category = {
@@ -23,7 +23,8 @@ export function buildCustomerListLabels(t: Translate): CustomerListLabels {
     newCustomer: t('list.newCustomer'),
     searchPlaceholder: t('list.searchPlaceholder'),
     rowsCount: t('list.rowsCount'),
-    showing: t('list.showing'),
+    // see paginationTemplate note: t() would return the key path for this {n}/{total} template
+    showing: (typeof t.raw?.('list.showing') === 'string' ? (t.raw('list.showing') as string) : t('list.showing')),
     tabs: {
       all: t('list.tabs.all'),
       active: t('list.tabs.active'),

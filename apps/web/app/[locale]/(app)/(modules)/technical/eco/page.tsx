@@ -157,7 +157,7 @@ export default async function EcoPage({
                 previousHref={pagination.page > 1 ? ecoPageHref(locale, filter, pagination.page - 1) : null}
                 nextHref={pagination.hasMore ? ecoPageHref(locale, filter, pagination.page + 1) : null}
                 labels={{
-                  showing: tl('pagination.showing', 'Showing {shown} of {total}'),
+                  showing: (t.raw('pagination.showing') as string) ?? 'Showing {shown} of {total}',
                   previous: tl('pagination.previous', 'Previous'),
                   next: tl('pagination.next', 'Next'),
                 }}

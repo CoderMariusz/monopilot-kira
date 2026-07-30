@@ -38,22 +38,9 @@ describe('i18n translations', () => {
     });
   });
 
-  it('should have consistent key structure across all locales', () => {
-    const translations: Record<string, Record<string, any>> = {};
-
-    locales.forEach((locale) => {
-      const filePath = path.join(__dirname, '..', '..', 'i18n', `${locale}.json`);
-      const fileContent = fs.readFileSync(filePath, 'utf-8');
-      translations[locale] = JSON.parse(fileContent);
-    });
-
-    const enKeys = JSON.stringify(Object.keys(translations['en']).sort());
-    locales.forEach((locale) => {
-      if (locale !== 'en') {
-        expect(JSON.stringify(Object.keys(translations[locale]).sort())).toBe(enKeys);
-      }
-    });
-  });
+  // Full key-structure parity lives in i18n/__tests__/wave-4-locale-parity.test.ts.
+  // The check that used to sit here compared only TOP-LEVEL keys, so it stayed green
+  // through 270 missing nested keys — removed rather than left as a false signal.
 });
 
 describe('next-intl middleware', () => {

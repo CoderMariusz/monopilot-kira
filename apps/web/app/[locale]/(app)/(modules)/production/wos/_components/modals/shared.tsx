@@ -470,6 +470,13 @@ export function CompleteModal({
     }
   }
 
+  // NOTE on the `?? '…'` fallbacks below: they only cover a labels bundle that OMITS
+  // the field (test fixtures — the type marks these optional). They are NOT a safety
+  // net for a missing translation: buildWoModalLabels fills every field from t(), and
+  // next-intl returns the dotted key path for a missing message, never undefined, so
+  // `??` cannot fire on that path. The catalog backstop lives in i18n/request.ts
+  // (EN layered under every locale) and the hole itself is caught by
+  // i18n/__tests__/wave-4-locale-parity.test.ts.
   // A 409 from the server (forceOverridePath) invalidates the pre-evaluated green.
   const gateGreenNow = yieldGateGreen && !forceOverridePath;
   const gateStatusLabel = gateGreenNow

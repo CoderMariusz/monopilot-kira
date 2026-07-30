@@ -6,7 +6,15 @@
  */
 import type { ChangeoversScreenLabels } from './labels';
 
-type T = (key: string) => string;
+type T = ((key: string) => string) & { raw?: (key: string) => unknown };
+
+/** next-intl t() on a template with unfilled {shown}/{total} throws FORMATTING_ERROR and
+ * returns the KEY PATH; t.raw() yields the template the footer substitutes into. Tree-backed
+ * test translators have no .raw and already return the template. */
+function paginationTemplate(t: T, key: string): string {
+  const raw = t.raw?.(key);
+  return typeof raw === 'string' ? raw : t(key);
+}
 
 export function buildChangeoversLabels(t: T): ChangeoversScreenLabels {
   return {
@@ -47,7 +55,7 @@ export function buildChangeoversLabels(t: T): ChangeoversScreenLabels {
       signerNone: t('list.signerNone'),
       reviewButton: t('list.reviewButton'),
       pagination: {
-        showing: t('list.pagination.showing'),
+        showing: paginationTemplate(t, 'list.pagination.showing'),
         previous: t('list.pagination.previous'),
         next: t('list.pagination.next'),
       },

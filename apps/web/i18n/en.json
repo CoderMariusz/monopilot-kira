@@ -7409,6 +7409,11 @@
         "already_exists": "A change order with this code already exists.",
         "invalid_state": "The change order is no longer in the expected state — it was refreshed.",
         "persistence_failed": "The action could not be completed."
+      },
+      "pagination": {
+        "showing": "Showing {shown} of {total}",
+        "previous": "Previous",
+        "next": "Next"
       }
     },
     "items": {
@@ -10919,6 +10924,17 @@
         "cancel": "Cancel",
         "submit": "Resolve deviation",
         "submitting": "Resolving…",
+        "policyErrors": {
+          "second_signature_required": "This deviation resolution requires a second electronic signature.",
+          "signer_role_not_allowed": "Your role is not allowed to sign this deviation-resolution slot."
+        },
+        "pendingSignoff": {
+          "title": "First signature recorded — the deviation remains open",
+          "signedBy": "Signed by",
+          "awaitingRole": "Awaiting",
+          "anyAuthorizedSigner": "another authorized signer",
+          "submitSecond": "Add second signature"
+        },
         "formIncomplete": "Complete the corrective action, disposition and password or PIN to continue.",
         "validation": {
           "actionRequired": "A corrective action is required.",
@@ -11571,6 +11587,34 @@
         "policyErrors": {
           "second_signature_required": "This critical NCR close requires a second e-signature under the configured sign-off policy.",
           "signer_role_not_allowed": "Your role is not allowed to sign this critical NCR close under the configured sign-off policy."
+        }
+      },
+      "createModal": {
+        "lookup": {
+          "sourceRefType": "Source reference (optional)",
+          "sourceRefTypeHelp": "Link this NCR to a failed inspection or the affected license plate (LP).",
+          "sourceRefTypeOptions": {
+            "inspection": "Inspection",
+            "lp": "License plate (LP)"
+          },
+          "inspectionSearchLabel": "Inspection",
+          "inspectionSearchPlaceholder": "Search inspection no., LP or item…",
+          "inspectionSearching": "Searching inspections…",
+          "inspectionNoMatch": "No inspection matches \"{query}\".",
+          "inspectionChip": "{number} · {reference}",
+          "lpSearchLabel": "License plate (LP)",
+          "lpSearchPlaceholder": "Search LP number or item code…",
+          "lpSearching": "Searching license plates…",
+          "lpNoMatch": "No license plate matches \"{query}\".",
+          "lpChip": "{lpNumber} · {itemCode}",
+          "product": "Product (optional)",
+          "productHelp": "Defaults from the selected inspection or LP when available.",
+          "productSearchPlaceholder": "Search item code or name…",
+          "productSearching": "Searching products…",
+          "productNoMatch": "No product matches \"{query}\".",
+          "productChip": "{itemCode} · {name}",
+          "clearPick": "Clear",
+          "resultLine": "{primary} · {secondary}"
         }
       }
     }

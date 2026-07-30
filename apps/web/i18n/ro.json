@@ -174,7 +174,21 @@
       "reset_mfa_confirm": "Reset MFA",
       "resetting_mfa": "Resetting…",
       "reset_mfa_success": "MFA enrollment cleared.",
-      "reset_mfa_failed": "Could not reset MFA: {error}."
+      "reset_mfa_failed": "Could not reset MFA: {error}.",
+      "table_mfa": "MFA",
+      "table_last_login": "Ultima autentificare",
+      "mfa_enrolled": "Înrolat",
+      "mfa_not_enrolled": "Neînrolat",
+      "last_login_never": "Niciodată",
+      "deactivate": "Dezactivează",
+      "deactivate_unavailable": "Dezactivare indisponibilă",
+      "deactivate_dialog_title": "Dezactivare utilizator",
+      "deactivate_dialog_body": "{name} va fi deconectat și nu se va mai putea autentifica. Istoricul este păstrat pentru audit.",
+      "deactivate_confirm": "Dezactivează utilizatorul",
+      "deactivating": "Se dezactivează…",
+      "deactivate_success": "Utilizator dezactivat.",
+      "deactivate_failed": "Utilizatorul nu a putut fi dezactivat: {error}.",
+      "deactivate_self": "Nu vă puteți dezactiva propriul cont."
     },
     "units": {
       "title": "Unități și conversii",
@@ -762,7 +776,8 @@
       "invite_user": "+ Invită utilizator",
       "export": "Exportă",
       "error_load": "Utilizatorii nu au putut fi încărcați. Încercați să reîmprospătați pagina de utilizatori din setări.",
-      "permission_denied": "Permisiune refuzată: settings.users.manage este necesară pentru a administra utilizatorii și rolurile."
+      "permission_denied": "Permisiune refuzată: settings.users.manage este necesară pentru a administra utilizatorii și rolurile.",
+      "manage_invitations": "Gestionează invitațiile"
     },
     "invitations": {
       "heading": "Pending Invitations",
@@ -1233,7 +1248,12 @@
         "errorRequired": "This field is required.",
         "errorDuplicate": "This code is already used in this site. Please choose another.",
         "errorGeneric": "Something went wrong. Please try again.",
-        "errorWarehouseSiteMismatch": "Warehouse must belong to the same site as the line."
+        "errorWarehouseSiteMismatch": "Warehouse must belong to the same site as the line.",
+        "editSiteSettingsTitle": "Editare setări locație",
+        "fieldOperatingHours": "Program de funcționare",
+        "fieldHaccpEnabled": "Certificat HACCP",
+        "fieldHaccpValidUntil": "HACCP valabil până la",
+        "errorForbidden": "Nu aveți permisiunea de a actualiza setările locației."
       }
     },
     "boms": {
@@ -1771,6 +1791,54 @@
       "confirm_activate": "Activate",
       "toggling": "Saving…",
       "toggle_failed": "Unable to update category status."
+    },
+    "customerPrices": {
+      "eyebrow": "Prețuri",
+      "title": "Prețuri clienți",
+      "subtitle": "Suprascrieri de preț de vânzare per client. Rândurile active au prioritate față de prețul de listă al articolului la calcularea liniilor comenzii de vânzare (mai întâi GBP).",
+      "sectionTitle": "Prețuri configurate",
+      "provenance": "Fiecare rând este versionat după data de intrare în vigoare. La calcularea prețurilor comenzilor de vânzare sunt folosite doar rândurile neșterse aflate în perioada de valabilitate.",
+      "addPrice": "Preț nou",
+      "emptyCta": "Adăugați primul preț",
+      "filterAllCustomers": "Toți clienții",
+      "filterCustomer": "Client",
+      "columnCustomer": "Client",
+      "columnItem": "Articol",
+      "columnUnitPrice": "Preț unitar",
+      "columnCurrency": "Monedă",
+      "columnEffectiveFrom": "Valabil de la",
+      "columnEffectiveTo": "Valabil până la",
+      "columnStatus": "Stare",
+      "columnActions": "Acțiuni",
+      "editPrice": "Editează",
+      "deactivatePrice": "Dezactivează",
+      "statusActive": "Activ",
+      "statusScheduled": "Programat",
+      "statusExpired": "Expirat",
+      "dialogAddTitle": "Preț nou pentru client",
+      "dialogEditTitle": "Editare preț client",
+      "fieldCustomer": "Client",
+      "fieldItem": "Articol",
+      "fieldUnitPrice": "Preț unitar",
+      "fieldCurrency": "Monedă",
+      "fieldEffectiveFrom": "Valabil de la",
+      "fieldEffectiveTo": "Valabil până la",
+      "fieldEffectiveToHelp": "Lăsați gol pentru o perioadă nelimitată.",
+      "save": "Salvează prețul",
+      "savePending": "Se salvează…",
+      "cancel": "Anulează",
+      "createSuccess": "Prețul clientului a fost adăugat.",
+      "updateSuccess": "Prețul clientului a fost actualizat.",
+      "deactivateSuccess": "Prețul clientului a fost dezactivat.",
+      "saveFailed": "Prețul nu a putut fi salvat. Verificați câmpurile și încercați din nou.",
+      "invalidInput": "Selectați un client și un articol, introduceți un preț nenegativ, moneda și date valide.",
+      "conflictError": "Există deja un preț pentru acest client, articol și dată de început.",
+      "insufficientPermission": "Este necesară permisiunea settings.org.update pentru a gestiona prețurile clienților.",
+      "loading": "Se încarcă prețurile clienților…",
+      "empty": "Nu există prețuri de client configurate.",
+      "error": "Prețurile clienților nu au putut fi încărcate. Reîncercați în scurt timp.",
+      "forbidden": "Nu aveți permisiunea de a vizualiza prețurile clienților.",
+      "confirmDeactivate": "Dezactivați prețul pentru {item}?"
     }
   },
   "navigation": {
@@ -2497,7 +2565,8 @@
           "nameRequired": "Name is required (min 1 char).",
           "uomRequired": "Base UoM is required.",
           "netRequired": "Net content per each is required (> 0) for Each / Box output.",
-          "eachPerBoxRequired": "Each per box is required (> 0) for Box output."
+          "eachPerBoxRequired": "Each per box is required (> 0) for Box output.",
+          "codeInvalid": "Codul articolului trebuie să fie alfanumeric, cu separatorii . _ -"
         },
         "intermediateHint": "= WIP (în curs de producție)",
         "uomLabels": {
@@ -2635,6 +2704,14 @@
         "errors": {
           "invalid_transition": "This status change is not allowed from the item's current status.",
           "activation_gate_failed": "This item cannot be activated yet — its base unit is not one of the canonical units. Edit the item first."
+        }
+      },
+      "edit": {
+        "title": "Editare articol",
+        "saveChanges": "Salvează modificările",
+        "saving": "Se salvează…",
+        "review": {
+          "ready": "Modificările sunt gata de salvare. Se va înregistra o intrare de audit."
         }
       }
     },
@@ -4201,7 +4278,8 @@
         "archiveConfirmTitle": "Archive this definition?",
         "archiveConfirmBody": "Archived definitions cannot be reused in new formulations. Existing references stay read-only until projects accept updates.",
         "archiveCancel": "Cancel",
-        "archiveConfirm": "Archive"
+        "archiveConfirm": "Archive",
+        "saveCycleError": "Această compoziție ar crea o referință WIP circulară."
       },
       "header": {
         "name": "Name",
@@ -4536,7 +4614,15 @@
       "bomOption": "v{version} · {status}",
       "noBomOptionsHelp": "No BOM exists for this FG item yet. Create a shared BOM first.",
       "noBomOptionsTitle": "No matching BOM exists. Create a shared BOM for this finished good first.",
-      "pinSetupLink": "No PIN? Set it in Settings →"
+      "pinSetupLink": "No PIN? Set it in Settings →",
+      "esignTitle": "Dovezi de semnătură electronică",
+      "esignProgress": "{collected} din {required} aprobatori necesari au semnat.",
+      "esignOutstanding": "Mai sunt necesare {count} semnături.",
+      "noSignatures": "Nu a fost colectată nicio dovadă de semnătură electronică pentru acest pachet.",
+      "signatureCurrent": "Curentă",
+      "signatureHistorical": "Istorică",
+      "signatureId": "Dovada {id}",
+      "signatureReason": "Motiv: {reason}"
     },
     "eco": {
       "title": "Controlul modificărilor (ECO)",
@@ -4652,6 +4738,11 @@
         "already_exists": "O comandă cu acest cod există deja.",
         "invalid_state": "Comanda nu mai este în starea aşteptată — a fost reîmprospătată.",
         "persistence_failed": "Acțiunea nu a putut fi finalizată."
+      },
+      "pagination": {
+        "showing": "Afișate {shown} din {total}",
+        "previous": "Anterior",
+        "next": "Următor"
       }
     },
     "items": {
@@ -6923,7 +7014,16 @@
       "generateWarningNoProcesses": "Production BOM created, but no NPD processes were found to build a routing.",
       "generateWarningRoutingDraft": "Routing created as DRAFT — approve and activate it in Technical → Routings so work orders pick up the production steps.",
       "generatePacksPerBoxRequired": "Set packs-per-box on the FG before generating the production BOM.",
-      "revertToNpd": "Revenire la NPD"
+      "revertToNpd": "Revenire la NPD",
+      "revertingToNpd": "Se revine…",
+      "revertModalTitle": "Revenire la NPD",
+      "revertModalBody": "Deblochează acest proiect înapoi la etapa de predare. Orice specificație de fabrică lansată poate fi retrasă. Introduceți un motiv pentru pista de audit.",
+      "revertReasonLabel": "Motiv",
+      "revertReasonPlaceholder": "De ce este anulată această lansare?",
+      "revertCancel": "Anulează",
+      "revertConfirm": "Revenire la NPD",
+      "revertError": "Nu s-a putut reveni la NPD. Încercați din nou.",
+      "revertErrorForbidden": "Nu aveți permisiunea de a readuce acest proiect la NPD."
     },
     "pipelineCreate": {
       "title": "Creează proiect NPD",
@@ -9651,7 +9751,17 @@
           "subtitle": "Complete execution. The output yield gate must be green.",
           "override": "Override reason code",
           "overrideHint": "Required only to override an unmet yield gate.",
-          "overridePlaceholder": "Select an override reason…"
+          "overridePlaceholder": "Select an override reason…",
+          "gateStatusGreen": "Poartă de randament: verde — consum în limitele de toleranță.",
+          "gateStatusBlocked": "Poartă de randament: blocată — este necesară derogarea supervizorului.",
+          "gateBlocked": "Poarta de randament nu este îndeplinită — înregistrați o producție principală sau introduceți o derogare.",
+          "consumptionOutOfTolerance": "Consumul real este în afara benzii de toleranță configurate.",
+          "actualOutputKg": "Producție (kg)",
+          "postedConsumptionKg": "Consum înregistrat (kg)",
+          "expectedInputKg": "Intrare așteptată (kg)",
+          "effectiveYieldPct": "Randament efectiv %",
+          "overridePin": "PIN de semnătură electronică al supervizorului sau parola contului",
+          "overrideEsignReason": "Motivul semnăturii electronice (CFR-21 Partea 11)"
         },
         "close": {
           "title": "Close work order",
@@ -10814,6 +10924,17 @@
         "cancel": "Cancel",
         "submit": "Resolve deviation",
         "submitting": "Resolving…",
+        "policyErrors": {
+          "second_signature_required": "This deviation resolution requires a second electronic signature.",
+          "signer_role_not_allowed": "Your role is not allowed to sign this deviation-resolution slot."
+        },
+        "pendingSignoff": {
+          "title": "First signature recorded — the deviation remains open",
+          "signedBy": "Signed by",
+          "awaitingRole": "Awaiting",
+          "anyAuthorizedSigner": "another authorized signer",
+          "submitSecond": "Add second signature"
+        },
         "formIncomplete": "Complete the corrective action, disposition and password or PIN to continue.",
         "validation": {
           "actionRequired": "A corrective action is required.",
@@ -11467,6 +11588,34 @@
           "second_signature_required": "This critical NCR close requires a second e-signature under the configured sign-off policy.",
           "signer_role_not_allowed": "Your role is not allowed to sign this critical NCR close under the configured sign-off policy."
         }
+      },
+      "createModal": {
+        "lookup": {
+          "sourceRefType": "Referință sursă (opțional)",
+          "sourceRefTypeHelp": "Legați acest NCR de o inspecție eșuată sau de LP-ul afectat.",
+          "sourceRefTypeOptions": {
+            "inspection": "Inspecție",
+            "lp": "License plate (LP)"
+          },
+          "inspectionSearchLabel": "Inspecție",
+          "inspectionSearchPlaceholder": "Căutați nr. inspecție, LP sau articol…",
+          "inspectionSearching": "Se caută inspecții…",
+          "inspectionNoMatch": "Nicio inspecție nu corespunde cu „{query}”.",
+          "inspectionChip": "{number} · {reference}",
+          "lpSearchLabel": "License plate (LP)",
+          "lpSearchPlaceholder": "Căutați numărul LP sau codul articolului…",
+          "lpSearching": "Se caută LP…",
+          "lpNoMatch": "Niciun LP nu corespunde cu „{query}”.",
+          "lpChip": "{lpNumber} · {itemCode}",
+          "product": "Produs (opțional)",
+          "productHelp": "Se completează implicit din inspecția sau LP-ul selectat, când este disponibil.",
+          "productSearchPlaceholder": "Căutați codul sau numele articolului…",
+          "productSearching": "Se caută produse…",
+          "productNoMatch": "Niciun produs nu corespunde cu „{query}”.",
+          "productChip": "{itemCode} · {name}",
+          "clearPick": "Șterge",
+          "resultLine": "{primary} · {secondary}"
+        }
       }
     }
   },
@@ -11521,6 +11670,11 @@
           "title": "No sales orders yet",
           "body": "Create your first sales order to start shipping to customers.",
           "clear": "Clear filters"
+        },
+        "pagination": {
+          "showing": "Afișate {shown} din {total}",
+          "previous": "Anterior",
+          "next": "Următor"
         }
       },
       "create": {
@@ -11760,6 +11914,11 @@
         "empty": {
           "title": "No shipments yet",
           "body": "Create a shipment from an allocated sales order to start packing."
+        },
+        "pagination": {
+          "showing": "Afișate {shown} din {total}",
+          "previous": "Anterior",
+          "next": "Următor"
         }
       },
       "createShipment": {
@@ -13103,11 +13262,13 @@
         "signaturePassword": "E-sign PIN or account password",
         "errorEsign": "Signature failed — check your password or PIN and try again.",
         "calibratorPassword": "Calibrator password",
-        "reviewerUserId": "Reviewer",
-        "reviewerUserIdPlaceholder": "Select an independent reviewer",
         "reviewerPassword": "Reviewer password",
         "dualSignWarning": "Calibration requires two distinct signers — a calibrator and an independent active reviewer.",
-        "errorSod": "The reviewer must be a different active user from the calibrator."
+        "errorSod": "The reviewer must be a different active user from the calibrator.",
+        "reviewer": "Verificator independent",
+        "reviewerPlaceholder": "Selectați un verificator eligibil",
+        "reviewerSearchPlaceholder": "Căutați verificatorul după nume sau e-mail",
+        "reviewerUnavailable": "Nu este disponibil niciun verificator independent eligibil pentru calibrare."
       },
       "types": {
         "scale": "Scale",
@@ -13149,14 +13310,16 @@
           "type": "Tip",
           "loto": "LOTO",
           "calibration": "Calibrare",
-          "status": "Status"
+          "status": "Status",
+          "actions": "Acțiuni"
         },
         "lotoYes": "Necesar",
         "lotoNo": "—",
         "calYes": "Necesară",
         "calNo": "—",
         "statusActive": "Activ",
-        "statusInactive": "Inactiv"
+        "statusInactive": "Inactiv",
+        "editAsset": "Editează"
       },
       "form": {
         "createTitle": "Adaugă activ de mentenanță",
@@ -13173,7 +13336,15 @@
         "errorRequired": "Codul și numele sunt obligatorii.",
         "errorFailed": "Nu s-a putut salva activul. Încercați din nou.",
         "errorForbidden": "Nu aveți permisiunea de a edita activele de mentenanță.",
-        "errorConflict": "Există deja un activ cu acest cod."
+        "errorConflict": "Există deja un activ cu acest cod.",
+        "editTitle": "Editează activul de mentenanță",
+        "withdraw": "Retrage din funcțiune",
+        "withdrawing": "Se retrage…",
+        "withdrawReason": "Motivul retragerii",
+        "withdrawReasonPlaceholder": "De ce este retras acest activ?",
+        "reactivate": "Repune în funcțiune",
+        "reactivating": "Se repune în funcțiune…",
+        "errorWithdrawReason": "Este necesar un motiv de retragere de cel puțin 3 caractere."
       },
       "types": {
         "mixer": "Mixer",

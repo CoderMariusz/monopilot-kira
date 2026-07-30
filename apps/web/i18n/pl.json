@@ -776,7 +776,8 @@
       "invite_user": "+ Zaproś użytkownika",
       "export": "Eksportuj",
       "error_load": "Nie udało się załadować użytkowników. Spróbuj odświeżyć stronę użytkowników w ustawieniach.",
-      "permission_denied": "Brak uprawnień: wymagane settings.users.manage, aby zarządzać użytkownikami i rolami."
+      "permission_denied": "Brak uprawnień: wymagane settings.users.manage, aby zarządzać użytkownikami i rolami.",
+      "manage_invitations": "Zarządzaj zaproszeniami"
     },
     "invitations": {
       "heading": "Zaproszenia oczekujące",
@@ -2564,7 +2565,8 @@
           "nameRequired": "Nazwa jest wymagana (min. 1 znak).",
           "uomRequired": "Bazowa JM jest wymagana.",
           "netRequired": "Zawartość netto na sztukę jest wymagana (> 0) dla wyjścia Sztuka / Karton.",
-          "eachPerBoxRequired": "Liczba sztuk w kartonie jest wymagana (> 0) dla wyjścia Karton."
+          "eachPerBoxRequired": "Liczba sztuk w kartonie jest wymagana (> 0) dla wyjścia Karton.",
+          "codeInvalid": "Kod pozycji musi być alfanumeryczny, z separatorami . _ -"
         },
         "intermediateHint": "= WIP (produkcja w toku)",
         "uomLabels": {
@@ -2702,6 +2704,14 @@
         "errors": {
           "invalid_transition": "Ta zmiana statusu nie jest dozwolona z bieżącego statusu pozycji.",
           "activation_gate_failed": "Tej pozycji nie można jeszcze aktywować — jej jednostka bazowa nie należy do listy kanonicznej. Najpierw edytuj pozycję."
+        }
+      },
+      "edit": {
+        "title": "Edytuj pozycję",
+        "saveChanges": "Zapisz zmiany",
+        "saving": "Zapisywanie…",
+        "review": {
+          "ready": "Gotowe do zapisania zmian. Zostanie zapisany wpis audytowy."
         }
       }
     },
@@ -4728,6 +4738,11 @@
         "already_exists": "Zlecenie zmiany o tym kodzie już istnieje.",
         "invalid_state": "Zlecenie zmiany nie jest już w oczekiwanym stanie — odświeżono.",
         "persistence_failed": "Nie udało się wykonać akcji."
+      },
+      "pagination": {
+        "showing": "Wyświetlono {shown} z {total}",
+        "previous": "Poprzednia",
+        "next": "Następna"
       }
     },
     "items": {
@@ -9736,7 +9751,17 @@
           "subtitle": "Zakończ realizację. Bramka uzysku musi być zielona.",
           "override": "Kod powodu obejścia",
           "overrideHint": "Wymagane tylko do obejścia niespełnionej bramki uzysku.",
-          "overridePlaceholder": "Wybierz powód obejścia…"
+          "overridePlaceholder": "Wybierz powód obejścia…",
+          "gateStatusGreen": "Bramka uzysku: zielona — zużycie w granicach tolerancji.",
+          "gateStatusBlocked": "Bramka uzysku: zablokowana — wymagane obejście przez przełożonego.",
+          "gateBlocked": "Bramka uzysku niespełniona — zarejestruj wyrób główny albo podaj obejście.",
+          "consumptionOutOfTolerance": "Rzeczywiste zużycie jest poza skonfigurowanym pasmem tolerancji.",
+          "actualOutputKg": "Wyrób (kg)",
+          "postedConsumptionKg": "Zaksięgowane zużycie (kg)",
+          "expectedInputKg": "Oczekiwany wsad (kg)",
+          "effectiveYieldPct": "Uzysk efektywny %",
+          "overridePin": "PIN e-podpisu przełożonego lub hasło konta",
+          "overrideEsignReason": "Powód e-podpisu (CFR-21 część 11)"
         },
         "close": {
           "title": "Zamknij zlecenie",
@@ -10899,6 +10924,17 @@
         "cancel": "Anuluj",
         "submit": "Rozwiąż odchylenie",
         "submitting": "Rozwiązywanie…",
+        "policyErrors": {
+          "second_signature_required": "Rozstrzygnięcie odchylenia wymaga drugiego podpisu elektronicznego.",
+          "signer_role_not_allowed": "Twoja rola nie może podpisać tego slotu rozstrzygnięcia odchylenia."
+        },
+        "pendingSignoff": {
+          "title": "Pierwszy podpis zapisany — odchylenie pozostaje otwarte",
+          "signedBy": "Podpisał(a)",
+          "awaitingRole": "Oczekuje na",
+          "anyAuthorizedSigner": "innego uprawnionego podpisującego",
+          "submitSecond": "Dodaj drugi podpis"
+        },
         "formIncomplete": "Uzupełnij działanie korygujące, decyzję oraz hasło lub PIN, aby kontynuować.",
         "validation": {
           "actionRequired": "Działanie korygujące jest wymagane.",
@@ -11634,6 +11670,11 @@
           "title": "Brak zamówień sprzedaży",
           "body": "Utwórz pierwsze zamówienie sprzedaży, aby rozpocząć wysyłkę do klientów.",
           "clear": "Wyczyść filtry"
+        },
+        "pagination": {
+          "showing": "Wyświetlono {shown} z {total}",
+          "previous": "Poprzednia",
+          "next": "Następna"
         }
       },
       "create": {
@@ -11873,6 +11914,11 @@
         "empty": {
           "title": "Brak wysyłek",
           "body": "Utwórz wysyłkę z zaalokowanego zamówienia sprzedaży, aby rozpocząć pakowanie."
+        },
+        "pagination": {
+          "showing": "Wyświetlono {shown} z {total}",
+          "previous": "Poprzednia",
+          "next": "Następna"
         }
       },
       "createShipment": {
@@ -13264,14 +13310,16 @@
           "type": "Typ",
           "loto": "LOTO",
           "calibration": "Kalibracja",
-          "status": "Status"
+          "status": "Status",
+          "actions": "Akcje"
         },
         "lotoYes": "Wymagane",
         "lotoNo": "—",
         "calYes": "Wymagana",
         "calNo": "—",
         "statusActive": "Aktywne",
-        "statusInactive": "Nieaktywne"
+        "statusInactive": "Nieaktywne",
+        "editAsset": "Edytuj"
       },
       "form": {
         "createTitle": "Dodaj aktywo utrzymania ruchu",
@@ -13288,7 +13336,15 @@
         "errorRequired": "Kod i nazwa są wymagane.",
         "errorFailed": "Nie udało się zapisać aktywa. Spróbuj ponownie.",
         "errorForbidden": "Brak uprawnień do edycji aktywów (mnt.asset.edit).",
-        "errorConflict": "Aktywo o tym kodzie już istnieje."
+        "errorConflict": "Aktywo o tym kodzie już istnieje.",
+        "editTitle": "Edytuj aktywo utrzymania ruchu",
+        "withdraw": "Wycofaj z eksploatacji",
+        "withdrawing": "Wycofywanie…",
+        "withdrawReason": "Powód wycofania",
+        "withdrawReasonPlaceholder": "Dlaczego to aktywo jest wycofywane?",
+        "reactivate": "Przywróć do eksploatacji",
+        "reactivating": "Przywracanie…",
+        "errorWithdrawReason": "Wymagany jest powód wycofania o długości co najmniej 3 znaków."
       },
       "types": {
         "mixer": "Mieszalnik",

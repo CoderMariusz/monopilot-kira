@@ -33,6 +33,33 @@ async function loadSettingsNamespace(locale: string): Promise<MessageTree> {
   }
 }
 
+/** Base catalog + the split-out settings namespace, in the precedence the app ships. */
+function localeTree(base: MessageTree, settings: MessageTree): MessageTree {
+  return mergeMessages(base, {
+    settings: mergeMessages(settings, isMessageTree(base.settings) ? base.settings : {}),
+  });
+}
+
+async function loadLocaleTree(locale: string): Promise<MessageTree> {
+  const base = (await import(`./${locale}.json`)).default as MessageTree;
+  return localeTree(base, await loadSettingsNamespace(locale));
+}
+
+/**
+ * next-intl returns the dotted KEY PATH for a missing message, never undefined —
+ * so `t('x') ?? 'fallback'` at a call site can never fire. This is the only place
+ * a real backstop can live: layering EN under the locale means a catalog hole
+ * degrades to English instead of putting `production.wos.actions.complete.overridePin`
+ * in front of an operator. Trees merge as a UNION of keys, so the payload handed to
+ * the client grows only by the holes themselves.
+ * The hole itself is caught by i18n/__tests__/wave-4-locale-parity.test.ts.
+ */
+export async function buildMessages(locale: string): Promise<MessageTree> {
+  const messages = await loadLocaleTree(locale);
+  if (locale === 'en') return messages;
+  return mergeMessages(await loadLocaleTree('en'), messages);
+}
+
 export default getRequestConfig(async ({ requestLocale }) => {
   // Validate that the incoming locale is supported; fall back to defaultLocale.
   let locale = await requestLocale;
@@ -40,13 +67,5 @@ export default getRequestConfig(async ({ requestLocale }) => {
     locale = routing.defaultLocale;
   }
 
-  const baseMessages = (await import(`./${locale}.json`)).default as MessageTree;
-  const settingsMessages = await loadSettingsNamespace(locale);
-
-  return {
-    locale,
-    messages: mergeMessages(baseMessages, {
-      settings: mergeMessages(settingsMessages, isMessageTree(baseMessages.settings) ? baseMessages.settings : {}),
-    }),
-  };
+  return { locale, messages: await buildMessages(locale) };
 });

@@ -156,7 +156,7 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
     },
     view: t('list.view'),
     pagination: {
-      showing: t('list.pagination.showing'),
+      showing: t.raw('list.pagination.showing'),
       previous: t('list.pagination.previous'),
       next: t('list.pagination.next'),
     },

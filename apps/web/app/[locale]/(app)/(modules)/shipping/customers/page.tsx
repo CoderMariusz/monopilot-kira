@@ -84,7 +84,7 @@ async function ListContent({ locale, autoOpenCreate }: { locale: string; autoOpe
       locale={locale}
       customers={result.data as Customer[]}
       autoOpenCreate={autoOpenCreate}
-      labels={buildCustomerListLabels((key) => t(key))}
+      labels={buildCustomerListLabels(t)}
       createCustomerAction={createCustomer as CreateCustomerSeam}
     />
   );

@@ -88,7 +88,7 @@ async function BoardContent({ locale, unscheduledPage }: { locale: string; unsch
     unscheduledEmpty: t('schedule.unscheduled.empty'),
     scheduleCta: t('schedule.unscheduled.cta'),
     unscheduledPagination: {
-      showing: t('schedule.unscheduled.pagination.showing'),
+      showing: t.raw('schedule.unscheduled.pagination.showing'),
       previous: t('schedule.unscheduled.pagination.previous'),
       next: t('schedule.unscheduled.pagination.next'),
     },

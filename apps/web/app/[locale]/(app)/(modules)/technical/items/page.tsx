@@ -175,7 +175,7 @@ export default async function TechnicalItemsPage({
     // {shown}/{total} are interpolated client-side — t.raw avoids next-intl FORMATTING_ERROR.
     footer: t.raw('list.footer') as string,
     pagination: {
-      showing: t('list.pagination.showing'),
+      showing: t.raw('list.pagination.showing'),
       previous: t('list.pagination.previous'),
       next: t('list.pagination.next'),
     },

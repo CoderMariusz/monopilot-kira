@@ -62,7 +62,7 @@ async function buildLabels(): Promise<FinanceWoCostLabels> {
       waste: t('breakdown.waste'),
     },
     pagination: {
-      showing: t('pagination.showing'),
+      showing: t.raw('pagination.showing'),
       previous: t('pagination.previous'),
       next: t('pagination.next'),
     },

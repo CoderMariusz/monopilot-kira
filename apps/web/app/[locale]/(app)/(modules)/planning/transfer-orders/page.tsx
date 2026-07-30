@@ -143,7 +143,7 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
     archivedHint: archiveLabel(t, locale, 'list.archivedHint'),
     backToActive: archiveLabel(t, locale, 'list.backToActive'),
     pagination: {
-      showing: t('list.pagination.showing'),
+      showing: t.raw('list.pagination.showing'),
       previous: t('list.pagination.previous'),
       next: t('list.pagination.next'),
     },
