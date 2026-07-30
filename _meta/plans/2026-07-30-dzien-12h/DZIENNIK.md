@@ -159,3 +159,36 @@ normalizacji** → błąd **1000×**. Naprawia tor F6.
 **Nauczka do wzorców:** „potwierdzone uruchomieniem" znaczy tyle, ile warte jest środowisko,
 w którym uruchomiono. Fable uruchomił poprawnie (używał `set_org_context`) — to **test repo**
 był zepsuty. Dwa różne artefakty, jeden objaw.
+
+---
+
+# 🔴 E2E ŚCIEŻKA NPD→FINANSE (10:15) — 5 BLOKERÓW PRODUKTU
+
+Raport: `E2E-SCIEZKA-NPD-FINANSE.md`. **8 z 12 przejść przeszedłem, 6/6 kroków głównego specu
+zielonych z dowodem w bazie.** Naprawionych 9 przestarzałych specyfikacji.
+
+| # | bloker | dowód |
+|---|---|---|
+| **P0-1** | **panel pickera wychodzi poza okno** — `item-picker.tsx:135`, `position:fixed` przycina oś POZIOMĄ, pionowej NIE, brak odbicia w górę | **1280×720**: klik timeoutuje, `formulation_ingredients` = **0 przez 11 przebiegów**. **1280×1600**: ten sam klik ~50 ms, wiersz **zapisany**. Wzorzec powtórzony **7×**, w tym `packages/ui/src/Select.tsx:427` — **pod KAŻDYM dropdownem aplikacji** |
+| **P0-2** | linia SO z ceną 0 nie da się zapisać, a komunikat wskazuje **nie te pola** | `so-line-numeric.ts:12-21` odrzuca `0.0000`; świeży FG ma `list_price_gbp = NULL`, a modal mówi o ilości |
+| **P0-3** | **„Confirm" nie wyprowadza SO z `draft`** — status zostaje, przycisk aktywny, **zero błędu** | odcina 4 ostatnie etapy (kompletacja→wysyłka→POD→finanse) |
+| **P0-4** | **receptura NPD nigdy nie staje się BOM-em** | `bom_headers` = **0 dla wszystkich 17 projektów**; WO powstaje pusty, aplikacja sama mówi „no active BOM" |
+| **P0-5** | **bramka „NPD → tylko przez Handoff" jest MARTWA** | `factory-spec-flow.ts:285-330` pyta o `items.npd_project_id`, a kreator mintuje FG przez widok `public.product`, którego trigger tej kolumny **nie ustawia** → wszystkie FG mają NULL, warunek **zawsze fałszywy** |
+
+**P0-4 + P0-5 razem:** legalnie przejść się nie da, nielegalnie — bez przeszkód.
+
+## 🔑 Najważniejsza obserwacja metodyczna całej kampanii
+**P0-1 leżał pod ZIELONYM testem**, który logował „no items available — degrading" i przechodził.
+Dowodem nie było wyrenderowanie ekranu, tylko **`formulation_ingredients = 0` po jedenastu
+przebiegach**. To jest, w jednym przykładzie, cała różnica między „ekran się pokazał"
+a „akcja zmieniła stan trwały".
+
+## Znaleziska poboczne
+`Select` po cichu gubi `data-testid` w 10 miejscach (`SelectProps` go nie deklaruje, atrybuty
+z myślnikiem omijają kontrolę typów w JSX) · ~21 błędów i18n `FORMATTING_ERROR` na etapie Recipe ·
+zdublowane kody w `unit_of_measure` (22 wiersze = 11 jednostek × 2).
+
+## Kolejka napraw
+- **P0-1** → 🔵 tor Opus (UI, wspólny prymityw, przeglądarka + `monopilot`)
+- **P0-4 + P0-5** (most receptura→BOM + martwa bramka) → czeka na wolny klon
+- **P0-2 + P0-3** (cena 0, Confirm nie opuszcza draft) → czeka na wolny klon

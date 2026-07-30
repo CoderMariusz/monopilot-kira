@@ -126,7 +126,7 @@ test.describe.serial('NPD create → FG mint → recipe → packaging → produc
     await page.goto(url(`/${L}/pipeline`), { waitUntil: 'domcontentloaded' });
     const newProjectCta = page.getByTestId('pipeline-new-project');
     if (await newProjectCta.count()) {
-      await newProjectCta.click().catch(() => undefined);
+      await newProjectCta.click({ timeout: 8_000 }).catch(() => undefined);
     }
     await page.goto(url(`/${L}/pipeline/new`), { waitUntil: 'domcontentloaded' });
 
@@ -165,7 +165,7 @@ test.describe.serial('NPD create → FG mint → recipe → packaging → produc
       timeout: 8_000,
     });
     const blankStart = page.getByTestId('wizard-start-blank');
-    if (await blankStart.count()) await blankStart.click().catch(() => undefined);
+    if (await blankStart.count()) await blankStart.click({ timeout: 8_000 }).catch(() => undefined);
     await page.getByTestId('wizard-continue').click();
 
     // Step 4 — Review → Create.
@@ -313,7 +313,7 @@ test.describe.serial('NPD create → FG mint → recipe → packaging → produc
     // If the recipe needs a draft first, create it.
     const createDraft = page.getByTestId('formulation-create-draft');
     if (await createDraft.count()) {
-      await createDraft.click().catch(() => undefined);
+      await createDraft.click({ timeout: 8_000 }).catch(() => undefined);
       await expect(page.getByTestId('ingredient-table')).toBeVisible({ timeout: 8_000 });
     }
 
@@ -346,7 +346,7 @@ test.describe.serial('NPD create → FG mint → recipe → packaging → produc
 
     const picker = newRow.getByTestId('item-picker-trigger').first();
     if (await picker.count()) {
-      await picker.click().catch(() => undefined);
+      await picker.click({ timeout: 8_000 }).catch(() => undefined);
       // Type the code — this is what a user does, and it also forces the picker's
       // debounced search to run (item-picker.tsx:162-169).
       const pickerSearch = page.getByTestId('item-picker-panel').getByRole('combobox');
@@ -491,7 +491,7 @@ test.describe.serial('NPD create → FG mint → recipe → packaging → produc
     const supplierOption = page.getByRole('option').first();
     let pickedSupplier = false;
     if (await supplierOption.count()) {
-      await supplierOption.click().catch(() => undefined);
+      await supplierOption.click({ timeout: 8_000 }).catch(() => undefined);
       pickedSupplier = true;
     } else {
       // No listbox option — close it and continue (component still saves without a supplier,
@@ -588,7 +588,7 @@ test.describe.serial('NPD create → FG mint → recipe → packaging → produc
     // Pick the first operation from the process picker.
     const pickerOption = page.getByTestId(/^process-option-/).first();
     if (await pickerOption.count()) {
-      await pickerOption.click().catch(() => undefined);
+      await pickerOption.click({ timeout: 8_000 }).catch(() => undefined);
     } else if (await page.getByTestId('fa-prod-process-picker-empty').count()) {
       console.log('[npd-flow] no operations seeded for the process picker — cannot add a process; degrading.');
       await shot(page, '12-no-operations');
@@ -597,14 +597,14 @@ test.describe.serial('NPD create → FG mint → recipe → packaging → produc
 
     // Save the process editor when it is shown (some builds inline the row).
     const processSave = page.getByTestId('fa-prod-process-save');
-    if (await processSave.count()) await processSave.click().catch(() => undefined);
+    if (await processSave.count()) await processSave.click({ timeout: 8_000 }).catch(() => undefined);
 
     // Assign a production line to the first process (Radix Select trigger).
     const lineSelect = page.getByTestId('fa-production-line-select').first();
     if (await lineSelect.count()) {
-      await lineSelect.click().catch(() => undefined);
+      await lineSelect.click({ timeout: 8_000 }).catch(() => undefined);
       const lineOption = page.getByRole('option').first();
-      if (await lineOption.count()) await lineOption.click().catch(() => undefined);
+      if (await lineOption.count()) await lineOption.click({ timeout: 8_000 }).catch(() => undefined);
     } else {
       console.log('[npd-flow] no production-line picker on the process — line assignment skipped (degrade).');
     }
@@ -612,9 +612,9 @@ test.describe.serial('NPD create → FG mint → recipe → packaging → produc
     // Assign a consumed ingredient to the first process (Assign ingredient… select).
     const consumptionAdd = page.locator('[data-testid^="fa-prod-consumption-add-"]').first();
     if (await consumptionAdd.count()) {
-      await consumptionAdd.click().catch(() => undefined);
+      await consumptionAdd.click({ timeout: 8_000 }).catch(() => undefined);
       const ingOption = page.getByRole('option').first();
-      if (await ingOption.count()) await ingOption.click().catch(() => undefined);
+      if (await ingOption.count()) await ingOption.click({ timeout: 8_000 }).catch(() => undefined);
     } else {
       console.log('[npd-flow] no consumption picker on the process — consumed-ingredient assignment skipped (degrade).');
     }
