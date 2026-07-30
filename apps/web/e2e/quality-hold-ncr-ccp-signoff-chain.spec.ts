@@ -159,12 +159,29 @@ test.describe('Jakość: blokada / NCR / odchylenie CCP — podpisy i trwały st
     console.log(`[T1] utworzony NCR ${created.ncr_number} (${created.id}) detected_by=${created.detected_by}`);
 
     // ── Krok 3: szczegóły — nota regulacyjna o podwójnym podpisie ──────────
+    //   Nota jest STEROWANA POLITYKĄ (`signoff_policies.required_signatures`),
+    //   więc czytamy politykę z bazy i asercja idzie w tę stronę, w którą
+    //   polityka faktycznie wskazuje. Bez tego spec pada na konfiguracji,
+    //   nie na defekcie.
+    const closePolicy = (
+      await sql<{ required_signatures: number }>(
+        `select required_signatures
+           from public.signoff_policies
+          where org_id = $1::uuid and signoff_type = 'qa.ncr.close'`,
+        [ORG_ID],
+      )
+    )[0]!;
+    console.log(`[T1] polityka qa.ncr.close: required_signatures=${closePolicy.required_signatures}`);
     await page.goto(url(`/${L}/quality/ncrs/${created.id}`), { waitUntil: 'domcontentloaded' });
     await expect(page.getByTestId('ncr-detail-status')).toBeVisible({ timeout: COMPILE });
     const detailNote = page.getByTestId('ncr-detail-dualsign-note');
-    await expect(detailNote).toBeVisible();
-    const detailNoteText = (await detailNote.innerText()).trim();
-    expect(detailNoteText).toMatch(/dual sign/i);
+    if (closePolicy.required_signatures === 2) {
+      await expect(detailNote).toBeVisible();
+      const detailNoteText = (await detailNote.innerText()).trim();
+      expect(detailNoteText).toMatch(/dual sign/i);
+    } else {
+      await expect(detailNote).toHaveCount(0);
+    }
     await shot(page, 'T1-02-detail-dualsign-note');
 
     // ── Krok 3a: „Zamknij" pojawia się dopiero w statusie `investigating`.
@@ -191,6 +208,20 @@ test.describe('Jakość: blokada / NCR / odchylenie CCP — podpisy i trwały st
     await expect(page.getByTestId('ncr-detail-close-open')).toHaveCount(0);
     await shot(page, 'T1-02b-close-blocked-without-root-cause');
 
+    // ── Krok 3a′: NIUANS — liczy się wartość ZAPISANA, nie wpisana w polu.
+    //   Wpisujemy przyczynę i NIE zapisujemy: przycisk dalej ma nie istnieć,
+    //   a baza dalej ma trzymać pustą przyczynę.
+    await page.getByTestId('ncr-investigation-rootcause').fill('Wpisane w pole, ale NIEZAPISANE.');
+    await expect(page.getByTestId('ncr-detail-close-open')).toHaveCount(0);
+    const typedNotSaved = (
+      await sql<{ root_cause: string | null }>(
+        `select root_cause from public.ncr_reports where org_id = $1::uuid and id = $2::uuid`,
+        [ORG_ID, created.id],
+      )
+    )[0]!;
+    console.log(`[T1] przyczyna WPISANA bez zapisu — w bazie: ${JSON.stringify(typedNotSaved)}`);
+    expect((typedNotSaved.root_cause ?? '').trim()).toBe('');
+
     // ── Krok 3b: zapisujemy przyczynę źródłową — dopiero teraz wolno zamykać.
     await page.getByTestId('ncr-investigation-rootcause').fill('Szczelina sita przepuscila fragment.');
     await page.getByTestId('ncr-investigation-save').click();
@@ -210,9 +241,13 @@ test.describe('Jakość: blokada / NCR / odchylenie CCP — podpisy i trwały st
     await page.getByTestId('ncr-detail-close-open').click();
     await expect(page.getByTestId('ncr-close-form')).toBeVisible({ timeout: 30_000 });
     const closeWarning = page.getByTestId('ncr-close-dualsign-warning');
-    await expect(closeWarning).toBeVisible();
-    const closeWarningText = (await closeWarning.innerText()).trim();
-    expect(closeWarningText).toMatch(/dual signature required/i);
+    if (closePolicy.required_signatures === 2) {
+      await expect(closeWarning).toBeVisible();
+      const closeWarningText = (await closeWarning.innerText()).trim();
+      expect(closeWarningText).toMatch(/dual signature required/i);
+    } else {
+      await expect(closeWarning).toHaveCount(0);
+    }
     // Interfejs nie oferuje ŻADNEGO pola drugiego podpisującego — tylko jedno hasło.
     const passwordInputs = page.getByTestId('ncr-close-form').locator('input[type="password"]');
     expect(await passwordInputs.count()).toBe(1);
@@ -864,13 +899,23 @@ test.describe('Jakość: blokada / NCR / odchylenie CCP — podpisy i trwały st
     // w mechanice ilościowej. Kontrolka została USUNIĘTA — lista oferuje wyłącznie
     // dyspozycje, które faktycznie działają. Serwer nadal odrzuca spreparowane
     // żądanie (hold-actions.ts — guard w releaseHoldCore).
-    await page.getByTestId('hold-release-disposition').getByRole('combobox').click();
+    const dispositionTrigger = page.getByTestId('hold-release-disposition').getByRole('combobox');
+    await dispositionTrigger.click();
+    await expect(page.getByRole('option').first()).toBeVisible({ timeout: 30_000 });
     const dispositionOptions = await page.getByRole('option').allInnerTexts();
     console.log(`[T5] dyspozycje w liście: ${JSON.stringify(dispositionOptions)}`);
     expect(dispositionOptions.map((o) => o.trim())).toEqual(['Release as-is', 'Scrap', 'Rework']);
     expect(await page.getByRole('option', { name: /partial/i }).count()).toBe(0);
-    await page.keyboard.press('Escape');
     await shot(page, 'T5-01-release-dispositions');
+    // Listę zamykamy PONOWNYM kliknięciem w trigger, NIE klawiszem Escape:
+    // Radix Dialog słucha Escape na `document` w fazie PRZECHWYTYWANIA
+    // (@radix-ui/react-use-escape-keydown — `capture: true`), a handler Selecta
+    // siedzi na przycisku i robi tylko `preventDefault()`. Escape zamknąłby
+    // więc CAŁY modal, a kolejne kliknięcie trafiłoby w nieistniejący element.
+    await dispositionTrigger.click();
+    await expect(page.getByRole('option')).toHaveCount(0);
+    // Modal MUSI dalej stać — to jest jawne sprawdzenie powyższego ryzyka.
+    await expect(releaseForm).toBeVisible();
 
     const stillOpen = (
       await sql<{ hold_status: string; disposition: string | null; released_by: string | null }>(
@@ -926,5 +971,150 @@ test.describe('Jakość: blokada / NCR / odchylenie CCP — podpisy i trwały st
 
     await shot(page, 'T5-02-after-partial-release');
     console.log(`[T5] BŁĘDY STRONY: ${errors.length === 0 ? 'brak' : JSON.stringify(errors)}`);
+  });
+
+  /**
+   * T6 — bramka V-QA-NCR-005 od strony SERWERA.
+   *
+   * Interfejs CHOWA „Zamknij" bez zapisanej przyczyny (T1), więc jedyną drogą
+   * do serwerowej odmowy jest skasowanie przyczyny PO otwarciu modala — czyli
+   * dokładnie to, co robi wyścig albo spreparowane żądanie. Sprawdzamy dwie
+   * rzeczy, których T1 z definicji nie dosięga:
+   *   • odmowa NIE zostawia podpisu w `e_sign_log` (guard stoi PRZED
+   *     `collectQualitySignoff`, ncr-actions.ts — „root_cause_required");
+   *   • użytkownik dostaje ZDANIE, nie surowy kod `root_cause_required`.
+   * Na koniec kontrola POZYTYWNA: po przywróceniu przyczyny to samo kliknięcie
+   * przechodzi i podpis powstaje — więc odmowa była bramką, nie awarią.
+   */
+  test('T6 — odmowa zamknięcia bez przyczyny: czytelny komunikat i ZERO podpisów', async ({ page }) => {
+    test.setTimeout(300_000);
+    const errors: string[] = [];
+    collectPageErrors(page, errors);
+    acceptDialogs(page);
+    await signIn(page, baseURL!, L, 'harness');
+
+    const ncrTitle = `E2E bramka przyczyny ${stamp}`;
+    await page.goto(url(`/${L}/quality/ncrs`), { waitUntil: 'domcontentloaded' });
+    await expect(page.getByTestId('ncr-create-open')).toBeVisible({ timeout: COMPILE });
+    await page.getByTestId('ncr-create-open').click();
+    await expect(page.getByTestId('ncr-create-form')).toBeVisible({ timeout: 30_000 });
+    await page.getByTestId('ncr-create-severity-critical').click();
+    await page.getByTestId('ncr-create-title').fill(ncrTitle);
+    await page
+      .getByTestId('ncr-create-description')
+      .fill('Sprawdzenie serwerowej bramki przyczyny zrodlowej przy zamykaniu NCR.');
+    await page.getByTestId('ncr-create-submit').click();
+
+    await expect
+      .poll(
+        async () =>
+          (await sql<{ n: string }>(
+            `select count(*)::text as n from public.ncr_reports where org_id = $1::uuid and title = $2`,
+            [ORG_ID, ncrTitle],
+          ))[0]?.n,
+        { timeout: 60_000, message: 'NCR (T6) nie pojawił się w bazie' },
+      )
+      .toBe('1');
+    const ncrId = (
+      await sql<{ id: string }>(
+        `select id::text from public.ncr_reports where org_id = $1::uuid and title = $2`,
+        [ORG_ID, ncrTitle],
+      )
+    )[0]!.id;
+
+    // ── Przyczyna ZAPISANA ⇒ „Zamknij" jest dostępne i modal się otwiera ────
+    await page.goto(url(`/${L}/quality/ncrs/${ncrId}`), { waitUntil: 'domcontentloaded' });
+    await expect(page.getByTestId('ncr-detail-status')).toBeVisible({ timeout: COMPILE });
+    await page.getByTestId('ncr-investigation-rootcause').fill('Przyczyna zapisana, zaraz zniknie z bazy.');
+    await page.getByTestId('ncr-investigation-save').click();
+    await expect(page.getByTestId('ncr-investigation-saved')).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId('ncr-detail-close-open')).toBeVisible({ timeout: 30_000 });
+    await page.getByTestId('ncr-detail-close-open').click();
+    await expect(page.getByTestId('ncr-close-form')).toBeVisible({ timeout: 30_000 });
+    await page.getByTestId('ncr-close-resolution').fill('Proba zamkniecia bez przyczyny zrodlowej.');
+    await page.getByTestId('ncr-close-password').fill('e2e-local');
+
+    // ── Przyczyna ZNIKA z bazy (modal już otwarty) ─────────────────────────
+    await sql(
+      `update public.ncr_reports set root_cause = '' where org_id = $1::uuid and id = $2::uuid`,
+      [ORG_ID, ncrId],
+    );
+    const beforeAttempt = (
+      await sql<{ root_cause: string | null; status: string }>(
+        `select root_cause, status from public.ncr_reports where org_id = $1::uuid and id = $2::uuid`,
+        [ORG_ID, ncrId],
+      )
+    )[0]!;
+    console.log(`[T6] stan PRZED próbą zamknięcia: ${JSON.stringify(beforeAttempt)}`);
+    expect((beforeAttempt.root_cause ?? '').trim()).toBe('');
+
+    // Znacznik czasu z BAZY — okno liczenia podpisów startuje TU, nie w Node,
+    // inaczej złapie podpisy z wcześniejszych kroków tej samej suity.
+    const beforeClick = (await sql<{ ts: string }>('select now()::text as ts'))[0]!.ts;
+    await page.getByTestId('ncr-close-submit').click();
+
+    const closeError = page.getByTestId('ncr-close-error');
+    await expect(closeError).toBeVisible({ timeout: 30_000 });
+    const errorText = (await closeError.innerText()).trim();
+    console.log(`[T6] komunikat w modalu: ${errorText}`);
+    await shot(page, 'T6-01-close-refused-readable-message');
+
+    const refused = (
+      await sql<{ status: string; closed_by: string | null; closure_signature_hash: string | null }>(
+        `select status, closed_by::text, closure_signature_hash
+           from public.ncr_reports where org_id = $1::uuid and id = $2::uuid`,
+        [ORG_ID, ncrId],
+      )
+    )[0]!;
+    const signaturesAfterRefusal = await sql<{ signature_id: string; signer_user_id: string; created_at: string }>(
+      `select signature_id::text, signer_user_id::text, created_at::text
+         from public.e_sign_log
+        where org_id = $1::uuid and intent = 'qa.ncr.close' and created_at > $2::timestamptz`,
+      [ORG_ID, beforeClick],
+    );
+    console.log(`[T6] NCR po odmowie: ${JSON.stringify(refused)}`);
+    console.log(`[T6] podpisy qa.ncr.close od ${beforeClick}: ${JSON.stringify(signaturesAfterRefusal)}`);
+
+    // Przywracamy przyczynę ZANIM zaczną się asercje — inaczej czerwień
+    // zostawiłaby w bazie NCR bez przyczyny.
+    await sql(
+      `update public.ncr_reports set root_cause = $3 where org_id = $1::uuid and id = $2::uuid`,
+      [ORG_ID, ncrId, 'Przyczyna przywrocona po tescie bramki.'],
+    );
+
+    // DOWÓD 1 — komunikat jest ZDANIEM, nie kodem maszynowym.
+    expect(errorText).not.toContain('root_cause_required');
+    expect(errorText).toMatch(/root cause/i);
+    // DOWÓD 2 — odmowa nie ruszyła stanu.
+    expect(refused.status).toBe('investigating');
+    expect(refused.closed_by).toBeNull();
+    expect(refused.closure_signature_hash).toBeNull();
+    // DOWÓD 3 — odmowa NIE zostawiła podpisu.
+    expect(signaturesAfterRefusal).toHaveLength(0);
+
+    // ── KONTROLA POZYTYWNA: przyczyna wróciła ⇒ to samo kliknięcie przechodzi.
+    const beforeSecondClick = (await sql<{ ts: string }>('select now()::text as ts'))[0]!.ts;
+    await page.getByTestId('ncr-close-submit').click();
+    await expect
+      .poll(
+        async () =>
+          (await sql<{ status: string }>(
+            `select status from public.ncr_reports where org_id = $1::uuid and id = $2::uuid`,
+            [ORG_ID, ncrId],
+          ))[0]?.status,
+        { timeout: 60_000, message: 'NCR (T6) nie zamknął się mimo przywróconej przyczyny' },
+      )
+      .toBe('closed');
+    const signaturesAfterSuccess = await sql<{ signer_user_id: string }>(
+      `select signer_user_id::text
+         from public.e_sign_log
+        where org_id = $1::uuid and intent = 'qa.ncr.close' and created_at > $2::timestamptz`,
+      [ORG_ID, beforeSecondClick],
+    );
+    console.log(`[T6] podpisy po UDANYM zamknięciu: ${JSON.stringify(signaturesAfterSuccess)}`);
+    expect(signaturesAfterSuccess).toHaveLength(1);
+    await shot(page, 'T6-02-closed-after-root-cause-restored');
+
+    console.log(`[T6] BŁĘDY STRONY: ${errors.length === 0 ? 'brak' : JSON.stringify(errors)}`);
   });
 });
