@@ -17,6 +17,8 @@ i zjada okno. 30.07 owner został bez raportu przez 68 min, bo raport wisiał na
 | `pgrep -f 'codex exec'` | „6 torów żyje" gdy żaden nie żył | dopasowuje **własną powłokę**, w której linii poleceń jest ten napis | `ps -Ao pid,comm > plik` → `grep` na pliku |
 | `ls <katalog>` | pusty katalog, choć miał 16 plików | hook rtk zjada wynik | `find <katalog> -name '...'` |
 | `wc -l < plik` | `0` dla pliku z 50 liniami | j.w. | `stat -f%z` |
+| `grep` bez `-a` | „nikt nie zapisuje do `changeover_events`" — a zapis jest w linii 481 | plik uznany za **BINARNY**, pominięty z komunikatem „Binary file matches" zamiast treści | `grep -a`; a przy wniosku „nikt tego nie woła" **zawsze druga metoda** |
+| `rtk grep` z `> plik` | nadpisał baseline swoim podsumowaniem („14 matches in 14 files") zamiast treścią | wrapper wypisuje raport, nie wynik | do zapisu przez potok **nie używać wrappera** |
 
 **Wzorzec:** narzędzie do liczenia/listowania zwraca „0/pusto" → to najpierw podejrzenie o filtr,
 a dopiero potem fakt. Zerowy wynik potwierdź DRUGĄ, inną metodą, zanim wyciągniesz wniosek.
