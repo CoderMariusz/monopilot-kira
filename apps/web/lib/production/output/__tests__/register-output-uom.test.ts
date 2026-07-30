@@ -369,7 +369,12 @@ describe('registerOutput UOM quantity resolution', () => {
     });
 
     expect(insertedBatchNumber).toBe('WO-001-OUT-002');
-    expect(sequenceCountParams).toEqual([WO_ID, 'primary']);
+    // The sequence is WO-wide, NOT per output_type: the generated batch number carries
+    // no type marker and wo_outputs_org_batch_year_uq is (org_id, batch_number,
+    // registered_year). A per-type count restarted at 001 for the first by_product of a
+    // WO and collided with the primary's -OUT-001 (bogus 409 already_recorded).
+    expect(sequenceCountParams).toEqual([WO_ID]);
+    expect(normalize(sequenceCountSql!)).not.toContain('output_type');
     expect(normalize(sequenceCountSql!)).toContain('and correction_of_id is null');
   });
 

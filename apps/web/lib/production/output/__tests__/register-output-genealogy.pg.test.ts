@@ -108,13 +108,17 @@ async function makeWo(opts: { parentNetKg: string; mixedUom?: boolean }): Promis
      values ($1, $2, $3, 'byproduct', 10, 'kg', 100)`,
     [seed.orgId, woId, seed.byProductId],
   );
+  // ext_jsonb.wac_value mirrors what recordDesktopConsumption persists after debitWac.
+  // registerOutput's wac_un_costed gate (register-output.ts:792-800) runs BEFORE
+  // genealogy reconciliation, so a raw consumption row with no wac_value masks every
+  // genealogy assertion in this file behind a money error.
   if (opts.mixedUom) {
     await owner.query(
       `insert into public.wo_material_consumption
-         (org_id, transaction_id, wo_id, component_id, lp_id, qty_consumed, uom, fefo_adherence_flag, consumed_at)
+         (org_id, transaction_id, wo_id, component_id, lp_id, qty_consumed, uom, fefo_adherence_flag, consumed_at, ext_jsonb)
        values
-         ($1, $2, $3, $4, $5, 30, 'kg', true, now()),
-         ($1, $6, $3, $4, $5, 20, 'lb', true, now())`,
+         ($1, $2, $3, $4, $5, 30, 'kg', true, now(), '{"wac_qty_kg":"30","wac_value":"120"}'::jsonb),
+         ($1, $6, $3, $4, $5, 20, 'lb', true, now(), '{"wac_qty_kg":"20","wac_value":"80"}'::jsonb)`,
       [
         seed.orgId, randomUUID(), woId, seed.rmProductId, seed.parentLpId,
         randomUUID(),
@@ -123,8 +127,9 @@ async function makeWo(opts: { parentNetKg: string; mixedUom?: boolean }): Promis
   } else {
     await owner.query(
       `insert into public.wo_material_consumption
-         (org_id, transaction_id, wo_id, component_id, lp_id, qty_consumed, uom, fefo_adherence_flag, consumed_at)
-       values ($1, $2, $3, $4, $5, $6::numeric, 'kg', true, now())`,
+         (org_id, transaction_id, wo_id, component_id, lp_id, qty_consumed, uom, fefo_adherence_flag, consumed_at, ext_jsonb)
+       values ($1, $2, $3, $4, $5, $6::numeric, 'kg', true, now(),
+               jsonb_build_object('wac_qty_kg', $6::text, 'wac_value', ($6::numeric * 4)::text))`,
       [seed.orgId, randomUUID(), woId, seed.rmProductId, seed.parentLpId, opts.parentNetKg],
     );
   }

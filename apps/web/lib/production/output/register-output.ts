@@ -13,7 +13,7 @@
  *      never write it).
  *   5. holdsGuard(lpId, lotId) FIRST — active 09-quality hold ⇒ 409 +
  *      production.consume.blocked outbox event.
- *   6. Generate batch_number = {wo_number}-OUT-{NNN} (seq = count+1 per WO+type),
+ *   6. Generate batch_number = {wo_number}-OUT-{NNN} (seq = count+1 per WO, all types),
  *      expiry_date = current_date + item.shelf_life_days (V-PROD-04).
  *   7. Build catch_weight_details when weight_mode='catch' (variance vs
  *      item.nominal_weight; soft warning > tolerance).
@@ -339,24 +339,30 @@ async function assertOutputProductAllowed(
   }
 }
 
+/**
+ * The generated batch number carries no output_type marker and
+ * wo_outputs_org_batch_year_uq is (org_id, batch_number, registered_year) — i.e.
+ * type-agnostic. Sequencing per output_type therefore restarted at 001 for the
+ * first by_product/co_product of a WO and collided with the primary's
+ * `<wo>-OUT-001`, surfacing as a bogus 409 already_recorded. Count and lock
+ * WO-wide so every output of one WO gets a distinct sequence.
+ */
 async function nextBatchNumber(
   ctx: OrgContextLike,
   woId: string,
   woNumber: string,
-  outputType: string,
 ): Promise<string> {
   await ctx.client.query(
-    `select pg_advisory_xact_lock(hashtext($1::text || '::' || $2::text))`,
-    [woId, outputType],
+    `select pg_advisory_xact_lock(hashtext($1::text || '::output-batch'))`,
+    [woId],
   );
   const { rows } = await ctx.client.query<{ seq: string }>(
     `select count(*)::text as seq
        from public.wo_outputs
       where wo_id = $1::uuid
         and org_id = app.current_org_id()
-        and output_type = $2
         and correction_of_id is null`,
-    [woId, outputType],
+    [woId],
   );
   const seq = Number(rows[0]?.seq ?? '0') + 1;
   return `${woNumber}-OUT-${String(seq).padStart(3, '0')}`;
@@ -822,7 +828,7 @@ export async function registerOutput(
 
   // 6. batch_number + expiry_date (V-PROD-04).
   const batchNumber =
-    input.batch_number ?? (await nextBatchNumber(ctx, woId, wo.wo_number, input.output_type));
+    input.batch_number ?? (await nextBatchNumber(ctx, woId, wo.wo_number));
 
   const massBalanceWarning = await evaluateMassBalanceGate(ctx, woId, resolvedQtyKg);
 

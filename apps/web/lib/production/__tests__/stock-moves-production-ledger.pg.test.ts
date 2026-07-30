@@ -14,7 +14,12 @@
 
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+
+// Server Actions call revalidateLocalized() after commit; outside a Next request
+// scope revalidatePath throws "static generation store missing" and would turn a
+// committed write into { ok:false }. Same stub as reservation-integrity.pg.test.ts.
+vi.mock('next/cache', () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn(), unstable_cache: vi.fn() }));
 
 import { getAppConnection, getOwnerConnection } from '../../../../../packages/db/src/clients.js';
 import { setPin } from '../../../../../packages/auth/src/verify-pin.js';
@@ -97,8 +102,11 @@ runPg('production stock_moves ledger — behavioral (real Postgres)', () => {
 
     // Item (FG)
     await ownerPool.query(
-      `insert into public.items (id, org_id, item_code, item_type, name, uom_base, created_by)
-       values ($1, $2, 'SML-FG', 'fg', 'SM Ledger FG Item', 'kg', $3)
+      // cost_per_kg is the last-resort WAC cost source (material-cost-source.ts).
+      // Without it debitWac books wac_value = 0 and registerOutput rejects the
+      // whole WO with wac_un_costed before it ever reaches the ledger writer.
+      `insert into public.items (id, org_id, item_code, item_type, name, uom_base, cost_per_kg, created_by)
+       values ($1, $2, 'SML-FG', 'fg', 'SM Ledger FG Item', 'kg', 4.000000, $3)
        on conflict (id) do nothing`,
       [itemId, orgId, userId],
     );
@@ -123,10 +131,11 @@ runPg('production stock_moves ledger — behavioral (real Postgres)', () => {
 
     // wo_materials (what recordDesktopConsumption locks)
     await ownerPool.query(
-      `insert into public.wo_materials (id, org_id, wo_id, product_id, material_name, required_qty, consumed_qty, uom, created_by)
-       values ($1, $2, $3, $4, 'SM Ledger Material', 10.000, 0.000, 'kg', $5)
+      // wo_materials has no created_by/updated_by columns (audit lives in stock_moves).
+      `insert into public.wo_materials (id, org_id, site_id, wo_id, product_id, material_name, required_qty, consumed_qty, uom)
+       values ($1, $2, $3, $4, $5, 'SM Ledger Material', 10.000, 0.000, 'kg')
        on conflict (id) do nothing`,
-      [materialId, orgId, woId, itemId, userId],
+      [materialId, orgId, siteId, woId, itemId],
     );
 
     // LP (available + released = consumable)

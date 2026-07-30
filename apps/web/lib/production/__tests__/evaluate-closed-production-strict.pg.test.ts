@@ -45,8 +45,12 @@ runPg('evaluateClosedProductionStrict non-kg consumption (real Postgres)', () =>
       [productId, orgId, componentId, userId],
     );
     await ownerPool.query(
-      `insert into public.bom_headers (id, org_id, product_id, version, status, yield_pct, created_by)
-       values ($1, $2, $3, 1, 'active', 100, $4)
+      // mig 090+: the FK-backed product column is item_id (uuid → items); legacy
+      // product_id is text → product_legacy. status 'active' also requires the
+      // full approved_by + approved_at pair (bom_headers_approved_status_requires_approval_check).
+      `insert into public.bom_headers
+         (id, org_id, item_id, version, status, yield_pct, approved_by, approved_at, created_by_user)
+       values ($1, $2, $3, 1, 'active', 100, $4, now(), $4)
        on conflict (id) do nothing`,
       [bomHeaderId, orgId, productId, userId],
     );
@@ -54,15 +58,15 @@ runPg('evaluateClosedProductionStrict non-kg consumption (real Postgres)', () =>
       `insert into public.work_orders
          (id, org_id, site_id, wo_number, product_id, item_type_at_creation,
           planned_quantity, uom, status, active_bom_header_id)
-       values ($1, $2, $3, 'WO-PRDB-001', $4, 'fg', 1, 'kg', 'in_progress', $5)
+       values ($1, $2, $3, 'WO-PRDB-001', $4, 'fg', 1, 'kg', 'IN_PROGRESS', $5)
        on conflict (id) do nothing`,
       [woId, orgId, siteId, productId, bomHeaderId],
     );
     await ownerPool.query(
       `insert into public.wo_outputs
-         (org_id, site_id, wo_id, output_type, product_id, batch_number, qty_kg, uom)
-       values ($1, $2, $3, 'primary', $4, 'WO-PRDB-001-OUT-001', 1.000, 'kg')`,
-      [orgId, siteId, woId, productId],
+         (org_id, site_id, wo_id, transaction_id, output_type, product_id, batch_number, qty_kg, uom)
+       values ($1, $2, $3, $5, 'primary', $4, 'WO-PRDB-001-OUT-001', 1.000, 'kg')`,
+      [orgId, siteId, woId, productId, randomUUID()],
     );
     await ownerPool.query(
       `insert into public.wo_material_consumption
@@ -113,9 +117,27 @@ runPg('evaluateClosedProductionStrict non-kg consumption (real Postgres)', () =>
     await runUnderOrg(async (client) => {
       const row = await evaluateClosedProductionStrict(client, woId);
       expect(row).not.toBeNull();
-      expect(row?.posted_consumption_kg).toBe('1');
-      expect(row?.output_kg).toBe('1');
+      // numeric::text keeps the division scale ('1.000000000'), so compare values not strings
+      expect(Number(row?.posted_consumption_kg)).toBeCloseTo(1, 6);
+      expect(Number(row?.output_kg)).toBeCloseTo(1, 6);
       expect(row?.within_tolerance).toBe(true);
+    });
+  });
+
+  // Opposite direction: converting g→kg must not turn the gate into a rubber stamp.
+  it('still flags out-of-tolerance non-kg consumption', async () => {
+    await ownerPool.query(
+      `insert into public.wo_material_consumption
+         (org_id, transaction_id, wo_id, component_id, lp_id, qty_consumed, uom, fefo_adherence_flag, consumed_at)
+       values ($1, $2, $3, $4, $5, 500, 'g', true, now())`,
+      [orgId, randomUUID(), woId, componentId, '00000000-0000-0000-0000-000000000001'],
+    );
+
+    await runUnderOrg(async (client) => {
+      const row = await evaluateClosedProductionStrict(client, woId);
+      // 1000 g + 500 g = 1.5 kg against 1 kg output at 100% yield → 50% over the 2% band
+      expect(Number(row?.posted_consumption_kg)).toBeCloseTo(1.5, 6);
+      expect(row?.within_tolerance).toBe(false);
     });
   });
 });

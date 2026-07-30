@@ -52,11 +52,15 @@ runPg('consume-material-core FEFO hold exclusion (real Postgres)', () => {
          id, org_id, site_id, warehouse_id, lp_number, product_id,
          quantity, reserved_qty, uom, status, qa_status, expiry_date, created_by, updated_by
        )
+       -- Expiry must stay RELATIVE to current_date: both LPs have to be unexpired for
+       -- this test to isolate the hold-skip contract. assertLpConsumableForProduction
+       -- rejects an expired LP with 'lp_expired' *after* FEFO has already picked it,
+       -- so absolute dates turn this suite red the moment they age past today.
        values
          ($1, $2, $3, $4, 'A1F-HELD', $5, 10.000, 0.000, 'kg', 'available', 'released',
-          '2026-01-15T00:00:00Z', $6, $6),
+          current_date + 30, $6, $6),
          ($7, $2, $3, $4, 'A1F-ELIG', $5, 10.000, 0.000, 'kg', 'available', 'released',
-          '2026-06-15T00:00:00Z', $6, $6)
+          current_date + 90, $6, $6)
        on conflict (id) do nothing`,
       [heldLpId, orgId, siteId, warehouseId, itemId, userId, eligibleLpId],
     );
@@ -123,6 +127,25 @@ runPg('consume-material-core FEFO hold exclusion (real Postgres)', () => {
         lpId: eligibleLpId,
         fefoAutoResolved: true,
       });
+    });
+  });
+
+  // Opposite direction: the hold-skip must not smuggle an expired LP through.
+  // An expired carrier stays visible in the FEFO candidate set (v_inventory_available
+  // has no expiry filter) but the pull gate must still reject it.
+  it('still rejects the FEFO-picked LP when it is expired (lp_expired)', async () => {
+    await ownerPool.query(
+      `update public.license_plates set expiry_date = current_date - 1 where id = $1::uuid`,
+      [eligibleLpId],
+    );
+
+    await runUnderOrg(async (client) => {
+      const result = await resolveConsumptionLp(
+        { client, userId },
+        { explicitLpId: null, productIds: [itemId], uom: 'kg', qty: '1.000', siteId },
+      );
+
+      expect(result).toMatchObject({ ok: false, error: 'lp_expired' });
     });
   });
 });
