@@ -411,7 +411,8 @@ describe('scanner receive PO service', () => {
 
     // the GRN item line mirrors where the goods actually went
     const grnItemInsert = findCall(client, 'insert into public.grn_items');
-    expect(grnItemInsert?.params[10]).toBe(REQ_LOCATION_ID);
+    expect(grnItemInsert?.params[1]).toBe(SITE_ID);
+    expect(grnItemInsert?.params[11]).toBe(REQ_LOCATION_ID);
 
     // GRN header keys on warehouse + actual destination location (P1-06)
     const grnInsert = findCall(client, 'insert into public.grns');
@@ -455,7 +456,7 @@ describe('scanner receive PO service', () => {
     expect(lpInsert?.params[2]).toBe(WAREHOUSE_ID);
     expect(lpInsert?.params[11]).toBe(LOCATION_ID);
     const grnItemInsert = findCall(client, 'insert into public.grn_items');
-    expect(grnItemInsert?.params[10]).toBe(LOCATION_ID);
+    expect(grnItemInsert?.params[11]).toBe(LOCATION_ID);
   });
 
   it('uses the PO destination warehouse when no explicit destination location is supplied', async () => {

@@ -10,6 +10,7 @@ import {
   transitionSalesOrderStatus,
   updateSalesOrder,
 } from '../so-actions';
+import { reserveLp } from '../../../warehouse/license-plates/[lpId]/_actions/lp-detail-actions';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -30,6 +31,7 @@ const LP_1 = '77777777-7777-4777-8777-777777777777';
 const LP_2 = '88888888-8888-4888-8888-888888888888';
 const SITE_ID = '99999999-9999-4999-8999-999999999999';
 const CLIENT_OP_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const WO_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 
 let client: QueryClient;
 let allowPermission = true;
@@ -91,6 +93,9 @@ vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   ),
 }));
 vi.mock('../../../../../../../lib/i18n/revalidate-localized', () => nextCacheMocks);
+vi.mock('../../../quality/_actions/hold-actions', () => ({
+  releaseHoldFromWarehouseLpUnblock: vi.fn(),
+}));
 
 function normalize(sql: string): string {
   return sql.replace(/\s+/g, ' ').trim().toLowerCase();
@@ -133,6 +138,40 @@ function makeClient(): QueryClient {
 
       if (q.includes('from public.user_roles')) {
         return { rows: allowPermission ? [{ ok: true }] : [], rowCount: allowPermission ? 1 : 0 };
+      }
+      if (q.includes('from public.license_plates lp') && q.includes('lp.reserved_for_wo_id') && q.includes('for update')) {
+        return {
+          rows: [{
+            id: LP_1,
+            lp_number: 'LP-001',
+            status: 'available',
+            qa_status: 'released',
+            quantity: '100',
+            reserved_qty: lpReserved[LP_1] ?? '0',
+            reserved_for_wo_id: null,
+            product_id: ITEM_ID,
+            uom: 'kg',
+            expiry_date: null,
+            site_id: SITE_ID,
+            wo_id: null,
+            grn_id: null,
+            lock_is_active_for_other_user: false,
+          }],
+          rowCount: 1,
+        };
+      }
+      if (q.startsWith('select hold_id::text') && q.includes('from public.v_active_holds')) {
+        return { rows: [], rowCount: 0 };
+      }
+      if (q.startsWith('select id::text, wo_number, status from public.work_orders')) {
+        return { rows: [{ id: WO_ID, wo_number: 'WO-001', status: 'RELEASED' }], rowCount: 1 };
+      }
+      if (q.startsWith('select exists (') && q.includes('from public.wo_materials wm')) {
+        return { rows: [{ ok: true }], rowCount: 1 };
+      }
+      if (q.startsWith('select ($1::numeric <=')) {
+        const fits = Number(params[0]) <= Number(params[1]) - Number(params[2]);
+        return { rows: [{ fits }], rowCount: 1 };
       }
       if (q.includes('pg_advisory_xact_lock')) {
         if (advisoryLockDepth > 0) {
@@ -457,6 +496,25 @@ function makeClient(): QueryClient {
           status: 'allocated',
         });
         return { rows: [], rowCount: 1 };
+      }
+      if (q.startsWith('update public.license_plates lp') && q.includes('reserved_qty = reserved_qty +')) {
+        const lpId = params[0] as string;
+        const nextReserved = decimalAdd(lpReserved[lpId] ?? '0', params[1] as string);
+        if (Number(nextReserved) > 100) return { rows: [], rowCount: 0 };
+        lpReserved[lpId] = nextReserved;
+        return {
+          rows: [{
+            id: lpId,
+            lp_number: 'LP-001',
+            status: 'reserved',
+            reserved_qty: nextReserved,
+            available_qty: String(100 - Number(nextReserved)),
+            reserved_for_wo_id: WO_ID,
+            reserved_for_wo_number: 'WO-001',
+            uom: 'kg',
+          }],
+          rowCount: 1,
+        };
       }
       if (q.startsWith('update public.license_plates') && q.includes('reserved_qty = reserved_qty +')) {
         const lpId = params[0] as string;
@@ -1220,6 +1278,26 @@ describe('transitionSalesOrderStatus', () => {
 });
 
 describe('allocateSalesOrder', () => {
+  it('WH-051 rejects WO +1 after the SO reserves all 100, and allows the exact remaining quantity', async () => {
+    status = 'confirmed';
+    lineQuantityOrdered = '100';
+    candidateRows = [{ lp_id: LP_1, available_qty: '100' }];
+
+    const allocated = await allocateSalesOrder(SO_ID);
+
+    expect(allocated).toMatchObject({ ok: true });
+    expect(lpReserved).toEqual({ [LP_1]: '100' });
+    await expect(reserveLp(LP_1, WO_ID, '1')).resolves.toEqual({
+      ok: false,
+      reason: 'error',
+      message: 'qty_exceeds_available',
+    });
+
+    lpReserved[LP_1] = '99';
+    const exactFit = await reserveLp(LP_1, WO_ID, '1');
+    expect(exactFit).toMatchObject({ ok: true, data: { reservedQty: '100', availableQty: '0' } });
+  });
+
   it('allocates greedily across two FEFO LPs and marks the SO allocated', async () => {
     status = 'confirmed';
     candidateRows = [

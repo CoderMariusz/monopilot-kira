@@ -3,6 +3,10 @@ import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { getAppConnection, getOwnerConnection } from '@monopilot/db/clients.js';
+import {
+  createPgTestFixture,
+  type PgTestFixture,
+} from '../../../../../../../tests/helpers/owner-org-context.js';
 
 type ActionContext = {
   userId: string;
@@ -59,21 +63,20 @@ type HoldState = {
 runPg('quality hold disposition safety — persistent monopilot_t3 state', () => {
   let ownerPool: pg.Pool;
   let appPool: pg.Pool;
+  let fixture: PgTestFixture;
 
-  const tenantId = randomUUID();
-  const orgId = randomUUID();
-  const userId = randomUUID();
-  const roleId = randomUUID();
-  const siteId = randomUUID();
+  let orgId: string;
+  let userId: string;
+  let siteId: string;
+  let warehouseId: string;
   const itemId = randomUUID();
-  const warehouseId = randomUUID();
 
   async function runUnderOrg<T>(action: (client: pg.PoolClient) => Promise<T>): Promise<T> {
     const sessionToken = randomUUID();
     await ownerPool.query(
-      `insert into app.session_org_contexts (session_token, org_id)
-       values ($1::uuid, $2::uuid)`,
-      [sessionToken, orgId],
+      `insert into app.session_org_contexts (session_token, org_id, user_id)
+       values ($1::uuid, $2::uuid, $3::uuid)`,
+      [sessionToken, orgId, userId],
     );
     const client = await appPool.connect();
     try {
@@ -214,37 +217,8 @@ runPg('quality hold disposition safety — persistent monopilot_t3 state', () =>
     ownerPool = getOwnerConnection();
     appPool = getAppConnection();
 
-    await ownerPool.query(
-      `insert into public.tenants (id, name, region_cluster, data_plane_url)
-       values ($1, 'Quality Safety DB Test', 'eu', 'https://quality-safety.example.test')`,
-      [tenantId],
-    );
-    await ownerPool.query(
-      `insert into public.organizations (id, tenant_id, name, slug, industry_code)
-       values ($1, $2, 'Quality Safety DB Test', $3, 'fmcg')`,
-      [orgId, tenantId, `quality-safety-${orgId.slice(0, 8)}`],
-    );
-    await ownerPool.query(
-      // `users.role_id` jest NOT NULL od mig 037 — bez roli fixture pada na starcie.
-      // Ten sam błąd powtórzył się w trzech nowych testach PG tej kampanii.
-      // Przekazuj TYLKO parametry, które zapytanie referuje — nieużyty parametr daje 42P08.
-      `insert into public.roles (id, org_id, code, name, slug, permissions, system, is_system, display_order)
-       values ($1, $2, 'qsafe_tester', 'Quality Safety Tester Role', 'qsafe_tester',
-               '[]'::jsonb, false, false, 900)
-       on conflict do nothing`,
-      [roleId, orgId],
-    );
-    await ownerPool.query(
-      `insert into public.users (id, org_id, email, name, role_id)
-       values ($1, $2, $3, 'Quality Safety Tester', $4)`,
-      [userId, orgId, `quality-safety-${userId}@example.test`, roleId],
-    );
-    await ownerPool.query(
-      `insert into public.sites
-         (id, org_id, site_code, name, is_default, is_active, timezone, created_by)
-       values ($1, $2, 'QSAFE', 'Quality Safety Site', true, true, 'Europe/London', $3)`,
-      [siteId, orgId, userId],
-    );
+    fixture = await createPgTestFixture(ownerPool, { permissions: [] });
+    ({ orgId, userId, siteId, warehouseId } = fixture);
     await ownerPool.query(
       `insert into public.items
          (id, org_id, item_code, item_type, name, uom_base, created_by)
@@ -269,10 +243,7 @@ runPg('quality hold disposition safety — persistent monopilot_t3 state', () =>
     await ownerPool?.query('delete from public.license_plates where org_id = $1', [orgId]).catch(() => undefined);
     await ownerPool?.query('delete from public.work_orders where org_id = $1', [orgId]).catch(() => undefined);
     await ownerPool?.query('delete from public.items where id = $1', [itemId]).catch(() => undefined);
-    await ownerPool?.query('delete from public.sites where id = $1', [siteId]).catch(() => undefined);
-    await ownerPool?.query('delete from public.users where id = $1', [userId]).catch(() => undefined);
-    await ownerPool?.query('delete from public.organizations where id = $1', [orgId]).catch(() => undefined);
-    await ownerPool?.query('delete from public.tenants where id = $1', [tenantId]).catch(() => undefined);
+    await fixture?.cleanup();
     await appPool?.end();
     await ownerPool?.end();
   });

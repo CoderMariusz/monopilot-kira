@@ -5,15 +5,18 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 
 import { getOwnerConnection } from '../../../../../../../../../packages/db/src/clients.js';
+import {
+  createPgTestFixture,
+  type PgTestFixture,
+} from '../../../../../../../tests/helpers/owner-org-context.js';
 import { releaseReservation } from '../reservation-actions';
 
 const runPg = process.env.DATABASE_URL ? describe : describe.skip;
 
-const tenantId = randomUUID();
-const orgId = randomUUID();
-const roleId = randomUUID();
-const userId = randomUUID();
-const warehouseId = randomUUID();
+let orgId: string;
+let userId: string;
+let siteId: string;
+let warehouseId: string;
 const itemId = randomUUID();
 const customerId = randomUUID();
 const soId = randomUUID();
@@ -60,46 +63,13 @@ async function readSnapshot(ownerPool: pg.Pool): Promise<ReservationSnapshot> {
 
 runPg('warehouse reservation integrity (real Postgres)', () => {
   let ownerPool: pg.Pool;
+  let fixture: PgTestFixture;
 
   beforeAll(async () => {
     ownerPool = getOwnerConnection();
 
-    await ownerPool.query(
-      `insert into public.tenants (id, name, region_cluster, data_plane_url)
-       values ($1, 'Reservation Integrity Tenant', 'eu', 'https://reservation-integrity.example.test')`,
-      [tenantId],
-    );
-    await ownerPool.query(
-      `insert into public.organizations (id, tenant_id, name, slug, industry_code)
-       values ($1, $2, 'Reservation Integrity Org', $3, 'fmcg')`,
-      [orgId, tenantId, `reservation-integrity-${orgId.slice(0, 8)}`],
-    );
-    await ownerPool.query(
-      `insert into public.roles (id, org_id, slug, code, name, permissions)
-       values ($1, $2, $3, $3, 'Reservation Integrity Role', '[]'::jsonb)`,
-      [roleId, orgId, `reservation-integrity-${roleId.slice(0, 8)}`],
-    );
-    await ownerPool.query(
-      `insert into public.users (id, org_id, email, name, role_id)
-       values ($1, $2, $3, 'Reservation Integrity User', $4)`,
-      [userId, orgId, `reservation-integrity-${userId}@example.test`, roleId],
-    );
-    await ownerPool.query(
-      `insert into public.user_roles (org_id, user_id, role_id)
-       values ($1, $2, $3)`,
-      [orgId, userId, roleId],
-    );
-    await ownerPool.query(
-      `insert into public.role_permissions (role_id, permission)
-       values ($1, 'warehouse.lp.reserve')`,
-      [roleId],
-    );
-    await ownerPool.query(
-      // `warehouse_type` jest NOT NULL bez wartości domyślnej — pominięcie wywala fixture.
-      `insert into public.warehouses (id, org_id, code, name, warehouse_type)
-       values ($1, $2, 'WH-RI', 'Reservation Integrity Warehouse', 'standard')`,
-      [warehouseId, orgId],
-    );
+    fixture = await createPgTestFixture(ownerPool, { permissions: ['warehouse.lp.reserve'] });
+    ({ orgId, userId, siteId, warehouseId } = fixture);
     await ownerPool.query(
       `insert into public.items
          (id, org_id, item_code, item_type, name, uom_base, status)
@@ -125,10 +95,10 @@ runPg('warehouse reservation integrity (real Postgres)', () => {
     );
     await ownerPool.query(
       `insert into public.license_plates
-         (id, org_id, warehouse_id, lp_number, product_id, quantity, reserved_qty,
+         (id, org_id, site_id, warehouse_id, lp_number, product_id, quantity, reserved_qty,
           uom, status, qa_status)
-       values ($1, $2, $3, 'LP-RI-001', $4, 10, 6, 'kg', 'reserved', 'released')`,
-      [lpId, orgId, warehouseId, itemId],
+       values ($1, $2, $3, $4, 'LP-RI-001', $5, 10, 6, 'kg', 'reserved', 'released')`,
+      [lpId, orgId, siteId, warehouseId, itemId],
     );
     await ownerPool.query(
       `insert into public.inventory_allocations
@@ -156,16 +126,10 @@ runPg('warehouse reservation integrity (real Postgres)', () => {
       'license_plates',
       'customers',
       'items',
-      'warehouses',
-      'user_roles',
-      'role_permissions',
-      'users',
-      'roles',
-      'organizations',
     ]) {
       await ownerPool?.query(`delete from public.${table} where org_id = $1::uuid`, [orgId]).catch(() => undefined);
     }
-    await ownerPool?.query('delete from public.tenants where id = $1::uuid', [tenantId]).catch(() => undefined);
+    await fixture?.cleanup();
     await ownerPool?.end().catch(() => undefined);
   });
 

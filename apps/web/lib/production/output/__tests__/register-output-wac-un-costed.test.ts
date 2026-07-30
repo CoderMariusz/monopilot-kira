@@ -14,6 +14,7 @@ const COMPONENT_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 
 let client: QueryClient;
 let outputInsertCount: number;
+let queries: string[];
 
 function makeCtx(): OrgContextLike {
   return { userId: USER_ID, orgId: ORG_ID, siteId: SITE_ID, client };
@@ -27,6 +28,7 @@ function makeClient(): QueryClient {
   return {
     query: async (sql: string, params: readonly unknown[] = []) => {
       const normalized = normalize(sql);
+      queries.push(normalized);
       if (normalized.includes('allowed_products')) {
         return { rows: [{ allowed: true }], rowCount: 1 };
       }
@@ -90,6 +92,7 @@ function makeClient(): QueryClient {
 describe('registerOutput WAC un-costed preflight', () => {
   beforeEach(() => {
     outputInsertCount = 0;
+    queries = [];
     client = makeClient();
   });
 
@@ -117,5 +120,6 @@ describe('registerOutput WAC un-costed preflight', () => {
     } satisfies Partial<ProductionActionError>);
 
     expect(outputInsertCount).toBe(0);
+    expect(queries.some((sql) => sql.startsWith('update public.wo_material_consumption'))).toBe(false);
   });
 });

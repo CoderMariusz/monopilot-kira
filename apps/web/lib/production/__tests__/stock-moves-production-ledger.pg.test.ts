@@ -18,6 +18,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { getAppConnection, getOwnerConnection } from '../../../../../packages/db/src/clients.js';
 import { setPin } from '../../../../../packages/auth/src/verify-pin.js';
+import {
+  createPgTestFixture,
+  type PgTestFixture,
+} from '../../../tests/helpers/owner-org-context.js';
 
 import { recordDesktopConsumption } from '../../../app/[locale]/(app)/(modules)/production/_actions/consume-material-actions.js';
 import { registerOutput } from '../output/register-output.js';
@@ -29,14 +33,12 @@ const databaseUrl = process.env.DATABASE_URL;
 const runPg = databaseUrl ? describe : describe.skip;
 
 // ─── Fixed UUIDs ───────────────────────────────────────────────────────────────
-const tenantId = randomUUID();
-const orgId = randomUUID();
-const userId = randomUUID();
-const roleId = randomUUID();
+let orgId: string;
+let userId: string;
 const itemId = randomUUID();
-const siteId = randomUUID();
-const warehouseId = randomUUID();
-const locationId = randomUUID();
+let siteId: string;
+let warehouseId: string;
+let locationId: string;
 const lpId = randomUUID();
 const woId = randomUUID();
 const materialId = randomUUID();
@@ -47,6 +49,7 @@ const TEST_PIN = '1234';
 runPg('production stock_moves ledger — behavioral (real Postgres)', () => {
   let ownerPool: pg.Pool;
   let appPool: pg.Pool;
+  let fixture: PgTestFixture;
 
   // ─── runUnderOrg helper (mirrors H4b pattern) ────────────────────────────────
   async function runUnderOrg<T>(fn: (client: pg.PoolClient) => Promise<T>): Promise<T> {
@@ -79,64 +82,18 @@ runPg('production stock_moves ledger — behavioral (real Postgres)', () => {
     ownerPool = getOwnerConnection();
     appPool = getAppConnection();
 
-    // Tenant + org
-    await ownerPool.query(
-      `insert into public.tenants (id, name, region_cluster, data_plane_url)
-       values ($1, 'SM Prod Ledger Tenant', 'eu', 'https://sm-prod-ledger.example.test')
-       on conflict (id) do nothing`,
-      [tenantId],
-    );
-    await ownerPool.query(
-      `insert into public.organizations (id, tenant_id, name, slug, industry_code)
-       values ($1, $2, 'SM Prod Ledger Org', $3, 'fmcg')
-       on conflict (id) do nothing`,
-      [orgId, tenantId, `sm-ledger-${orgId.slice(0, 8)}`],
-    );
-
-    // Role with all required permissions
-    await ownerPool.query(
-      `insert into public.roles (id, org_id, slug, code, name, permissions)
-       values ($1, $2, 'admin', 'admin', 'SM Ledger Admin Role', '["production.consumption.write","production.consumption.correct","production.output.write","production.corrections.closed_wo"]'::jsonb)
-       on conflict (id) do nothing`,
-      [roleId, orgId],
-    );
-
-    // User + role assignment
-    await ownerPool.query(
-      `insert into public.users (id, org_id, email, name)
-       values ($1, $2, $3, 'SM Prod Ledger User')
-       on conflict (id) do nothing`,
-      [userId, orgId, `sm-ledger-${userId}@example.test`],
-    );
-    await ownerPool.query(
-      `insert into public.user_roles (user_id, role_id, org_id)
-       values ($1, $2, $3)
-       on conflict do nothing`,
-      [userId, roleId, orgId],
-    );
+    fixture = await createPgTestFixture(ownerPool, {
+      permissions: [
+        'production.consumption.write',
+        'production.consumption.correct',
+        'production.output.write',
+        'production.corrections.closed_wo',
+      ],
+    });
+    ({ orgId, userId, siteId, warehouseId, locationId } = fixture);
 
     // Enroll PIN for e-sign (reverseConsumption uses assertCorrectionAllowed → signEvent → verifyPin)
     await setPin(userId, TEST_PIN);
-
-    // Site + warehouse + location
-    await ownerPool.query(
-      `insert into public.sites (id, org_id, code, name, timezone, created_by)
-       values ($1, $2, 'SML', 'SM Ledger Site', 'UTC', $3)
-       on conflict (id) do nothing`,
-      [siteId, orgId, userId],
-    );
-    await ownerPool.query(
-      `insert into public.warehouses (id, org_id, site_id, code, name, created_by)
-       values ($1, $2, $3, 'SML-WH', 'SM Ledger Warehouse', $4)
-       on conflict (id) do nothing`,
-      [warehouseId, orgId, siteId, userId],
-    );
-    await ownerPool.query(
-      `insert into public.locations (id, org_id, warehouse_id, code, name, level, created_by)
-       values ($1, $2, $3, 'SML-LOC', 'SM Ledger Location', 1, $4)
-       on conflict (id) do nothing`,
-      [locationId, orgId, warehouseId, userId],
-    );
 
     // Item (FG)
     await ownerPool.query(
@@ -211,15 +168,8 @@ runPg('production stock_moves ledger — behavioral (real Postgres)', () => {
     await ownerPool?.query('delete from public.license_plates where org_id = $1', [orgId]).catch(() => undefined);
     await ownerPool?.query('delete from public.item_wac_state where org_id = $1', [orgId]).catch(() => undefined);
     await ownerPool?.query('delete from public.items where org_id = $1', [orgId]).catch(() => undefined);
-    await ownerPool?.query('delete from public.locations where org_id = $1', [orgId]).catch(() => undefined);
-    await ownerPool?.query('delete from public.warehouses where org_id = $1', [orgId]).catch(() => undefined);
-    await ownerPool?.query('delete from public.sites where org_id = $1', [orgId]).catch(() => undefined);
     await ownerPool?.query('delete from public.user_pins where user_id = $1', [userId]).catch(() => undefined);
-    await ownerPool?.query('delete from public.user_roles where user_id = $1', [userId]).catch(() => undefined);
-    await ownerPool?.query('delete from public.roles where id = $1', [roleId]).catch(() => undefined);
-    await ownerPool?.query('delete from public.users where id = $1', [userId]).catch(() => undefined);
-    await ownerPool?.query('delete from public.organizations where id = $1', [orgId]).catch(() => undefined);
-    await ownerPool?.query('delete from public.tenants where id = $1', [tenantId]).catch(() => undefined);
+    await fixture?.cleanup();
     await appPool?.end();
     await ownerPool?.end();
   });

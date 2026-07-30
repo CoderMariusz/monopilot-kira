@@ -206,12 +206,11 @@ async function seedBundle(opts: { npd: boolean; inactiveComponent?: boolean }): 
     [seed.orgAId, bomHeaderId, rmCode, componentId],
   );
 
-  // source='technical': an in_review version (the npd_builder source is constrained to
-  // draft-only by factory_specs_npd_builder_draft_check; a spec moves to in_review under
-  // Technical ownership, which is exactly the state the bundle approval consumes).
+  // An NPD-seeded in_review version is unsigned and becomes factory-usable only
+  // through the Technical bundle-approval flow.
   await owner.query(
     `insert into public.factory_specs (id, org_id, fg_item_id, spec_code, version, status, source, bom_header_id, bom_version, created_by)
-     values ($1, $2, $3, $4, 1, 'in_review', 'technical', $5, 1, $6)`,
+     values ($1, $2, $3, $4, 1, 'in_review', 'npd_builder', $5, 1, $6)`,
     [factorySpecId, seed.orgAId, fgItemId, `SPEC-${suffix}`, bomHeaderId, seed.approverUserId],
   );
 

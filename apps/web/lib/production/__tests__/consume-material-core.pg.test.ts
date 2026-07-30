@@ -11,59 +11,35 @@ import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { getAppConnection, getOwnerConnection } from '../../../../../packages/db/src/clients.js';
+import {
+  createPgTestFixture,
+  type PgTestFixture,
+} from '../../../tests/helpers/owner-org-context.js';
 
 import { resolveConsumptionLp } from '../consume-material-core.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const runPg = databaseUrl ? describe : describe.skip;
 
-const tenantId = randomUUID();
-const orgId = randomUUID();
-const userId = randomUUID();
+let orgId: string;
+let userId: string;
 const itemId = randomUUID();
-const siteId = randomUUID();
-const warehouseId = randomUUID();
+let siteId: string;
+let warehouseId: string;
 const heldLpId = randomUUID();
 const eligibleLpId = randomUUID();
 
 runPg('consume-material-core FEFO hold exclusion (real Postgres)', () => {
   let ownerPool: pg.Pool;
   let appPool: pg.Pool;
+  let fixture: PgTestFixture;
 
   beforeAll(async () => {
     ownerPool = getOwnerConnection();
     appPool = getAppConnection();
 
-    await ownerPool.query(
-      `insert into public.tenants (id, name, region_cluster, data_plane_url)
-       values ($1, 'A1 FEFO Tenant', 'eu', 'https://a1-fefo.example.test')
-       on conflict (id) do nothing`,
-      [tenantId],
-    );
-    await ownerPool.query(
-      `insert into public.organizations (id, tenant_id, name, slug, industry_code)
-       values ($1, $2, 'A1 FEFO Org', $3, 'fmcg')
-       on conflict (id) do nothing`,
-      [orgId, tenantId, `a1-fefo-${orgId.slice(0, 8)}`],
-    );
-    await ownerPool.query(
-      `insert into public.users (id, org_id, email, name)
-       values ($1, $2, $3, 'A1 FEFO User')
-       on conflict (id) do nothing`,
-      [userId, orgId, `a1-fefo-${userId}@example.test`],
-    );
-    await ownerPool.query(
-      `insert into public.sites (id, org_id, code, name, timezone, created_by)
-       values ($1, $2, 'A1F', 'A1 FEFO Site', 'UTC', $3)
-       on conflict (id) do nothing`,
-      [siteId, orgId, userId],
-    );
-    await ownerPool.query(
-      `insert into public.warehouses (id, org_id, site_id, code, name, created_by)
-       values ($1, $2, $3, 'A1F-WH', 'A1 FEFO Warehouse', $4)
-       on conflict (id) do nothing`,
-      [warehouseId, orgId, siteId, userId],
-    );
+    fixture = await createPgTestFixture(ownerPool, { permissions: [] });
+    ({ orgId, userId, siteId, warehouseId } = fixture);
     await ownerPool.query(
       `insert into public.items (id, org_id, item_code, item_type, name, uom_base, created_by)
        values ($1, $2, $3, 'rm', 'A1 FEFO RM', 'kg', $4)
@@ -98,11 +74,7 @@ runPg('consume-material-core FEFO hold exclusion (real Postgres)', () => {
     await ownerPool?.query('delete from public.quality_holds where org_id = $1', [orgId]).catch(() => undefined);
     await ownerPool?.query('delete from public.license_plates where org_id = $1', [orgId]).catch(() => undefined);
     await ownerPool?.query('delete from public.items where org_id = $1', [orgId]).catch(() => undefined);
-    await ownerPool?.query('delete from public.warehouses where org_id = $1', [orgId]).catch(() => undefined);
-    await ownerPool?.query('delete from public.sites where org_id = $1', [orgId]).catch(() => undefined);
-    await ownerPool?.query('delete from public.users where id = $1', [userId]).catch(() => undefined);
-    await ownerPool?.query('delete from public.organizations where id = $1', [orgId]).catch(() => undefined);
-    await ownerPool?.query('delete from public.tenants where id = $1', [tenantId]).catch(() => undefined);
+    await fixture?.cleanup();
     await appPool?.end();
     await ownerPool?.end();
   });
