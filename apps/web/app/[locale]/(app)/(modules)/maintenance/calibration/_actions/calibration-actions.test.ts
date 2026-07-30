@@ -30,16 +30,28 @@ let client: QueryClient;
 const revalidateMock = vi.fn();
 const dualSignMock = vi.fn();
 
+// Mirrors the real withOrgContext contract: COMMIT on any plain return,
+// ROLLBACK only on a thrown error (with-org-context.ts:356-365).
+const txn = vi.hoisted(() => ({ committed: 0, rolledBack: 0 }));
+
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(
-    async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
-      action({ userId: USER_ID, orgId: ORG_ID, client }),
+    async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) => {
+      try {
+        const result = await action({ userId: USER_ID, orgId: ORG_ID, client });
+        txn.committed += 1;
+        return result;
+      } catch (err) {
+        txn.rolledBack += 1;
+        throw err;
+      }
+    },
   ),
 }));
 
-vi.mock('../../../../../../../lib/i18n/revalidate-localized', () => ({
-  revalidateLocalized: (...args: unknown[]) => revalidateMock(...args),
-}));
+// The real revalidate-localized module runs on purpose so the production chain
+// revalidatePath -> revalidateLocalized -> revalidateAfterCommit is exercised.
+vi.mock('next/cache', () => ({ revalidatePath: (...args: unknown[]) => revalidateMock(...args) }));
 
 vi.mock('@monopilot/e-sign', () => ({
   EPinFailedError: class EPinFailedError extends Error {
@@ -154,7 +166,9 @@ beforeEach(() => {
   instrumentExists = true;
   instrumentActive = true;
   client = makeClient();
-  revalidateMock.mockClear();
+  revalidateMock.mockReset();
+  txn.committed = 0;
+  txn.rolledBack = 0;
   dualSignMock.mockReset();
   dualSignMock.mockResolvedValue({
     primary: {
@@ -225,7 +239,7 @@ describe('createInstrument', () => {
       unitOfMeasure: 'kg',
     });
     expect(result).toEqual({ ok: true, data: { instrumentId: INSTRUMENT_ID } });
-    expect(revalidateMock).toHaveBeenCalledWith('/maintenance/calibration');
+    expect(revalidateMock.mock.calls.map((c) => String(c[0]))).toContain('/en/maintenance/calibration');
     const insertCall = client.query.mock.calls.find(([sql]) =>
       normalize(String(sql)).includes('insert into public.calibration_instruments'),
     );
@@ -343,7 +357,7 @@ describe('reactivateInstrument', () => {
       client.query.mock.calls.find(([s]) => normalize(String(s)).includes('active = true'))?.[0] ?? '',
     );
     expect(sql.toLowerCase()).toContain('update public.calibration_instruments');
-    expect(revalidateMock).toHaveBeenCalledWith('/maintenance/calibration');
+    expect(revalidateMock.mock.calls.map((c) => String(c[0]))).toContain('/en/maintenance/calibration');
   });
 
   it('returns not_found when the instrument is absent', async () => {
@@ -424,7 +438,7 @@ describe('recordCalibration', () => {
       normalize(String(sql)).includes('insert into public.outbox_events'),
     );
     expect(outboxCall?.[1]?.[0]).toBe('maintenance.calibration.completed');
-    expect(revalidateMock).toHaveBeenCalledWith('/maintenance/calibration');
+    expect(revalidateMock.mock.calls.map((c) => String(c[0]))).toContain('/en/maintenance/calibration');
   });
 
   it('rejects the same user as calibrator and reviewer (SoD)', async () => {
@@ -660,5 +674,34 @@ describe('recordCalibration', () => {
       normalize(String(sql)).includes('insert into public.outbox_events'),
     );
     expect(outboxCall?.[1]?.[0]).toBe('maintenance.calibration.completed');
+  });
+});
+
+
+describe('R4 — revalidation must not run inside the org transaction', () => {
+  function breakRevalidate(): void {
+    revalidateMock.mockImplementation(() => {
+      throw new Error('revalidatePath was called outside a request scope');
+    });
+  }
+
+  it('deactivateInstrument keeps the deactivation committed when revalidation throws', async () => {
+    breakRevalidate();
+
+    const result = await deactivateInstrument({ instrumentId: INSTRUMENT_ID });
+
+    expect(result).toEqual({ ok: true, data: { instrumentId: INSTRUMENT_ID } });
+    expect(txn).toEqual({ committed: 1, rolledBack: 0 });
+    expect(revalidateMock).toHaveBeenCalled();
+  });
+
+  it('does not revalidate when the action is rejected', async () => {
+    breakRevalidate();
+    grantedPermissions.delete('mnt.asset.deactivate');
+
+    const result = await deactivateInstrument({ instrumentId: INSTRUMENT_ID });
+
+    expect(result).toEqual({ ok: false, reason: 'forbidden' });
+    expect(revalidateMock).not.toHaveBeenCalled();
   });
 });

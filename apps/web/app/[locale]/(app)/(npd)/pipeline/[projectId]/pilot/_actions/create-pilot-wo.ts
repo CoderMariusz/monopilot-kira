@@ -15,7 +15,7 @@ import { createWorkOrderChainForContext } from '../../../../../../../../app/[loc
 import { releaseWorkOrderChainForContext } from '../../../../../../../../app/[locale]/(app)/(modules)/planning/work-orders/_actions/releaseWorkOrder';
 import { WorkOrderChainError } from '../../../../../../../../app/[locale]/(app)/(modules)/planning/work-orders/_actions/shared';
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
-import { revalidateLocalized } from '../../../../../../../../lib/i18n/revalidate-localized';
+import { revalidateAfterCommit } from '../../../../../../../../lib/i18n/revalidate-localized';
 import { materializeNpdBom } from '../../../../../../../(npd)/pipeline/_actions/_lib/materialize-npd-bom';
 import { hasPilotPermission } from './get-pilot-run';
 import { assertPilotWriteStage } from './pilot-stage-guard';
@@ -401,7 +401,7 @@ export async function createPilotWorkOrder(raw: unknown): Promise<CreatePilotWoR
   const { projectId } = parsed.data;
 
   try {
-    return await withOrgContext(async (rawCtx) => {
+    const result = await withOrgContext(async (rawCtx) => {
       const ctx = rawCtx as OrgCtx;
 
       if (!(await hasPilotPermission(ctx, WRITE_PERMISSION))) {
@@ -529,13 +529,18 @@ export async function createPilotWorkOrder(raw: unknown): Promise<CreatePilotWoR
           }
         : link;
 
-      revalidateLocalized(`/pipeline/${projectId}/pilot`);
-      revalidateLocalized('/planning/work-orders');
-      revalidateLocalized(`/production/wos/${link.id}`);
-      revalidateLocalized('/scheduler');
-
       return { ok: true as const, data, created: true, released };
     });
+
+    if (result.ok && result.created) {
+      revalidateAfterCommit([
+        `/pipeline/${projectId}/pilot`,
+        '/planning/work-orders',
+        `/production/wos/${result.data.id}`,
+        '/scheduler',
+      ]);
+    }
+    return result;
   } catch (error) {
     return mapThrownCreateError(error);
   }

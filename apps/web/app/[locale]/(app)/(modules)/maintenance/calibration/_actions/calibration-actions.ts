@@ -26,7 +26,7 @@ import { z } from 'zod';
 
 import { hasPermission } from '../../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
-import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
+import { revalidateAfterCommit } from '../../../../../../../lib/i18n/revalidate-localized';
 
 import {
   assertDualCalibrationReceipts,
@@ -277,7 +277,7 @@ export async function createInstrument(input: {
 }): Promise<ActionResult<{ instrumentId: string }>> {
   try {
     const parsed = createInstrumentSchema.parse(input);
-    return await withOrgContext(async (ctx: CalibrationContext): Promise<ActionResult<{ instrumentId: string }>> => {
+    const result = await withOrgContext(async (ctx: CalibrationContext): Promise<ActionResult<{ instrumentId: string }>> => {
       if (!(await hasPermission(ctx, MNT_EDIT_PERMISSION))) {
         return { ok: false, reason: 'forbidden' };
       }
@@ -309,7 +309,6 @@ export async function createInstrument(input: {
         const row = inserted.rows[0];
         if (!row) throw new Error('instrument insert returned no row');
 
-        revalidateLocalized('/maintenance/calibration');
         return { ok: true, data: { instrumentId: row.id } };
       } catch (err) {
         if (err instanceof Error && err.message.includes('calibration_instruments_org_code_uq')) {
@@ -318,6 +317,9 @@ export async function createInstrument(input: {
         throw err;
       }
     });
+
+    if (result.ok) revalidateAfterCommit('/maintenance/calibration');
+    return result;
   } catch (err) {
     if (err instanceof z.ZodError) {
       return { ok: false, reason: 'validation_error', message: err.message };
@@ -338,7 +340,7 @@ export async function updateInstrument(input: {
 }): Promise<ActionResult<{ instrumentId: string }>> {
   try {
     const parsed = updateInstrumentSchema.parse(input);
-    return await withOrgContext(async (ctx: CalibrationContext): Promise<ActionResult<{ instrumentId: string }>> => {
+    const result = await withOrgContext(async (ctx: CalibrationContext): Promise<ActionResult<{ instrumentId: string }>> => {
       if (!(await hasPermission(ctx, MNT_EDIT_PERMISSION))) {
         return { ok: false, reason: 'forbidden' };
       }
@@ -373,7 +375,6 @@ export async function updateInstrument(input: {
         const row = updated.rows[0];
         if (!row) return { ok: false, reason: 'not_found' };
 
-        revalidateLocalized('/maintenance/calibration');
         return { ok: true, data: { instrumentId: row.id } };
       } catch (err) {
         if (err instanceof Error && err.message.includes('calibration_instruments_org_code_uq')) {
@@ -382,6 +383,9 @@ export async function updateInstrument(input: {
         throw err;
       }
     });
+
+    if (result.ok) revalidateAfterCommit('/maintenance/calibration');
+    return result;
   } catch (err) {
     if (err instanceof z.ZodError) {
       return { ok: false, reason: 'validation_error', message: err.message };
@@ -395,7 +399,7 @@ export async function deactivateInstrument(input: {
 }): Promise<ActionResult<{ instrumentId: string }>> {
   try {
     const parsed = deactivateInstrumentSchema.parse(input);
-    return await withOrgContext(async (ctx: CalibrationContext): Promise<ActionResult<{ instrumentId: string }>> => {
+    const result = await withOrgContext(async (ctx: CalibrationContext): Promise<ActionResult<{ instrumentId: string }>> => {
       if (!(await hasPermission(ctx, MNT_DEACTIVATE_PERMISSION))) {
         return { ok: false, reason: 'forbidden' };
       }
@@ -413,9 +417,11 @@ export async function deactivateInstrument(input: {
       const row = updated.rows[0];
       if (!row) return { ok: false, reason: 'not_found' };
 
-      revalidateLocalized('/maintenance/calibration');
       return { ok: true, data: { instrumentId: row.id } };
     });
+
+    if (result.ok) revalidateAfterCommit('/maintenance/calibration');
+    return result;
   } catch (err) {
     if (err instanceof z.ZodError) {
       return { ok: false, reason: 'validation_error', message: err.message };
@@ -429,7 +435,7 @@ export async function reactivateInstrument(input: {
 }): Promise<ActionResult<{ instrumentId: string }>> {
   try {
     const parsed = reactivateInstrumentSchema.parse(input);
-    return await withOrgContext(async (ctx: CalibrationContext): Promise<ActionResult<{ instrumentId: string }>> => {
+    const result = await withOrgContext(async (ctx: CalibrationContext): Promise<ActionResult<{ instrumentId: string }>> => {
       if (!(await hasPermission(ctx, MNT_EDIT_PERMISSION))) {
         return { ok: false, reason: 'forbidden' };
       }
@@ -447,9 +453,11 @@ export async function reactivateInstrument(input: {
       const row = updated.rows[0];
       if (!row) return { ok: false, reason: 'not_found' };
 
-      revalidateLocalized('/maintenance/calibration');
       return { ok: true, data: { instrumentId: row.id } };
     });
+
+    if (result.ok) revalidateAfterCommit('/maintenance/calibration');
+    return result;
   } catch (err) {
     if (err instanceof z.ZodError) {
       return { ok: false, reason: 'validation_error', message: err.message };
@@ -471,7 +479,7 @@ export async function recordCalibration(input: {
   try {
     const parsed = recordCalibrationSchema.parse(input);
     try {
-      return await withOrgContext(
+      const result = await withOrgContext(
         async (
           ctx: CalibrationContext,
         ): Promise<ActionResult<{ recordId: string; nextDueDate: string; rowPatch: CalibrationRecordRowPatch }>> => {
@@ -643,7 +651,6 @@ export async function recordCalibration(input: {
               ? true
               : instrumentRow.active;
 
-          revalidateLocalized('/maintenance/calibration');
           return {
             ok: true,
             data: {
@@ -661,6 +668,9 @@ export async function recordCalibration(input: {
           };
         },
       );
+
+      if (result.ok) revalidateAfterCommit('/maintenance/calibration');
+      return result;
     } catch (err) {
       const mapped = mapCalibrationEsignError(err);
       if (mapped) return mapped;
