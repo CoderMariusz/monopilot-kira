@@ -366,33 +366,14 @@ export async function materializeNpdBom(
   }
 
   // A draft rejected by V-TEC-13/14 is deliberately reviewable but is not factory
-  // release evidence. Never mint/supersede an approved spec for that draft.
-  const existingSpec = bom && !activationBlocked ? await loadApprovedFactorySpec(ctx, item.id) : null;
+  // release evidence. NPD may seed the Technical review record, but only the
+  // Technical bundle-approval flow may make it factory-usable.
+  const existingSpec = bom && !activationBlocked
+    ? await loadFactorySpecForBom(ctx, item.id, bom.id)
+    : null;
   let createdSpec: FactorySpecRow | null = null;
   if (bom && !activationBlocked && !existingSpec) {
-    createdSpec = await createApprovedFactorySpec(ctx, project, item.id, bom);
-  } else if (
-    bom &&
-    !activationBlocked &&
-    existingSpec &&
-    existingSpec.bom_header_id != null &&
-    existingSpec.bom_header_id !== bom.id
-  ) {
-    // Regen produced a NEW BOM version while the frozen approved spec still
-    // points at the superseded header — check_factory_release_consistency
-    // rejects the release on that mismatch (walk-6 HIGH-1). Mirror the BOM's
-    // clone-on-write: supersede the stale spec FIRST (frees the partial-unique
-    // approved slot), then mint the next spec version bound to the new BOM.
-    await ctx.client.query(
-      `update public.factory_specs
-          set status = 'superseded',
-              updated_at = now()
-        where org_id = app.current_org_id()
-          and id = $1::uuid
-          and status = 'approved_for_factory'`,
-      [existingSpec.id],
-    );
-    createdSpec = await createApprovedFactorySpec(ctx, project, item.id, bom);
+    createdSpec = await createInitialFactorySpec(ctx, project, item.id, bom);
   }
 
   // Recompute the allergen cascade over the just-materialized BOM and stamp the
@@ -1642,21 +1623,26 @@ function formatBomHeaderInsertError(error: unknown): string {
   return `Could not generate production BOM header: ${detail}`;
 }
 
-async function loadApprovedFactorySpec(ctx: OrgContextLike, fgItemId: string): Promise<FactorySpecRow | null> {
+async function loadFactorySpecForBom(
+  ctx: OrgContextLike,
+  fgItemId: string,
+  bomHeaderId: string,
+): Promise<FactorySpecRow | null> {
   const { rows } = await ctx.client.query<FactorySpecRow>(
     `select id, bom_header_id
        from public.factory_specs
       where org_id = app.current_org_id()
         and fg_item_id = $1::uuid
-        and status in ('approved_for_factory', 'released_to_factory')
+        and bom_header_id = $2::uuid
+        and status in ('draft', 'in_review', 'approved_for_factory', 'released_to_factory')
       order by version desc, updated_at desc
       limit 1`,
-    [fgItemId],
+    [fgItemId, bomHeaderId],
   );
   return rows[0] ?? null;
 }
 
-async function createApprovedFactorySpec(
+async function createInitialFactorySpec(
   ctx: OrgContextLike,
   project: ProjectRow,
   fgItemId: string,
@@ -1667,24 +1653,22 @@ async function createApprovedFactorySpec(
   const { rows } = await ctx.client.query<FactorySpecRow>(
     `insert into public.factory_specs
        (org_id, fg_item_id, spec_code, version, status, source, bom_header_id, bom_version,
-        approved_by, approved_at, notes, created_by)
+        notes, created_by)
      values
-       (app.current_org_id(), $1::uuid, $2, $3, 'approved_for_factory', 'technical',
-        $4::uuid, $5, $6::uuid, now(), $7, $6::uuid)
-     on conflict (org_id, fg_item_id) where status = 'approved_for_factory'
-     do nothing
-     returning id`,
+       (app.current_org_id(), $1::uuid, $2, $3, 'in_review', 'npd_builder',
+        $4::uuid, $5, $6, $7::uuid)
+     returning id, bom_header_id`,
     [
       fgItemId,
       `FS-${productCode}-v${version}`,
       version,
       bom.id,
       bom.version,
+      `Seeded from NPD ${project.code}; awaiting Technical bundle approval.`,
       ctx.userId,
-      `Auto-seeded from NPD release ${project.code}; initial Technical factory spec evidence.`,
     ],
   );
-  const spec = rows[0] ?? await loadApprovedFactorySpec(ctx, fgItemId);
+  const spec = rows[0];
   if (!spec) throw new Error('factory_specs insert returned no row');
   return spec;
 }

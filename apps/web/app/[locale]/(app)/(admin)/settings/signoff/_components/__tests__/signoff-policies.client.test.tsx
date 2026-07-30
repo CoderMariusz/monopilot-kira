@@ -40,6 +40,7 @@ const POLICY = {
   id: 'p1',
   signoffType: 'production.changeover.allergen',
   requiredSignatures: 2,
+  supportsTwoSignatures: true,
   firstSignerRoleId: null,
   secondSignerRoleId: null,
   allowSameUser: false,

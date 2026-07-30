@@ -128,14 +128,16 @@ describe('releaseNpdProjectToFactory — L5 packaging gate', () => {
         projectId: PROJECT_ID,
         projectCode: 'NPD-1',
         productCode: 'FG-001',
-        activeBomHeaderId: 'bom-2',
-        activeFactorySpecId: 'spec-2',
-        factorySpecApprovedAt: '2026-07-30T08:01:00.000Z',
+        activeBomHeaderId: 'bom-1',
+        activeFactorySpecId: 'spec-1',
+        factorySpecApprovedAt: '2026-07-30T08:00:00.000Z',
       });
     materializeNpdBom.mockResolvedValue({
-      bomHeaderId: 'bom-2',
+      bomHeaderId: 'bom-1',
       productionCode: 'FG-001',
       yieldPromptRequired: false,
+      createdBom: false,
+      createdFactorySpec: false,
     });
 
     const client = mockClient([]);
@@ -149,8 +151,8 @@ describe('releaseNpdProjectToFactory — L5 packaging gate', () => {
       ok: true,
       data: {
         projectId: PROJECT_ID,
-        activeBomHeaderId: 'bom-2',
-        activeFactorySpecId: 'spec-2',
+        activeBomHeaderId: 'bom-1',
+        activeFactorySpecId: 'spec-1',
       },
     });
     expect(runReleasePreflight.mock.invocationCallOrder[0]).toBeLessThan(

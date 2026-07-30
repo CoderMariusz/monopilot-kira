@@ -53,6 +53,7 @@ export type SignoffPolicy = {
   id: string;
   signoffType: string;
   requiredSignatures: number;
+  supportsTwoSignatures: boolean;
   firstSignerRoleId: string | null;
   secondSignerRoleId: string | null;
   allowSameUser: boolean;
@@ -84,6 +85,12 @@ const upsertSchema = z
     isActive: z.boolean(),
   })
   .strict();
+
+const SINGLE_SIGNATURE_ONLY_TYPES = new Set([
+  'qa.hold.release',
+  'qa.ncr.close',
+  'qa.haccp.ccp.deviation',
+]);
 
 export type UpsertSignoffPolicyInput = z.input<typeof upsertSchema>;
 
@@ -123,6 +130,7 @@ function toPolicy(row: PolicyRow): SignoffPolicy {
     id: row.id,
     signoffType: row.signoff_type,
     requiredSignatures: Number(row.required_signatures),
+    supportsTwoSignatures: !SINGLE_SIGNATURE_ONLY_TYPES.has(row.signoff_type),
     firstSignerRoleId: row.first_signer_role_id,
     secondSignerRoleId: row.second_signer_role_id,
     allowSameUser: Boolean(row.allow_same_user),
@@ -175,7 +183,17 @@ export async function upsertSignoffPolicy(rawInput: UpsertSignoffPolicyInput): P
   if (!parsed.success) {
     return { ok: false, error: 'invalid_input' };
   }
-  const input = parsed.data;
+  const singleSignatureOnly = SINGLE_SIGNATURE_ONLY_TYPES.has(parsed.data.signoffType);
+  if (singleSignatureOnly && parsed.data.requiredSignatures !== 1) {
+    return {
+      ok: false,
+      error: 'invalid_input',
+      message: 'This sign-off flow supports exactly one signature.',
+    };
+  }
+  const input = singleSignatureOnly
+    ? { ...parsed.data, secondSignerRoleId: null, allowSameUser: true }
+    : parsed.data;
 
   try {
     return await withOrgContext<UpsertSignoffPolicyResult>(async (ctx): Promise<UpsertSignoffPolicyResult> => {

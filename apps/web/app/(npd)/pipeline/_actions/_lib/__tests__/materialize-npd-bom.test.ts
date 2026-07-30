@@ -310,7 +310,7 @@ describe('computeBomLineQty', () => {
 });
 
 describe('materializeNpdBom', () => {
-  it('creates the missing FG item, product, active NPD BOM lines, and approved factory spec', async () => {
+  it('creates the missing FG item, product, active NPD BOM lines, and an unsigned NPD factory spec in review', async () => {
     const client = createClient((sql, params) => {
       const rmUsabilityRow = matchRmUsabilityItemLookup(sql, params);
       if (rmUsabilityRow) return rmUsabilityRow;
@@ -373,7 +373,13 @@ describe('materializeNpdBom', () => {
     const itemsInsert = client.calls.find((c) => normalize(c.sql).startsWith('insert into public.items'));
     expect(itemsInsert?.params).toContain(4);
     expect(client.calls.some((call) => normalize(call.sql).startsWith('update public.bom_headers'))).toBe(true);
-    expect(client.calls.some((call) => normalize(call.sql).startsWith('insert into public.factory_specs'))).toBe(true);
+    const factorySpecInsert = client.calls.find((call) =>
+      normalize(call.sql).startsWith('insert into public.factory_specs'),
+    );
+    expect(factorySpecInsert).toBeDefined();
+    expect(normalize(factorySpecInsert!.sql)).toContain("'in_review', 'npd_builder'");
+    expect(normalize(factorySpecInsert!.sql)).not.toContain('approved_by');
+    expect(normalize(factorySpecInsert!.sql)).not.toContain('approved_at');
   });
 
   it('uses explicit output_unit on FG insert instead of legacy inference', async () => {
@@ -493,7 +499,7 @@ describe('materializeNpdBom', () => {
     },
   );
 
-  it('is idempotent when the FG item, active NPD BOM, and approved factory spec already exist', async () => {
+  it('is idempotent when the FG item, active NPD BOM, and factory spec for that BOM already exist', async () => {
     const client = createClient((sql, params) => {
       const rmUsabilityRow = matchRmUsabilityItemLookup(sql, params);
       if (rmUsabilityRow) return rmUsabilityRow;
@@ -537,6 +543,10 @@ describe('materializeNpdBom', () => {
     expect(client.calls.some((call) => normalize(call.sql).startsWith('insert into public.bom_headers'))).toBe(false);
     expect(client.calls.some((call) => normalize(call.sql).startsWith('insert into public.bom_lines'))).toBe(false);
     expect(client.calls.some((call) => normalize(call.sql).startsWith('insert into public.factory_specs'))).toBe(false);
+    const specLookup = client.calls.find((call) =>
+      normalize(call.sql).startsWith('select id, bom_header_id from public.factory_specs'),
+    );
+    expect(specLookup?.params).toEqual([ITEM, BOM]);
   });
 
   it('returns PACKS_PER_BOX_REQUIRED WITHOUT writing the FG item or closeout stamp when packs-per-box is unset and no BOM exists', async () => {

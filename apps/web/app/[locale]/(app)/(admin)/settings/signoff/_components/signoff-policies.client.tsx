@@ -184,10 +184,12 @@ export function SignoffPoliciesScreen({
                             <Select
                               aria-label={labels.colRequired}
                               value={String(draft.requiredSignatures)}
-                              options={[
-                                { value: '1', label: '1' },
-                                { value: '2', label: '2' },
-                              ]}
+                              options={draft.supportsTwoSignatures
+                                ? [
+                                    { value: '1', label: '1' },
+                                    { value: '2', label: '2' },
+                                  ]
+                                : [{ value: '1', label: '1' }]}
                               onValueChange={(v) => setDraft({ ...draft, requiredSignatures: Number(v) })}
                             />
                           </TableCell>
@@ -204,6 +206,7 @@ export function SignoffPoliciesScreen({
                               aria-label={labels.colSecondSigner}
                               value={draft.secondSignerRoleId ?? ''}
                               options={roleOptions}
+                              disabled={!draft.supportsTwoSignatures}
                               onValueChange={(v) => setDraft({ ...draft, secondSignerRoleId: v || null })}
                             />
                           </TableCell>
@@ -211,6 +214,7 @@ export function SignoffPoliciesScreen({
                             <Switch
                               aria-label={labels.colSameUser}
                               checked={draft.allowSameUser}
+                              disabled={!draft.supportsTwoSignatures}
                               onCheckedChange={(next) => setDraft({ ...draft, allowSameUser: next })}
                             />
                           </TableCell>

@@ -149,6 +149,48 @@ describe('signoff-actions Server Action', () => {
     expect(result).toEqual({ ok: false, error: 'invalid_input' });
   });
 
+  it.each([
+    'qa.hold.release',
+    'qa.ncr.close',
+    'qa.haccp.ccp.deviation',
+  ])('rejects an unsatisfiable two-signature policy for %s without writing', async (signoffType) => {
+    const { upsertSignoffPolicy } = await loadActions();
+
+    const result = await upsertSignoffPolicy({
+      signoffType,
+      requiredSignatures: 2,
+      firstSignerRoleId: null,
+      secondSignerRoleId: null,
+      allowSameUser: false,
+      isActive: true,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'invalid_input',
+      message: 'This sign-off flow supports exactly one signature.',
+    });
+    expect(indexOfCall('insert into public.signoff_policies')).toBe(-1);
+    expect(indexOfCall('insert into public.audit_log')).toBe(-1);
+  });
+
+  it('normalizes unused second-signer settings for a supported one-signature quality policy', async () => {
+    const { upsertSignoffPolicy } = await loadActions();
+
+    const result = await upsertSignoffPolicy({
+      signoffType: 'qa.ncr.close',
+      requiredSignatures: 1,
+      firstSignerRoleId: null,
+      secondSignerRoleId: ROLE_ID,
+      allowSameUser: false,
+      isActive: true,
+    });
+
+    expect(result.ok).toBe(true);
+    const upsert = callContaining('insert into public.signoff_policies');
+    expect(upsert.params).toEqual([ORG_ID, 'qa.ncr.close', 1, null, null, true, true]);
+  });
+
   it('listSignoffPolicies returns policies + roles when ready', async () => {
     const { listSignoffPolicies } = await loadActions();
     const result = await listSignoffPolicies();
