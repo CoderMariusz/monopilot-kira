@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 
 import Input from '@monopilot/ui/Input';
 
-import { listWhereUsed } from './_actions/list-where-used';
+import { WHERE_USED_LIMIT, listWhereUsed } from './_actions/list-where-used';
 
 type WhereUsedResult = {
   fg_code: string;
@@ -32,6 +32,7 @@ export default function TechnicalWhereUsedPage() {
   const initialCode = searchParams.get('code') ?? '';
   const [code, setCode] = useState(initialCode);
   const [rows, setRows] = useState<WhereUsedResult[]>([]);
+  const [truncated, setTruncated] = useState(false);
   const [error, setError] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>('fg_code');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
@@ -42,14 +43,18 @@ export default function TechnicalWhereUsedPage() {
     setError(false);
     if (!initialCode.trim()) {
       setRows([]);
+      setTruncated(false);
       return;
     }
     startTransition(async () => {
       try {
-        setRows(await listWhereUsed(initialCode));
+        const result = await listWhereUsed(initialCode);
+        setRows(result.rows);
+        setTruncated(result.truncated);
       } catch (err) {
         console.error('[technical/where-used] client_load_failed', err);
         setRows([]);
+        setTruncated(false);
         setError(true);
       }
     });
@@ -114,6 +119,15 @@ export default function TechnicalWhereUsedPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
+            {truncated ? (
+              <div role="status" className="alert alert-amber mb-3" data-testid="where-used-truncated">
+                <div className="alert-title">Partial list — showing the first {WHERE_USED_LIMIT} finished goods.</div>
+                <div className="alert-body">
+                  This component is used by more than {WHERE_USED_LIMIT} FGs. Do not treat this list as the complete
+                  recall scope.
+                </div>
+              </div>
+            ) : null}
             <table className="w-full border-collapse text-sm" data-testid="where-used-table">
               <thead>
                 <tr className="border-b border-slate-200 text-left">

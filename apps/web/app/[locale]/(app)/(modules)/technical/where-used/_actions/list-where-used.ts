@@ -17,12 +17,26 @@ type WhereUsedResult = {
   component_uom: string;
 };
 
-export async function listWhereUsed(rawCode: unknown): Promise<WhereUsedResult[]> {
+/**
+ * The list is capped. That is fine; hiding the cap is not — this screen is used
+ * during recalls to decide which finished goods a component reaches, and a list
+ * that silently stops at 100 reads as "these are all of them". So we ask for
+ * WHERE_USED_LIMIT + 1 rows and report `truncated` when the extra one comes back.
+ */
+export const WHERE_USED_LIMIT = 100;
+
+export type WhereUsedList = {
+  rows: WhereUsedResult[];
+  /** true → there are more FGs using this component than are listed here. */
+  truncated: boolean;
+};
+
+export async function listWhereUsed(rawCode: unknown): Promise<WhereUsedList> {
   const code = typeof rawCode === 'string' ? rawCode.trim() : '';
-  if (!code) return [];
+  if (!code) return { rows: [], truncated: false };
 
   try {
-    return await withOrgContext(async ({ client }): Promise<WhereUsedResult[]> => {
+    return await withOrgContext(async ({ client }): Promise<WhereUsedList> => {
       const qc = client as QueryClient;
       const { rows } = await qc.query<WhereUsedRow>(
         `select distinct on (i.item_code)
@@ -46,21 +60,25 @@ export async function listWhereUsed(rawCode: unknown): Promise<WhereUsedResult[]
                  and item_code = $1
             )
           order by i.item_code, ph.version desc
-          limit 100`,
+          limit ${WHERE_USED_LIMIT + 1}`,
         [code],
       );
 
-      return rows.map((row) => ({
-        fg_code: row.fg_code,
-        fg_name: row.fg_name ?? '',
-        component_qty: Number(row.component_qty),
-        component_uom: row.component_uom,
-      }));
+      const truncated = rows.length > WHERE_USED_LIMIT;
+      return {
+        rows: rows.slice(0, WHERE_USED_LIMIT).map((row) => ({
+          fg_code: row.fg_code,
+          fg_name: row.fg_name ?? '',
+          component_qty: Number(row.component_qty),
+          component_uom: row.component_uom,
+        })),
+        truncated,
+      };
     });
   } catch (error) {
     console.error('[technical/where-used] listWhereUsed load_failed', {
       err: error instanceof Error ? error.message : String(error),
     });
-    return [];
+    return { rows: [], truncated: false };
   }
 }

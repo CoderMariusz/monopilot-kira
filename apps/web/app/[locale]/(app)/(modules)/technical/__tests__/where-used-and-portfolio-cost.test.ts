@@ -47,14 +47,17 @@ describe('technical where-used and portfolio cost read actions', () => {
 
     const result = await listWhereUsed(' RM-2001 ');
 
-    expect(result).toEqual([
-      {
-        fg_code: 'FG-1001',
-        fg_name: 'Cooked sausage',
-        component_qty: 2.5,
-        component_uom: 'kg',
-      },
-    ]);
+    expect(result).toEqual({
+      rows: [
+        {
+          fg_code: 'FG-1001',
+          fg_name: 'Cooked sausage',
+          component_qty: 2.5,
+          component_uom: 'kg',
+        },
+      ],
+      truncated: false,
+    });
     expect(queryMock).toHaveBeenCalledTimes(1);
     expect(calls()[0]?.params).toEqual(['RM-2001']);
     const sql = normalize(calls()[0]!.sql);
@@ -78,8 +81,27 @@ describe('technical where-used and portfolio cost read actions', () => {
     expect(sql).toContain("ph.status = 'active'");
   });
 
+  it('flags a truncated where-used list instead of silently cutting it at the limit', async () => {
+    // 101 rows come back because the action asks for LIMIT+1 — the extra row is the
+    // signal, not data, so it must not reach the caller.
+    queryMock.mockResolvedValueOnce({
+      rows: Array.from({ length: 101 }, (_, index) => ({
+        fg_code: `FG-${index}`,
+        fg_name: `FG ${index}`,
+        component_qty: '1',
+        component_uom: 'kg',
+      })),
+    });
+
+    const result = await listWhereUsed('RM-2001');
+
+    expect(result.truncated).toBe(true);
+    expect(result.rows).toHaveLength(100);
+    expect(normalize(calls()[0]!.sql)).toContain('limit 101');
+  });
+
   it('returns an empty where-used list for blank input without querying', async () => {
-    await expect(listWhereUsed('   ')).resolves.toEqual([]);
+    await expect(listWhereUsed('   ')).resolves.toEqual({ rows: [], truncated: false });
     expect(queryMock).not.toHaveBeenCalled();
   });
 
