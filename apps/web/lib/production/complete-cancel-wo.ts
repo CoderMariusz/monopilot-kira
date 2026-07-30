@@ -360,6 +360,7 @@ export async function completeWo(
     eventType: EventType.PRODUCTION_WO_COMPLETED,
     aggregateType: 'work_order',
     aggregateId: input.woId,
+    dedupKey: `${EventType.PRODUCTION_WO_COMPLETED}:${input.transactionId}`,
     payload: {
       woId: input.woId,
       completedAt: transition.data.completedAt,
@@ -450,7 +451,7 @@ async function loadCompletedCancelAffectedLpIds(
         and o.wo_id = $1::uuid
         and o.correction_of_id is null
         and o.lp_id is not null
-        and lp.status not in ('destroyed', 'consumed')
+        and lp.status <> 'destroyed'
         and not exists (
           select 1
             from public.wo_outputs correction
@@ -639,6 +640,7 @@ export async function cancelWo(
     eventType: EventType.PRODUCTION_WO_CLOSED,
     aggregateType: 'work_order',
     aggregateId: input.woId,
+    dedupKey: `${EventType.PRODUCTION_WO_CLOSED}:${input.transactionId}`,
     payload: {
       woId: input.woId,
       terminal: 'cancelled',

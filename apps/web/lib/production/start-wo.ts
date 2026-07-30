@@ -304,6 +304,7 @@ export async function startWo(
     eventType: EventType.PRODUCTION_WO_STARTED,
     aggregateType: 'work_order',
     aggregateId: input.woId,
+    dedupKey: `${EventType.PRODUCTION_WO_STARTED}:${input.transactionId}`,
     payload: {
       woId: input.woId,
       bomSnapshotId,

@@ -31,6 +31,7 @@ let queries: QueryCall[];
 let executionStatus: 'completed' | 'in_progress';
 let outputExtJsonb: unknown;
 let lpHasDownstreamUsage: boolean;
+let lpStatus: 'available' | 'consumed';
 
 function normalize(sql: string): string {
   return sql.replace(/\s+/g, ' ').trim().toLowerCase();
@@ -55,7 +56,7 @@ function makeClient(): QueryClient {
       }
 
       if (normalized.includes('select distinct lp.id::text as lp_id')) {
-        return executionStatus === 'completed'
+        return executionStatus === 'completed' && !normalized.includes(`'${lpStatus}'`)
           ? { rows: [{ lp_id: LP_ID }] as T[], rowCount: 1 }
           : { rows: [] as T[], rowCount: 0 };
       }
@@ -66,12 +67,12 @@ function makeClient(): QueryClient {
 
       if (normalized.startsWith('select o.id::text as output_id') && normalized.includes('from public.wo_outputs o')) {
         const rows =
-          executionStatus === 'completed'
+          executionStatus === 'completed' && !normalized.includes(`'${lpStatus}'`)
             ? [{
                 output_id: '88888888-8888-4888-8888-888888888888',
                 lp_id: LP_ID,
                 site_id: SITE_ID,
-                status: 'available',
+                status: lpStatus,
                 product_id: PRODUCT_ID,
                 qty_kg: '10.000',
                 fallback_wac_value: '120.0000',
@@ -112,10 +113,11 @@ describe('cancelWo completed-output LP handling', () => {
     executionStatus = 'completed';
     outputExtJsonb = { wac_qty_kg: '9.500', wac_value: '114.0000' };
     lpHasDownstreamUsage = false;
+    lpStatus = 'available';
     vi.clearAllMocks();
   });
 
-  it('voids production output LPs when cancelling a completed WO', async () => {
+  it('allows completed cancel when output LP was not consumed or split', async () => {
     const result = await cancelWo(makeCtx(), {
       woId: WO_ID,
       transactionId: TX_ID,
@@ -242,5 +244,26 @@ describe('cancelWo completed-output LP handling', () => {
     });
     expect(applyTransition).not.toHaveBeenCalled();
     expect(queries.some((query) => normalize(query.sql).startsWith('update public.license_plates'))).toBe(false);
+  });
+
+  it('blocks completed cancel when the output LP was consumed', async () => {
+    lpStatus = 'consumed';
+    lpHasDownstreamUsage = true;
+
+    const result = await cancelWo(makeCtx(), {
+      woId: WO_ID,
+      transactionId: TX_ID,
+      reasonCode: 'planner_cancel',
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: 'invalid_state',
+      details: {
+        code: 'output_lp_has_downstream_usage',
+        lpId: LP_ID,
+      },
+    });
+    expect(applyTransition).not.toHaveBeenCalled();
   });
 });

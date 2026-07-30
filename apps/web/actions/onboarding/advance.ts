@@ -42,7 +42,7 @@ type QueryClient = {
   query<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<QueryResult<T>>;
 };
 
-type OrgContextLike = {
+export type OrgContextLike = {
   userId: string;
   orgId: string;
   client: QueryClient;
@@ -104,7 +104,7 @@ export async function mutateOnboarding(transition: Transition, rawInput: unknown
   }
 }
 
-async function hasOnboardingPermission({ client, userId, orgId }: OrgContextLike): Promise<boolean> {
+export async function hasOnboardingPermission({ client, userId, orgId }: OrgContextLike): Promise<boolean> {
   const { rows } = await client.query<{ ok: boolean }>(
     `select true as ok
        from public.user_roles ur
@@ -317,6 +317,16 @@ function normalizeState(raw: unknown): OnboardingState {
         ? null
         : undefined,
   };
+}
+
+export function isOnboardingReadyToComplete(raw: unknown): boolean {
+  const state = normalizeState(raw);
+  return (
+    state.current_step === TOTAL_STEPS
+    && [...REQUIRED_STEPS]
+      .filter((step) => step < TOTAL_STEPS)
+      .every((step) => state.completed_steps.includes(step))
+  );
 }
 
 function parseStep(rawInput: unknown): number | null {

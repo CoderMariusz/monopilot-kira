@@ -134,6 +134,7 @@ export async function closeWo(
     eventType: EventType.PRODUCTION_WO_CLOSED,
     aggregateType: 'work_order',
     aggregateId: input.woId,
+    dedupKey: `${EventType.PRODUCTION_WO_CLOSED}:${input.transactionId}`,
     payload: {
       woId: input.woId,
       terminal: 'closed',

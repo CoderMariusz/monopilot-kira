@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ProductionContext, QueryClient } from '../shared';
-import { applyTransition } from '../wo-state-machine';
+import { applyTransition, resolveTransition } from '../wo-state-machine';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
@@ -77,6 +77,10 @@ function makeCtx(): ProductionContext {
 describe('wo_state_machine work_orders timestamps (S8)', () => {
   beforeEach(() => {
     queries = [];
+  });
+
+  it('allows completed → cancelled', () => {
+    expect(resolveTransition('completed', 'cancel')).toBe('cancelled');
   });
 
   it('sets work_orders.started_at in the same transaction as the start transition', async () => {

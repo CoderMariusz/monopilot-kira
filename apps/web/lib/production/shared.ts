@@ -131,29 +131,27 @@ export class WoConcurrentModificationError extends Error {
 }
 
 /**
- * Transactional outbox writer. INSERTs into `public.outbox_events` using the
- * canonical column set (migration 003). MUST be called inside the same txn as
- * the state change (the `ctx.client` is the txn-bound app-role client).
+ * EventType-typed lifecycle wrapper around the deduplicating outbox writer.
+ * MUST be called inside the same txn as the state change (the `ctx.client` is
+ * the txn-bound app-role client).
  *
  * `eventType` must be a member of the EventType enum + the migration CHECK, or
  * the INSERT violates the constraint and the WHOLE txn rolls back (drift gate).
  */
 export async function writeOutbox(
   ctx: ProductionContext,
-  params: { eventType: EventType; aggregateType: string; aggregateId: string; payload: Record<string, unknown> },
+  params: {
+    eventType: EventType;
+    aggregateType: string;
+    aggregateId: string;
+    payload: Record<string, unknown>;
+    dedupKey: string;
+  },
 ): Promise<void> {
-  await ctx.client.query(
-    `insert into public.outbox_events
-       (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
-     values (app.current_org_id(), $1, $2, $3::uuid, $4::jsonb, $5)`,
-    [
-      params.eventType,
-      params.aggregateType,
-      params.aggregateId,
-      JSON.stringify({ org_id: ctx.orgId, actor_user_id: ctx.userId, ...params.payload }),
-      APP_VERSION,
-    ],
-  );
+  await emitOutbox(ctx, {
+    ...params,
+    payload: { org_id: ctx.orgId, actor_user_id: ctx.userId, ...params.payload },
+  });
 }
 
 /** Re-export EventType so service modules don't reach across packages directly. */
@@ -173,9 +171,7 @@ export { EventType };
  *     seam), whose ActiveHold is { holdId, lpId, lotId } — NOT {id}. QualityHold
  *     error/emitConsumeBlocked below use hold.holdId accordingly.
  *   - emitOutbox writes the dedup_key column (migration 102) so an idempotent
- *     replay of the same transaction_id is a no-op at the event layer too. It is
- *     kept SEPARATE from writeOutbox (the EventType-typed lifecycle writer) so
- *     the WO-lifecycle core is untouched.
+ *     replay of the same transaction_id is a no-op at the event layer too.
  * ─────────────────────────────────────────────────────────────────────────── */
 
 // holdsGuard / ActiveHold are owned by ./holds-guard (the cross-module seam the

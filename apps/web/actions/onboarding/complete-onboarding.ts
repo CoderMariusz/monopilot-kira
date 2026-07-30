@@ -2,6 +2,7 @@ import { withOrgContext } from '../../lib/auth/with-org-context';
 import { createServerSupabaseClient } from '../../lib/auth/supabase-server';
 import { stampOnboardingClaim } from '../../lib/auth/stamp-onboarding-claim';
 import { revalidateLocalized } from '../../lib/i18n/revalidate-localized';
+import { hasOnboardingPermission, isOnboardingReadyToComplete } from './advance';
 
 export type CompleteOnboardingInput = { orgId: string };
 
@@ -13,6 +14,10 @@ export type CompleteOnboardingResult = {
 };
 
 type Row = { onboarding_completed_at: string | Date };
+type OnboardingCheckRow = {
+  onboarding_completed_at: string | null;
+  onboarding_state: unknown;
+};
 type CompletionWithAuthUser = CompleteOnboardingResult & { authUserId?: string };
 
 function toIsoString(value: string | Date | null | undefined): string | null {
@@ -31,7 +36,7 @@ async function refreshCurrentSession(): Promise<boolean> {
 export async function completeOnboarding(rawInput: CompleteOnboardingInput): Promise<CompleteOnboardingResult> {
   'use server';
 
-  if (!rawInput || typeof rawInput !== 'object') {
+  if (!rawInput || typeof rawInput !== 'object' || typeof rawInput.orgId !== 'string') {
     return { ok: false, error: 'invalid_input' };
   }
 
@@ -39,16 +44,35 @@ export async function completeOnboarding(rawInput: CompleteOnboardingInput): Pro
     const result = await withOrgContext<CompletionWithAuthUser>(async (ctx) => {
       const context = ctx as {
         userId: string;
+        orgId: string;
         client: {
           query<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<{ rows: T[]; rowCount: number }>;
         };
       };
 
-      const onboardingCheck = await context.client.query<{ onboarding_completed_at: string | null }>(
-        `select onboarding_completed_at from public.organizations where id = app.current_org_id()`,
+      if (context.orgId !== rawInput.orgId) {
+        return { ok: false, error: 'forbidden' };
+      }
+
+      const authorized = await hasOnboardingPermission(context);
+      if (!authorized) {
+        return { ok: false, error: 'forbidden' };
+      }
+
+      const onboardingCheck = await context.client.query<OnboardingCheckRow>(
+        `select onboarding_completed_at, onboarding_state
+           from public.organizations
+          where id = app.current_org_id()`,
       );
-      if (onboardingCheck.rows[0]?.onboarding_completed_at != null) {
+      const organization = onboardingCheck.rows[0];
+      if (!organization) {
+        return { ok: false, error: 'not_found' };
+      }
+      if (organization.onboarding_completed_at != null) {
         return { ok: false, error: 'onboarding_already_completed' };
+      }
+      if (!isOnboardingReadyToComplete(organization.onboarding_state)) {
+        return { ok: false, error: 'onboarding_steps_incomplete' };
       }
 
       const { rows } = await context.client.query<Row>(
@@ -61,7 +85,9 @@ export async function completeOnboarding(rawInput: CompleteOnboardingInput): Pro
       const row = rows[0];
       if (!row) return { ok: false, error: 'not_found' };
       const completedAtIso = toIsoString(row.onboarding_completed_at);
-      if (!completedAtIso) return { ok: false, error: 'PERSISTENCE_FAILED' };
+      if (!completedAtIso) {
+        throw new Error('invalid onboarding_completed_at returned after completion update');
+      }
       revalidateLocalized('/settings/onboarding');
       revalidateLocalized('/settings/users');
       return {

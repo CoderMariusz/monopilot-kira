@@ -90,15 +90,22 @@ describe('transitionItemStatus (Wave 8b Lane IA)', () => {
     expect(reactivated.ok).toBe(true);
   });
 
-  it('illegal transitions are rejected without touching the row', async () => {
-    // blocked → active stays owned by the deactivate flow (no reactivation here)
+  it('blocked → active reactivates the item and writes the audit entry', async () => {
     ctx.row = { status: 'blocked', uom_base: 'kg' };
-    const fromBlocked = await transitionItemStatus({ id: ITEM_ID, toStatus: 'active' });
-    expect(fromBlocked).toMatchObject({ ok: false, error: 'invalid_transition' });
 
+    const result = await transitionItemStatus({ id: ITEM_ID, toStatus: 'active' });
+
+    expect(result).toEqual({ ok: true, data: { id: ITEM_ID, status: 'active' } });
+    expect(updateCalls()).toHaveLength(1);
+    expect(updateCalls()[0]!.params).toEqual([ITEM_ID, 'active']);
+    expect(auditCalls()).toHaveLength(1);
+    expect(JSON.parse(auditCalls()[0]!.params[4] as string)).toEqual({ status: 'blocked' });
+    expect(JSON.parse(auditCalls()[0]!.params[5] as string)).toEqual({ status: 'active' });
+  });
+
+  it('illegal transitions are rejected without touching the row', async () => {
     // draft → deprecated skips the lifecycle
     ctx.row = { status: 'draft', uom_base: 'kg' };
-    ctx.calls = [];
     const skipped = await transitionItemStatus({ id: ITEM_ID, toStatus: 'deprecated' });
     expect(skipped).toMatchObject({ ok: false, error: 'invalid_transition' });
     expect(updateCalls()).toHaveLength(0);

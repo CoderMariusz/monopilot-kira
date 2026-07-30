@@ -6,9 +6,9 @@
  * `public.gdpr_redact_user_pii(target_user_id uuid)` shipped by migration
  * 115-npd-gdpr-erasure.sql.
  *
- * Integration test: requires DATABASE_URL pointing at a clone already migrated
- * to @109. The migration under test (115) is applied here against the owner
- * pool so the suite is self-contained.
+ * Integration test: requires DATABASE_URL pointing at a migrated clone. The
+ * erasure function (115 + 243) and current product-view propagation repair
+ * (545) are applied here against the owner pool so the suite is self-contained.
  */
 import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
@@ -29,6 +29,12 @@ const migrationPath = resolve(packageRoot, 'migrations/115-npd-gdpr-erasure.sql'
 // erasure function so it no longer touches public.brief. We apply 243 on top of 115
 // so this contract reflects the production function body (no brief block).
 const dropBriefMigrationPath = resolve(packageRoot, 'migrations/243-drop-brief-tables.sql');
+// Mig 545 repairs the current public.product INSTEAD OF UPDATE trigger so
+// created_by_user changes reach canonical public.items.created_by.
+const productCreatedByFixMigrationPath = resolve(
+  packageRoot,
+  'migrations/545-product-gdpr-created-by-propagation.sql',
+);
 
 const appUserPassword = process.env.APP_USER_PASSWORD ?? 'app-user-test-password';
 const PLACEHOLDER = '00000000-0000-0000-0000-000000000000';
@@ -52,6 +58,7 @@ async function applyMigration(pool: pg.Pool): Promise<void> {
   // Mig 243 re-points the function (removes the brief block) + drops the brief tables.
   // Apply it after 115 so the function reflects production. Both are idempotent.
   const dropBriefSql = readFileSync(dropBriefMigrationPath, 'utf8');
+  const productCreatedByFixSql = readFileSync(productCreatedByFixMigrationPath, 'utf8');
   // Serialise concurrent applies across parallel integration test files — two
   // simultaneous `create or replace function` on the same object can deadlock.
   const client = await pool.connect();
@@ -64,6 +71,7 @@ async function applyMigration(pool: pg.Pool): Promise<void> {
     // already applied by the migration runner.
     await client.query(sql);
     await client.query(dropBriefSql);
+    await client.query(productCreatedByFixSql);
     await client.query('commit');
   } catch (err) {
     await client.query('rollback').catch(() => undefined);
@@ -295,6 +303,7 @@ runIntegrationTest('115 NPD GDPR erasure behaviour (DATABASE_URL required)', () 
     const remaining = await ownerPool.query<{ count: string }>(
       `select (
          (select count(*) from public.product where org_id = $1 and created_by_user = $2)
+       + (select count(*) from public.product_legacy where org_id = $1 and created_by_user = $2)
        + (select count(*) from public.risks where org_id = $1 and (owner_user_id = $2 or created_by_user = $2 or closed_by_user = $2))
        + (select count(*) from public.npd_projects where org_id = $1 and created_by_user = $2)
        + (select count(*) from public.gate_checklist_items where org_id = $1 and completed_by_user = $2)
@@ -312,6 +321,13 @@ runIntegrationTest('115 NPD GDPR erasure behaviour (DATABASE_URL required)', () 
       [orgA, PLACEHOLDER],
     );
     expect(Number(placeholderProducts.rows[0]!.count)).toBe(3);
+    const placeholderLegacyProducts = await ownerPool.query<{ count: string }>(
+      `select count(*)::text as count
+         from public.product_legacy
+        where org_id = $1 and created_by_user = $2`,
+      [orgA, PLACEHOLDER],
+    );
+    expect(Number(placeholderLegacyProducts.rows[0]!.count)).toBe(3);
 
     // No business rows were deleted (pseudonymise, not delete).
     const productTotal = await ownerPool.query<{ count: string }>(
@@ -325,6 +341,10 @@ runIntegrationTest('115 NPD GDPR erasure behaviour (DATABASE_URL required)', () 
       `select created_by_user from public.product where product_code = 'FA-T089-AOTHER'`,
     );
     expect(otherProduct.rows[0]!.created_by_user).toBe(otherUser);
+    const otherLegacyProduct = await ownerPool.query<{ created_by_user: string }>(
+      `select created_by_user from public.product_legacy where product_code = 'FA-T089-AOTHER'`,
+    );
+    expect(otherLegacyProduct.rows[0]!.created_by_user).toBe(otherUser);
   });
 
   it('AC2: writes a gdpr.erasure_executed audit_events row with target_user_id + counts', async () => {
@@ -361,6 +381,10 @@ runIntegrationTest('115 NPD GDPR erasure behaviour (DATABASE_URL required)', () 
     );
     // org B's row still references the original subject UUID (untouched by an org-A erasure).
     expect(orgBProduct.rows[0]!.created_by_user).toBe(subjectUser);
+    const orgBLegacyProduct = await ownerPool.query<{ created_by_user: string }>(
+      `select created_by_user from public.product_legacy where product_code = 'FA-T089-BX'`,
+    );
+    expect(orgBLegacyProduct.rows[0]!.created_by_user).toBe(subjectUser);
   });
 
   it('idempotent: a second run returns zero counts and leaves rows at the placeholder', async () => {

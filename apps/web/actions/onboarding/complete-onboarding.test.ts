@@ -49,11 +49,41 @@ vi.mock('@supabase/supabase-js', () => ({
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
 const COMPLETED_AT_DATE = new Date('2026-05-19T21:00:00.000Z');
+const COMPLETE_STATE = {
+  current_step: 6,
+  completed_steps: [1, 2, 3],
+  skipped_steps: [4, 5],
+};
 
-function makeClientReturning(completedAt: string | Date) {
+function makeClientReturning(
+  completedAt: string | Date,
+  {
+    authorized = true,
+    onboardingState = COMPLETE_STATE,
+  }: {
+    authorized?: boolean;
+    onboardingState?: {
+      current_step: number;
+      completed_steps: number[];
+      skipped_steps: number[];
+    };
+  } = {},
+) {
+  const queries: string[] = [];
   return {
+    queries,
     async query(sql: string) {
       const normalized = sql.replace(/\s+/g, ' ').trim().toLowerCase();
+      queries.push(normalized);
+      if (normalized.includes('from public.user_roles')) {
+        return { rows: authorized ? [{ ok: true }] : [], rowCount: authorized ? 1 : 0 };
+      }
+      if (normalized.includes('select onboarding_completed_at') && normalized.includes('from public.organizations')) {
+        return {
+          rows: [{ onboarding_completed_at: null, onboarding_state: onboardingState }],
+          rowCount: 1,
+        };
+      }
       if (normalized.includes('update public.organizations')) {
         return { rows: [{ onboarding_completed_at: completedAt }], rowCount: 1 };
       }
@@ -124,5 +154,40 @@ describe('completeOnboarding date normalization (regression: Date → [object Da
 
     expect(result).toMatchObject({ ok: true, onboardingCompletedAt: iso, redirectTo: '/settings/users' });
     expect(_stampedClaims[0]!.completedAt).toBe(iso);
+  });
+
+  it('rejects completion until every required pre-completion step is complete', async () => {
+    const client = makeClientReturning(COMPLETED_AT_DATE, {
+      onboardingState: {
+        current_step: 6,
+        completed_steps: [1, 2],
+        skipped_steps: [4, 5],
+      },
+    });
+    _withOrgContextRunner.mockImplementation(async (action: (ctx: unknown) => Promise<unknown>) =>
+      action({ userId: USER_ID, orgId: ORG_ID, client }),
+    );
+
+    const { completeOnboarding } = await import('./complete-onboarding');
+    const result = await completeOnboarding({ orgId: ORG_ID });
+
+    expect(result).toEqual({ ok: false, error: 'onboarding_steps_incomplete' });
+    expect(_stampedClaims).toHaveLength(0);
+    expect(client.queries.some((sql) => sql.includes('update public.organizations'))).toBe(false);
+  });
+
+  it('rejects a user without settings.onboarding.complete before completing the organization', async () => {
+    const client = makeClientReturning(COMPLETED_AT_DATE, { authorized: false });
+    _withOrgContextRunner.mockImplementation(async (action: (ctx: unknown) => Promise<unknown>) =>
+      action({ userId: USER_ID, orgId: ORG_ID, client }),
+    );
+
+    const { completeOnboarding } = await import('./complete-onboarding');
+    const result = await completeOnboarding({ orgId: ORG_ID });
+
+    expect(result).toEqual({ ok: false, error: 'forbidden' });
+    expect(_stampedClaims).toHaveLength(0);
+    expect(client.queries.some((sql) => sql.includes('from public.organizations'))).toBe(false);
+    expect(client.queries.some((sql) => sql.includes('update public.organizations'))).toBe(false);
   });
 });

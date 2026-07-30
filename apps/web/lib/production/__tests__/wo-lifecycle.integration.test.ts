@@ -608,7 +608,7 @@ run('08-production E1 — WO lifecycle (REAL DB integration)', () => {
     expect(Number(execution.rows[0]?.version)).toBe(1);
   });
 
-  it('pause is idempotent under R14 transaction_id replay (single open downtime row)', async () => {
+  it('pause is idempotent under R14 transaction_id replay (single downtime row and outbox event)', async () => {
     const { woId } = await seedWorkOrder();
     const catId = await seedDowntimeCategory();
     const txn = randomUUID();
@@ -637,6 +637,10 @@ run('08-production E1 — WO lifecycle (REAL DB integration)', () => {
       [orgId, woId],
     );
     expect(downtime.rowCount).toBe(1);
+    const downtimeOutbox = (await outboxTypes(woId)).filter(
+      (type) => type === 'production.downtime.recorded',
+    );
+    expect(downtimeOutbox).toHaveLength(1);
   });
 
   it('optimistic-lock: two concurrent transitions on the same version — exactly one wins', async () => {

@@ -124,6 +124,7 @@ export async function pauseWo(
     eventType: EventType.PRODUCTION_DOWNTIME_RECORDED,
     aggregateType: 'work_order',
     aggregateId: input.woId,
+    dedupKey: `${EventType.PRODUCTION_DOWNTIME_RECORDED}:${input.transactionId}`,
     payload: { woId: input.woId, downtimeEventId, source: 'wo_pause', state: 'opened' },
   });
 
@@ -232,6 +233,7 @@ export async function resumeWo(
     eventType: EventType.PRODUCTION_DOWNTIME_RECORDED,
     aggregateType: 'work_order',
     aggregateId: input.woId,
+    dedupKey: `${EventType.PRODUCTION_DOWNTIME_RECORDED}:${input.transactionId}`,
     payload: {
       woId: input.woId,
       downtimeEventId: row ? String(row.id) : null,
