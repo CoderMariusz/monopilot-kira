@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { signEvent } from '@monopilot/e-sign';
 import { z } from 'zod';
 
+import { toAuditEventId } from './audit-event-id';
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import {
@@ -365,8 +366,8 @@ async function writeAuditEvent(
       randomUUID(),
     ],
   );
-  const auditId = rows[0]?.id;
-  if (typeof auditId !== 'number') throw new ActionError('persistence_failed');
+  const auditId = toAuditEventId(rows[0]?.id);
+  if (auditId === null) throw new ActionError('persistence_failed');
   return auditId;
 }
 

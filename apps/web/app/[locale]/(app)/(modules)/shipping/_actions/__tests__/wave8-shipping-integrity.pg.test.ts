@@ -102,15 +102,15 @@ runPg('wave-8 shipping stock integrity (real Postgres)', () => {
     process.env.NEXT_SERVER_ACTION_ORG_ID = orgId;
 
     await ownerPool.query(
-      `insert into public.warehouses (id, org_id, code, name)
-       values ($1, $2, 'WH-W8', 'Wave8 WH')
+      `insert into public.warehouses (id, org_id, code, name, warehouse_type)
+       values ($1, $2, 'WH-W8', 'Wave8 WH', 'main')
        on conflict (id) do nothing`,
       [warehouseId, orgId],
     );
     await ownerPool.query(
       `insert into public.items
-         (id, org_id, item_code, item_type, name, uom_base, output_uom, each_per_box, status)
-       values ($1, $2, 'FG-W8-001', 'fg', 'Wave8 FG', 'pcs', 'each', 12, 'active')
+         (id, org_id, item_code, item_type, name, uom_base, output_uom, each_per_box, net_qty_per_each, status)
+       values ($1, $2, 'FG-W8-001', 'fg', 'Wave8 FG', 'pcs', 'each', 12, 1, 'active')
        on conflict (id) do nothing`,
       [itemId, orgId],
     );

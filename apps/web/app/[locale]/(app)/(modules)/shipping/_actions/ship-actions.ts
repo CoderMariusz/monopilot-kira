@@ -10,6 +10,7 @@ import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { debitWac } from '../../../../../../lib/finance/upsert-wac';
 import { fetchShipmentPackCompleteness } from '../../../../../../lib/shipping/shipment-pack-completeness';
 import { makeStockMoveNumber } from '../../../../../../lib/warehouse/lp-create';
+import { toAuditEventId } from './audit-event-id';
 import { LIVE_ALLOCATION_SQL, SHIP_CLOSED_ALLOCATION_REASON } from './so-transitions';
 import type { SalesOrderStatus } from './so-transitions';
 import {
@@ -203,8 +204,8 @@ async function writePodAuditEvent(
       randomUUID(),
     ],
   );
-  const auditId = rows[0]?.id;
-  if (typeof auditId !== 'number') throw new ActionError('persistence_failed');
+  const auditId = toAuditEventId(rows[0]?.id);
+  if (auditId === null) throw new ActionError('persistence_failed');
   return auditId;
 }
 
@@ -250,7 +251,7 @@ async function writeBolCarrierAuditEvent(
       randomUUID(),
     ],
   );
-  if (typeof rows[0]?.id !== 'number') throw new ActionError('persistence_failed');
+  if (toAuditEventId(rows[0]?.id) === null) throw new ActionError('persistence_failed');
 }
 
 function toNumber(value: unknown): number {
