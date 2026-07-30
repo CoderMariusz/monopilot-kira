@@ -19,7 +19,8 @@ export type SalesOrderListRow = {
   customer_code: string | null;
   status: SalesOrderStatus;
   line_count: number;
-  total: string;
+  /** Null means the legacy order contains a non-GBP line and cannot be summed honestly. */
+  total: string | null;
   created_at: string;
   expected_ship_date: string | null;
 };

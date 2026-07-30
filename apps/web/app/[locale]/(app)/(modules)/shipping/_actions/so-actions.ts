@@ -45,6 +45,7 @@ import {
   normalizePage,
   toPaginatedResult,
 } from '../../../../../../lib/shared/pagination';
+import { resolveWriteSiteId } from '../../../../../../lib/site/site-context';
 import type {
   ActionFailure,
   ActionResult,
@@ -121,13 +122,19 @@ type UpdateSalesOrderInput = {
 };
 
 const PCT_PATTERN = /^\d+(?:\.\d{1,4})?$/;
-const CURRENCY_PATTERN = /^[A-Za-z]{3}$/;
 
 function normalizePct(value: string | undefined): string | null {
   const text = value?.trim() || '0';
   if (!PCT_PATTERN.test(text)) return null;
   const pct = Dec.from(text);
   return pct.cmp(Dec.zero()) >= 0 && pct.cmp(Dec.from('100')) <= 0 ? pct.toFixed(4) : null;
+}
+
+function hasExplicitNonGbpCurrency(lines: readonly { currency?: string }[]): boolean {
+  return lines.some((line) => {
+    const currency = line.currency?.trim().toUpperCase();
+    return Boolean(currency && currency !== SO_LINE_PRICE_CURRENCY);
+  });
 }
 
 const SHIP_SO_READ = 'ship.dashboard.view';
@@ -252,7 +259,7 @@ function mapSalesOrderListRow(row: {
     customer_code: row.customer_code,
     status: row.status,
     line_count: toNumber(row.line_count),
-    total: row.total ?? '0',
+    total: row.total,
     created_at: toText(row.created_at) ?? '',
     expected_ship_date: toDate(row.expected_ship_date),
   };
@@ -395,7 +402,7 @@ async function fetchSalesOrder(ctx: ShippingContext, id: string): Promise<SalesO
             sol.unit_price_gbp::text as unit_price_gbp,
             coalesce(sol.discount_pct, 0)::text as discount_pct,
             coalesce(sol.tax_pct, 0)::text as tax_pct,
-            coalesce(nullif(upper(trim(sol.currency)), ''), o.currency, 'GBP') as currency,
+            coalesce(nullif(upper(trim(sol.currency)), ''), 'GBP') as currency,
             coalesce(
               sol.line_total_gbp,
               sol.quantity_ordered * sol.unit_price_gbp
@@ -405,7 +412,6 @@ async function fetchSalesOrder(ctx: ShippingContext, id: string): Promise<SalesO
             sol.notes
        from public.sales_order_lines sol
        left join public.items i on i.id = sol.product_id and i.org_id = app.current_org_id()
-       left join public.organizations o on o.id = sol.org_id
       where sol.org_id = app.current_org_id()
         and sol.sales_order_id = $1::uuid
         and sol.deleted_at is null
@@ -564,20 +570,22 @@ export async function listSalesOrders(params: {
                      and sol.sales_order_id = so.id
                      and sol.deleted_at is null
                 ) as line_count,
-                coalesce(
-                  (
-                    select sum(round(coalesce(
+                (
+                  select case
+                    when count(*) filter (
+                      where coalesce(nullif(upper(trim(sol.currency)), ''), 'GBP') <> 'GBP'
+                    ) > 0 then null
+                    else coalesce(sum(round(coalesce(
                       sol.line_total_gbp,
                       sol.quantity_ordered * sol.unit_price_gbp
                         * (1 - coalesce(sol.discount_pct, 0) / 100)
                         * (1 + coalesce(sol.tax_pct, 0) / 100)
-                    ), 2))
-                      from public.sales_order_lines sol
-                     where sol.org_id = app.current_org_id()
-                       and sol.sales_order_id = so.id
-                       and sol.deleted_at is null
-                  ),
-                  0
+                    ), 2)), 0)
+                  end
+                    from public.sales_order_lines sol
+                   where sol.org_id = app.current_org_id()
+                     and sol.sales_order_id = so.id
+                     and sol.deleted_at is null
                 )::text as total,
                 so.created_at,
                 so.promised_ship_date as expected_ship_date
@@ -614,6 +622,9 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
   const clientOpId = input.client_op_id?.trim();
   if (!clientOpId || !isUuidV4ish(clientOpId)) {
     return { ok: false, error: 'invalid_input', message: 'client_op_id must be a UUID' };
+  }
+  if (hasExplicitNonGbpCurrency(input.lines)) {
+    return { ok: false, error: 'invalid_input', message: 'Sales order lines must use GBP' };
   }
 
   return withOrgContext(async ({ userId, orgId, client }): Promise<CreateSalesOrderResult> => {
@@ -756,9 +767,6 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
       if (discountPct == null || taxPct == null) {
         return { ok: false, error: 'invalid_input', message: 'Discount and tax must be between 0 and 100' };
       }
-      if (currency != null && !CURRENCY_PATTERN.test(currency)) {
-        return { ok: false, error: 'invalid_input', message: 'Currency must be a 3-letter ISO code' };
-      }
       let unitPriceGbp: string;
       if (submittedPrice != null && submittedPrice.length > 0) {
         const normalizedPrice = normalizeSoLineUnitPrice(submittedPrice);
@@ -790,6 +798,19 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
       });
     }
 
+    const siteResolution = await resolveWriteSiteId(ctx.client);
+    if (!siteResolution.ok) {
+      return {
+        ok: false,
+        error: 'persistence_failed',
+        message:
+          siteResolution.reason === 'ambiguous_site'
+            ? 'Select a site before creating a sales order.'
+            : 'No active site is available. Create or activate a site before creating a sales order.',
+      };
+    }
+    const siteId = siteResolution.siteId;
+
     const { rows: numberRows } = await ctx.client.query<{ so_number: string }>(
       `select public.next_sales_order_document_number($1::uuid) as so_number`,
       [orgId],
@@ -799,10 +820,10 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
 
     const { rows } = await ctx.client.query<{ id: string }>(
       `insert into public.sales_orders
-        (org_id, order_number, customer_id, order_date, promised_ship_date, status, ext_data, created_by, updated_by)
-       values ($1::uuid, $2, $3::uuid, current_date, $4::date, 'draft', jsonb_build_object('notes', $5::text), $6::uuid, $6::uuid)
+        (org_id, site_id, order_number, customer_id, order_date, promised_ship_date, status, ext_data, created_by, updated_by)
+       values ($1::uuid, $2::uuid, $3, $4::uuid, current_date, $5::date, 'draft', jsonb_build_object('notes', $6::text), $7::uuid, $7::uuid)
        returning id::text`,
-      [orgId, soNumber, input.customer_id, input.requested_date ?? null, input.notes ?? null, userId],
+      [orgId, siteId, soNumber, input.customer_id, input.requested_date ?? null, input.notes ?? null, userId],
     );
     const soId = rows[0]?.id;
     if (!soId) return { ok: false, error: 'persistence_failed', message: 'Unable to create sales order' };
@@ -810,16 +831,17 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
     for (const [index, line] of resolvedLines.entries()) {
       await ctx.client.query(
         `insert into public.sales_order_lines
-          (org_id, sales_order_id, line_number, product_id, quantity_ordered, quantity_allocated,
+          (org_id, site_id, sales_order_id, line_number, product_id, quantity_ordered, quantity_allocated,
            unit_price_gbp, line_total_gbp, discount_pct, tax_pct, currency,
            ext_data, created_by, updated_by)
-         values ($1::uuid, $2::uuid, $3::integer, $4::uuid, $5::numeric, 0,
-                 $6::numeric,
-                 ($7::numeric * $6::numeric * (1 - $8::numeric / 100) * (1 + $9::numeric / 100)),
-                 $8::numeric, $9::numeric, $10::text,
-                 jsonb_build_object('order_uom', $11::text, 'order_qty', $7::text), $12::uuid, $12::uuid)`,
+         values ($1::uuid, $2::uuid, $3::uuid, $4::integer, $5::uuid, $6::numeric, 0,
+                 $7::numeric,
+                 ($8::numeric * $7::numeric * (1 - $9::numeric / 100) * (1 + $10::numeric / 100)),
+                 $9::numeric, $10::numeric, $11::text,
+                 jsonb_build_object('order_uom', $12::text, 'order_qty', $8::text), $13::uuid, $13::uuid)`,
         [
           orgId,
+          siteId,
           soId,
           index + 1,
           line.item_id,
@@ -838,12 +860,17 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
     await ctx.client.query(
       `update public.sales_orders so
           set total_amount_gbp = (
-                select coalesce(sum(round(coalesce(
-                  sol.line_total_gbp,
-                  sol.quantity_ordered * sol.unit_price_gbp
-                    * (1 - coalesce(sol.discount_pct, 0) / 100)
-                    * (1 + coalesce(sol.tax_pct, 0) / 100)
-                ), 2)), 0)
+                select case
+                  when count(*) filter (
+                    where coalesce(nullif(upper(trim(sol.currency)), ''), 'GBP') <> 'GBP'
+                  ) > 0 then null
+                  else coalesce(sum(round(coalesce(
+                    sol.line_total_gbp,
+                    sol.quantity_ordered * sol.unit_price_gbp
+                      * (1 - coalesce(sol.discount_pct, 0) / 100)
+                      * (1 + coalesce(sol.tax_pct, 0) / 100)
+                  ), 2)), 0)
+                end
                   from public.sales_order_lines sol
                  where sol.org_id = app.current_org_id()
                    and sol.sales_order_id = so.id
@@ -888,6 +915,9 @@ export async function updateSalesOrder(soId: string, input: UpdateSalesOrderInpu
   const id = soId.trim();
   if (!id || !/^[0-9a-f-]{36}$/i.test(id)) {
     return { ok: false, error: 'invalid_input', message: 'Invalid sales order id' };
+  }
+  if (hasExplicitNonGbpCurrency(input.lines ?? [])) {
+    return { ok: false, error: 'invalid_input', message: 'Sales order lines must use GBP' };
   }
 
   return withOrgContext(async ({ userId, orgId, client }): Promise<UpdateSalesOrderResult> => {
@@ -980,9 +1010,8 @@ export async function updateSalesOrder(soId: string, input: UpdateSalesOrderInpu
           `select sol.unit_price_gbp::text,
                   coalesce(sol.discount_pct, 0)::text as discount_pct,
                   coalesce(sol.tax_pct, 0)::text as tax_pct,
-                  coalesce(nullif(upper(trim(sol.currency)), ''), o.currency, 'GBP') as currency
+                  coalesce(nullif(upper(trim(sol.currency)), ''), 'GBP') as currency
              from public.sales_order_lines sol
-             left join public.organizations o on o.id = sol.org_id
             where sol.org_id = app.current_org_id()
               and sol.id = $1::uuid
             limit 1`,
@@ -1008,12 +1037,16 @@ export async function updateSalesOrder(soId: string, input: UpdateSalesOrderInpu
 
         const discountPct = normalizePct(patch.discount_pct ?? currentTerms?.discount_pct);
         const taxPct = normalizePct(patch.tax_pct ?? currentTerms?.tax_pct);
-        const currency = (patch.currency ?? currentTerms?.currency ?? 'GBP').trim().toUpperCase();
+        const currency = (
+          patch.currency?.trim() ||
+          currentTerms?.currency?.trim() ||
+          SO_LINE_PRICE_CURRENCY
+        ).toUpperCase();
         if (discountPct == null || taxPct == null) {
           return { ok: false, error: 'invalid_input', message: 'Discount and tax must be between 0 and 100' };
         }
-        if (!CURRENCY_PATTERN.test(currency)) {
-          return { ok: false, error: 'invalid_input', message: 'Currency must be a 3-letter ISO code' };
+        if (currency !== SO_LINE_PRICE_CURRENCY) {
+          return { ok: false, error: 'invalid_input', message: 'Sales order lines must use GBP' };
         }
 
         resolvedLineUpdates.push({
@@ -1142,12 +1175,17 @@ export async function updateSalesOrder(soId: string, input: UpdateSalesOrderInpu
       await ctx.client.query(
         `update public.sales_orders so
             set total_amount_gbp = (
-                  select coalesce(sum(round(coalesce(
-                    sol.line_total_gbp,
-                    sol.quantity_ordered * sol.unit_price_gbp
-                      * (1 - coalesce(sol.discount_pct, 0) / 100)
-                      * (1 + coalesce(sol.tax_pct, 0) / 100)
-                  ), 2)), 0)
+                  select case
+                    when count(*) filter (
+                      where coalesce(nullif(upper(trim(sol.currency)), ''), 'GBP') <> 'GBP'
+                    ) > 0 then null
+                    else coalesce(sum(round(coalesce(
+                      sol.line_total_gbp,
+                      sol.quantity_ordered * sol.unit_price_gbp
+                        * (1 - coalesce(sol.discount_pct, 0) / 100)
+                        * (1 + coalesce(sol.tax_pct, 0) / 100)
+                    ), 2)), 0)
+                  end
                     from public.sales_order_lines sol
                    where sol.org_id = app.current_org_id()
                      and sol.sales_order_id = so.id

@@ -16,7 +16,9 @@ export type CreateShipmentLabels = {
   errors: Record<string, string>;
 };
 
-export type CreateShipmentResult = { ok: true; shipmentId: string } | { ok: false; error: string };
+export type CreateShipmentResult =
+  | { ok: true; shipmentId: string }
+  | { ok: false; error: string; message?: string };
 
 export function CreateShipmentButton({
   locale,
@@ -56,7 +58,7 @@ export function CreateShipmentButton({
     try {
       const result = await createShipmentAction(soId);
       if (!result.ok) {
-        setError(labels.errors[result.error] ?? labels.errors.persistence_failed);
+        setError(result.message ?? labels.errors[result.error] ?? labels.errors.persistence_failed);
         setPending(false);
         return;
       }

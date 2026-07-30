@@ -9,7 +9,7 @@ import { Select } from '@monopilot/ui/Select';
 
 import type { RmaListLabels } from './rma-list-view';
 
-type LineDraft = { productId: string; quantityExpected: string };
+type LineDraft = { salesOrderLineId: string; quantityExpected: string };
 
 export function CreateRmaModal({
   open,
@@ -32,7 +32,7 @@ export function CreateRmaModal({
   const [salesOrderId, setSalesOrderId] = React.useState('');
   const [reasonCode, setReasonCode] = React.useState('');
   const [notes, setNotes] = React.useState('');
-  const [lines, setLines] = React.useState<LineDraft[]>([{ productId: '', quantityExpected: '1' }]);
+  const [lines, setLines] = React.useState<LineDraft[]>([{ salesOrderLineId: '', quantityExpected: '1' }]);
   const [pending, setPending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -42,13 +42,13 @@ export function CreateRmaModal({
     setSalesOrderId('');
     setReasonCode(reasonCodes[0]?.code ?? '');
     setNotes('');
-    setLines([{ productId: '', quantityExpected: '1' }]);
+    setLines([{ salesOrderLineId: '', quantityExpected: '1' }]);
     setError(null);
   }, [open, reasonCodes]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!customerId || !reasonCode || lines.every((l) => !l.productId.trim())) {
+    if (!customerId || !reasonCode || lines.every((l) => !l.salesOrderLineId.trim())) {
       setError(labels.errors.linesRequired);
       return;
     }
@@ -57,12 +57,15 @@ export function CreateRmaModal({
     setError(null);
     const result = await createRmaAction({
       customerId,
-      salesOrderId: salesOrderId.trim() || undefined,
+      salesOrderId: salesOrderId.trim(),
       reasonCode,
       notes: notes.trim() || undefined,
       lines: lines
-        .filter((l) => l.productId.trim())
-        .map((l) => ({ productId: l.productId.trim(), quantityExpected: l.quantityExpected.trim() || '1' })),
+        .filter((l) => l.salesOrderLineId.trim())
+        .map((l) => ({
+          salesOrderLineId: l.salesOrderLineId.trim(),
+          quantityExpected: l.quantityExpected.trim() || '1',
+        })),
     });
     setPending(false);
 
@@ -91,7 +94,12 @@ export function CreateRmaModal({
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-sm font-medium text-slate-700">{labels.salesOrderLabel}</span>
-            <Input value={salesOrderId} onChange={(e) => setSalesOrderId(e.target.value)} placeholder={labels.salesOrderPlaceholder} />
+            <Input
+              value={salesOrderId}
+              onChange={(e) => setSalesOrderId(e.target.value)}
+              placeholder={labels.salesOrderPlaceholder}
+              required
+            />
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-sm font-medium text-slate-700">{labels.reasonLabel}</span>
@@ -112,8 +120,12 @@ export function CreateRmaModal({
                 <label className="flex flex-col gap-1">
                   {idx === 0 ? <span className="text-sm font-medium text-slate-700">{labels.productLabel}</span> : null}
                   <Input
-                    value={line.productId}
-                    onChange={(e) => setLines((prev) => prev.map((l, i) => (i === idx ? { ...l, productId: e.target.value } : l)))}
+                    value={line.salesOrderLineId}
+                    onChange={(e) =>
+                      setLines((prev) =>
+                        prev.map((l, i) => (i === idx ? { ...l, salesOrderLineId: e.target.value } : l)),
+                      )
+                    }
                     placeholder={labels.productPlaceholder}
                   />
                 </label>
@@ -131,7 +143,11 @@ export function CreateRmaModal({
                 ) : null}
               </div>
             ))}
-            <Button type="button" className="btn--ghost btn-sm" onClick={() => setLines((prev) => [...prev, { productId: '', quantityExpected: '1' }])}>
+            <Button
+              type="button"
+              className="btn--ghost btn-sm"
+              onClick={() => setLines((prev) => [...prev, { salesOrderLineId: '', quantityExpected: '1' }])}
+            >
               + {labels.addLine}
             </Button>
           </div>

@@ -61,6 +61,7 @@ let candidateRows: Array<{
 let nearExpiryWarnDays: string = '7';
 let customerActive = true;
 let customerDeleted = false;
+let activeSiteRows: Array<{ id: string; is_default: boolean }> = [];
 let itemPackFactors: Record<
   string,
   { uom_base: string; output_uom: string; net_qty_per_each: string | null; each_per_box: number | null; boxes_per_pallet: number | null }
@@ -77,6 +78,7 @@ let itemPackFactors: Record<
 let orgUnitCodes = ['kg', 'g', 'l', 'ml', 'pcs', 'pack', 'box', 'pallet', 'case'];
 let queryLog: Array<{ sql: string; params: readonly unknown[] }> = [];
 let listTotal = 1;
+let listRowTotal: string | null = '10.0000';
 let idempotencyRows = new Map<string, { request_hash: string; response_json: { ok: boolean; data: { id: string } } }>();
 let soInsertCount = 0;
 let advisoryLockDepth = 0;
@@ -167,6 +169,12 @@ function makeClient(): QueryClient {
       if (q.includes('next_sales_order_document_number')) {
         return { rows: [{ so_number: soNumber }], rowCount: 1 };
       }
+      if (q.includes('from public.sites')) {
+        const rows = q.includes('and is_default')
+          ? activeSiteRows.filter((site) => site.is_default)
+          : activeSiteRows;
+        return { rows, rowCount: rows.length };
+      }
       if (q.startsWith('select id::text') && q.includes('from public.customers')) {
         if (!customerActive || customerDeleted) {
           return { rows: [], rowCount: 0 };
@@ -177,10 +185,10 @@ function makeClient(): QueryClient {
         soInsertCount += 1;
         insertedSo = {
           id: SO_ID,
-          order_number: params[1],
-          customer_id: params[2],
-          promised_ship_date: params[3],
-          notes: params[4],
+          order_number: params[2],
+          customer_id: params[3],
+          promised_ship_date: params[4],
+          notes: params[5],
         };
         return { rows: [{ id: SO_ID }], rowCount: 1 };
       }
@@ -213,20 +221,20 @@ function makeClient(): QueryClient {
         return { rows: [resolved], rowCount: 1 };
       }
       if (q.startsWith('insert into public.sales_order_lines')) {
-        const quantityOrdered = params[4] as string;
-        const unitPriceGbp = params[5] as string;
-        const orderQty = params[6] as string;
-        const discountPct = params[7] as string;
-        const taxPct = params[8] as string;
-        const currency = params[9] as string | null;
+        const quantityOrdered = params[5] as string;
+        const unitPriceGbp = params[6] as string;
+        const orderQty = params[7] as string;
+        const discountPct = params[8] as string;
+        const taxPct = params[9] as string;
+        const currency = params[10] as string | null;
         insertedLines.push({
-          sales_order_id: params[1],
-          line_number: params[2],
-          product_id: params[3],
+          sales_order_id: params[2],
+          line_number: params[3],
+          product_id: params[4],
           quantity_ordered: quantityOrdered,
           unit_price_gbp: unitPriceGbp,
           line_total_gbp: `${Number(orderQty) * Number(unitPriceGbp) * (1 - Number(discountPct) / 100) * (1 + Number(taxPct) / 100)}`,
-          ext_data: { order_uom: params[10], order_qty: orderQty },
+          ext_data: { order_uom: params[11], order_qty: orderQty },
           ...(discountPct !== '0.0000' || taxPct !== '0.0000' || currency != null
             ? { discount_pct: discountPct, tax_pct: taxPct, currency }
             : {}),
@@ -250,7 +258,7 @@ function makeClient(): QueryClient {
                 customer_name: 'Acme Foods',
                 customer_code: 'ACME',
                 line_count: '1',
-                total: '10.0000',
+                total: listRowTotal,
                 created_at: '2026-06-11T10:00:00.000Z',
                 expected_ship_date: '2026-06-20',
               },
@@ -271,7 +279,7 @@ function makeClient(): QueryClient {
               customer_name: 'Acme Foods',
               customer_code: 'ACME',
               line_count: '1',
-              total: '10.0000',
+              total: listRowTotal,
               created_at: '2026-06-11T10:00:00.000Z',
               expected_ship_date: insertedSo?.promised_ship_date ?? '2026-06-20',
             },
@@ -495,9 +503,11 @@ beforeEach(() => {
   nearExpiryWarnDays = '7';
   customerActive = true;
   customerDeleted = false;
+  activeSiteRows = [{ id: SITE_ID, is_default: true }];
   orgUnitCodes = ['kg', 'g', 'l', 'ml', 'pcs', 'pack', 'box', 'pallet', 'case'];
   queryLog = [];
   listTotal = 1;
+  listRowTotal = '10.0000';
   idempotencyRows = new Map();
   soInsertCount = 0;
   advisoryLockDepth = 0;
@@ -552,6 +562,21 @@ describe('SO read actions', () => {
     expect(listQuery).toBeDefined();
     expect(normalize(String(listQuery?.sql))).not.toContain('so.total_amount_gbp');
     expect(normalize(String(listQuery?.sql))).toContain('sum(round(');
+    expect(normalize(String(listQuery?.sql))).toContain("count(*) filter");
+    expect(normalize(String(listQuery?.sql))).toContain("<> 'gbp'");
+  });
+
+  it('preserves a null total when a legacy order contains non-GBP lines', async () => {
+    listRowTotal = null;
+
+    const result = await listSalesOrders({ status: 'draft' });
+
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        items: [{ total: null }],
+      },
+    });
   });
 
   it('page 2 offset returns the second page of rows when total exceeds limit', async () => {
@@ -688,6 +713,30 @@ describe('createSalesOrder', () => {
       },
     ]);
     expect(nextCacheMocks.revalidateLocalized).toHaveBeenCalledWith('/shipping');
+    const headerInsert = queryLog.find((entry) => normalize(entry.sql).startsWith('insert into public.sales_orders'));
+    expect(normalize(headerInsert?.sql ?? '')).toContain('(org_id, site_id, order_number');
+    expect(headerInsert?.params?.[1]).toBe(SITE_ID);
+    const lineInsert = queryLog.find((entry) => normalize(entry.sql).startsWith('insert into public.sales_order_lines'));
+    expect(normalize(lineInsert?.sql ?? '')).toContain('(org_id, site_id, sales_order_id');
+    expect(lineInsert?.params?.[1]).toBe(SITE_ID);
+  });
+
+  it('refuses creation before the first write when no site can be resolved', async () => {
+    activeSiteRows = [];
+
+    const result = await createSalesOrder({
+      client_op_id: CLIENT_OP_ID,
+      customer_id: CUSTOMER_ID,
+      lines: [{ item_id: ITEM_ID, qty: '10', uom: 'kg' }],
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'persistence_failed',
+      message: 'No active site is available. Create or activate a site before creating a sales order.',
+    });
+    expect(queryLog.some((entry) => normalize(entry.sql).includes('next_sales_order_document_number'))).toBe(false);
+    expect(queryLog.some((entry) => normalize(entry.sql).startsWith('insert into public.sales_orders'))).toBe(false);
   });
 
   it('creates one header and both lines when two valid lines are submitted', async () => {
@@ -750,7 +799,7 @@ describe('createSalesOrder', () => {
     });
   });
 
-  it('persists per-line discount, tax, currency, and the extended exact formula', async () => {
+  it('persists GBP discount and tax with the extended exact formula', async () => {
     await createSalesOrder({
       client_op_id: CLIENT_OP_ID,
       customer_id: CUSTOMER_ID,
@@ -762,7 +811,7 @@ describe('createSalesOrder', () => {
           unit_price_gbp: '3.50',
           discount_pct: '10',
           tax_pct: '5',
-          currency: 'EUR',
+          currency: 'GBP',
         },
       ],
     });
@@ -770,13 +819,44 @@ describe('createSalesOrder', () => {
     expect(insertedLines[0]).toMatchObject({
       discount_pct: '10.0000',
       tax_pct: '5.0000',
-      currency: 'EUR',
+      currency: 'GBP',
       line_total_gbp: '10.749375',
     });
     const insert = queryLog.find((entry) => normalize(entry.sql).startsWith('insert into public.sales_order_lines'));
     expect(normalize(insert?.sql ?? '')).toContain(
-      '$7::numeric * $6::numeric * (1 - $8::numeric / 100) * (1 + $9::numeric / 100)',
+      '$8::numeric * $7::numeric * (1 - $9::numeric / 100) * (1 + $10::numeric / 100)',
     );
+    const headerTotalUpdate = queryLog.find(
+      (entry) =>
+        normalize(entry.sql).startsWith('update public.sales_orders so') &&
+        normalize(entry.sql).includes('set total_amount_gbp'),
+    );
+    expect(normalize(headerTotalUpdate?.sql ?? '')).toContain('count(*) filter');
+    expect(normalize(headerTotalUpdate?.sql ?? '')).toContain("<> 'gbp'");
+  });
+
+  it('rejects an explicit non-GBP line before the first write', async () => {
+    const result = await createSalesOrder({
+      client_op_id: CLIENT_OP_ID,
+      customer_id: CUSTOMER_ID,
+      lines: [
+        {
+          item_id: ITEM_ID,
+          qty: '3.25',
+          uom: 'kg',
+          unit_price_gbp: '3.50',
+          currency: 'EUR',
+        },
+      ],
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'invalid_input',
+      message: 'Sales order lines must use GBP',
+    });
+    expect(queryLog.some((entry) => normalize(entry.sql).startsWith('insert into public.sales_orders'))).toBe(false);
+    expect(queryLog.some((entry) => normalize(entry.sql).startsWith('insert into public.sales_order_lines'))).toBe(false);
   });
 
   it('accepts trailing-zero qty and price on create and normalizes to DB scale (C114)', async () => {
@@ -812,7 +892,7 @@ describe('createSalesOrder', () => {
 
     expect(insertedLines[0]?.unit_price_gbp).toBe('12.3457');
     const lineInsert = queryLog.find((entry) => normalize(entry.sql).startsWith('insert into public.sales_order_lines'));
-    expect(lineInsert?.params?.[5]).toBe('12.3457');
+    expect(lineInsert?.params?.[6]).toBe('12.3457');
   });
 
   it('uses active GBP customer_item_prices over list price', async () => {
@@ -1414,6 +1494,26 @@ describe('updateSalesOrder', () => {
     );
     expect(headerUpdate).toBeDefined();
     expect(insertedSo).toMatchObject({ promised_ship_date: '2026-08-01', notes: 'rush order' });
+    const totalUpdate = queryLog.find(
+      (entry) =>
+        normalize(entry.sql).startsWith('update public.sales_orders so') &&
+        normalize(entry.sql).includes('set total_amount_gbp'),
+    );
+    expect(normalize(totalUpdate?.sql ?? '')).toContain('count(*) filter');
+    expect(normalize(totalUpdate?.sql ?? '')).toContain("<> 'gbp'");
+  });
+
+  it('rejects an explicit non-GBP currency before updating a draft', async () => {
+    const result = await updateSalesOrder(SO_ID, {
+      lines: [{ id: LINE_ID, currency: 'EUR' }],
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'invalid_input',
+      message: 'Sales order lines must use GBP',
+    });
+    expect(queryLog).toEqual([]);
   });
 
   it('updates an unpriced draft line without forcing a positive price', async () => {

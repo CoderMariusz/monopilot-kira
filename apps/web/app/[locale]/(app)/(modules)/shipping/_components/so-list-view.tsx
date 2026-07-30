@@ -59,7 +59,7 @@ export type SoRow = {
   customerCode: string | null;
   status: string;
   lineCount: number;
-  total: string;
+  total: string | null;
   expectedShipDate: string | null;
   createdAt: string;
 };
@@ -166,15 +166,16 @@ function fmtDate(iso: string | null, locale: string): string {
 /**
  * The sales-order money model is GBP-denominated at the schema level: the backing
  * columns are literally `sales_orders.total_amount_gbp`, `sales_order_lines.line_total_gbp`
- * and `sales_order_lines.unit_price_gbp` (211-shipping-schema-foundation.sql). There is
- * Line currencies live below this grain, so the list keeps the legacy GBP aggregate;
- * detail renders each line in its own currency instead of inventing an FX conversion.
+ * and `sales_order_lines.unit_price_gbp` (211-shipping-schema-foundation.sql). New
+ * lines are GBP-only. A null total marks legacy foreign-currency data that cannot be
+ * represented honestly without an exchange rate.
  */
 const SO_CURRENCY = 'GBP';
 
 /** Money string from the action's decimal `total` (GBP — see SO_CURRENCY). A genuine
  *  0 total (no line prices) formats as £0.00, which is honest, not a placeholder. */
-function money(value: string, locale: string): string {
+function money(value: string | null, locale: string): string {
+  if (value == null) return '—';
   const n = Number(value);
   if (!Number.isFinite(n)) return value;
   return new Intl.NumberFormat(locale, { style: 'currency', currency: SO_CURRENCY }).format(n);

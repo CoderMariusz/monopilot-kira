@@ -313,19 +313,17 @@ export async function createRma(rawInput: unknown): Promise<RmaResult<RmaDetail>
       );
       if (customerRows.length === 0) return { ok: false, error: 'not_found' };
 
-      if (input.salesOrderId) {
-        const { rows: soRows } = await ctx.client.query<{ customer_id: string }>(
-          `select customer_id::text as customer_id
-             from public.sales_orders
-            where id = $1::uuid
-              and org_id = app.current_org_id()
-              and deleted_at is null
-            limit 1`,
-          [input.salesOrderId],
-        );
-        if (soRows.length === 0) return { ok: false, error: 'not_found' };
-        if (soRows[0]!.customer_id !== input.customerId) return { ok: false, error: 'invalid_input' };
-      }
+      const { rows: soRows } = await ctx.client.query<{ customer_id: string }>(
+        `select customer_id::text as customer_id
+           from public.sales_orders
+          where id = $1::uuid
+            and org_id = app.current_org_id()
+            and deleted_at is null
+          limit 1`,
+        [input.salesOrderId],
+      );
+      if (soRows.length === 0) return { ok: false, error: 'not_found' };
+      if (soRows[0]!.customer_id !== input.customerId) return { ok: false, error: 'invalid_input' };
 
       if (input.shipmentId) {
         const { rows: shRows } = await ctx.client.query<{ customer_id: string; sales_order_id: string | null }>(
@@ -339,97 +337,106 @@ export async function createRma(rawInput: unknown): Promise<RmaResult<RmaDetail>
         );
         if (shRows.length === 0) return { ok: false, error: 'not_found' };
         if (shRows[0]!.customer_id !== input.customerId) return { ok: false, error: 'invalid_input' };
-        if (input.salesOrderId && shRows[0]!.sales_order_id && shRows[0]!.sales_order_id !== input.salesOrderId) {
+        if (shRows[0]!.sales_order_id && shRows[0]!.sales_order_id !== input.salesOrderId) {
           return { ok: false, error: 'invalid_input' };
         }
       }
 
-      try {
-        const { rows: headerRows } = await ctx.client.query<{ id: string }>(
-          `insert into public.rma_requests
-             (org_id, customer_id, sales_order_id, shipment_id, reason_code, notes, created_by, updated_by)
+      const saleLines: Array<{ productId: string; effectiveUnitPrice: string }> = [];
+      for (const line of input.lines) {
+        const { rows: priceRows } = await ctx.client.query<{
+          product_id: string;
+          effective_unit_price: string | null;
+        }>(
+          `select sol.product_id::text as product_id,
+                  (sol.line_total_gbp / nullif(sol.quantity_ordered, 0))::text as effective_unit_price
+             from public.sales_order_lines sol
+            where sol.org_id = app.current_org_id()
+              and sol.sales_order_id = $2::uuid
+              and sol.id = $1::uuid
+              and sol.deleted_at is null
+            limit 1`,
+          [line.salesOrderLineId, input.salesOrderId],
+        );
+        const priceRow = priceRows[0];
+        if (!priceRow || priceRow.effective_unit_price == null) {
+          return { ok: false, error: 'invalid_input' };
+        }
+        saleLines.push({
+          productId: priceRow.product_id,
+          effectiveUnitPrice: priceRow.effective_unit_price,
+        });
+      }
+
+      const { rows: headerRows } = await ctx.client.query<{ id: string }>(
+        `insert into public.rma_requests
+           (org_id, customer_id, sales_order_id, shipment_id, reason_code, notes, created_by, updated_by)
+         values
+           (app.current_org_id(), $1::uuid, $2::uuid, $3::uuid, $4, $5, $6::uuid, $6::uuid)
+         returning id::text`,
+        [
+          input.customerId,
+          input.salesOrderId,
+          input.shipmentId ?? null,
+          input.reasonCode,
+          input.notes ?? null,
+          userId,
+        ],
+      );
+      const rmaId = headerRows[0]?.id;
+      if (!rmaId) throw new RmaAbort({ ok: false, error: 'persistence_failed' });
+
+      for (const [index, line] of input.lines.entries()) {
+        await ctx.client.query(
+          `insert into public.rma_lines
+             (org_id, rma_request_id, product_id, quantity_expected, lot_number, reason_notes, unit_price_gbp, created_by, updated_by)
            values
-             (app.current_org_id(), $1::uuid, $2::uuid, $3::uuid, $4, $5, $6::uuid, $6::uuid)
-           returning id::text`,
+             (app.current_org_id(), $1::uuid, $2::uuid, $3::numeric, $4, $5, $6::numeric, $7::uuid, $7::uuid)`,
           [
-            input.customerId,
-            input.salesOrderId ?? null,
-            input.shipmentId ?? null,
-            input.reasonCode,
-            input.notes ?? null,
+            rmaId,
+            saleLines[index]!.productId,
+            line.quantityExpected,
+            line.lotNumber ?? null,
+            line.reasonNotes ?? null,
+            saleLines[index]!.effectiveUnitPrice,
             userId,
           ],
         );
-        const rmaId = headerRows[0]?.id;
-        if (!rmaId) throw new RmaAbort({ ok: false, error: 'persistence_failed' });
-
-        for (const line of input.lines) {
-          const { rows: priceRows } = await ctx.client.query<{ unit_price: string | null }>(
-            `select sol.unit_price_gbp::text as unit_price
-               from public.sales_order_lines sol
-              where sol.org_id = app.current_org_id()
-                and sol.product_id = $1::uuid
-                and ($2::uuid is null or sol.sales_order_id = $2::uuid)
-                and sol.deleted_at is null
-              order by sol.created_at desc
-              limit 1`,
-            [line.productId, input.salesOrderId ?? null],
-          );
-          const unitPrice = priceRows[0]?.unit_price ?? null;
-
-          await ctx.client.query(
-            `insert into public.rma_lines
-               (org_id, rma_request_id, product_id, quantity_expected, lot_number, reason_notes, unit_price_gbp, created_by, updated_by)
-             values
-               (app.current_org_id(), $1::uuid, $2::uuid, $3::numeric, $4, $5, $6::numeric, $7::uuid, $7::uuid)`,
-            [
-              rmaId,
-              line.productId,
-              line.quantityExpected,
-              line.lotNumber ?? null,
-              line.reasonNotes ?? null,
-              unitPrice,
-              userId,
-            ],
-          );
-        }
-
-        await ctx.client.query(
-          `update public.rma_requests r
-              set total_value_gbp = (
-                    select coalesce(sum(rl.quantity_expected * coalesce(rl.unit_price_gbp, 0)), 0)
-                      from public.rma_lines rl
-                     where rl.rma_request_id = r.id
-                       and rl.org_id = app.current_org_id()
-                       and rl.deleted_at is null
-                  ),
-                  updated_by = $2::uuid
-            where r.id = $1::uuid
-              and r.org_id = app.current_org_id()`,
-          [rmaId, userId],
-        );
-
-        await writeRmaAudit(ctx, {
-          action: 'shipping.rma.created',
-          resourceId: rmaId,
-          afterState: { customer_id: input.customerId, reason_code: input.reasonCode, line_count: input.lines.length },
-        });
-        await emitOutbox(ctx, 'shipping.rma.created', rmaId, {
-          rma_id: rmaId,
-          customer_id: input.customerId,
-          sales_order_id: input.salesOrderId ?? null,
-        });
-
-        revalidateRmaRoutes(rmaId);
-        const detail = await loadRmaById(ctx.client, rmaId);
-        if (!detail) throw new RmaAbort({ ok: false, error: 'persistence_failed' });
-        return { ok: true, id: rmaId, data: detail };
-      } catch (err) {
-        if (err instanceof RmaAbort) return err.result;
-        throw err;
       }
+
+      await ctx.client.query(
+        `update public.rma_requests r
+            set total_value_gbp = (
+                  select coalesce(sum(rl.quantity_expected * coalesce(rl.unit_price_gbp, 0)), 0)
+                    from public.rma_lines rl
+                   where rl.rma_request_id = r.id
+                     and rl.org_id = app.current_org_id()
+                     and rl.deleted_at is null
+                ),
+                updated_by = $2::uuid
+          where r.id = $1::uuid
+            and r.org_id = app.current_org_id()`,
+        [rmaId, userId],
+      );
+
+      await writeRmaAudit(ctx, {
+        action: 'shipping.rma.created',
+        resourceId: rmaId,
+        afterState: { customer_id: input.customerId, reason_code: input.reasonCode, line_count: input.lines.length },
+      });
+      await emitOutbox(ctx, 'shipping.rma.created', rmaId, {
+        rma_id: rmaId,
+        customer_id: input.customerId,
+        sales_order_id: input.salesOrderId,
+      });
+
+      revalidateRmaRoutes(rmaId);
+      const detail = await loadRmaById(ctx.client, rmaId);
+      if (!detail) throw new RmaAbort({ ok: false, error: 'persistence_failed' });
+      return { ok: true, id: rmaId, data: detail };
     });
   } catch (err) {
+    if (err instanceof RmaAbort) return err.result;
     console.error('[shipping/rma] createRma failed', err);
     return { ok: false, error: 'persistence_failed' };
   }

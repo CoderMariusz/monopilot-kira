@@ -49,7 +49,9 @@ export type CustomerOrderHistoryRow = {
   soNumber: string;
   status: string;
   lineCount: number;
-  total: string;
+  /** `null` dla zamówień z historycznymi liniami nie-GBP: sumy w mieszanych walutach
+   *  nie da się podać w funtach, a wyświetlenie jej jako GBP było właśnie tym defektem. */
+  total: string | null;
   expectedShipDate: string | null;
   createdAt: string;
 };
@@ -629,7 +631,7 @@ export function CustomerDetailView({
                       <td className="px-3 py-2 font-mono text-xs">{order.soNumber}</td>
                       <td className="px-3 py-2">{labels.orders.status[order.status] ?? order.status}</td>
                       <td className="px-3 py-2 text-right font-mono tabular-nums">{order.lineCount}</td>
-                      <td className="px-3 py-2 text-right font-mono tabular-nums">{formatMoney(order.total, locale)}</td>
+                      <td className="px-3 py-2 text-right font-mono tabular-nums">{order.total == null ? '—' : formatMoney(order.total, locale)}</td>
                       <td className="px-3 py-2">{order.expectedShipDate ? formatDate(order.expectedShipDate) : '—'}</td>
                       <td className="px-3 py-2">{formatDate(order.createdAt)}</td>
                       <td className="px-3 py-2">

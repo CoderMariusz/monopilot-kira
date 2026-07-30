@@ -1,5 +1,6 @@
 import { hasOnboardingPermission, mutateOnboarding } from './advance';
 import { withOrgContext } from '../../lib/auth/with-org-context';
+import { resolveWriteSiteId } from '../../lib/site/site-context';
 
 export type WarehouseType = 'finished' | 'raw' | 'wip' | 'quarantine';
 
@@ -18,7 +19,12 @@ export type CreateFirstWarehouseResult =
       organizationModules: { firstWarehouseId: string };
       nextStep: 'first_location';
     }
-  | { ok: false; error: 'CODE_TAKEN' | 'VALIDATION_FAILED' | 'PERSISTENCE_FAILED'; field?: string };
+  | {
+      ok: false;
+      error: 'CODE_TAKEN' | 'VALIDATION_FAILED' | 'PERSISTENCE_FAILED';
+      field?: string;
+      message?: string;
+    };
 
 type InsertResult = { rows: Array<{ id: string; org_id: string }>; rowCount: number };
 
@@ -66,10 +72,14 @@ async function persistFirstWarehouse(input: {
   code: string;
   type: WarehouseType;
   address: string;
-}): Promise<{ ok: true; id: string; orgId: string } | { ok: false; error: 'CODE_TAKEN' | 'PERSISTENCE_FAILED' }> {
+}): Promise<
+  | { ok: true; id: string; orgId: string }
+  | { ok: false; error: 'CODE_TAKEN' | 'PERSISTENCE_FAILED'; message?: string }
+> {
   try {
     return await withOrgContext<
-      { ok: true; id: string; orgId: string } | { ok: false; error: 'CODE_TAKEN' | 'PERSISTENCE_FAILED' }
+      | { ok: true; id: string; orgId: string }
+      | { ok: false; error: 'CODE_TAKEN' | 'PERSISTENCE_FAILED'; message?: string }
     >(async (ctx) => {
       const context = ctx as {
         userId: string;
@@ -90,11 +100,24 @@ async function persistFirstWarehouse(input: {
         return { ok: false, error: 'PERSISTENCE_FAILED' };
       }
 
+      const siteResolution = await resolveWriteSiteId(context.client);
+      if (!siteResolution.ok) {
+        return {
+          ok: false,
+          error: 'PERSISTENCE_FAILED',
+          message:
+            siteResolution.reason === 'ambiguous_site'
+              ? 'Select a site before creating a warehouse.'
+              : 'No active site is available. Create or activate a site before creating a warehouse.',
+        };
+      }
+
       try {
-        const insertSql = `insert into public.warehouses (org_id, code, name, warehouse_type, address)
-             values (app.current_org_id(), $1, $2, $3, $4::jsonb)
+        const insertSql = `insert into public.warehouses (org_id, site_id, code, name, warehouse_type, address)
+             values (app.current_org_id(), $1::uuid, $2, $3, $4, $5::jsonb)
              returning id, org_id`;
         const params = [
+          siteResolution.siteId,
           input.code,
           input.name,
           input.type,

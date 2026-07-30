@@ -566,7 +566,9 @@ describe('ShipmentPackView — header, boxes+SSCC, contents, Pack-LP control', (
 // ── Create-shipment button (SO detail) ──
 function renderCreate(
   props: Partial<React.ComponentProps<typeof CreateShipmentButton>> = {},
-  action?: (soId: string) => Promise<{ ok: true; shipmentId: string } | { ok: false; error: string }>,
+  action?: (
+    soId: string,
+  ) => Promise<{ ok: true; shipmentId: string } | { ok: false; error: string; message?: string }>,
 ) {
   const createShipmentAction = vi.fn(
     action ?? (async () => ({ ok: true, shipmentId: SHIPMENT_ID }) as { ok: true; shipmentId: string }),
@@ -651,6 +653,22 @@ describe('CreateShipmentButton — gated create on the SO detail', () => {
     fireEvent.click(screen.getByTestId('so-action-create-shipment'));
     expect(await screen.findByTestId('create-shipment-error')).toHaveTextContent(
       'Pick the sales order before creating a shipment.',
+    );
+    expect(createShipmentAction).toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it('surfaces the server refusal message when no write site can be resolved', async () => {
+    const { createShipmentAction } = renderCreate({}, async () => ({
+      ok: false,
+      error: 'site_required',
+      message: 'No active site is available. Select or configure a site before creating a shipment.',
+    }));
+
+    fireEvent.click(screen.getByTestId('so-action-create-shipment'));
+
+    expect(await screen.findByTestId('create-shipment-error')).toHaveTextContent(
+      'No active site is available. Select or configure a site before creating a shipment.',
     );
     expect(createShipmentAction).toHaveBeenCalled();
     expect(push).not.toHaveBeenCalled();

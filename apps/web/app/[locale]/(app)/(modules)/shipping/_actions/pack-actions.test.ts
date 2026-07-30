@@ -25,6 +25,8 @@ const LP_CODE = 'LP-0001';
 let client: QueryClient;
 let allowPermission = true;
 let salesOrderStatus = 'allocated';
+let salesOrderSiteId: string | null = SITE_ID;
+let activeSiteRows: Array<{ id: string; is_default: boolean }> = [];
 let shipmentStatus = 'packing';
 let generatedSscc = '';
 let insertedShipments: Array<Record<string, unknown>> = [];
@@ -99,11 +101,18 @@ function makeClient(): QueryClient {
               status: salesOrderStatus,
               customer_id: CUSTOMER_ID,
               shipping_address_id: ADDRESS_ID,
-              site_id: SITE_ID,
+              site_id: salesOrderSiteId,
             },
           ],
           rowCount: 1,
         };
+      }
+
+      if (q.includes('from public.sites')) {
+        const rows = q.includes('and is_default')
+          ? activeSiteRows.filter((site) => site.is_default)
+          : activeSiteRows;
+        return { rows, rowCount: rows.length };
       }
 
       if (q.startsWith('select id::text') && q.includes('from public.shipments') && q.includes('status = any')) {
@@ -292,6 +301,8 @@ function makeClient(): QueryClient {
 beforeEach(() => {
   allowPermission = true;
   salesOrderStatus = 'allocated';
+  salesOrderSiteId = SITE_ID;
+  activeSiteRows = [{ id: SITE_ID, is_default: true }];
   shipmentStatus = 'packing';
   generatedSscc = makeSscc();
   insertedShipments = [];
@@ -346,6 +357,32 @@ describe('createShipment', () => {
 
     expect(result).toEqual({ ok: false, error: 'invalid_state' });
     expect(insertedShipments).toEqual([]);
+  });
+
+  it('refuses creation before insert when neither the sales order nor the org resolves a site', async () => {
+    salesOrderStatus = 'picked';
+    salesOrderSiteId = null;
+    activeSiteRows = [];
+
+    const result = await createShipment(SO_ID);
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'site_required',
+      message: 'No active site is available. Select or configure a site before creating a shipment.',
+    });
+    expect(insertedShipments).toEqual([]);
+  });
+
+  it('uses the only active org site when a legacy sales order has no site', async () => {
+    salesOrderStatus = 'picked';
+    salesOrderSiteId = null;
+    activeSiteRows = [{ id: SITE_ID, is_default: false }];
+
+    const result = await createShipment(SO_ID);
+
+    expect(result).toEqual({ ok: true, shipmentId: SHIPMENT_ID });
+    expect(insertedShipments[0]?.site_id).toBe(SITE_ID);
   });
 
   it('returns invalid_state for an unallocated sales order', async () => {

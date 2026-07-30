@@ -10,6 +10,7 @@ import {
 } from '../../../../../../lib/shared/pagination';
 import { packLpIntoBoxCore } from '../../../../../../lib/shipping/pack-lp-into-box';
 import { fetchShipmentPackCompleteness } from '../../../../../../lib/shipping/shipment-pack-completeness';
+import { resolveWriteSiteId } from '../../../../../../lib/site/site-context';
 import {
   ALLOWED_CREATE_SHIPMENT_SO_STATUSES,
   isSalesOrderStatus,
@@ -33,7 +34,9 @@ type QueryClient = {
 
 type ShippingContext = { userId: string; orgId: string; client: QueryClient };
 
-type CreateShipmentResult = { ok: true; shipmentId: string } | { ok: false; error: string };
+type CreateShipmentResult =
+  | { ok: true; shipmentId: string }
+  | { ok: false; error: string; message?: string };
 type PackLpIntoBoxResult = { ok: true; boxId: string } | { ok: false; error: string };
 type GetShipmentResult = { ok: true; data: ShipmentDetail } | { ok: false; error: string };
 type ListShipmentsResult =
@@ -202,6 +205,18 @@ export async function createShipment(soId: string): Promise<CreateShipmentResult
       return { ok: false, error: 'invalid_state' };
     }
 
+    const siteResolution = await resolveWriteSiteId(ctx.client, salesOrder.site_id);
+    if (!siteResolution.ok) {
+      return {
+        ok: false,
+        error: 'site_required',
+        message:
+          siteResolution.reason === 'ambiguous_site'
+            ? 'Select a site before creating a shipment.'
+            : 'No active site is available. Select or configure a site before creating a shipment.',
+      };
+    }
+
     const { rows: openShipmentRows } = await ctx.client.query<{ id: string }>(
       `select id::text
          from public.shipments
@@ -221,7 +236,7 @@ export async function createShipment(soId: string): Promise<CreateShipmentResult
          (org_id, site_id, sales_order_id, customer_id, shipping_address_id, status, created_at, created_by, updated_by)
        values ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5::uuid, 'packing', now(), $6::uuid, $6::uuid)
        returning id::text`,
-      [orgId, salesOrder.site_id, soId, salesOrder.customer_id, salesOrder.shipping_address_id, userId],
+      [orgId, siteResolution.siteId, soId, salesOrder.customer_id, salesOrder.shipping_address_id, userId],
     );
     const shipmentId = rows[0]?.id;
     if (!shipmentId) return { ok: false, error: 'persistence_failed' };

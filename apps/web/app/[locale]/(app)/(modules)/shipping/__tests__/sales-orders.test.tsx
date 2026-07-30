@@ -322,6 +322,16 @@ describe('SoListView — list states + parity', () => {
     expect(within(table).getByText('£0.00')).toBeInTheDocument();
   });
 
+  it('renders an unconvertible legacy foreign-currency total as a dash, not pounds', () => {
+    renderList({
+      salesOrders: [{ ...rows[0], total: null }],
+    });
+
+    const table = screen.getByTestId('so-list-table');
+    expect(within(table).getByText('—')).toBeInTheDocument();
+    expect(within(table).queryByText('£0.00')).not.toBeInTheDocument();
+  });
+
   it('deep-links each row to /<locale>/shipping/<soId>', () => {
     renderList();
     const link = screen.getByTestId(`so-link-${SO_ID}`);
@@ -380,7 +390,7 @@ describe('CreateSoModal — exposes all createSalesOrder fields + validation + R
     expect(createSalesOrderAction).not.toHaveBeenCalled();
   });
 
-  it('surfaces a forbidden (RBAC) result from createSalesOrder inline', async () => {
+  it('keeps a foreign customer price as a hint and submits the GBP default', async () => {
     const createSalesOrderAction = vi.fn(async (): Promise<CreateSoResult> => ({ ok: false, error: 'forbidden' }));
     render(
       <SoListView
@@ -413,9 +423,10 @@ describe('CreateSoModal — exposes all createSalesOrder fields + validation + R
     fireEvent.click(await screen.findByText(/Sausage roll/));
     fireEvent.change(screen.getByTestId('create-so-line-qty'), { target: { value: '5' } });
     await waitFor(() => {
-      expect(screen.getByTestId('create-so-line-price')).toHaveValue('2.4048');
-      expect(screen.getByTestId('create-so-line-currency')).toHaveValue('EUR');
+      expect(screen.getByTestId('create-so-line-price')).toHaveValue('3.5000');
+      expect(screen.getByTestId('create-so-line-currency')).toHaveValue('GBP');
     });
+    expect(screen.getByText('Customer price EUR2.404800/kg — set GBP unit price')).toBeInTheDocument();
     fireEvent.click(screen.getByTestId('create-so-submit'));
     expect(await screen.findByTestId('create-so-error')).toHaveTextContent("You don't have permission to do that.");
     expect(createSalesOrderAction).toHaveBeenCalledTimes(1);
@@ -428,16 +439,39 @@ describe('CreateSoModal — exposes all createSalesOrder fields + validation + R
           item_id: 'item-uuid-1111',
           qty: '5',
           uom: 'kg',
-          unit_price_gbp: '2.4048',
+          unit_price_gbp: '3.5000',
           discount_pct: '0',
           tax_pct: '0',
-          currency: 'EUR',
+          currency: 'GBP',
         },
       ],
     });
   });
 
-  it('previews discount and tax in the selected line currency', async () => {
+  it('surfaces the server refusal message when no write site can be resolved', async () => {
+    const { createSalesOrderAction } = renderList({ autoOpenCreate: true });
+    createSalesOrderAction.mockResolvedValue({
+      ok: false,
+      error: 'persistence_failed',
+      message: 'No active site is available. Create or activate a site before creating a sales order.',
+    });
+
+    const form = screen.getByTestId('create-so-form');
+    fireEvent.click(within(form).getAllByRole('combobox')[0]);
+    fireEvent.click(screen.getByRole('option', { name: /CUST-01/ }));
+    fireEvent.click(screen.getByRole('button', { name: '+ Add finished good' }));
+    fireEvent.change(screen.getByPlaceholderText('Search by code or name…'), { target: { value: 'FG' } });
+    fireEvent.click(await screen.findByText(/Sausage roll/));
+    fireEvent.change(screen.getByTestId('create-so-line-qty'), { target: { value: '5' } });
+    await waitFor(() => expect(screen.getByTestId('create-so-line-price')).toHaveValue('3.5000'));
+    fireEvent.click(screen.getByTestId('create-so-submit'));
+
+    expect(await screen.findByTestId('create-so-error')).toHaveTextContent(
+      'No active site is available. Create or activate a site before creating a sales order.',
+    );
+  });
+
+  it('locks new SO lines to GBP and previews discount and tax in GBP', async () => {
     renderList({ autoOpenCreate: true });
     const form = screen.getByTestId('create-so-form');
     fireEvent.click(within(form).getAllByRole('combobox')[0]);
@@ -449,9 +483,9 @@ describe('CreateSoModal — exposes all createSalesOrder fields + validation + R
     fireEvent.change(screen.getByTestId('create-so-line-price'), { target: { value: '3.50' } });
     fireEvent.change(screen.getByTestId('create-so-line-discount'), { target: { value: '10' } });
     fireEvent.change(screen.getByTestId('create-so-line-tax'), { target: { value: '5' } });
-    fireEvent.change(screen.getByTestId('create-so-line-currency'), { target: { value: 'EUR' } });
 
-    expect(screen.getByTestId('create-so-line-total')).toHaveTextContent('€10.75');
+    expect(screen.getByTestId('create-so-line-currency')).toHaveAttribute('readonly');
+    expect(screen.getByTestId('create-so-line-total')).toHaveTextContent('£10.75');
   });
 
   it('accepts trailing-zero qty and price decimals and normalizes before createSalesOrder (C114)', async () => {

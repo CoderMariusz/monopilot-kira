@@ -159,7 +159,7 @@ export type CreateSoModalProps = {
 };
 
 const PCT_PATTERN = /^\d+(?:\.\d{1,4})?$/;
-const CURRENCY_PATTERN = /^[A-Za-z]{3}$/;
+const SO_CURRENCY = 'GBP';
 
 function makeLine(): CreateSoLine {
   return {
@@ -170,7 +170,7 @@ function makeLine(): CreateSoLine {
     unitPriceGbp: '',
     discountPct: '0',
     taxPct: '0',
-    currency: 'GBP',
+    currency: SO_CURRENCY,
     foreignPriceHint: null,
   };
 }
@@ -280,9 +280,8 @@ export function CreateSoModal({
         const foreignPrice = quote.foreignCustomerPrice;
         return {
           ...line,
-          unitPriceGbp:
-            normalizeSoUnitPriceGbp(foreignPrice?.unit_price ?? quote.unitPriceGbp) ?? quote.unitPriceGbp,
-          currency: foreignPrice?.currency ?? 'GBP',
+          unitPriceGbp: normalizeSoUnitPriceGbp(quote.unitPriceGbp) ?? quote.unitPriceGbp,
+          currency: SO_CURRENCY,
           foreignPriceHint:
             foreignPrice != null
               ? labels.foreignPriceHint
@@ -346,7 +345,7 @@ export function CreateSoModal({
         PCT_PATTERN.test(l.taxPct.trim()) &&
         Number(l.taxPct) >= 0 &&
         Number(l.taxPct) <= 100 &&
-        CURRENCY_PATTERN.test(l.currency.trim()),
+        l.currency === SO_CURRENCY,
     );
     if (validLines.length === 0 || validLines.length !== lines.length) {
       setFormError(labels.errors.termsInvalid);
@@ -368,13 +367,13 @@ export function CreateSoModal({
           unit_price_gbp: normalizeSoLineUnitPrice(l.unitPriceGbp)!,
           discount_pct: l.discountPct.trim(),
           tax_pct: l.taxPct.trim(),
-          currency: l.currency.trim().toUpperCase(),
+          currency: SO_CURRENCY,
         })),
       });
 
       if (!result.ok) {
         const map = labels.errors as Record<string, string>;
-        setFormError(map[result.error] ?? labels.errors.persistence_failed);
+        setFormError(result.message ?? map[result.error] ?? labels.errors.persistence_failed);
         submittingRef.current = false;
         setPending(false);
         return;
@@ -583,7 +582,7 @@ export function CreateSoModal({
                           value={line.currency}
                           maxLength={3}
                           data-testid="create-so-line-currency"
-                          onChange={(e) => updateLine(line.key, { currency: e.target.value.toUpperCase() })}
+                          readOnly
                           className="w-20 font-mono uppercase"
                         />
                       </td>
@@ -592,7 +591,7 @@ export function CreateSoModal({
                         isValidSoLineUnitPriceInput(line.unitPriceGbp) &&
                         PCT_PATTERN.test(line.discountPct) &&
                         PCT_PATTERN.test(line.taxPct) &&
-                        CURRENCY_PATTERN.test(line.currency)
+                        line.currency === SO_CURRENCY
                           ? formatSoCurrencyDisplay(
                               computeSoLineTotal(
                                 normalizeSoLineQty(line.qty)!,
@@ -600,7 +599,7 @@ export function CreateSoModal({
                                 line.discountPct.trim(),
                                 line.taxPct.trim(),
                               ),
-                              line.currency,
+                              SO_CURRENCY,
                             )
                           : '—'}
                       </td>

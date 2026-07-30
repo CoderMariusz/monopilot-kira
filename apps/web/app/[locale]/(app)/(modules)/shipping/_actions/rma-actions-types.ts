@@ -58,7 +58,7 @@ export type RmaResult<T> =
   | { ok: false; error: RmaError; message?: string };
 
 export const RmaLineInput = z.object({
-  productId: z.string().uuid(),
+  salesOrderLineId: z.string().uuid(),
   quantityExpected: z
     .string()
     .trim()
@@ -77,7 +77,7 @@ export const CreateRmaInput = z.object({
   customerId: z.string().uuid(),
   salesOrderId: z.preprocess(
     (v) => (typeof v === 'string' && v.trim() === '' ? undefined : v),
-    z.string().uuid().optional(),
+    z.string().uuid(),
   ),
   shipmentId: z.preprocess(
     (v) => (typeof v === 'string' && v.trim() === '' ? undefined : v),
