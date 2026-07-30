@@ -1,4 +1,4 @@
-import { mutateOnboarding, type OnboardingResult } from './advance';
+import { hasOnboardingPermission, mutateOnboarding, type OnboardingResult } from './advance';
 import { withOrgContext } from '../../lib/auth/with-org-context';
 
 type OnboardingStepKey =
@@ -104,10 +104,16 @@ async function persistOrgProfile(input: SaveOrgProfileInput): Promise<PersistOrg
   try {
     return await withOrgContext<PersistOrgProfileResult>(async (ctx) => {
       const context = ctx as {
+        userId: string;
+        orgId: string;
         client: {
           query<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<{ rows: T[]; rowCount: number }>;
         };
       };
+
+      if (!(await hasOnboardingPermission(context))) {
+        return { ok: false, error: 'PERSISTENCE_FAILED', message: 'forbidden' };
+      }
 
       const onboardingCheck = await context.client.query<{ onboarding_completed_at: string | null }>(
         `select onboarding_completed_at from public.organizations where id = app.current_org_id()`,

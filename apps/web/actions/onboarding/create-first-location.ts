@@ -1,4 +1,4 @@
-import { mutateOnboarding } from './advance';
+import { hasOnboardingPermission, mutateOnboarding } from './advance';
 import { withOrgContext } from '../../lib/auth/with-org-context';
 
 export type CreateFirstLocationInput = {
@@ -51,10 +51,16 @@ async function persistFirstLocation(
   try {
     return await withOrgContext<{ ok: true; id: string } | { ok: false; error: string }>(async (ctx) => {
       const context = ctx as {
+        userId: string;
+        orgId: string;
         client: {
           query<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<{ rows: T[]; rowCount: number }>;
         };
       };
+
+      if (!(await hasOnboardingPermission(context))) {
+        return { ok: false, error: 'PERSISTENCE_FAILED' };
+      }
 
       const onboardingCheck = await context.client.query<{ onboarding_completed_at: string | null }>(
         `select onboarding_completed_at from public.organizations where id = app.current_org_id()`,

@@ -1,4 +1,4 @@
-import { mutateOnboarding } from './advance';
+import { hasOnboardingPermission, mutateOnboarding } from './advance';
 import { withOrgContext } from '../../lib/auth/with-org-context';
 
 export type WarehouseType = 'finished' | 'raw' | 'wip' | 'quarantine';
@@ -72,10 +72,16 @@ async function persistFirstWarehouse(input: {
       { ok: true; id: string; orgId: string } | { ok: false; error: 'CODE_TAKEN' | 'PERSISTENCE_FAILED' }
     >(async (ctx) => {
       const context = ctx as {
+        userId: string;
+        orgId: string;
         client: {
           query<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<{ rows: T[]; rowCount: number }>;
         };
       };
+
+      if (!(await hasOnboardingPermission(context))) {
+        return { ok: false, error: 'PERSISTENCE_FAILED' };
+      }
 
       const onboardingCheck = await context.client.query<{ onboarding_completed_at: string | null }>(
         `select onboarding_completed_at from public.organizations where id = app.current_org_id()`,
