@@ -59,18 +59,6 @@ export async function closeWo(
     return fail('invalid_input', { message: 'e-sign reason is required (CFR-21 Part 11)' });
   }
 
-  const woHoldGate = await assertWoNotOnHold(input.woId, { client: ctx.client });
-  if (!woHoldGate.ok) {
-    throw new QualityHoldError({
-      hold: woHoldGate.hold,
-      woId: input.woId,
-      blockedPath: 'close',
-      transactionId: input.transactionId,
-      lpId: null,
-      lotId: null,
-    });
-  }
-
   // (0) ATOMICITY PRE-GATE (CFR-21 Part 11): validate the close transition is
   // legal BEFORE persisting the e-signature. The e-sign + audit rows and the
   // close transition share ONE withOrgContext txn; if we signed first and the
@@ -83,6 +71,18 @@ export async function closeWo(
     return fail('invalid_state_transition', {
       message: `cannot close a WO in state '${exec.status}'`,
       details: { from: exec.status, verb: 'close' },
+    });
+  }
+
+  const woHoldGate = await assertWoNotOnHold(input.woId, { client: ctx.client });
+  if (!woHoldGate.ok) {
+    throw new QualityHoldError({
+      hold: woHoldGate.hold,
+      woId: input.woId,
+      blockedPath: 'close',
+      transactionId: input.transactionId,
+      lpId: null,
+      lotId: null,
     });
   }
 

@@ -135,12 +135,20 @@ export async function assertWoNotOnHold(
       hold_id: string;
       reference_id: string;
     }>(
-      `select hold_id, reference_id
-         from public.v_active_holds
-        where org_id = app.current_org_id()
-          and reference_type = 'wo'
-          and reference_id = $1::uuid
-        order by case priority
+      `select h.hold_id, h.reference_id
+         from public.v_active_holds h
+         join public.wo_executions e
+           on e.org_id = h.org_id
+          and e.wo_id = h.reference_id
+         join public.work_orders wo
+           on wo.org_id = e.org_id
+          and wo.id = e.wo_id
+        where h.org_id = app.current_org_id()
+          and e.org_id = app.current_org_id()
+          and wo.org_id = app.current_org_id()
+          and h.reference_type = 'wo'
+          and h.reference_id = $1::uuid
+        order by case h.priority
                    when 'critical' then 0
                    when 'high' then 1
                    when 'medium' then 2

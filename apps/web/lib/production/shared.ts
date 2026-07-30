@@ -217,10 +217,14 @@ export async function readWoExecutionStatus(
   woId: string,
 ): Promise<WoExecutionStatus | null> {
   const { rows } = await ctx.client.query<{ status: WoExecutionStatus }>(
-    `select status
-       from public.wo_executions
-      where wo_id = $1::uuid
-        and org_id = app.current_org_id()
+    `select e.status
+       from public.wo_executions e
+       join public.work_orders wo
+         on wo.org_id = e.org_id
+        and wo.id = e.wo_id
+      where e.wo_id = $1::uuid
+        and e.org_id = app.current_org_id()
+        and wo.org_id = app.current_org_id()
       limit 1`,
     [woId],
   );

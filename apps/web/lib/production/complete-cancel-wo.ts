@@ -116,6 +116,33 @@ export async function completeWo(
   if (!(await hasPermission(ctx, 'production.wo.complete'))) return fail('forbidden');
 
   const client = ctx.client;
+  const completionPreflight = await client.query<{ green: boolean }>(
+    `select exists(
+              select 1
+                from public.wo_outputs o
+               where o.org_id = app.current_org_id()
+                 and o.wo_id = e.wo_id
+                 and o.output_type = 'primary'
+                 and o.qty_kg > 0
+                 and o.correction_of_id is null
+                 and not exists (
+                   select 1
+                     from public.wo_outputs correction
+                    where correction.org_id = o.org_id
+                      and correction.correction_of_id = o.id
+                 )
+            ) as green
+       from public.wo_executions e
+       join public.work_orders wo
+         on wo.org_id = e.org_id
+        and wo.id = e.wo_id
+      where e.org_id = app.current_org_id()
+        and wo.org_id = app.current_org_id()
+        and e.wo_id = $1::uuid
+      limit 1`,
+    [input.woId],
+  );
+  if (completionPreflight.rows.length === 0) return fail('not_found');
 
   const woHoldGate = await assertWoNotOnHold(input.woId, { client });
   if (!woHoldGate.ok) {
@@ -180,24 +207,27 @@ export async function completeWo(
   // Yield gate GREEN check: at least one primary output registered with qty_kg>0,
   // unless an override reason code is supplied (production-manager override path).
   // The qty_kg>0 comparison runs in SQL as NUMERIC — never coerced to JS float.
-  const greenRes = await client.query<{ green: boolean }>(
-    `select exists(
-              select 1 from public.wo_outputs o
-               where o.org_id = app.current_org_id()
-                 and o.wo_id = $1::uuid
-                 and o.output_type = 'primary'
-                 and o.qty_kg > 0
-                 and o.correction_of_id is null
-                 and not exists (
-                   select 1
-                     from public.wo_outputs correction
-                    where correction.org_id = o.org_id
-                      and correction.correction_of_id = o.id
-                 )
-            ) as green`,
-    [input.woId],
-  );
-  const primaryGreen = greenRes.rows[0]?.green === true;
+  let primaryGreen = completionPreflight.rows[0]?.green;
+  if (typeof primaryGreen !== 'boolean') {
+    const greenRes = await client.query<{ green: boolean }>(
+      `select exists(
+                select 1 from public.wo_outputs o
+                 where o.org_id = app.current_org_id()
+                   and o.wo_id = $1::uuid
+                   and o.output_type = 'primary'
+                   and o.qty_kg > 0
+                   and o.correction_of_id is null
+                   and not exists (
+                     select 1
+                       from public.wo_outputs correction
+                      where correction.org_id = o.org_id
+                        and correction.correction_of_id = o.id
+                   )
+              ) as green`,
+      [input.woId],
+    );
+    primaryGreen = greenRes.rows[0]?.green === true;
+  }
   const strictGate = await evaluateClosedProductionStrict(client, input.woId);
   const consumptionWithinTolerance = strictGate?.within_tolerance !== false;
   const yieldGateGreen = primaryGreen && consumptionWithinTolerance;

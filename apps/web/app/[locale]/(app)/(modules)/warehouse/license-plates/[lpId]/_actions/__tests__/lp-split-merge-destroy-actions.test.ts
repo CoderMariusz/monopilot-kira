@@ -39,6 +39,9 @@ let primaryQaStatus: string;
 let secondaryQaStatus: string;
 let secondaryStatus: string;
 let secondaryProductId: string;
+let secondaryUom: string;
+let secondaryBatchNumber: string | null;
+let secondaryExpiryDate: string | null;
 let secondarySiteId: string | null;
 let secondaryWarehouseId: string;
 let secondaryLocationId: string | null;
@@ -181,6 +184,9 @@ function makeClient(): QueryClient {
               status: secondaryStatus,
               qa_status: secondaryQaStatus,
               product_id: secondaryProductId,
+              uom: secondaryUom,
+              batch_number: secondaryBatchNumber,
+              expiry_date: secondaryExpiryDate,
               site_id: secondarySiteId,
               warehouse_id: secondaryWarehouseId,
               location_id: secondaryLocationId,
@@ -225,6 +231,9 @@ beforeEach(() => {
   primaryQaStatus = 'released';
   secondaryQaStatus = 'released';
   secondaryProductId = PRODUCT_ID;
+  secondaryUom = 'kg';
+  secondaryBatchNumber = 'BATCH-1';
+  secondaryExpiryDate = '2027-01-31 00:00:00+00';
   secondarySiteId = SITE_ID;
   secondaryWarehouseId = WAREHOUSE_ID;
   secondaryLocationId = LOCATION_ID;
@@ -603,6 +612,137 @@ describe('LP split/merge/destroy server actions', () => {
     expect(calls.some((sql) => sql.startsWith('update public.license_plates'))).toBe(false);
     expect(calls.some((sql) => sql.startsWith('insert into public.stock_moves'))).toBe(false);
   });
+
+  it.each(['consumed', 'shipped', 'merged', 'destroyed'])(
+    'WH-008 rejects destroy for terminal status %s',
+    async (status) => {
+      primaryStatus = status;
+
+      const result = await destroyLp(PRIMARY_LP_ID, `destroy ${status}`, DESTROY_CLIENT_OP_ID);
+
+      expect(result).toEqual({
+        ok: false,
+        error: 'LP is already consumed/shipped/merged/destroyed and cannot be destroyed',
+      });
+      const calls = vi.mocked(client.query).mock.calls.map(([sql]) => normalize(String(sql)));
+      expect(calls.some((sql) => sql.startsWith('update public.license_plates'))).toBe(false);
+      expect(calls.some((sql) => sql.startsWith('insert into public.stock_moves'))).toBe(false);
+    },
+  );
+
+  it('WH-008 allows destroy for an operable, unreserved LP', async () => {
+    await expect(destroyLp(PRIMARY_LP_ID, 'dispose damaged stock', DESTROY_CLIENT_OP_ID)).resolves.toEqual({ ok: true });
+  });
+
+  it('WH-114 rejects split without warehouse.lp.split before loading or writing the LP', async () => {
+    grantedPermissions.delete('warehouse.lp.split');
+
+    await expect(splitLp(PRIMARY_LP_ID, 4, 'split', SPLIT_CLIENT_OP_ID, DEST_LOCATION_ID)).resolves.toEqual({
+      ok: false,
+      error: 'forbidden',
+    });
+    const calls = vi.mocked(client.query).mock.calls.map(([sql]) => normalize(String(sql)));
+    expect(calls.some((sql) => sql.includes('from public.license_plates lp') && sql.includes('for update'))).toBe(false);
+    expect(calls.some((sql) => sql.includes('insert into public.license_plates'))).toBe(false);
+  });
+
+  it.each(['received', 'available', 'returned'])('WH-114 allows split from source status %s', async (status) => {
+    primaryStatus = status;
+
+    await expect(splitLp(PRIMARY_LP_ID, 4, 'split', SPLIT_CLIENT_OP_ID, DEST_LOCATION_ID)).resolves.toEqual({ ok: true });
+  });
+
+  it.each(['quarantine', 'blocked'])('WH-114 rejects split from source status %s', async (status) => {
+    primaryStatus = status;
+
+    await expect(splitLp(PRIMARY_LP_ID, 4, 'split', SPLIT_CLIENT_OP_ID, DEST_LOCATION_ID)).resolves.toEqual({
+      ok: false,
+      error: 'LP status does not allow split',
+    });
+  });
+
+  it('WH-114 rejects split under an active hold and allows the same LP without the hold', async () => {
+    heldLpIds.add(PRIMARY_LP_ID);
+    await expect(splitLp(PRIMARY_LP_ID, 4, 'split held', SPLIT_CLIENT_OP_ID, DEST_LOCATION_ID)).resolves.toEqual({
+      ok: false,
+      error: 'LP is under an active quality hold',
+    });
+
+    heldLpIds.clear();
+    client = makeClient();
+    await expect(splitLp(PRIMARY_LP_ID, 4, 'split clean', SPLIT_CLIENT_OP_ID, DEST_LOCATION_ID)).resolves.toEqual({ ok: true });
+  });
+
+  it.each([
+    { field: 'product', arrange: () => { secondaryProductId = OTHER_PRODUCT_ID; } },
+    { field: 'UoM', arrange: () => { secondaryUom = 'each'; } },
+    { field: 'batch', arrange: () => { secondaryBatchNumber = 'BATCH-2'; } },
+    { field: 'expiry', arrange: () => { secondaryExpiryDate = '2027-02-01 00:00:00+00'; } },
+    { field: 'warehouse', arrange: () => { secondaryWarehouseId = 'bcbcbcbc-bcbc-4bcb-8bcb-bcbcbcbcbcbc'; } },
+    { field: 'location', arrange: () => { secondaryLocationId = DEST_LOCATION_ID; } },
+  ])('WH-115 rejects merge for a single $field difference', async ({ arrange }) => {
+    arrange();
+
+    const result = await mergeLps(PRIMARY_LP_ID, [SECONDARY_LP_ID], 'same-lot contract');
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'LP product, UOM, batch, expiry, warehouse, site, and location must match before merge',
+    });
+    const calls = vi.mocked(client.query).mock.calls.map(([sql]) => normalize(String(sql)));
+    expect(calls.some((sql) => sql.startsWith('update public.license_plates'))).toBe(false);
+  });
+
+  it('WH-115 rejects a site difference and allows a fully matching pair', async () => {
+    secondarySiteId = OTHER_SITE_ID;
+    await expect(mergeLps(PRIMARY_LP_ID, [SECONDARY_LP_ID], 'cross-site')).resolves.toEqual({
+      ok: false,
+      error: 'cross_site_lp',
+    });
+
+    secondarySiteId = SITE_ID;
+    client = makeClient();
+    await expect(mergeLps(PRIMARY_LP_ID, [SECONDARY_LP_ID], 'matching')).resolves.toEqual({ ok: true });
+  });
+
+  it('WH-115 applies the complete same-SKU/lot predicate to sibling selection', async () => {
+    await expect(listSiblingLpsForMerge(PRIMARY_LP_ID)).resolves.toMatchObject({ ok: true });
+
+    const query = normalize(String(
+      vi.mocked(client.query).mock.calls.find(([sql]) => normalize(String(sql)).includes('left join public.license_plates sibling'))?.[0],
+    ));
+    for (const predicate of [
+      'sibling.product_id = primary_lp.product_id',
+      'sibling.uom = primary_lp.uom',
+      'sibling.batch_number is not distinct from primary_lp.batch_number',
+      'sibling.expiry_date is not distinct from primary_lp.expiry_date',
+      'sibling.warehouse_id = primary_lp.warehouse_id',
+      'sibling.site_id is not distinct from primary_lp.site_id',
+      'sibling.location_id is not distinct from primary_lp.location_id',
+    ]) {
+      expect(query).toContain(predicate);
+    }
+  });
+
+  it.each([
+    ['released', 'on_hold', 'on_hold'],
+    ['released', 'rejected', 'rejected'],
+    ['on_hold', 'released', 'on_hold'],
+    ['rejected', 'released', 'rejected'],
+  ])(
+    'WH-116 keeps the most restrictive QA status for %s + %s → %s',
+    async (primaryQa, secondaryQa, expectedQa) => {
+      primaryQaStatus = primaryQa;
+      secondaryQaStatus = secondaryQa;
+
+      await expect(mergeLps(PRIMARY_LP_ID, [SECONDARY_LP_ID], 'qa ranking')).resolves.toEqual({ ok: true });
+      const update = vi
+        .mocked(client.query)
+        .mock.calls.map(([sql, params]) => ({ sql: normalize(String(sql)), params }))
+        .find((call) => call.sql.startsWith('update public.license_plates') && call.sql.includes('quantity = quantity +'));
+      expect(update?.params?.[2]).toBe(expectedQa);
+    },
+  );
 });
 
 // ── FALA 7 handover · the LP's site must match the active one ─────────────────────────────────

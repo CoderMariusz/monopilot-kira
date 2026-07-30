@@ -793,10 +793,9 @@ export async function destroyLp(lpIdInput: string, reasonInput: string, clientOp
 
       const lp = await lockLp(ctx, lpId);
       if (!lp) return failure('not_found');
-      // Before the already-destroyed short-circuit on purpose: an `ok: true` for another site's
-      // LP would confirm that the id exists and is terminal.
+      // Check site visibility before the terminal-state guard: otherwise the
+      // guard would confirm that another site's LP exists and is terminal.
       if (isForeignSite(lp, siteId)) return failure('cross_site_lp');
-      if (lp.status === 'destroyed') return { ok: true };
       if (DESTROY_BLOCKED_STATES.has(lp.status)) {
         return failure('LP is already consumed/shipped/merged/destroyed and cannot be destroyed');
       }
