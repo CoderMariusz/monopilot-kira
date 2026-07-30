@@ -27,6 +27,7 @@ const fakeClient = {
 const registerOutputMock = vi.fn();
 const recordWasteMock = vi.fn();
 const startWoMock = vi.fn();
+const reconcileWoOutputGenealogyMock = vi.fn();
 const findUserByEmailMock = vi.fn();
 const userHasPinMock = vi.fn();
 const verifyPinMock = vi.fn();
@@ -78,6 +79,10 @@ vi.mock('../../../../../../../lib/production/shared', async (importOriginal) => 
 
 vi.mock('../../../../../../../lib/production/output/register-output', () => ({
   registerOutput: (...args: unknown[]) => registerOutputMock(...args),
+}));
+
+vi.mock('../../../../../../../lib/production/output-genealogy', () => ({
+  reconcileWoOutputGenealogy: (...args: unknown[]) => reconcileWoOutputGenealogyMock(...args),
 }));
 
 vi.mock('../../../../../../../lib/production/waste/record-waste', () => ({
@@ -249,6 +254,7 @@ describe('production scanner WO routes', () => {
     await expect(response.json()).resolves.toMatchObject({ ok: true, replay: false, consumedQty: '2.500' });
     expect(fakeClient.query.mock.calls.map((call) => call[0])).toEqual(expect.arrayContaining(['begin', 'commit']));
     expect(fakeClient.query.mock.calls.some((call) => String(call[0]).includes('client_op_id'))).toBe(true);
+    expect(reconcileWoOutputGenealogyMock).toHaveBeenCalledWith(fakeClient, context.params.id);
   });
 
   it('consume with lpId inserts the canonical material consumption ledger row', async () => {

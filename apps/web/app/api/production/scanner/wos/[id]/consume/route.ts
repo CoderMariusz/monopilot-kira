@@ -8,6 +8,7 @@ import {
   normalizePersistedQuantity,
   resolveConsumptionLp,
 } from '../../../../../../../lib/production/consume-material-core';
+import { reconcileWoOutputGenealogy } from '../../../../../../../lib/production/output-genealogy';
 import { debitWac } from '../../../../../../../lib/finance/upsert-wac';
 import {
   APP_VERSION,
@@ -534,6 +535,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
       if (!consumptionId) {
         throw new Error('scanner consume: consumption insert returned no id');
       }
+
+      await reconcileWoOutputGenealogy(client, woId);
 
       const wacDebit = await debitWac(client, {
         orgId: session.org_id,

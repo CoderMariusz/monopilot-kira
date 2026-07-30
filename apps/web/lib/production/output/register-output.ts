@@ -613,10 +613,9 @@ async function resolveWarehouseForSessionSite(
  *     warehouse and its first location when no line output is configured;
  *   - status 'received' + qa_status 'pending' — the LP is NOT born 'available';
  *     it flows through the QA release → available promotion path;
- *   - genealogy: parent_lp_id = FIRST consumed LP (license_plates models a
- *     SINGLE parent); ALL consumed LPs are recorded in ext_jsonb.consumed_lp_ids.
- *     MODELLING GAP (reported): N consumed parents cannot be expressed
- *     relationally without a junction table (future lp_genealogy migration).
+ *   - genealogy is reconciled from both canonical WO ledgers after the output
+ *     row and LP exist. lp_genealogy stores every consumed parent; parent_lp_id
+ *     and ext_jsonb.consumed_lp_ids remain indexed/read-compatible fast paths.
  * Idempotency: on replay the wo_outputs transaction_id unique (23505) fires
  * BEFORE this block and aborts the whole txn — no duplicate/orphan LP.
  */

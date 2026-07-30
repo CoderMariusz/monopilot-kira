@@ -236,6 +236,17 @@ describe('registerOutput — caller-supplied LP integrity (Wave 9 Bug 1)', () =>
     expect(increment?.params).toEqual([LP_ID, '25.500', USER_ID]);
   });
 
+  it('Z1: attaches consumed-parent genealogy when output is added to a caller-supplied LP', async () => {
+    await registerOutput(makeCtx(), WO_ID, baseBody());
+
+    const genealogy = queryCalls.find(
+      (call) =>
+        normalize(call.sql).startsWith('with parent_net as') &&
+        normalize(call.sql).includes('insert into public.lp_genealogy'),
+    );
+    expect(genealogy?.params).toEqual([WO_ID]);
+  });
+
   it('uses the locked supplied LP site_id on the stock move', async () => {
     await registerOutput(makeCtx(), WO_ID, baseBody());
 

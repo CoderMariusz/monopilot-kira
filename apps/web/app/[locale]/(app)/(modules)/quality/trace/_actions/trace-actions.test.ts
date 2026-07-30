@@ -27,9 +27,25 @@ const CUSTOMER_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 const WIP_LP_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
 const WO1_ID = '10101010-1010-4101-8101-101010101010';
 const WO2_ID = '20202020-2020-4202-8202-202020202020';
+const SPLIT_LP_ID = '30303030-3030-4303-8303-303030303030';
+const TRANSFER_LP_ID = '40404040-4040-4404-8404-404040404040';
+const MERGED_LP_ID = '50505050-5050-4505-8505-505050505050';
 
 let client: QueryClient;
-let scenario: 'chain' | 'solo' | 'truncated_lp' | 'sibling' | 'restricted' | 'three_level';
+let scenario:
+  | 'chain'
+  | 'derived'
+  | 'orphaned_output'
+  | 'solo'
+  | 'truncated_lp'
+  | 'sibling'
+  | 'restricted'
+  | 'three_level'
+  | 'duplicate_bom_scope'
+  | 'partial_shipment'
+  | 'fully_shipped'
+  | 'real_imbalance'
+  | 'batch_waste';
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -88,6 +104,37 @@ const OUTPUT_LP_ROW = {
 };
 
 function lpRows() {
+  if (
+    scenario === 'duplicate_bom_scope' ||
+    scenario === 'partial_shipment' ||
+    scenario === 'fully_shipped' ||
+    scenario === 'real_imbalance' ||
+    scenario === 'batch_waste'
+  ) {
+    const outputQuantity = scenario === 'fully_shipped'
+      ? '0.000000'
+      : scenario === 'duplicate_bom_scope' || scenario === 'batch_waste'
+        ? '30.000000'
+        : '10.000000';
+    const rows = [
+      { ...BASE_LP_ROW, quantity: '0.000000', consumed_by_wo_id: WO_ID },
+      { ...OUTPUT_LP_ROW, quantity: outputQuantity, status: 'available' },
+    ];
+    if (scenario === 'duplicate_bom_scope') {
+      rows.push({
+        ...OUTPUT_LP_ROW,
+        id: SIBLING_LP_ID,
+        lp_number: 'LP-SIBLING',
+        lp_code: 'LP-SIBLING',
+        display_ref: 'LP-SIBLING',
+        quantity: '70.000000',
+        batch_code: 'B-SIBLING',
+        parent_lp_id: null,
+      });
+    }
+    return rows;
+  }
+
   if (scenario === 'solo') {
     return [
       {
@@ -174,6 +221,46 @@ function lpRows() {
     ];
   }
 
+  if (scenario === 'derived' || scenario === 'orphaned_output') {
+    return [
+      BASE_LP_ROW,
+      OUTPUT_LP_ROW,
+      {
+        ...OUTPUT_LP_ROW,
+        id: SPLIT_LP_ID,
+        lp_number: 'LP-OUT-SPLIT',
+        lp_code: 'LP-OUT-SPLIT',
+        display_ref: 'LP-OUT-SPLIT',
+        origin: 'split',
+        parent_lp_id: OUTPUT_LP_ID,
+        wo_id: null,
+        source_so_id: null,
+      },
+      {
+        ...OUTPUT_LP_ROW,
+        id: TRANSFER_LP_ID,
+        lp_number: 'LP-OUT-TRANSFER',
+        lp_code: 'LP-OUT-TRANSFER',
+        display_ref: 'LP-OUT-TRANSFER',
+        origin: 'transfer',
+        parent_lp_id: SPLIT_LP_ID,
+        wo_id: null,
+        source_so_id: null,
+      },
+      {
+        ...OUTPUT_LP_ROW,
+        id: MERGED_LP_ID,
+        lp_number: 'LP-OUT-MERGED',
+        lp_code: 'LP-OUT-MERGED',
+        display_ref: 'LP-OUT-MERGED',
+        origin: 'merge',
+        parent_lp_id: TRANSFER_LP_ID,
+        wo_id: null,
+        source_so_id: null,
+      },
+    ];
+  }
+
   return [BASE_LP_ROW, OUTPUT_LP_ROW];
 }
 
@@ -206,7 +293,25 @@ function makeClient(): QueryClient {
           }));
           return { rows, rowCount: rows.length };
         }
-        return { rows: [{ id: scenario === 'solo' ? SOLO_LP_ID : INPUT_LP_ID }], rowCount: 1 };
+        const outputSeed =
+          ((scenario === 'derived' || scenario === 'orphaned_output') && params[0] === 'LP-OUT-MERGED') ||
+          scenario === 'duplicate_bom_scope' ||
+          scenario === 'partial_shipment' ||
+          scenario === 'fully_shipped' ||
+          scenario === 'real_imbalance' ||
+          scenario === 'batch_waste';
+        return {
+          rows: [{
+            id: scenario === 'solo'
+              ? SOLO_LP_ID
+              : (scenario === 'derived' || scenario === 'orphaned_output') && params[0] === 'LP-OUT-MERGED'
+                ? MERGED_LP_ID
+                : outputSeed
+                  ? OUTPUT_LP_ID
+                  : INPUT_LP_ID,
+          }],
+          rowCount: 1,
+        };
       }
 
       if (q.startsWith('select lp.id::text as id, lp.lp_number')) {
@@ -219,6 +324,9 @@ function makeClient(): QueryClient {
 
       if (q.includes('from public.license_plates lp left join public.grn_items gi')) {
         if (scenario === 'solo') return { rows: [], rowCount: 0 };
+        if (scenario === 'orphaned_output' && !(params[0] as string[]).includes(INPUT_LP_ID)) {
+          return { rows: [], rowCount: 0 };
+        }
         return {
           rows: [
             {
@@ -239,6 +347,54 @@ function makeClient(): QueryClient {
 
       if (q.startsWith('select c.id::text as id')) {
         if (scenario === 'solo') return { rows: [], rowCount: 0 };
+        if (scenario === 'orphaned_output') {
+          const lpIds = params[0] as string[];
+          const woIds = params[1] as string[];
+          if (!lpIds.includes(INPUT_LP_ID) && !woIds.includes(WO_ID)) {
+            return { rows: [], rowCount: 0 };
+          }
+        }
+        if (scenario === 'duplicate_bom_scope') {
+          const row = {
+            id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+            lp_id: INPUT_LP_ID,
+            wo_id: WO_ID,
+            wo_number: 'WO-2026-0001',
+            qty_consumed: '100.000',
+            uom: 'kg',
+            material_id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+          };
+          const rows = q.includes('material_per_product')
+            ? [{ ...row, material_name: 'Raw meat (stage 1) / Raw meat (stage 2)' }]
+            : [
+                { ...row, material_name: 'Raw meat (stage 1)' },
+                { ...row, material_name: 'Raw meat (stage 2)' },
+              ];
+          return { rows, rowCount: rows.length };
+        }
+        if (
+          scenario === 'partial_shipment' ||
+          scenario === 'fully_shipped' ||
+          scenario === 'real_imbalance' ||
+          scenario === 'batch_waste'
+        ) {
+          const qty = scenario === 'batch_waste' ? '35.000' : '30.000';
+          return {
+            rows: [
+              {
+                id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+                lp_id: INPUT_LP_ID,
+                wo_id: WO_ID,
+                wo_number: 'WO-2026-0001',
+                qty_consumed: qty,
+                uom: 'kg',
+                material_id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+                material_name: 'Raw material',
+              },
+            ],
+            rowCount: 1,
+          };
+        }
         if (scenario === 'three_level') {
           return {
             rows: [
@@ -285,6 +441,66 @@ function makeClient(): QueryClient {
 
       if (q.startsWith('select o.id::text as id')) {
         if (scenario === 'solo') return { rows: [], rowCount: 0 };
+        if (scenario === 'duplicate_bom_scope') {
+          return {
+            rows: [
+              {
+                id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+                wo_id: WO_ID,
+                wo_number: 'WO-2026-0001',
+                output_lp_id: OUTPUT_LP_ID,
+                output_ref: 'LP-OUT',
+                batch_number: 'B-FG',
+                qty: '30.000',
+                uom: 'kg',
+                current_qty: '30.000000',
+                current_uom: 'kg',
+                consumed_by_wo_id: null,
+              },
+              {
+                id: 'ffffffff-ffff-4fff-8fff-000000000001',
+                wo_id: WO_ID,
+                wo_number: 'WO-2026-0001',
+                output_lp_id: SIBLING_LP_ID,
+                output_ref: 'LP-SIBLING',
+                batch_number: 'B-SIBLING',
+                qty: '70.000',
+                uom: 'kg',
+                current_qty: '70.000000',
+                current_uom: 'kg',
+                consumed_by_wo_id: null,
+              },
+            ],
+            rowCount: 2,
+          };
+        }
+        if (
+          scenario === 'partial_shipment' ||
+          scenario === 'fully_shipped' ||
+          scenario === 'real_imbalance' ||
+          scenario === 'batch_waste'
+        ) {
+          const currentQty =
+            scenario === 'fully_shipped' ? '0.000000' : scenario === 'batch_waste' ? '30.000000' : '10.000000';
+          return {
+            rows: [
+              {
+                id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+                wo_id: WO_ID,
+                wo_number: 'WO-2026-0001',
+                output_lp_id: OUTPUT_LP_ID,
+                output_ref: 'LP-OUT',
+                batch_number: 'B-FG',
+                qty: '30.000',
+                uom: 'kg',
+                current_qty: currentQty,
+                current_uom: 'kg',
+                consumed_by_wo_id: null,
+              },
+            ],
+            rowCount: 1,
+          };
+        }
         if (scenario === 'three_level') {
           return {
             rows: [
@@ -359,6 +575,26 @@ function makeClient(): QueryClient {
 
       if (q.startsWith('select wo.id::text as id')) {
         if (scenario === 'solo') return { rows: [], rowCount: 0 };
+        if (
+          scenario === 'duplicate_bom_scope' ||
+          scenario === 'partial_shipment' ||
+          scenario === 'fully_shipped' ||
+          scenario === 'real_imbalance' ||
+          scenario === 'batch_waste'
+        ) {
+          return {
+            rows: [
+              {
+                id: WO_ID,
+                wo_number: 'WO-2026-0001',
+                planned_quantity: scenario === 'duplicate_bom_scope' ? '100.000' : '30.000',
+                uom: 'kg',
+                status: 'completed',
+              },
+            ],
+            rowCount: 1,
+          };
+        }
         if (scenario === 'three_level') {
           return {
             rows: [
@@ -396,6 +632,52 @@ function makeClient(): QueryClient {
 
       if (q.includes('get_forward_shipments_org_wide')) {
         if (scenario === 'solo') return { rows: [], rowCount: 0 };
+        if (scenario === 'partial_shipment' || scenario === 'fully_shipped' || scenario === 'real_imbalance') {
+          return {
+            rows: [
+              {
+                shipment_id: SHIPMENT_ID,
+                shipment_number: 'SH-2026-0001',
+                sales_order_id: SO_ID,
+                sales_order_number: 'SO-2026-0001',
+                customer_id: CUSTOMER_ID,
+                customer_name: 'Acme Foods',
+                customer_code: 'ACME',
+                lp_id: OUTPUT_LP_ID,
+                lp_ref: 'LP-OUT',
+                shipped_qty:
+                  scenario === 'fully_shipped' ? '30.000' : scenario === 'partial_shipment' ? '20.000' : '15.000',
+                uom: 'kg',
+              },
+            ],
+            rowCount: 1,
+          };
+        }
+        if (scenario === 'duplicate_bom_scope' || scenario === 'batch_waste') {
+          return { rows: [], rowCount: 0 };
+        }
+        if (scenario === 'derived' || scenario === 'orphaned_output') {
+          const requestedLpIds = params[0] as string[];
+          if (!requestedLpIds.includes(MERGED_LP_ID)) return { rows: [], rowCount: 0 };
+          return {
+            rows: [
+              {
+                shipment_id: SHIPMENT_ID,
+                shipment_number: 'SH-DERIVED',
+                sales_order_id: SO_ID,
+                sales_order_number: 'SO-DERIVED',
+                customer_id: CUSTOMER_ID,
+                customer_name: 'Derived Customer',
+                customer_code: 'DERIVED',
+                lp_id: MERGED_LP_ID,
+                lp_ref: 'LP-OUT-MERGED',
+                shipped_qty: '5.000',
+                uom: 'kg',
+              },
+            ],
+            rowCount: 1,
+          };
+        }
         if (scenario === 'three_level') {
           return {
             rows: [
@@ -438,6 +720,20 @@ function makeClient(): QueryClient {
 
       if (q.includes('from public.wo_waste_log w')) {
         if (scenario === 'solo') return { rows: [], rowCount: 0 };
+        if (scenario === 'batch_waste') {
+          return {
+            rows: [{ wo_id: WO_ID, lp_id: INPUT_LP_ID, wo_number: 'WO-2026-0001', qty_kg: '5.000' }],
+            rowCount: 1,
+          };
+        }
+        if (
+          scenario === 'duplicate_bom_scope' ||
+          scenario === 'partial_shipment' ||
+          scenario === 'fully_shipped' ||
+          scenario === 'real_imbalance'
+        ) {
+          return { rows: [], rowCount: 0 };
+        }
         if (scenario === 'three_level') {
           return {
             rows: [
@@ -478,6 +774,40 @@ describe('trace recall server actions', () => {
     vi.clearAllMocks();
     vi.mocked(queryGenealogy).mockImplementation(async (_queryClient, lpId) => {
       if (lpId === SOLO_LP_ID) return [];
+      if (
+        scenario === 'duplicate_bom_scope' ||
+        scenario === 'partial_shipment' ||
+        scenario === 'fully_shipped' ||
+        scenario === 'real_imbalance' ||
+        scenario === 'batch_waste'
+      ) {
+        return [
+          {
+            lpId: INPUT_LP_ID,
+            lpNumber: 'LP-IN',
+            itemCode: 'RM-001',
+            quantity: '0.000000',
+            uom: 'kg',
+            status: 'consumed',
+            createdAt: '2026-06-23T08:00:00.000Z',
+            depth: 1,
+            direction: 'ancestor',
+            parentLpId: null,
+          },
+          {
+            lpId: OUTPUT_LP_ID,
+            lpNumber: 'LP-OUT',
+            itemCode: 'FG-001',
+            quantity: lpRows().find((row) => row.id === OUTPUT_LP_ID)?.quantity ?? '0',
+            uom: 'kg',
+            status: 'available',
+            createdAt: '2026-06-23T09:00:00.000Z',
+            depth: 0,
+            direction: 'self',
+            parentLpId: INPUT_LP_ID,
+          },
+        ];
+      }
       return [
         {
           lpId: INPUT_LP_ID,
@@ -602,8 +932,136 @@ describe('trace recall server actions', () => {
       balanced: true,
       percentAccounted: '100',
     });
-    expect(report.massBalance.unreconciled).toContainEqual(
-      expect.objectContaining({ bucket: 'unattributed_wo_waste', ref: 'WO-2026-0001', qty: '1.000' }),
+    expect(report.massBalance.unreconciled).toEqual([]);
+  });
+
+  it('Z2: forward recall includes the customer shipping an LP after split, transfer, and merge', async () => {
+    scenario = 'derived';
+    client = makeClient();
+    const derivedChain = [
+      [INPUT_LP_ID, 'LP-IN', null],
+      [OUTPUT_LP_ID, 'LP-OUT', INPUT_LP_ID],
+      [SPLIT_LP_ID, 'LP-OUT-SPLIT', OUTPUT_LP_ID],
+      [TRANSFER_LP_ID, 'LP-OUT-TRANSFER', SPLIT_LP_ID],
+      [MERGED_LP_ID, 'LP-OUT-MERGED', TRANSFER_LP_ID],
+    ] as const;
+    vi.mocked(queryGenealogy).mockImplementation(async (_queryClient, rootLpId) =>
+      derivedChain.map(([lpId, lpNumber, parentLpId], index) => ({
+        lpId,
+        lpNumber,
+        itemCode: index === 0 ? 'RM-FLOUR' : 'FG-BREAD',
+        quantity: index === 0 ? '10.000000' : '5.000000',
+        uom: 'kg',
+        status: index === 0 ? 'consumed' : index === 4 ? 'shipped' : 'available',
+        createdAt: `2026-06-23T${String(index + 8).padStart(2, '0')}:00:00.000Z`,
+        depth: rootLpId === INPUT_LP_ID ? index : 4 - index,
+        direction:
+          lpId === rootLpId
+            ? 'self' as const
+            : rootLpId === INPUT_LP_ID
+              ? 'descendant' as const
+              : 'ancestor' as const,
+        parentLpId,
+      })),
+    );
+
+    const report = await runTraceReport({ inputType: 'lp', inputRef: 'LP-IN', direction: 'forward' });
+
+    expect(report.nodes).toEqual(
+      expect.arrayContaining(
+        [OUTPUT_LP_ID, SPLIT_LP_ID, TRANSFER_LP_ID, MERGED_LP_ID].map((lpId) =>
+          expect.objectContaining({ nodeId: `lp:${lpId}`, type: 'output_lp' }),
+        ),
+      ),
+    );
+    expect(report.affectedCustomers).toEqual([
+      { customerId: CUSTOMER_ID, customerName: 'Derived Customer', customerCode: 'DERIVED' },
+    ]);
+    expect(report.edges).toContainEqual(
+      expect.objectContaining({
+        from: `lp:${MERGED_LP_ID}`,
+        to: `shipment:${SHIPMENT_ID}:${MERGED_LP_ID}`,
+        relation: 'ships_to',
+      }),
+    );
+
+    const backward = await runTraceReport({
+      inputType: 'lp',
+      inputRef: 'LP-OUT-MERGED',
+      direction: 'backward',
+    });
+    expect(backward.nodes).toEqual(
+      expect.arrayContaining([
+        ...derivedChain.map(([lpId]) => expect.objectContaining({ nodeId: `lp:${lpId}` })),
+        expect.objectContaining({ type: 'supplier', ref: 'SUP-FLOUR' }),
+      ]),
+    );
+  });
+
+  it('Z1: recall bridges an historical output with no consumed genealogy edge through the WO ledgers', async () => {
+    scenario = 'orphaned_output';
+    client = makeClient();
+    const derivativeChain = [
+      [OUTPUT_LP_ID, 'LP-OUT', null],
+      [SPLIT_LP_ID, 'LP-OUT-SPLIT', OUTPUT_LP_ID],
+      [TRANSFER_LP_ID, 'LP-OUT-TRANSFER', SPLIT_LP_ID],
+      [MERGED_LP_ID, 'LP-OUT-MERGED', TRANSFER_LP_ID],
+    ] as const;
+    vi.mocked(queryGenealogy).mockImplementation(async (_queryClient, rootLpId) => {
+      if (rootLpId === INPUT_LP_ID) {
+        return [{
+          lpId: INPUT_LP_ID,
+          lpNumber: 'LP-IN',
+          itemCode: 'RM-FLOUR',
+          quantity: '10.000000',
+          uom: 'kg',
+          status: 'consumed',
+          createdAt: '2026-06-23T08:00:00.000Z',
+          depth: 0,
+          direction: 'self',
+          parentLpId: null,
+        }];
+      }
+      if (rootLpId !== OUTPUT_LP_ID && rootLpId !== MERGED_LP_ID) return [];
+      return derivativeChain.map(([lpId, lpNumber, parentLpId], index) => ({
+        lpId,
+        lpNumber,
+        itemCode: 'FG-BREAD',
+        quantity: '5.000000',
+        uom: 'kg',
+        status: index === 3 ? 'shipped' : 'available',
+        createdAt: `2026-06-23T${String(index + 9).padStart(2, '0')}:00:00.000Z`,
+        depth: rootLpId === OUTPUT_LP_ID ? index : 3 - index,
+        direction:
+          lpId === rootLpId
+            ? 'self' as const
+            : rootLpId === OUTPUT_LP_ID
+              ? 'descendant' as const
+              : 'ancestor' as const,
+        parentLpId,
+      }));
+    });
+
+    const forward = await runTraceReport({ inputType: 'lp', inputRef: 'LP-IN', direction: 'forward' });
+    expect(forward.nodes).toEqual(
+      expect.arrayContaining(
+        derivativeChain.map(([lpId]) => expect.objectContaining({ nodeId: `lp:${lpId}` })),
+      ),
+    );
+    expect(forward.affectedCustomers).toContainEqual(
+      expect.objectContaining({ customerId: CUSTOMER_ID, customerName: 'Derived Customer' }),
+    );
+
+    const backward = await runTraceReport({
+      inputType: 'lp',
+      inputRef: 'LP-OUT-MERGED',
+      direction: 'backward',
+    });
+    expect(backward.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ nodeId: `lp:${INPUT_LP_ID}`, ref: 'LP-IN' }),
+        expect.objectContaining({ type: 'supplier', ref: 'SUP-FLOUR' }),
+      ]),
     );
   });
 
@@ -692,7 +1150,7 @@ describe('trace recall server actions', () => {
     });
   });
 
-  it('F1: sibling co-product batch excluded from output total; unattributable WO waste lands in unreconciled', async () => {
+  it('uses one WO scope for consumption, sibling outputs, and waste', async () => {
     scenario = 'sibling';
     client = makeClient();
     vi.mocked(queryGenealogy).mockImplementation(async (_queryClient, lpId) => {
@@ -733,11 +1191,111 @@ describe('trace recall server actions', () => {
     if (!report.massBalance || !('nodes' in report.massBalance)) {
       throw new Error('expected applicable mass balance');
     }
-    expect(report.massBalance.nodes[0]?.outputKg).toBe('15');
+    expect(report.massBalance.nodes[0]?.outputKg).toBe('35');
     expect(report.massBalance.total.wasteKg).toBe('3');
-    expect(report.massBalance.unreconciled).toContainEqual(
+    expect(report.massBalance.unreconciled).not.toContainEqual(
       expect.objectContaining({ bucket: 'unattributed_wo_waste', reason: 'unattributed_wo_waste' }),
     );
+  });
+
+  it('Z3: counts one 100 kg consumption once when the material occurs on two BOM lines', async () => {
+    scenario = 'duplicate_bom_scope';
+    client = makeClient();
+
+    const report = await runTraceReport({ inputType: 'lp', inputRef: 'LP-OUT', direction: 'both' });
+
+    if (!report.massBalance || !('nodes' in report.massBalance)) {
+      throw new Error('expected applicable mass balance');
+    }
+    expect(report.massBalance.nodes[0]).toMatchObject({
+      inputKg: '100',
+      outputKg: '100',
+      wasteKg: '0',
+      deltaKg: '0',
+      balanced: true,
+    });
+  });
+
+  it('Z4: uses the 30 kg WO boundary input after a 20 kg partial shipment instead of current 10 kg LP quantity', async () => {
+    scenario = 'partial_shipment';
+    client = makeClient();
+
+    const report = await runTraceReport({ inputType: 'lp', inputRef: 'LP-OUT', direction: 'both' });
+
+    if (!report.massBalance || !('nodes' in report.massBalance)) {
+      throw new Error('expected applicable mass balance');
+    }
+    expect(report.massBalance.total).toMatchObject({
+      seedInputKg: '30',
+      onSiteKg: '10',
+      shippedKg: '20',
+      wasteKg: '0',
+      deltaKg: '0',
+      percentAccounted: '100',
+      balanced: true,
+    });
+    expect(report.massBalance.nodes[0]?.balanced).toBe(true);
+  });
+
+  it('Z4: keeps the panel and a 100% balance after all 30 kg is shipped, also in a backward trace', async () => {
+    scenario = 'fully_shipped';
+    client = makeClient();
+
+    const report = await runTraceReport({ inputType: 'lp', inputRef: 'LP-OUT', direction: 'backward' });
+
+    if (!report.massBalance || !('nodes' in report.massBalance)) {
+      throw new Error('expected applicable mass balance');
+    }
+    expect(report.massBalance.total).toMatchObject({
+      seedInputKg: '30',
+      onSiteKg: '0',
+      shippedKg: '30',
+      wasteKg: '0',
+      deltaKg: '0',
+      percentAccounted: '100',
+      balanced: true,
+    });
+  });
+
+  it('Z4: includes WO waste in the same scope without falsely flagging a healthy 35→30+5 kg run', async () => {
+    scenario = 'batch_waste';
+    client = makeClient();
+
+    const report = await runTraceReport({ inputType: 'lp', inputRef: 'LP-OUT', direction: 'both' });
+
+    if (!report.massBalance || !('nodes' in report.massBalance)) {
+      throw new Error('expected applicable mass balance');
+    }
+    expect(report.massBalance.total).toMatchObject({
+      seedInputKg: '35',
+      onSiteKg: '30',
+      shippedKg: '0',
+      wasteKg: '5',
+      deltaKg: '0',
+      percentAccounted: '100',
+      balanced: true,
+    });
+    expect(report.massBalance.unreconciled).toEqual([]);
+  });
+
+  it('Z4: still detects a real 5 kg shortage in a 30→10+15 kg WO balance', async () => {
+    scenario = 'real_imbalance';
+    client = makeClient();
+
+    const report = await runTraceReport({ inputType: 'lp', inputRef: 'LP-OUT', direction: 'both' });
+
+    if (!report.massBalance || !('nodes' in report.massBalance)) {
+      throw new Error('expected applicable mass balance');
+    }
+    expect(report.massBalance.total).toMatchObject({
+      seedInputKg: '30',
+      onSiteKg: '10',
+      shippedKg: '15',
+      wasteKg: '0',
+      deltaKg: '5',
+      percentAccounted: '83.333333',
+      balanced: false,
+    });
   });
 
   it('F2: site-restricted caller gets massBalance: { scopeLimited: true } without computing balances', async () => {

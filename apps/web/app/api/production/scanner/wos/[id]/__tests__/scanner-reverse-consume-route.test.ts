@@ -38,6 +38,7 @@ const findUserByEmailMock = vi.fn();
 const userHasPinMock = vi.fn();
 const verifyPinMock = vi.fn();
 const hasPermissionMock = vi.fn();
+const reconcileWoOutputGenealogyMock = vi.fn();
 
 vi.mock('../../../../../../../lib/scanner/guard', () => ({
   requireScannerSession: vi.fn(async (_request, _body, _operation, fn) =>
@@ -53,6 +54,10 @@ vi.mock('../../../../../../../lib/scanner/auth', () => ({
 
 vi.mock('../../../../../../../lib/production/shared', () => ({
   hasPermission: (...args: unknown[]) => hasPermissionMock(...args),
+}));
+
+vi.mock('../../../../../../../lib/production/output-genealogy', () => ({
+  reconcileWoOutputGenealogy: (...args: unknown[]) => reconcileWoOutputGenealogyMock(...args),
 }));
 
 const context = { params: { id: woId } };
@@ -251,6 +256,7 @@ describe('scanner reverse-consume route', () => {
       expect.objectContaining({ userId: supervisorUserId }),
       expect.any(String),
     );
+    expect(reconcileWoOutputGenealogyMock).toHaveBeenCalledWith(fakeClient, woId);
     const sqls = mutationSqls();
     const counterIndex = sqls.findIndex((sql) => sql.includes('insert into public.wo_material_consumption'));
     const decrementIndex = sqls.findIndex((sql) => sql.includes('update public.wo_materials'));

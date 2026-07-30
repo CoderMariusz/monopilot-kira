@@ -18,6 +18,7 @@ import { CONSUMPTION_CORRECT_PERMISSION } from '../../../../../../lib/correction
 import { materialIdFromConsumptionExt } from '../../../../../../lib/corrections/material-scope';
 import { applyConsumptionWacReversal, applyOutputWacReversal } from '../../../../../../lib/finance/upsert-wac';
 import { hasLpConsumptionOrChildren } from '../../../../../../lib/production/lp-downstream-guard';
+import { reconcileWoOutputGenealogy } from '../../../../../../lib/production/output-genealogy';
 import { syncWorkOrderOutputQuantities } from '../../../../../../lib/production/sync-work-order-output-quantities';
 import type { ProductionContext, QueryClient } from '../../../../../../lib/production/shared';
 import { makeStockMoveNumber } from '../../../../../../lib/warehouse/lp-create';
@@ -1159,6 +1160,8 @@ export async function reverseConsumption(input: ReverseConsumptionInput): Promis
           }),
         },
       });
+
+      await reconcileWoOutputGenealogy(ctx.client, original.wo_id);
 
       const wacReversal = await applyConsumptionWacReversal(ctx.client, {
         orgId,

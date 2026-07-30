@@ -6,6 +6,8 @@ import type { QueryClient } from '../../../../../../lib/production/shared';
 import { queryGenealogy } from '../../../../../../lib/warehouse/genealogy';
 import { reverseConsumption, voidWasteEntry, voidWoOutput } from './corrections-actions';
 
+const reconcileWoOutputGenealogyMock = vi.fn();
+
 vi.mock('next/cache', () => ({
   revalidatePath: vi.fn(),
 }));
@@ -27,6 +29,10 @@ vi.mock('../../../../../../lib/auth/with-org-context', () => ({
     async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
       action({ userId: USER_ID, orgId: ORG_ID, client }),
   ),
+}));
+
+vi.mock('../../../../../../lib/production/output-genealogy', () => ({
+  reconcileWoOutputGenealogy: (...args: unknown[]) => reconcileWoOutputGenealogyMock(...args),
 }));
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
@@ -425,6 +431,7 @@ beforeEach(() => {
   };
   queries = [];
   client = makeClient();
+  reconcileWoOutputGenealogyMock.mockClear();
   vi.mocked(signEvent).mockClear();
   vi.mocked(signEvent).mockResolvedValue({
     signatureId: '99999999-9999-4999-8999-999999999999',
@@ -459,6 +466,7 @@ describe('reverseConsumption', () => {
     });
 
     expect(result).toEqual({ ok: true });
+    expect(reconcileWoOutputGenealogyMock).toHaveBeenCalledWith(client, WO_ID);
 
     const insert = queries.find((q) => normalize(q.sql).startsWith('insert into public.wo_material_consumption'));
     expect(insert).toBeDefined();

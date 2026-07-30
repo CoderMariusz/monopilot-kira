@@ -110,7 +110,6 @@ type ConsumptionRow = {
   wo_number: string;
   qty_consumed: string;
   uom: string;
-  material_id: string | null;
   material_name: string | null;
 };
 
@@ -123,6 +122,9 @@ type OutputRow = {
   batch_number: string;
   qty: string;
   uom: string;
+  current_qty: string | null;
+  current_uom: string | null;
+  consumed_by_wo_id: string | null;
 };
 
 type RecallDrillRow = {
@@ -353,8 +355,12 @@ async function fetchUpstreamRows(client: QueryClient, lpIds: string[]): Promise<
   return new Map(rows.map((row) => [row.lp_id, row]));
 }
 
-async function fetchConsumptionRows(client: QueryClient, lpIds: string[]): Promise<ConsumptionRow[]> {
-  if (lpIds.length === 0) return [];
+async function fetchConsumptionRows(
+  client: QueryClient,
+  lpIds: string[],
+  woIds: string[],
+): Promise<ConsumptionRow[]> {
+  if (lpIds.length === 0 && woIds.length === 0) return [];
   const { rows } = await client.query<ConsumptionRow>(
     `select c.id::text as id,
             c.lp_id::text,
@@ -362,20 +368,30 @@ async function fetchConsumptionRows(client: QueryClient, lpIds: string[]): Promi
             wo.wo_number,
             c.qty_consumed::text,
             c.uom,
-            wm.id::text as material_id,
-            wm.material_name
+            material_per_product.material_name
        from public.wo_material_consumption c
        join public.work_orders wo
          on wo.org_id = app.current_org_id()
         and wo.id = c.wo_id
-       left join public.wo_materials wm
-         on wm.org_id = app.current_org_id()
-        and wm.wo_id = c.wo_id
-        and wm.product_id = c.component_id
+       left join (
+         select wm.org_id,
+                wm.wo_id,
+                wm.product_id,
+                string_agg(distinct wm.material_name, ' / ' order by wm.material_name) as material_name
+           from public.wo_materials wm
+          where wm.org_id = app.current_org_id()
+          group by wm.org_id, wm.wo_id, wm.product_id
+       ) material_per_product
+         on material_per_product.org_id = c.org_id
+        and material_per_product.wo_id = c.wo_id
+        and material_per_product.product_id = c.component_id
       where c.org_id = app.current_org_id()
-        and c.lp_id = any($1::uuid[])
+        and (
+          c.lp_id = any($1::uuid[])
+          or c.wo_id = any($2::uuid[])
+        )
       order by c.consumed_at asc`,
-    [lpIds],
+    [lpIds, woIds],
   );
   return rows;
 }
@@ -390,7 +406,10 @@ async function fetchOutputRows(client: QueryClient, lpIds: string[], woIds: stri
             coalesce(out_lp.lp_code, out_lp.lp_number, o.batch_number) as output_ref,
             o.batch_number,
             o.qty_kg::text as qty,
-            o.uom
+            o.uom,
+            out_lp.quantity::text as current_qty,
+            out_lp.uom as current_uom,
+            out_lp.consumed_by_wo_id::text
        from public.wo_outputs o
        join public.work_orders wo
          on wo.org_id = app.current_org_id()
@@ -427,29 +446,23 @@ async function fetchWorkOrderRows(client: QueryClient, woIds: string[]): Promise
 
 type WasteRow = {
   wo_id: string | null;
-  lp_id: string | null;
   wo_number: string | null;
   qty_kg: string;
 };
 
 /**
- * Fetches waste per traced WO (all rows for compliance-grade node ledgers) and
- * flags rows whose LP cannot be tied to the traced output set.
+ * Fetches every waste row for the traced WOs. LP attribution is irrelevant at
+ * this scope: the WO itself is the mass-balance boundary.
  */
 async function fetchWasteByWorkOrder(
   client: QueryClient,
   woIds: string[],
-  tracedOutputLpIds: string[],
-): Promise<{
-  wasteByWo: Map<string, string>;
-  unattributedWasteRows: MassBalanceQtyRow[];
-}> {
+): Promise<Map<string, string>> {
   if (woIds.length === 0) {
-    return { wasteByWo: new Map(), unattributedWasteRows: [] };
+    return new Map();
   }
   const { rows } = await client.query<WasteRow>(
     `select w.wo_id::text,
-            w.lp_id::text,
             wo.wo_number,
             w.qty_kg::text
        from public.wo_waste_log w
@@ -461,19 +474,12 @@ async function fetchWasteByWorkOrder(
     [woIds],
   );
 
-  const tracedOutputLpSet = new Set(tracedOutputLpIds);
   const wasteByWoId = new Map<string, string>();
-  const unattributedByWo = new Map<string, string>();
 
   for (const row of rows) {
     const woId = row.wo_id ?? 'unknown';
     const existing = wasteByWoId.get(woId);
     wasteByWoId.set(woId, existing ? addDecimalStrings([existing, row.qty_kg]) : row.qty_kg);
-
-    if (row.lp_id && !tracedOutputLpSet.has(row.lp_id)) {
-      const unattributed = unattributedByWo.get(woId);
-      unattributedByWo.set(woId, unattributed ? addDecimalStrings([unattributed, row.qty_kg]) : row.qty_kg);
-    }
   }
 
   const wasteByWo = new Map<string, string>();
@@ -482,12 +488,7 @@ async function fetchWasteByWorkOrder(
     wasteByWo.set(woRef, qty);
   }
 
-  const unattributedWasteRows: MassBalanceQtyRow[] = [...unattributedByWo.entries()].map(([woId, qty]) => {
-    const label = rows.find((r) => r.wo_id === woId)?.wo_number ?? woId;
-    return { ref: label, qty, uom: 'kg' };
-  });
-
-  return { wasteByWo, unattributedWasteRows };
+  return wasteByWo;
 }
 
 function shouldIncludeConsumption(
@@ -508,79 +509,27 @@ function resolveMassBalanceScope(
   seedLpIds: string[],
   lpRows: Map<string, LpRow>,
   outputRows: OutputRow[],
-): { outputLpIds: string[]; woIds: string[]; batchCodes: string[] } | null {
+): { woIds: string[] } | null {
   if (input.inputType === 'item') return null;
 
-  const outputLpIds = new Set<string>();
   const woIds = new Set<string>();
-  const batchCodes = new Set<string>();
 
-  // Seed the scope from the traced LP set (genealogy-resolved lpRows).  Only
-  // output rows whose LP id is already in the traced set are admitted, preventing
-  // co-product / sibling batches produced by the same WO from inflating totals
-  // (F1 sibling over-count fix).  The WO id is retained for waste attribution.
+  // Identify the connected WOs from the exact traced LP/batch set. Once a WO is
+  // admitted, its balance uses every consumption, output and waste row from that
+  // WO; mixing WO-wide inputs with one output batch fabricates deltas.
   for (const output of outputRows) {
     if (output.output_lp_id && lpRows.has(output.output_lp_id)) {
-      outputLpIds.add(output.output_lp_id);
       woIds.add(output.wo_id);
-      batchCodes.add(output.batch_number);
     }
   }
 
   for (const lpId of seedLpIds) {
     const lp = lpRows.get(lpId);
     if (!isProductionLp(lp)) continue;
-    outputLpIds.add(lpId);
     if (lp?.wo_id) woIds.add(lp.wo_id);
-    if (lp?.batch_code) batchCodes.add(lp.batch_code);
   }
 
-  if (input.inputType === 'batch') {
-    batchCodes.add(input.inputRef);
-  }
-
-  if (outputLpIds.size === 0 && woIds.size === 0) return null;
-
-  return {
-    outputLpIds: [...outputLpIds],
-    woIds: [...woIds],
-    batchCodes: [...batchCodes],
-  };
-}
-
-/**
- * Admits an output row into the traced set ONLY if its LP id or batch code
- * maps to the exact traced LP/batch set. WO-id membership is intentionally
- * excluded here: matching only by wo_id would admit co-product/sibling batches
- * of the same work order and inflate the produced/shipped/waste totals (F1).
- */
-function outputMatchesScope(output: OutputRow, scope: { outputLpIds: string[]; batchCodes: string[] }): boolean {
-  if (output.output_lp_id && scope.outputLpIds.includes(output.output_lp_id)) return true;
-  return scope.batchCodes.includes(output.batch_number);
-}
-
-/**
- * Matches an LP into the traced on-site set by exact LP id or batch code only.
- * WO-id membership is intentionally excluded — matching by wo_id would admit
- * co-product sibling LPs produced by the same work order and inflate on-site
- * totals (F1 sibling over-count fix).
- */
-function lpMatchesScope(lp: LpRow, scope: { outputLpIds: string[]; batchCodes: string[] }): boolean {
-  if (scope.outputLpIds.includes(lp.id)) return true;
-  if (lp.batch_code && scope.batchCodes.includes(lp.batch_code)) return true;
-  return false;
-}
-
-function isTerminalOutputLp(lp: LpRow | undefined, tracedWoIds: Set<string>): boolean {
-  if (!lp) return false;
-  if (!lp.consumed_by_wo_id) return true;
-  return !tracedWoIds.has(lp.consumed_by_wo_id);
-}
-
-function outputRemainingQty(lp: LpRow | undefined, tracedWoIds: Set<string>): string {
-  if (!lp || !isKgUom(lp.uom)) return '0';
-  if (!isTerminalOutputLp(lp, tracedWoIds)) return '0';
-  return lp.quantity;
+  return woIds.size === 0 ? null : { woIds: [...woIds] };
 }
 
 async function buildMassBalance(
@@ -588,7 +537,6 @@ async function buildMassBalance(
   input: TraceInput,
   seedLpIds: string[],
   lpRows: Map<string, LpRow>,
-  consumptionRows: ConsumptionRow[],
   outputRows: OutputRow[],
   forwardShipmentRows: ForwardShipmentRow[],
   workOrders: Map<string, WorkOrderRow>,
@@ -603,13 +551,15 @@ async function buildMassBalance(
   const scope = resolveMassBalanceScope(input, seedLpIds, lpRows, outputRows);
   if (!scope) return null;
 
+  const consumptionRows = await fetchConsumptionRows(ctx.client, [], scope.woIds);
   const tracedWoIds = new Set(scope.woIds);
-  const scopedOutputs = outputRows.filter((row) => outputMatchesScope(row, scope));
-  const tracedLpIds = new Set([...lpRows.keys()]);
+  const scopedOutputs = outputRows.filter((row) => tracedWoIds.has(row.wo_id));
+  const scopedOutputLpIds = unique(scopedOutputs.map((row) => row.output_lp_id));
+  const scopedOutputLpIdSet = new Set(scopedOutputLpIds);
 
   const consumptionByWo = new Map<string, ConsumptionRow[]>();
   for (const row of consumptionRows) {
-    if (!tracedLpIds.has(row.lp_id)) continue;
+    if (!tracedWoIds.has(row.wo_id)) continue;
     const list = consumptionByWo.get(row.wo_id) ?? [];
     list.push(row);
     consumptionByWo.set(row.wo_id, list);
@@ -622,18 +572,7 @@ async function buildMassBalance(
     outputsByWo.set(row.wo_id, list);
   }
 
-  const { wasteByWo, unattributedWasteRows: rawUnattributed } = await fetchWasteByWorkOrder(
-    ctx.client,
-    scope.woIds,
-    scope.outputLpIds,
-  );
-  const unattributedWasteRows = rawUnattributed.map((row) => ({
-    ref: row.ref,
-    qty: row.qty,
-    uom: row.uom ?? 'kg',
-    bucket: 'unattributed_wo_waste' as const,
-    reason: 'unattributed_wo_waste',
-  }));
+  const wasteByWo = await fetchWasteByWorkOrder(ctx.client, scope.woIds);
 
   const nodeInputs: MassBalanceNodeInput[] = [...tracedWoIds]
     .sort((a, b) => (workOrders.get(a)?.wo_number ?? a).localeCompare(workOrders.get(b)?.wo_number ?? b))
@@ -655,32 +594,35 @@ async function buildMassBalance(
           uom: row.uom,
         })),
         wasteRows: [],
-        remainingRows: woOutputs.flatMap((row) => {
-          if (!row.output_lp_id) return [];
-          const lp = lpRows.get(row.output_lp_id);
-          const qty = outputRemainingQty(lp, tracedWoIds);
-          if (qty === '0') return [];
-          return [{ ref: row.output_ref, qty, uom: lp?.uom ?? row.uom }];
-        }),
+        remainingRows: [],
       };
     });
 
-  const seedRows: MassBalanceQtyRow[] = seedLpIds.flatMap((lpId) => {
-    const lp = lpRows.get(lpId);
-    if (!lp) return [];
-    return [{ ref: lp.display_ref, qty: lp.quantity, uom: lp.uom }];
-  });
+  const seedRows: MassBalanceQtyRow[] = consumptionRows
+    .filter((row) => tracedWoIds.has(row.wo_id) && !scopedOutputLpIdSet.has(row.lp_id))
+    .map((row) => ({
+      ref: row.material_name ?? row.wo_number,
+      qty: row.qty_consumed,
+      uom: row.uom,
+    }));
 
-  const onSiteRows: MassBalanceQtyRow[] = [...lpRows.values()]
-    .filter((lp) => isProductionLp(lp) && lpMatchesScope(lp, scope) && isTerminalOutputLp(lp, tracedWoIds))
-    .flatMap((lp) => {
-      const qty = outputRemainingQty(lp, tracedWoIds);
-      if (qty === '0') return [];
-      return [{ ref: lp.display_ref, qty, uom: lp.uom }];
+  const terminalOutputs = scopedOutputs.filter((row) => {
+    const consumedByWoId =
+      row.consumed_by_wo_id ?? (row.output_lp_id ? lpRows.get(row.output_lp_id)?.consumed_by_wo_id : null);
+    return !consumedByWoId || !tracedWoIds.has(consumedByWoId);
+  });
+  const terminalOutputLpIds = new Set(unique(terminalOutputs.map((row) => row.output_lp_id)));
+
+  const onSiteRows: MassBalanceQtyRow[] = terminalOutputs
+    .flatMap((row) => {
+      const lp = row.output_lp_id ? lpRows.get(row.output_lp_id) : undefined;
+      const qty = row.current_qty ?? lp?.quantity;
+      if (!qty || qty === '0') return [];
+      return [{ ref: row.output_ref, qty, uom: row.current_uom ?? lp?.uom ?? row.uom }];
     });
 
   const shippedRows: MassBalanceQtyRow[] = forwardShipmentRows
-    .filter((row) => scope.outputLpIds.includes(row.lp_id))
+    .filter((row) => terminalOutputLpIds.has(row.lp_id))
     .map((row) => ({
       ref: row.lp_ref,
       qty: row.shipped_qty,
@@ -693,7 +635,6 @@ async function buildMassBalance(
     onSiteRows,
     shippedRows,
     wasteByWo,
-    unattributedWasteRows,
   });
 }
 
@@ -703,28 +644,70 @@ async function buildTraceReport(ctx: QualityContext, input: TraceInput): Promise
 
   const genealogyByLpId = new Map<string, GenealogyChainNode>();
   const includedLpIds = new Set(seedLpIds);
+  const expandedGenealogyRoots = new Set<string>();
 
-  for (const seedLpId of seedLpIds) {
-    const chain = (await queryGenealogy(ctx.client, seedLpId)).filter((node) => includeGenealogyNode(node, input.direction));
+  async function expandGenealogy(rootLpId: string): Promise<void> {
+    if (expandedGenealogyRoots.has(rootLpId)) return;
+    expandedGenealogyRoots.add(rootLpId);
+    const chain = (await queryGenealogy(ctx.client, rootLpId))
+      .filter((node) => includeGenealogyNode(node, input.direction));
     for (const node of chain) {
       includedLpIds.add(node.lpId);
-      genealogyByLpId.set(node.lpId, node);
+      if (!genealogyByLpId.has(node.lpId)) genealogyByLpId.set(node.lpId, node);
     }
   }
 
-  const lpRows = await fetchLpRows(ctx.client, [...includedLpIds]);
-  const upstreamRows = await fetchUpstreamRows(ctx.client, [...lpRows.keys()]);
-  const consumptionRows = await fetchConsumptionRows(ctx.client, [...lpRows.keys()]);
+  for (const seedLpId of seedLpIds) await expandGenealogy(seedLpId);
 
-  const directWoIds = unique(
-    [...lpRows.values()].flatMap((lp) => [
-      lp.wo_id,
-      input.direction === 'forward' || input.direction === 'both' ? lp.consumed_by_wo_id : null,
-    ]),
-  );
-  const forwardConsumptionWoIds =
-    input.direction === 'forward' || input.direction === 'both' ? unique(consumptionRows.map((row) => row.wo_id)) : [];
-  const outputRows = await fetchOutputRows(ctx.client, [...lpRows.keys()], unique([...directWoIds, ...forwardConsumptionWoIds]));
+  let lpRows = new Map<string, LpRow>();
+  let consumptionRows: ConsumptionRow[] = [];
+  let directWoIds: string[] = [];
+  let outputRows: OutputRow[] = [];
+
+  // Historical safety net: an old output may have no lp_genealogy edge even
+  // though the consumption and output ledgers agree on the WO. Walk that
+  // canonical WO bridge until no new LP is found, expanding split/merge/
+  // transfer descendants (or ancestors) from each newly discovered endpoint.
+  while (true) {
+    const sizeBefore = includedLpIds.size;
+    lpRows = await fetchLpRows(ctx.client, [...includedLpIds]);
+    directWoIds = unique(
+      [...lpRows.values()].flatMap((lp) => [
+        lp.wo_id,
+        input.direction === 'forward' || input.direction === 'both' ? lp.consumed_by_wo_id : null,
+      ]),
+    );
+    consumptionRows = await fetchConsumptionRows(
+      ctx.client,
+      [...lpRows.keys()],
+      input.direction === 'backward' || input.direction === 'both' ? directWoIds : [],
+    );
+    const forwardConsumptionWoIds =
+      input.direction === 'forward' || input.direction === 'both'
+        ? unique(consumptionRows.map((row) => row.wo_id))
+        : [];
+    outputRows = await fetchOutputRows(
+      ctx.client,
+      [...lpRows.keys()],
+      unique([...directWoIds, ...forwardConsumptionWoIds]),
+    );
+
+    const bridgeLpIds = unique([
+      ...(input.direction === 'forward' || input.direction === 'both'
+        ? outputRows.map((row) => row.output_lp_id)
+        : []),
+      ...(input.direction === 'backward' || input.direction === 'both'
+        ? consumptionRows.map((row) => row.lp_id)
+        : []),
+    ]);
+    for (const lpId of bridgeLpIds) {
+      includedLpIds.add(lpId);
+      await expandGenealogy(lpId);
+    }
+    if (includedLpIds.size === sizeBefore) break;
+  }
+
+  const upstreamRows = await fetchUpstreamRows(ctx.client, [...lpRows.keys()]);
   const includedConsumptionRows = consumptionRows.filter((row) => shouldIncludeConsumption(row, input, outputRows));
   const workOrders = await fetchWorkOrderRows(
     ctx.client,
@@ -893,10 +876,14 @@ async function buildTraceReport(ctx: QualityContext, input: TraceInput): Promise
     }
   }
 
-  const outputLpIds = unique([...outputNodeIds].map((nodeId) => (nodeId.startsWith('lp:') ? nodeId.slice(3) : null)));
+  const outputLpIds = unique([
+    ...[...outputNodeIds].map((nodeId) => (nodeId.startsWith('lp:') ? nodeId.slice(3) : null)),
+    ...[...lpRows.keys()].filter((lpId) => lpNodeType(lpId) === 'output_lp'),
+  ]);
+  const massBalanceShipmentRows = await fetchForwardShipmentRows(ctx.client, outputLpIds);
   const forwardShipmentRows =
     input.direction === 'forward' || input.direction === 'both'
-      ? await fetchForwardShipmentRows(ctx.client, outputLpIds)
+      ? massBalanceShipmentRows
       : [];
 
   for (const shipment of forwardShipmentRows) {
@@ -944,9 +931,8 @@ async function buildTraceReport(ctx: QualityContext, input: TraceInput): Promise
     input,
     seedLpIds,
     lpRows,
-    includedConsumptionRows,
     outputRows,
-    forwardShipmentRows,
+    massBalanceShipmentRows,
     workOrders,
   );
 

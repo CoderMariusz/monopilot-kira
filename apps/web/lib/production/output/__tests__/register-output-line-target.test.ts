@@ -29,13 +29,15 @@ type QueryCall = { sql: string; params: readonly unknown[] };
 
 let client: QueryClient;
 let calls: QueryCall[];
+let woSiteId: string | null;
+let contextSiteId: string | null;
 
 function normalize(sql: string): string {
   return sql.replace(/\s+/g, ' ').toLowerCase();
 }
 
 function makeCtx(): OrgContextLike {
-  return { userId: USER_ID, orgId: ORG_ID, siteId: SITE_ID, client };
+  return { userId: USER_ID, orgId: ORG_ID, siteId: contextSiteId, client };
 }
 
 /**
@@ -64,7 +66,7 @@ function makeClient(lineTarget: { id: string; default_location_id: string } | nu
       if (n.includes('allowed_products')) return { rows: [{ allowed: true }], rowCount: 1 };
       if (n.includes('from public.work_orders')) {
         return {
-          rows: [{ id: WO_ID, wo_number: 'WO-001', site_id: SITE_ID, uom: 'kg', uom_snapshot: null }],
+          rows: [{ id: WO_ID, wo_number: 'WO-001', site_id: woSiteId, uom: 'kg', uom_snapshot: null }],
           rowCount: 1,
         };
       }
@@ -152,6 +154,8 @@ describe('registerOutput output destination', () => {
   beforeEach(() => {
     upsertWacMock.mockReset();
     upsertWacMock.mockRejectedValue(new Error('stop-after-lp'));
+    woSiteId = SITE_ID;
+    contextSiteId = SITE_ID;
   });
 
   it("puts the output LP in the LINE's configured location, not the warehouse's first location", async () => {
@@ -159,6 +163,7 @@ describe('registerOutput output destination', () => {
 
     // license_plates insert: $2 = warehouse_id, $3 = location_id → params[1], params[2].
     const { params } = await registerAndStopAtWac();
+    expect(params[0]).toBe(SITE_ID);
     expect(params[1]).toBe(LINE_WAREHOUSE_ID);
     expect(params[2]).toBe(LINE_LOCATION_ID);
     // The regression this guards: the alphabetically-first location of the
@@ -174,5 +179,28 @@ describe('registerOutput output destination', () => {
     const { params } = await registerAndStopAtWac();
     expect(params[1]).toBe(FALLBACK_WAREHOUSE_ID);
     expect(params[2]).toBe(FALLBACK_LOCATION_ID);
+  });
+
+  it('refuses to create an output LP when neither the WO nor write context resolves a site', async () => {
+    woSiteId = null;
+    contextSiteId = null;
+    client = makeClient({ id: LINE_WAREHOUSE_ID, default_location_id: LINE_LOCATION_ID });
+
+    await expect(
+      registerOutput(makeCtx(), WO_ID, {
+        transaction_id: TX_ID,
+        output_type: 'primary',
+        product_id: PRODUCT_ID,
+        qty_kg: '10.000',
+      }),
+    ).rejects.toMatchObject({
+      code: 'no_warehouse_for_site',
+      details: {
+        message: expect.stringContaining('Settings'),
+      },
+    });
+
+    expect(calls.some((call) => normalize(call.sql).startsWith('insert into public.wo_outputs'))).toBe(false);
+    expect(calls.some((call) => normalize(call.sql).startsWith('insert into public.license_plates'))).toBe(false);
   });
 });

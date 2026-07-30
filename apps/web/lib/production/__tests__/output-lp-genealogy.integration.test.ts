@@ -29,6 +29,10 @@ import {
   makeAppUserConnectionString,
   withAppOrg,
 } from '../../../app/(npd)/brief/actions/__tests__/brief-integration-helpers';
+import {
+  createPgTestFixture,
+  type PgTestFixture,
+} from '../../../tests/helpers/owner-org-context';
 import { queryGenealogy } from '../../warehouse/genealogy';
 import { registerOutput } from '../output/register-output';
 import { type OrgContextLike, type QueryClient } from '../shared';
@@ -51,6 +55,7 @@ const seed = {
 
 let owner: pg.Pool;
 let app: pg.Pool;
+let fixture: PgTestFixture | undefined;
 
 function ctxFor(client: pg.PoolClient, userId: string): OrgContextLike {
   return { userId, orgId: seed.orgId, siteId: seed.siteId, client: client as unknown as QueryClient };
@@ -58,37 +63,16 @@ function ctxFor(client: pg.PoolClient, userId: string): OrgContextLike {
 
 async function seedAll(): Promise<void> {
   await ensureAppUser(owner);
-  await owner.query(
-    `insert into public.tenants (id, name, region_cluster, data_plane_url)
-     values ($1, 'W9KII Tenant', 'eu', 'https://w9kii.example.test') on conflict (id) do nothing`,
-    [seed.tenantId],
-  );
-  await owner.query(
-    `insert into public.organizations (id, tenant_id, slug, name, industry_code)
-     values ($1, $2, $3, 'W9KII Org', 'fmcg') on conflict (id) do nothing`,
-    [seed.orgId, seed.tenantId, `w9kii-${seed.orgId.slice(0, 8)}`],
-  );
-  await owner.query(
-    `insert into public.roles (id, org_id, slug, system, code, name, permissions, is_system, display_order)
-     values ($1, $2, $3, false, $3, 'W9KII Admin', '["production.output.write"]'::jsonb, false, 10)
-     on conflict (id) do nothing`,
-    [seed.adminRoleId, seed.orgId, `w9kii-admin-${seed.adminRoleId.slice(0, 8)}`],
-  );
-  await owner.query(
-    `insert into public.role_permissions (role_id, permission)
-     values ($1, 'production.output.write') on conflict (role_id, permission) do nothing`,
-    [seed.adminRoleId],
-  );
-  await owner.query(
-    `insert into public.users (id, org_id, email, display_name, name, role_id)
-     values ($1, $2, $3, 'W9KII Admin', 'W9KII Admin', $4) on conflict (id) do nothing`,
-    [seed.adminUserId, seed.orgId, `w9kii-${seed.adminUserId.slice(0, 8)}@x.test`, seed.adminRoleId],
-  );
-  await owner.query(
-    `insert into public.user_roles (user_id, role_id, org_id)
-     values ($1, $2, $3) on conflict (user_id, role_id) do nothing`,
-    [seed.adminUserId, seed.adminRoleId, seed.orgId],
-  );
+  fixture = await createPgTestFixture(owner, { permissions: ['production.output.write'] });
+  Object.assign(seed, {
+    tenantId: fixture.tenantId,
+    orgId: fixture.orgId,
+    adminRoleId: fixture.roleId,
+    adminUserId: fixture.userId,
+    siteId: fixture.siteId,
+    warehouseId: fixture.warehouseId,
+    locationId: fixture.locationId,
+  });
   // FG (the output product, shelf life 30d) + RM (the consumed component).
   await owner.query(
     `insert into public.items (id, org_id, item_code, item_type, name, uom_base, weight_mode, shelf_life_days)
@@ -97,17 +81,6 @@ async function seedAll(): Promise<void> {
      on conflict (id) do nothing`,
     [seed.fgProductId, seed.orgId, `W9FG-${seed.fgProductId.slice(0, 8)}`,
      seed.rmProductId, `W9RM-${seed.rmProductId.slice(0, 8)}`],
-  );
-  // Org default warehouse + one location (the output LP destination).
-  await owner.query(
-    `insert into public.warehouses (id, org_id, site_id, code, name, warehouse_type, is_default)
-     values ($1, $2, $3, $4, 'W9KII Main WH', 'general', true) on conflict (id) do nothing`,
-    [seed.warehouseId, seed.orgId, seed.siteId, `W9WH-${seed.warehouseId.slice(0, 8)}`],
-  );
-  await owner.query(
-    `insert into public.locations (id, org_id, warehouse_id, code, name, location_type, level, path)
-     values ($1, $2, $3, 'A-01', 'Rack A-01', 'rack', 1, 'A.01') on conflict (id) do nothing`,
-    [seed.locationId, seed.orgId, seed.warehouseId],
   );
   // Two RM parent LPs that the WO will consume from (genealogy ancestors).
   await owner.query(
@@ -181,19 +154,14 @@ run('W9-K-II output → LP + genealogy (integration)', () => {
   });
 
   afterAll(async () => {
-    await owner.query(`delete from public.lp_state_history where org_id = $1`, [seed.orgId]);
-    await owner.query(`delete from public.license_plates where org_id = $1`, [seed.orgId]);
-    await owner.query(`delete from public.locations where org_id = $1`, [seed.orgId]);
-    await owner.query(`delete from public.warehouses where org_id = $1`, [seed.orgId]);
-    await owner.query(`delete from public.items where org_id = $1`, [seed.orgId]);
-    await owner.query(`delete from public.user_roles where org_id = $1`, [seed.orgId]);
-    await owner.query(`delete from public.role_permissions where role_id = $1`, [seed.adminRoleId]);
-    await owner.query(`delete from public.users where org_id = $1`, [seed.orgId]);
-    await owner.query(`delete from public.roles where org_id = $1`, [seed.orgId]);
-    await owner.query(`delete from public.organizations where id = $1`, [seed.orgId]);
-    await owner.query(`delete from public.tenants where id = $1`, [seed.tenantId]);
-    await app.end();
-    await owner.end();
+    if (fixture) {
+      await owner.query(`delete from public.lp_state_history where org_id = $1`, [seed.orgId]);
+      await owner.query(`delete from public.license_plates where org_id = $1`, [seed.orgId]);
+      await owner.query(`delete from public.items where org_id = $1`, [seed.orgId]);
+      await fixture.cleanup();
+    }
+    await app?.end();
+    await owner?.end();
   });
 
   it('creates the output LP (warehouse/location/batch/expiry/status) and back-links wo_outputs.lp_id', async () => {

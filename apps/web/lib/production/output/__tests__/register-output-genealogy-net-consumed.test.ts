@@ -24,7 +24,13 @@ const TX_ID_2 = '55555555-5555-4555-8555-555555555556';
 const BY_PRODUCT_ID = '55555555-5555-4555-8555-555555555555';
 type ParentNet = { lp_id: string; net_qty: string; uom: string };
 type ConsumptionRow = { lp_id: string; qty: string; uom: string };
-type OutputRow = { id: string; qty_kg: string; correction_of_id: string | null };
+type OutputRow = {
+  id: string;
+  lp_id?: string;
+  qty_kg: string;
+  uom?: string;
+  correction_of_id: string | null;
+};
 type GenealogyEdge = { parent_lp_id: string; child_lp_id: string; qty: string; uom: string };
 
 let client: QueryClient;
@@ -71,35 +77,67 @@ function makeCtx(): OrgContextLike {
   return { userId: USER_ID, orgId: ORG_ID, siteId: SITE_ID, client };
 }
 
-function allocateForOutput(
-  sql: string,
-  outputQty: string,
-  outputUom: string,
-): Array<{ lp_id: string; alloc_qty: string; uom: string }> {
+function reconcileGenealogy(): Array<{
+  lp_id: string | null;
+  consumption_uoms: string[] | null;
+  output_uoms: string[] | null;
+}> {
   const parentNetRows = parentNetRowsFromConsumption();
-  const excludesCorrectedOriginals = normalize(sql).includes('correction.correction_of_id = o.id');
-  const totalOutput = outputRows
+  const activeOutputs = outputRows
     .filter(
       (row) =>
+        row.lp_id &&
         row.correction_of_id === null &&
-        (!excludesCorrectedOriginals ||
-          !outputRows.some((correction) => correction.correction_of_id === row.id)),
-    )
-    .reduce((sum, row) => sum + Number(row.qty_kg), 0);
-  return parentNetRows
-    .map((parent) => {
-      const attributed = genealogyEdges
-        .filter((edge) => edge.parent_lp_id === parent.lp_id)
-        .reduce((sum, edge) => sum + Number(edge.qty), 0);
-      const proportional = (Number(parent.net_qty) * Number(outputQty)) / totalOutput;
-      const remaining = Number(parent.net_qty) - attributed;
-      const massCap = parent.uom === outputUom && ['kg', 'g', 'lb'].includes(outputUom)
-        ? Number(outputQty)
-        : Number(parent.net_qty);
-      const alloc = Math.min(proportional, remaining, massCap);
-      return alloc > 0 ? { lp_id: parent.lp_id, alloc_qty: alloc.toFixed(3), uom: parent.uom } : null;
-    })
-    .filter((row): row is { lp_id: string; alloc_qty: string; uom: string } => row !== null);
+        !outputRows.some((correction) => correction.correction_of_id === row.id),
+    );
+  const mixed = mixedUomParents()[0];
+  const outputUoms = [...new Set(activeOutputs.map((row) => row.uom ?? 'kg'))].sort();
+  const parentUomMismatch = parentNetRows.find(
+    (parent) => outputUoms.length !== 1 || parent.uom !== outputUoms[0],
+  );
+  if (mixed || parentUomMismatch) {
+    const parent = mixed ?? parentUomMismatch!;
+    return [{
+      lp_id: parent.lp_id,
+      consumption_uoms: mixed?.uoms ?? [parentUomMismatch!.uom],
+      output_uoms: outputUoms,
+    }];
+  }
+
+  const totalOutput = activeOutputs.reduce((sum, row) => sum + Number(row.qty_kg), 0);
+  const desired: GenealogyEdge[] = activeOutputs.flatMap((output) =>
+    parentNetRows.map((parent) => ({
+      child_lp_id: output.lp_id!,
+      parent_lp_id: parent.lp_id,
+      qty: Math.min(
+        (Number(parent.net_qty) * Number(output.qty_kg)) / totalOutput,
+        ['kg', 'g', 'lb'].includes(parent.uom) ? Number(output.qty_kg) : Number(parent.net_qty),
+      ).toFixed(3),
+      uom: parent.uom,
+    })),
+  );
+  const activeChildIds = new Set(activeOutputs.map((output) => output.lp_id!));
+  genealogyEdges = [
+    ...genealogyEdges.filter(
+      (edge) =>
+        !activeChildIds.has(edge.child_lp_id) ||
+        desired.some(
+          (candidate) =>
+            candidate.child_lp_id === edge.child_lp_id &&
+            candidate.parent_lp_id === edge.parent_lp_id,
+        ),
+    ),
+  ];
+  for (const edge of desired) {
+    const existing = genealogyEdges.find(
+      (candidate) =>
+        candidate.child_lp_id === edge.child_lp_id &&
+        candidate.parent_lp_id === edge.parent_lp_id,
+    );
+    if (existing) Object.assign(existing, edge);
+    else genealogyEdges.push(edge);
+  }
+  return [{ lp_id: null, consumption_uoms: null, output_uoms: null }];
 }
 
 function makeClient(): QueryClient {
@@ -136,10 +174,6 @@ function makeClient(): QueryClient {
       if (n.includes('pg_advisory_xact_lock') && n.includes('genealogy')) {
         return { rows: [{ pg_advisory_xact_lock: true }], rowCount: 1 };
       }
-      if (n.includes('having count(distinct mc.uom) > 1')) {
-        const rows = mixedUomParents();
-        return { rows, rowCount: rows.length };
-      }
       if (n.includes('count(*)::text as seq')) return { rows: [{ seq: String(outputRows.length) }], rowCount: 1 };
       if (n.includes('with cfg as')) {
         return {
@@ -162,18 +196,18 @@ function makeClient(): QueryClient {
           rowCount: 1,
         };
       }
-      if (n.includes('with parent_net as') && n.includes('already_attributed')) {
-        const outputQty = String(params[1] ?? '0');
-        const outputUom = String(params[2] ?? 'kg');
-        const rows = allocateForOutput(sql, outputQty, outputUom).map((row) => ({
-          ...row,
-          consumption_uom: row.uom,
-        }));
+      if (n.includes('with parent_net as') && n.includes('insert into public.lp_genealogy')) {
+        const rows = reconcileGenealogy();
         return { rows, rowCount: rows.length };
       }
       if (n.startsWith('insert into public.wo_outputs')) {
         const qty = String(params[6] ?? '0');
-        outputRows.push({ id: `output-${outputRows.length + 1}`, qty_kg: qty, correction_of_id: null });
+        outputRows.push({
+          id: `output-${outputRows.length + 1}`,
+          qty_kg: qty,
+          uom: String(params[7] ?? 'kg'),
+          correction_of_id: null,
+        });
         return {
           rows: [{ id: '66666666-6666-4666-8666-666666666666', lp_id: null, expiry_date: null }],
           rowCount: 1,
@@ -212,6 +246,11 @@ function makeClient(): QueryClient {
       }
       if (n.startsWith('insert into public.stock_moves')) return { rows: [], rowCount: 1 };
       if (n.startsWith('insert into public.lp_state_history')) return { rows: [], rowCount: 1 };
+      if (n.startsWith('update public.wo_outputs') && n.includes('set lp_id')) {
+        const output = [...outputRows].reverse().find((row) => !row.lp_id);
+        if (output) output.lp_id = String(params[1]);
+        return { rows: [], rowCount: 1 };
+      }
       if (n.startsWith('update public.wo_outputs')) return { rows: [], rowCount: 1 };
       if (n.startsWith('insert into public.outbox_events')) return { rows: [], rowCount: 1 };
       return { rows: [], rowCount: 0 };
@@ -241,20 +280,23 @@ describe('registerOutput — genealogy net consumed qty (Wave 9 Bug 2)', () => {
       qty_kg: '100.000',
     });
 
-    const genealogyInserts = queryCalls.filter((call) =>
-      normalize(call.sql).startsWith('insert into public.lp_genealogy'),
-    );
-    expect(genealogyInserts).toHaveLength(2);
-    expect(genealogyInserts.map((call) => call.params)).toEqual(
+    expect(genealogyEdges).toHaveLength(2);
+    expect(genealogyEdges).toEqual(
       expect.arrayContaining([
-        [OUTPUT_LP_ID, PARENT_A, '60.000', 'kg'],
-        [OUTPUT_LP_ID, PARENT_B, '40.000', 'kg'],
+        { child_lp_id: OUTPUT_LP_ID, parent_lp_id: PARENT_A, qty: '60.000', uom: 'kg' },
+        { child_lp_id: OUTPUT_LP_ID, parent_lp_id: PARENT_B, qty: '40.000', uom: 'kg' },
       ]),
     );
   });
 
   it('excludes parents whose consumption was fully reversed (net <= 0)', async () => {
     consumptionRows = [{ lp_id: PARENT_B, qty: '40.000', uom: 'kg' }];
+    genealogyEdges = [{
+      child_lp_id: OUTPUT_LP_ID,
+      parent_lp_id: PARENT_A,
+      qty: '60.000',
+      uom: 'kg',
+    }];
 
     await registerOutput(makeCtx(), WO_ID, {
       transaction_id: TX_ID,
@@ -263,11 +305,9 @@ describe('registerOutput — genealogy net consumed qty (Wave 9 Bug 2)', () => {
       qty_kg: '40.000',
     });
 
-    const genealogyInserts = queryCalls.filter((call) =>
-      normalize(call.sql).startsWith('insert into public.lp_genealogy'),
-    );
-    expect(genealogyInserts).toHaveLength(1);
-    expect(genealogyInserts[0]?.params).toEqual([OUTPUT_LP_ID, PARENT_B, '40.000', 'kg']);
+    expect(genealogyEdges).toEqual([
+      { child_lp_id: OUTPUT_LP_ID, parent_lp_id: PARENT_B, qty: '40.000', uom: 'kg' },
+    ]);
   });
 
   it('allocates parent net consumption across two outputs without double-counting', async () => {
@@ -309,7 +349,12 @@ describe('registerOutput — genealogy net consumed qty (Wave 9 Bug 2)', () => {
     });
     expect(genealogyEdges.at(-1)?.qty).toBe('100.000');
 
-    outputRows = [{ id: 'ordinary-output', qty_kg: '100.000', correction_of_id: null }];
+    outputRows = [{
+      id: 'ordinary-output',
+      lp_id: OUTPUT_LP_ID_2,
+      qty_kg: '100.000',
+      correction_of_id: null,
+    }];
     genealogyEdges = [];
     await registerOutput(makeCtx(), WO_ID, {
       transaction_id: TX_ID_2,

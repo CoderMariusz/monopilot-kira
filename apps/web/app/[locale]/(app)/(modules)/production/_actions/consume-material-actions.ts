@@ -56,6 +56,7 @@ import {
   resolveConsumptionLp,
 } from '../../../../../../lib/production/consume-material-core';
 import { assertWoNotOnHold } from '../../../../../../lib/production/holds-guard';
+import { reconcileWoOutputGenealogy } from '../../../../../../lib/production/output-genealogy';
 import { findUserByEmail, userHasPin, verifyPin } from '../../../../../../lib/scanner/auth';
 import { makeStockMoveNumber } from '../../../../../../lib/warehouse/lp-create';
 import {
@@ -884,6 +885,8 @@ export async function recordDesktopConsumption(
       if (!consumptionId) {
         throw new Error('recordDesktopConsumption: consumption insert returned no id');
       }
+
+      await reconcileWoOutputGenealogy(ctx.client, woId);
 
       const wacDebit = await debitWac(ctx.client, {
         orgId,

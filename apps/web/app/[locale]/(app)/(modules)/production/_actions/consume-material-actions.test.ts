@@ -211,6 +211,9 @@ function makeClient(): QueryClient {
       if (n.startsWith('insert into public.wo_material_consumption')) {
         return { rows: [{ id: CONSUMPTION_ID }], rowCount: 1 };
       }
+      if (n.startsWith('with parent_net as') && n.includes('insert into public.lp_genealogy')) {
+        return { rows: [], rowCount: 1 };
+      }
       if (n.includes('from public.items i') && n.includes('as qty_kg')) {
         return { rows: [{ qty_kg: String(params[0]), resolved: true }], rowCount: 1 };
       }
@@ -385,6 +388,21 @@ describe('recordDesktopConsumption — conditional UPDATE', () => {
       org_id: ORG_ID,
       actor: USER_ID,
     });
+  });
+
+  it('Z1: backfills genealogy when consumption is posted after the WO output already exists', async () => {
+    const result = await recordDesktopConsumption(VALID_INPUT);
+
+    expect(result.ok).toBe(true);
+    const consumptionIndex = queries.findIndex((q) =>
+      normalize(q.sql).startsWith('insert into public.wo_material_consumption'),
+    );
+    const genealogyIndex = queries.findIndex((q) =>
+      normalize(q.sql).startsWith('with parent_net as') &&
+      normalize(q.sql).includes('insert into public.lp_genealogy'),
+    );
+    expect(genealogyIndex).toBeGreaterThan(consumptionIndex);
+    expect(queries[genealogyIndex]?.params).toEqual([WO_ID]);
   });
 
   it('accepts a substitute LP item when the BOM line declares substitute_item_id and records the actual item', async () => {
