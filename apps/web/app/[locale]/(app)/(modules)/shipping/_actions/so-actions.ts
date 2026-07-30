@@ -1262,14 +1262,18 @@ export async function allocateSalesOrder(id: string): Promise<AllocateSalesOrder
       quantity_ordered: string;
       order_qty: string | null;
       order_uom: string | null;
+      inventory_uom: string;
     }>(
       `select sol.id::text,
               sol.site_id::text,
               sol.product_id::text,
               sol.quantity_ordered::text,
               sol.ext_data->>'order_qty' as order_qty,
-              sol.ext_data->>'order_uom' as order_uom
+              sol.ext_data->>'order_uom' as order_uom,
+              i.uom_base as inventory_uom
          from public.sales_order_lines sol
+         join public.items i on i.id = sol.product_id
+          and i.org_id = app.current_org_id()
         where sol.org_id = app.current_org_id()
           and sol.sales_order_id = $1::uuid
           and sol.deleted_at is null
@@ -1326,6 +1330,16 @@ export async function allocateSalesOrder(id: string): Promise<AllocateSalesOrder
           where lp.org_id = app.current_org_id()
             and lp.product_id = $1::uuid
             and ($2::uuid is null or lp.site_id = $2::uuid)
+            -- LP quantity is only comparable 1:1 with the canonical inventory
+            -- quantity when both use the same grain. Piece aliases are the sole
+            -- exception because each/ea/pcs/szt are explicitly 1:1.
+            and (
+              lower(lp.uom) = lower($3::text)
+              or (
+                lower(lp.uom) in ('each', 'ea', 'pcs', 'szt')
+                and lower($3::text) in ('each', 'ea', 'pcs', 'szt')
+              )
+            )
             and lp.status = 'available'
             and lp.qa_status = 'released'
             -- Food-safety (G-QA-03 / owner per-rule BLOCK): never allocate an
@@ -1349,7 +1363,7 @@ export async function allocateSalesOrder(id: string): Promise<AllocateSalesOrder
             and (lp.quantity - lp.reserved_qty) > 0
           order by lp.expiry_date asc nulls last, lp.created_at asc
           for update of lp`,
-        [line.product_id, line.site_id],
+        [line.product_id, line.site_id, line.inventory_uom],
       );
 
       for (const lp of candidates) {

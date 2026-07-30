@@ -13,6 +13,10 @@ const LP_HELD = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const PRODUCT_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const USER_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 const ORG_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+const SITE_A = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+const SITE_B = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
+const LP_SITE_A = '11111111-1111-4111-8111-111111111111';
+const LP_SITE_B = '22222222-2222-4222-8222-222222222222';
 
 function makeClient(mode: 'held-only' | 'no-stock'): QueryClient {
   return {
@@ -70,7 +74,7 @@ describe('resolveConsumptionLp hold messaging (N2)', () => {
     const client = makeClient('held-only');
     const result = await resolveConsumptionLp(
       { client, userId: USER_ID },
-      { explicitLpId: null, productIds: [PRODUCT_ID], uom: 'kg', qty: '5' },
+      { explicitLpId: null, productIds: [PRODUCT_ID], uom: 'kg', qty: '5', siteId: SITE_A },
     );
     expect(result).toMatchObject({ ok: false, error: 'quality_hold_active' });
   });
@@ -79,9 +83,131 @@ describe('resolveConsumptionLp hold messaging (N2)', () => {
     const client = makeClient('no-stock');
     const result = await resolveConsumptionLp(
       { client, userId: USER_ID },
-      { explicitLpId: null, productIds: [PRODUCT_ID], uom: 'kg', qty: '5' },
+      { explicitLpId: null, productIds: [PRODUCT_ID], uom: 'kg', qty: '5', siteId: SITE_A },
     );
     expect(result).toEqual({ ok: false, error: 'lp_unavailable' });
+  });
+});
+
+function makeSiteScopedClient(): QueryClient {
+  return {
+    query: vi.fn(async (sql: string, params?: readonly unknown[]) => {
+      const normalized = sql.replace(/\s+/g, ' ').trim().toLowerCase();
+
+      if (normalized.includes('from public.v_inventory_available cand')) {
+        const siteFilterPresent =
+          normalized.includes('cand.site_id = $4::uuid') && params?.[3] === SITE_A;
+        return {
+          rows: [
+            siteFilterPresent
+              ? {
+                  lp_id: LP_SITE_A,
+                  product_id: PRODUCT_ID,
+                  status: 'available',
+                  site_id: SITE_A,
+                  location_id: null,
+                }
+              : {
+                  lp_id: LP_SITE_B,
+                  product_id: PRODUCT_ID,
+                  status: 'available',
+                  site_id: SITE_B,
+                  location_id: null,
+                },
+          ],
+        };
+      }
+
+      if (
+        normalized.includes('from public.license_plates lp') &&
+        normalized.includes('lp.locked_by::text')
+      ) {
+        return {
+          rows: [
+            {
+              id: params?.[0],
+              status: 'available',
+              qa_status: 'released',
+              expired: false,
+              locked_by: null,
+              lock_is_active_for_other_user: false,
+            },
+          ],
+        };
+      }
+
+      if (normalized.includes('with target_lp as')) {
+        return { rows: [] };
+      }
+
+      if (
+        normalized.includes('from public.license_plates lp') &&
+        normalized.includes('lp.product_id = any')
+      ) {
+        const lpId = String(params?.[0]);
+        const siteFilterPresent =
+          normalized.includes('lp.site_id = $5::uuid') && params?.[4] === SITE_A;
+        if (!siteFilterPresent || lpId === LP_SITE_B) return { rows: [] };
+        return {
+          rows: [
+            {
+              id: LP_SITE_A,
+              product_id: PRODUCT_ID,
+              status: 'available',
+              site_id: SITE_A,
+              location_id: null,
+            },
+          ],
+        };
+      }
+
+      throw new Error(`unexpected sql: ${normalized}`);
+    }),
+  } as unknown as QueryClient;
+}
+
+describe('resolveConsumptionLp work-order site scope', () => {
+  it('auto-selects FEFO only from the work-order site', async () => {
+    const result = await resolveConsumptionLp(
+      { client: makeSiteScopedClient(), userId: USER_ID },
+      {
+        explicitLpId: null,
+        productIds: [PRODUCT_ID],
+        uom: 'kg',
+        qty: '5',
+        siteId: SITE_A,
+      },
+    );
+
+    expect(result).toMatchObject({ ok: true, lpId: LP_SITE_A, siteId: SITE_A });
+  });
+
+  it('rejects an explicit LP from another site but accepts one from the work-order site', async () => {
+    const client = makeSiteScopedClient();
+
+    const otherSite = await resolveConsumptionLp(
+      { client, userId: USER_ID },
+      {
+        explicitLpId: LP_SITE_B,
+        productIds: [PRODUCT_ID],
+        uom: 'kg',
+        qty: '5',
+        siteId: SITE_A,
+      },
+    );
+    const ownSite = await resolveConsumptionLp(
+      { client, userId: USER_ID },
+      {
+        explicitLpId: LP_SITE_A,
+        productIds: [PRODUCT_ID],
+        uom: 'kg',
+        qty: '5',
+        siteId: SITE_A,
+      },
+    );
+
+    expect(otherSite).toEqual({ ok: false, error: 'lp_unavailable' });
+    expect(ownSite).toMatchObject({ ok: true, lpId: LP_SITE_A, siteId: SITE_A });
   });
 });
 

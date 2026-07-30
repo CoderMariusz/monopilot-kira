@@ -40,8 +40,15 @@
  */
 import { z } from 'zod';
 
-import { resolveOutputWacContribution } from '../../finance/resolve-output-wac';
-import { resolveWacDeltaQtyKgFromSnapshot, upsertWac } from '../../finance/upsert-wac';
+import {
+  resolveOutputWacContribution,
+  type UnCostedConsumptionLine,
+} from '../../finance/resolve-output-wac';
+import {
+  resolveWacDeltaQtyKg,
+  resolveWacDeltaQtyKgFromSnapshot,
+  upsertWac,
+} from '../../finance/upsert-wac';
 import { woSnapshotWacQtyFields } from '../../uom/convert';
 import { makeLpNumber, makeStockMoveNumber } from '../../warehouse/lp-create';
 import { woPostedConsumptionKgSubquery } from '../consumption-qty-to-kg';
@@ -909,7 +916,7 @@ export async function registerOutput(
     throw new ProductionActionError('invalid_input', 422, { fields: ['qty_kg'] });
   }
 
-  const wacContribution = await resolveOutputWacContribution(ctx.client, {
+  const wacContribution = await resolveOutputWacContributionForRegistration(ctx.client, {
     woId,
     qtyKg: resolvedQtyKg,
     standardCostPerKg: item.cost_per_kg,
@@ -1195,6 +1202,63 @@ export async function registerOutput(
     label_pdf_url: null, // T-033
   };
 }
+
+async function resolveOutputWacContributionForRegistration(
+  client: OrgContextLike['client'],
+  input: {
+    woId: string;
+    qtyKg: string;
+    standardCostPerKg: string | null;
+  },
+) {
+  let contribution = await resolveOutputWacContribution(client, input);
+  if (contribution.applied || contribution.unCostedLines.length === 0) return contribution;
+
+  await snapshotLegacyConsumptionCosts(client, contribution.unCostedLines);
+  contribution = await resolveOutputWacContribution(client, input);
+  return contribution;
+}
+
+async function snapshotLegacyConsumptionCosts(
+  client: OrgContextLike['client'],
+  lines: UnCostedConsumptionLine[],
+): Promise<void> {
+  for (const line of lines) {
+    const resolution = await resolveWacDeltaQtyKg(client, {
+      itemId: line.componentId,
+      qty: line.qty,
+      uom: line.uom,
+    });
+    if (!resolution.resolved) continue;
+
+    await client.query(
+      `update public.wo_material_consumption c
+          set ext_jsonb = coalesce(c.ext_jsonb, '{}'::jsonb) || jsonb_build_object(
+                'wac_qty_kg', $2::text,
+                'wac_value', ($2::numeric * coalesce(ch.cost_per_kg, i.cost_per_kg))::text,
+                'wac_avg_cost', coalesce(ch.cost_per_kg, i.cost_per_kg)::text
+              )
+         from public.items i
+         left join lateral (
+           select cost_per_kg
+             from public.item_cost_history
+            where org_id = app.current_org_id()
+              and item_id = i.id
+              and effective_to is null
+            order by effective_from desc
+            limit 1
+         ) ch on true
+        where c.org_id = app.current_org_id()
+          and c.id = $1::uuid
+          and i.org_id = c.org_id
+          and i.id = c.component_id
+          and nullif(c.ext_jsonb->>'wac_value', '') is null
+          and coalesce(ch.cost_per_kg, i.cost_per_kg) is not null`,
+      [line.consumptionId, resolution.qtyKg],
+    );
+  }
+}
+
 async function resolveQtyKg(
   client: OrgContextLike['client'],
   wo: WoRow,

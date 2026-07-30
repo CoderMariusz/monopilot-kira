@@ -46,6 +46,11 @@ const LP_1 = '55555555-5555-4555-8555-555555555555';
 const LP_2 = '66666666-6666-4666-8666-666666666666';
 const PRODUCT_ID = '77777777-7777-4777-8777-777777777777';
 const PRODUCT_ID_2 = '88888888-8888-4888-8888-888888888888';
+const SITE_ID = '99999999-9999-4999-8999-999999999999';
+const LOCATION_1 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const LOCATION_2 = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const MOVE_1 = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+const MOVE_2 = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 const LINE_1 = '77777777-7777-4777-8777-777777777777';
 const LINE_2 = '88888888-8888-4888-8888-888888888888';
 const FIXED_NOW = '2026-06-23T12:34:56.000Z';
@@ -92,6 +97,8 @@ let lpRows: Array<{
   shipped_qty: string;
   prior_status: string;
   prior_reserved_qty: string;
+  site_id: string;
+  location_id: string;
 }> = [];
 let blockedLpRows: Array<{ lp_number: string; reason: string }> = [];
 let packedShipmentUpdate: Record<string, unknown> | null = null;
@@ -336,12 +343,25 @@ function makeClient(): QueryClient {
         return {
           rows: lpRows.map((row) => ({
             id: row.lp_id,
+            site_id: row.site_id,
+            location_id: row.location_id,
+            uom: row.uom,
             shipped_qty: row.shipped_qty,
             prior_status: row.prior_status,
             prior_reserved_qty: row.prior_reserved_qty,
+            new_status: 'shipped',
           })),
           rowCount: lpRows.length,
         };
+      }
+
+      if (q.startsWith('insert into public.stock_moves')) {
+        const lpId = String(params[2]);
+        return { rows: [{ id: lpId === LP_1 ? MOVE_1 : MOVE_2 }], rowCount: 1 };
+      }
+
+      if (q.startsWith('insert into public.lp_state_history')) {
+        return { rows: [], rowCount: 1 };
       }
 
       if (q.includes('from public.items i') && q.includes('as qty_kg')) {
@@ -457,6 +477,8 @@ beforeEach(() => {
       shipped_qty: '3.000',
       prior_status: 'available',
       prior_reserved_qty: '3.000',
+      site_id: SITE_ID,
+      location_id: LOCATION_1,
     },
     {
       lp_id: LP_2,
@@ -466,6 +488,8 @@ beforeEach(() => {
       shipped_qty: '2.000',
       prior_status: 'available',
       prior_reserved_qty: '2.000',
+      site_id: SITE_ID,
+      location_id: LOCATION_2,
     },
   ];
   blockedLpRows = [];
@@ -625,6 +649,26 @@ describe('shipShipment', () => {
     const lpUpdateSql = queryLog.find(({ sql }) => normalize(sql).includes('update public.license_plates lp'))?.sql;
     expect(normalize(String(lpUpdateSql))).toContain('quantity = lp.quantity - shipment_lps.shipped_qty');
     expect(normalize(String(lpUpdateSql))).toContain('reserved_qty = greatest(0, lp.reserved_qty - shipment_lps.shipped_qty)');
+    const stockMoveWrites = queryLog.filter(({ sql }) =>
+      normalize(sql).startsWith('insert into public.stock_moves'),
+    );
+    expect(stockMoveWrites).toHaveLength(2);
+    expect(stockMoveWrites.every(({ sql }) => normalize(sql).includes("'issue'"))).toBe(true);
+    expect(stockMoveWrites.every(({ sql }) => normalize(sql).includes('on conflict (org_id, transaction_id) do nothing'))).toBe(true);
+    expect(stockMoveWrites.map(({ params }) => params.slice(0, 6))).toEqual([
+      [SITE_ID, expect.stringMatching(/^SM-/), LP_1, LOCATION_1, '3.000', 'kg'],
+      [SITE_ID, expect.stringMatching(/^SM-/), LP_2, LOCATION_2, '2.000', 'kg'],
+    ]);
+    const lpHistoryWrites = queryLog.filter(({ sql }) =>
+      normalize(sql).startsWith('insert into public.lp_state_history'),
+    );
+    expect(lpHistoryWrites).toHaveLength(2);
+    expect(lpHistoryWrites.every(({ sql }) => normalize(sql).includes("'shipped'"))).toBe(true);
+    expect(lpHistoryWrites.every(({ sql }) => normalize(sql).includes('on conflict (org_id, transaction_id) do nothing'))).toBe(true);
+    expect(lpHistoryWrites.map(({ params }) => params.slice(0, 5))).toEqual([
+      [SITE_ID, LP_1, 'available', MOVE_1, SO_ID],
+      [SITE_ID, LP_2, 'available', MOVE_2, SO_ID],
+    ]);
     expect(shippedLpSnapshot).toEqual([
       { lp_id: LP_1, shipped_qty: '3.000', prior_status: 'available', prior_reserved_qty: '3.000' },
       { lp_id: LP_2, shipped_qty: '2.000', prior_status: 'available', prior_reserved_qty: '2.000' },
@@ -732,11 +776,10 @@ describe('shipShipment', () => {
   it('double-ship is rejected and LP is decremented exactly once', async () => {
     await expect(shipShipment(SHIPMENT_ID)).resolves.toEqual({ ok: true });
 
-    shipmentTransitionSucceeds = false;
-    shipmentStatus = 'packed';
-
-    await expect(shipShipment(SHIPMENT_ID)).resolves.toEqual({ ok: false, error: 'persistence_failed' });
+    await expect(shipShipment(SHIPMENT_ID)).resolves.toEqual({ ok: false, error: 'invalid_state' });
     expect(queryLog.filter(({ sql }) => normalize(sql).includes('update public.license_plates lp'))).toHaveLength(1);
+    expect(queryLog.filter(({ sql }) => normalize(sql).startsWith('insert into public.stock_moves'))).toHaveLength(2);
+    expect(queryLog.filter(({ sql }) => normalize(sql).startsWith('insert into public.lp_state_history'))).toHaveLength(2);
   });
 });
 

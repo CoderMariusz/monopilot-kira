@@ -48,6 +48,7 @@ type MaterialGateRow = {
   id: string;
   product_id: string;
   substitute_item_id: string | null;
+  wo_site_id: string | null;
   material_name: string;
   required_qty: string;
   consumed_qty: string;
@@ -237,6 +238,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
          select wm.id,
                 wm.product_id,
                 bl.substitute_item_id,
+                wo.site_id::text as wo_site_id,
                 wm.material_name,
                 wm.required_qty::text as required_qty,
                 wm.consumed_qty::text as consumed_qty,
@@ -253,6 +255,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
                   else null
                 end as over_pct
            from public.wo_materials wm
+           join public.work_orders wo
+             on wo.org_id = wm.org_id
+            and wo.id = wm.wo_id
            left join public.bom_lines bl
              on bl.org_id = wm.org_id
             and bl.id = wm.bom_item_id
@@ -260,19 +265,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
             and wm.wo_id = $2::uuid
             and wm.id = $3::uuid
             and $4::numeric > 0
-            and exists (
-              select 1
-                from public.work_orders wo
-               where wo.org_id = $1::uuid
-                 and wo.id = wm.wo_id
-                 and app.user_can_see_site(wo.site_id)
-            )
+            and app.user_can_see_site(wo.site_id)
           limit 1
           for update of wm`,
         [session.org_id, woId, materialId, normalizedQty],
       );
       const gate = materialGateRes.rows[0];
-      if (!gate) {
+      if (!gate || !gate.wo_site_id) {
         await client.query('rollback');
         await auditAttempt(client, session, 'production.scanner.wos.consume', 'invalid_material', {
           woId,
@@ -377,6 +376,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
           productIds: [gate.product_id, gate.substitute_item_id].filter((id): id is string => Boolean(id)),
           uom: gate.uom,
           qty: normalizedQty,
+          siteId: gate.wo_site_id,
         },
       );
       if (!lpResolution.ok) {
@@ -421,6 +421,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
             and id = $2::uuid
             and product_id = any($6::uuid[])
             and uom = $7
+            and site_id = $8::uuid
             and quantity - $3::numeric >= reserved_qty
             and app.user_can_see_site(site_id)
           returning id, lp_number, product_id::text as product_id, quantity::text as quantity, site_id::text as site_id, location_id::text as location_id`,
@@ -432,6 +433,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
           session.user_id,
           [gate.product_id, gate.substitute_item_id].filter(Boolean),
           gate.uom,
+          gate.wo_site_id,
         ],
       );
       if (!lpRes.rows[0]) {
@@ -485,6 +487,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
                      where cand.org_id = $1::uuid
                        and app.user_can_see_site(cand.site_id)
                        and app.user_can_see_site(chosen.site_id)
+                       and cand.site_id = $5::uuid
+                       and chosen.site_id = $5::uuid
                        and cand.product_id = $3::uuid
                        and cand.uom = $4
                        and cand.lp_id <> $2::uuid
@@ -492,7 +496,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
                        and (chosen.expiry_date is null
                             or cand.expiry_date < chosen.expiry_date)
                   ) as violates`,
-          [session.org_id, resolvedLpId, consumedItemId, material.uom],
+          [session.org_id, resolvedLpId, consumedItemId, material.uom, gate.wo_site_id],
         );
         fefoAdherence = !(fefo.rows[0]?.violates ?? false);
       }

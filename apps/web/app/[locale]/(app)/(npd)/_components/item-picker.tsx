@@ -23,6 +23,7 @@ import React from 'react';
 import Link from 'next/link';
 import { createPortal } from 'react-dom';
 
+import { anchoredPanelPosition, type AnchoredPanelPosition } from '@monopilot/ui/anchoredPanel';
 import { Button } from '@monopilot/ui/Button';
 import Input from '@monopilot/ui/Input';
 
@@ -122,17 +123,20 @@ export function ItemPicker<TItemType extends SearchableItemType = ComponentItemT
   // The dropdown is portaled to <body> with fixed positioning so it is never
   // clipped by a modal's overflow / out-stacked by a modal's z-index (the picker
   // lives inside PO/TO/WO create modals). Anchor it to the trigger's rect.
-  const [panelRect, setPanelRect] = React.useState<{ top: number; left: number; width: number } | null>(null);
+  const [panelRect, setPanelRect] = React.useState<AnchoredPanelPosition | null>(null);
   const [portalContainer, setPortalContainer] = React.useState<HTMLElement | null>(null);
 
   const updatePanelPosition = React.useCallback(() => {
     const el = containerRef.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
-    const width = Math.min(420, Math.max(320, r.width, window.innerWidth - 24));
-    // Keep the panel within the viewport horizontally.
-    const left = Math.max(12, Math.min(r.left, window.innerWidth - width - 12));
-    setPanelRect({ top: r.bottom + 4, left, width });
+    // Shared geometry: clamped on BOTH axes and flipped above the trigger when the
+    // options would otherwise land below the fold (see @monopilot/ui/anchoredPanel).
+    setPanelRect(
+      anchoredPanelPosition(r, {
+        width: Math.min(420, Math.max(320, r.width, window.innerWidth - 24)),
+      }),
+    );
   }, []);
 
   const runSearch = React.useCallback(
@@ -267,9 +271,14 @@ export function ItemPicker<TItemType extends SearchableItemType = ComponentItemT
           }}
           style={{
             position: 'fixed',
+            // Exactly one of top/bottom is set — `bottom` when the panel flips
+            // above the trigger, so it grows upward without being measured.
             top: panelRect.top,
+            bottom: panelRect.bottom,
             left: panelRect.left,
             width: panelRect.width,
+            maxHeight: panelRect.maxHeight,
+            overflowY: 'auto',
             zIndex: 1000,
             // The panel is portaled to <body> so it escapes a create-modal's
             // overflow/z-index. But the modals make the background inert by

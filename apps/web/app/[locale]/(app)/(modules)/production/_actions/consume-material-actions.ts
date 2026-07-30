@@ -164,6 +164,7 @@ type MaterialGateRow = {
   id: string;
   product_id: string;
   substitute_item_id: string | null;
+  wo_site_id: string | null;
   material_name: string;
   required_qty: string;
   consumed_qty: string;
@@ -219,6 +220,7 @@ async function violatesFefoOrder(
   productId: string,
   chosenLpId: string,
   uom: string,
+  siteId: string,
 ): Promise<boolean> {
   const fefo = await client.query<{ violates: boolean }>(
     `select exists (
@@ -230,12 +232,14 @@ async function violatesFefoOrder(
                where cand.org_id = app.current_org_id()
                  and cand.product_id = $1::uuid
                  and cand.uom = $3
+                 and cand.site_id = $4::uuid
+                 and chosen.site_id = $4::uuid
                  and cand.lp_id <> $2::uuid
                  and cand.expiry_date is not null
                  and (chosen.expiry_date is null
                       or cand.expiry_date < chosen.expiry_date)
             ) as violates`,
-    [productId, chosenLpId, uom],
+    [productId, chosenLpId, uom, siteId],
   );
   return fefo.rows[0]?.violates ?? false;
 }
@@ -333,11 +337,20 @@ export async function listConsumableLps(
         return { ok: false, reason: 'forbidden' };
       }
 
-      const materialRes = await ctx.client.query<{ product_id: string; substitute_item_id: string | null; uom: string }>(
+      const materialRes = await ctx.client.query<{
+        product_id: string;
+        substitute_item_id: string | null;
+        uom: string;
+        site_id: string | null;
+      }>(
         `select wm.product_id::text as product_id,
                 bl.substitute_item_id::text as substitute_item_id,
-                wm.uom
+                wm.uom,
+                wo.site_id::text as site_id
            from public.wo_materials wm
+           join public.work_orders wo
+             on wo.org_id = wm.org_id
+            and wo.id = wm.wo_id
            left join public.bom_lines bl
              on bl.org_id = wm.org_id
             and bl.id = wm.bom_item_id
@@ -366,9 +379,10 @@ export async function listConsumableLps(
           where org_id = app.current_org_id()
             and product_id = any($1::uuid[])
             and uom = $2
+            and site_id = $3::uuid
           order by expiry_date asc nulls last, lp_number asc
           limit 25`,
-        [[material.product_id, material.substitute_item_id].filter(Boolean), material.uom],
+        [[material.product_id, material.substitute_item_id].filter(Boolean), material.uom, material.site_id],
       );
 
       return {
@@ -528,6 +542,7 @@ export async function recordDesktopConsumption(
          select wm.id::text as id,
                 wm.product_id::text as product_id,
                 bl.substitute_item_id::text as substitute_item_id,
+                wo.site_id::text as wo_site_id,
                 wm.material_name,
                 wm.required_qty::text as required_qty,
                 wm.consumed_qty::text as consumed_qty,
@@ -544,6 +559,9 @@ export async function recordDesktopConsumption(
                   else null
                 end as over_pct
            from public.wo_materials wm
+           join public.work_orders wo
+             on wo.org_id = wm.org_id
+            and wo.id = wm.wo_id
            left join public.bom_lines bl
              on bl.org_id = wm.org_id
             and bl.id = wm.bom_item_id
@@ -556,7 +574,7 @@ export async function recordDesktopConsumption(
         [woId, materialId, qty],
       );
       const gate = materialGateRes.rows[0];
-      if (!gate) {
+      if (!gate || !gate.wo_site_id) {
         return { ok: false, reason: 'invalid_material' };
       }
       const overApprovalDetails: OverconsumeApprovalDetails = {
@@ -665,6 +683,7 @@ export async function recordDesktopConsumption(
           productIds: [gate.product_id, gate.substitute_item_id].filter((id): id is string => Boolean(id)),
           uom: gate.uom,
           qty,
+          siteId: gate.wo_site_id,
         });
         if (!lpResolve.ok) {
           if (lpResolve.error === 'quality_hold_active') {
@@ -694,7 +713,13 @@ export async function recordDesktopConsumption(
           locationId: lpResolve.locationId,
         };
 
-        const fefoDeviation = await violatesFefoOrder(ctx.client, consumedItemId, resolvedLpId, gate.uom);
+        const fefoDeviation = await violatesFefoOrder(
+          ctx.client,
+          consumedItemId,
+          resolvedLpId,
+          gate.uom,
+          gate.wo_site_id,
+        );
         fefoAdherence = !fefoDeviation;
         if (fefoDeviation) {
           if (!fefoDeviationReason) {
@@ -748,9 +773,19 @@ export async function recordDesktopConsumption(
               and id = $2::uuid
               and product_id = any($6::uuid[])
               and uom = $7
+              and site_id = $8::uuid
               and quantity - $3::numeric >= reserved_qty
             returning id::text, quantity::text as quantity`,
-          [orgId, resolvedLpId, qty, woId, userId, [gate.product_id, gate.substitute_item_id].filter(Boolean), gate.uom],
+          [
+            orgId,
+            resolvedLpId,
+            qty,
+            woId,
+            userId,
+            [gate.product_id, gate.substitute_item_id].filter(Boolean),
+            gate.uom,
+            gate.wo_site_id,
+          ],
         );
         if (!lpRes.rows[0]) {
           if (fefoDeviationSignatureId || overconsumeSignatureId) {

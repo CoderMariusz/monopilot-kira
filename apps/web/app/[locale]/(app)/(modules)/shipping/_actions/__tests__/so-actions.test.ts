@@ -310,6 +310,7 @@ function makeClient(): QueryClient {
               quantity_ordered: lineQuantityOrdered,
               order_qty: lineOrderQty,
               order_uom: lineOrderUom,
+              inventory_uom: itemPackFactors[lineProductId]?.uom_base ?? 'kg',
             },
           ],
           rowCount: 1,
@@ -1210,7 +1211,21 @@ describe('allocateSalesOrder', () => {
 
     const candidateQuery = queryLog.find(({ sql }) => normalize(sql).startsWith('select lp.id::text as lp_id'));
     expect(normalize(String(candidateQuery?.sql))).toContain('and ($2::uuid is null or lp.site_id = $2::uuid)');
-    expect(candidateQuery?.params).toEqual([ITEM_ID, SITE_ID]);
+    expect(candidateQuery?.params).toEqual([ITEM_ID, SITE_ID, 'kg']);
+  });
+
+  it('filters allocation candidates to the item inventory UoM', async () => {
+    status = 'confirmed';
+    lineSiteId = SITE_ID;
+    candidateRows = [{ lp_id: LP_1, available_qty: '10' }];
+
+    await allocateSalesOrder(SO_ID);
+
+    const candidateQuery = queryLog.find(({ sql }) => normalize(sql).startsWith('select lp.id::text as lp_id'));
+    const normalized = normalize(String(candidateQuery?.sql));
+    expect(normalized).toContain('lower(lp.uom) = lower($3::text)');
+    expect(normalized).toContain("lower(lp.uom) in ('each', 'ea', 'pcs', 'szt')");
+    expect(candidateQuery?.params).toEqual([ITEM_ID, SITE_ID, 'kg']);
   });
 
   it('does NOT allocate when the only candidate LP is held (held LP never returned) — G-QA-07', async () => {

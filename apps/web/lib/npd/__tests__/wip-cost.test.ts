@@ -67,11 +67,15 @@ describe('wip-cost', () => {
       expect(computeWipComponentCost(['65', '35'], '100')).toBe('200.0000');
     });
 
-    it('coerces bad component inputs to safe fallback values', () => {
-      expect(computeWipComponentCost(['65', '-35', 'bad'], '-100', '0')).toBe('65.0000');
-      expect(computeWipComponentCost(['65'], '35', 'bad')).toBe('100.0000');
+    it.each(['0', '150'])('rejects out-of-range yieldPct %s', (yieldPct) => {
+      expect(() => computeWipComponentCost(['65'], '35', yieldPct)).toThrow(
+        /yieldPct must be in \(0, 100\]/,
+      );
+    });
+
+    it('coerces bad component cost inputs to safe fallback values', () => {
+      expect(computeWipComponentCost(['65', '-35', 'bad'], '-100')).toBe('65.0000');
       expect(computeWipComponentCost(['65'], '35', undefined)).toBe('100.0000');
-      expect(computeWipComponentCost(['65'], '35', '101')).toBe('100.0000');
       expect(computeWipComponentCost(undefined as never, undefined as never, undefined)).toBe('0.0000');
     });
   });

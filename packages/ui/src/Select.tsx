@@ -11,6 +11,12 @@ import ReactDOM from 'react-dom';
 // dropdown on Vercel" report. A plain `.css` import (supported for component
 // libraries) emits the BEM-namespaced `select__*` classes unchanged.
 import './Select.css';
+// Rozszerzenie `.js` jest wymagane: `packages/ui` ma `moduleResolution: nodenext`,
+// który odrzuca importy relatywne bez jawnego rozszerzenia (TS2835).
+import { anchoredPanelPosition, type AnchoredPanelPosition } from './anchoredPanel.js';
+
+/** Keep in sync with `.select__content { max-height: 16rem }` in Select.css. */
+const LISTBOX_MAX_HEIGHT_PX = 256;
 
 export interface SelectOption {
   value: string;
@@ -33,13 +39,26 @@ export interface SelectProps {
   'aria-labelledby'?: string;
   'aria-describedby'?: string;
   'aria-invalid'?: boolean | 'true' | 'false' | 'grammar' | 'spelling';
+  /**
+   * Forwarded onto the combobox trigger (same rule as the aria-* props below).
+   * Declaring it is load-bearing: a hyphenated attribute bypasses JSX's
+   * excess-property check, so before this line every `<Select data-testid="…">`
+   * compiled cleanly and then silently dropped the attribute, leaving each spec
+   * that targeted it blind.
+   */
+  'data-testid'?: string;
   children?: React.ReactNode;
 }
 
 /** A11y props that must land on the focusable combobox trigger, not the wrapper. */
 type SelectA11yProps = Pick<
   SelectProps,
-  'aria-label' | 'aria-labelledby' | 'aria-describedby' | 'aria-invalid' | 'required'
+  | 'aria-label'
+  | 'aria-labelledby'
+  | 'aria-describedby'
+  | 'aria-invalid'
+  | 'required'
+  | 'data-testid'
 >;
 
 interface SelectContextValue {
@@ -87,6 +106,7 @@ export function Select({
   'aria-labelledby': ariaLabelledBy,
   'aria-describedby': ariaDescribedBy,
   'aria-invalid': ariaInvalid,
+  'data-testid': dataTestId,
 }: SelectProps) {
   const [internal, setInternal] = React.useState<string>(defaultValue ?? '');
   const [open, setOpenState] = React.useState(false);
@@ -111,6 +131,7 @@ export function Select({
     'aria-labelledby': ariaLabelledBy,
     'aria-describedby': ariaDescribedBy,
     'aria-invalid': ariaInvalid,
+    'data-testid': dataTestId,
   };
 
   const setValue = React.useCallback(
@@ -308,6 +329,7 @@ export function SelectTrigger({
   const resolvedLabelledBy = ariaLabelledBy ?? rootA11y?.['aria-labelledby'];
   const resolvedDescribedBy = ariaDescribedBy ?? rootA11y?.['aria-describedby'];
   const resolvedInvalid = ariaInvalid ?? rootA11y?.['aria-invalid'];
+  const resolvedTestId = dataTestId ?? rootA11y?.['data-testid'];
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
     if (!ctx || ctx.disabled) return;
@@ -352,7 +374,7 @@ export function SelectTrigger({
       data-slot="select-trigger"
       data-state={ctx?.open ? 'open' : 'closed'}
       data-value={ctx?.value || undefined}
-      data-testid={dataTestId}
+      data-testid={resolvedTestId}
       value={ctx?.value ?? ''}
       className={['select__trigger', className].filter(Boolean).join(' ')}
       disabled={ctx?.disabled}
@@ -411,20 +433,23 @@ export function SelectContent({ children }: { children?: React.ReactNode }) {
     }
   };
 
-  // Position the portaled listbox under the trigger using fixed coordinates
+  // Position the portaled listbox against the trigger using fixed coordinates
   // derived from the trigger's viewport rect. Recomputed on open and on
   // scroll/resize so it tracks the trigger. Portaling to <body> escapes any
   // ancestor `overflow:hidden`/`transform` stacking context (sticky settings
   // headers, transformed cards) that previously clipped or buried the popover.
-  const [pos, setPos] = React.useState<{ top: number; left: number; minWidth: number } | null>(
-    null,
-  );
+  const [pos, setPos] = React.useState<AnchoredPanelPosition | null>(null);
 
   const computePosition = React.useCallback(() => {
     const trigger = ctx?.triggerRef.current;
     if (!trigger) return;
-    const rect = trigger.getBoundingClientRect();
-    setPos({ top: rect.bottom + 4, left: rect.left, minWidth: rect.width });
+    // Shared geometry: clamped on BOTH axes and flipped above the trigger when the
+    // listbox would otherwise land below the fold (see anchoredPanel.ts).
+    setPos(
+      anchoredPanelPosition(trigger.getBoundingClientRect(), {
+        minHeight: LISTBOX_MAX_HEIGHT_PX,
+      }),
+    );
   }, [ctx?.triggerRef]);
 
   React.useLayoutEffect(() => {
@@ -464,7 +489,21 @@ export function SelectContent({ children }: { children?: React.ReactNode }) {
       // (live E2E: line/machine/waste/pause selects unusable by mouse).
       style={
         pos
-          ? { position: 'fixed', top: pos.top, left: pos.left, minWidth: pos.minWidth, pointerEvents: 'auto' }
+          ? {
+              position: 'fixed',
+              // Exactly one of top/bottom is set: `bottom` when the listbox flips
+              // above the trigger, so it grows upward without being measured.
+              top: pos.top,
+              bottom: pos.bottom,
+              left: pos.left,
+              minWidth: pos.width,
+              maxWidth: pos.maxWidth,
+              // Never taller than the CSS cap, and never taller than the free
+              // space on the side it landed on. `.select__content` already
+              // scrolls (`overflow-y: auto`).
+              maxHeight: Math.min(pos.maxHeight, LISTBOX_MAX_HEIGHT_PX),
+              pointerEvents: 'auto',
+            }
           : { position: 'fixed', visibility: 'hidden', pointerEvents: 'auto' }
       }
       onKeyDown={handleKeyDown}

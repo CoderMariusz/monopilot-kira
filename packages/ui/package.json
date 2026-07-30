@@ -24,6 +24,7 @@
     "./Slider": "./src/Slider.tsx",
     "./Checkbox": "./src/Checkbox.tsx",
     "./Select": "./src/Select.tsx",
+    "./anchoredPanel": "./src/anchoredPanel.ts",
     "./Card": "./src/Card.tsx",
     "./Badge": "./src/Badge.tsx",
     "./Table": "./src/Table.tsx",

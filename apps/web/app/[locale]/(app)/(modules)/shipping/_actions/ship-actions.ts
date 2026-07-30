@@ -9,6 +9,7 @@ import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { debitWac } from '../../../../../../lib/finance/upsert-wac';
 import { fetchShipmentPackCompleteness } from '../../../../../../lib/shipping/shipment-pack-completeness';
+import { makeStockMoveNumber } from '../../../../../../lib/warehouse/lp-create';
 import { LIVE_ALLOCATION_SQL, SHIP_CLOSED_ALLOCATION_REASON } from './so-transitions';
 import type { SalesOrderStatus } from './so-transitions';
 import {
@@ -258,6 +259,11 @@ function toNumber(value: unknown): number {
   return Number(value ?? 0);
 }
 
+function uuidFromSeed(seed: string): string {
+  const hex = createHash('sha256').update(seed, 'utf8').digest('hex').slice(0, 32);
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+}
+
 type ShipmentLpRow = {
   lp_id: string;
   lp_number: string | null;
@@ -461,9 +467,13 @@ export async function shipShipment(shipmentId: string): Promise<ShipShipmentResu
 
       const { rows: updatedLpRows } = await ctx.client.query<{
         id: string;
+        site_id: string | null;
+        location_id: string | null;
+        uom: string;
         shipped_qty: string;
         prior_status: string;
         prior_reserved_qty: string;
+        new_status: string;
       }>(
         `with shipment_lps as (
            select sbc.license_plate_id as lp_id,
@@ -501,12 +511,84 @@ export async function shipShipment(shipmentId: string): Promise<ShipShipmentResu
             and lp.id = shipment_lps.lp_id
             and lp.quantity >= shipment_lps.shipped_qty
           returning lp.id::text,
+                    lp.site_id::text,
+                    lp.location_id::text,
+                    lp.uom,
                     shipment_lps.shipped_qty::text,
                     shipment_lps.prior_status,
-                    shipment_lps.prior_reserved_qty::text`,
+                    shipment_lps.prior_reserved_qty::text,
+                    lp.status as new_status`,
         [shipmentId, userId],
       );
       if (updatedLpRows.length !== lpIds.length) throw new ActionError('persistence_failed');
+
+      for (const lp of updatedLpRows) {
+        const moveTransactionId = uuidFromSeed(`shipping.ship.move:${shipmentId}:${lp.id}`);
+        const { rows: insertedMoves } = await ctx.client.query<{ id: string }>(
+          `insert into public.stock_moves (
+             org_id, site_id, move_number, lp_id, move_type, from_location_id,
+             quantity, uom, reason_code, reason_text, transaction_id,
+             status, ext_jsonb, created_by, updated_by
+           )
+           values (
+             app.current_org_id(), $1::uuid, $2, $3::uuid, 'issue', $4::uuid,
+             $5::numeric, $6, 'shipment_dispatch', 'Shipment dispatch',
+             $7::uuid, 'completed', $8::jsonb, $9::uuid, $9::uuid
+           )
+           on conflict (org_id, transaction_id) do nothing
+           returning id::text`,
+          [
+            lp.site_id,
+            makeStockMoveNumber(moveTransactionId),
+            lp.id,
+            lp.location_id,
+            lp.shipped_qty,
+            lp.uom,
+            moveTransactionId,
+            JSON.stringify({ source: 'shipping', shipment_id: shipmentId, so_id: shipment.sales_order_id }),
+            userId,
+          ],
+        );
+        let stockMoveId = insertedMoves[0]?.id;
+        if (!stockMoveId) {
+          const { rows: existingMoves } = await ctx.client.query<{ id: string }>(
+            `select id::text
+               from public.stock_moves
+              where org_id = app.current_org_id()
+                and transaction_id = $1::uuid
+              limit 1`,
+            [moveTransactionId],
+          );
+          stockMoveId = existingMoves[0]?.id;
+        }
+        if (!stockMoveId) throw new ActionError('persistence_failed');
+
+        if (lp.new_status !== lp.prior_status) {
+          const historyTransactionId = uuidFromSeed(`shipping.ship.state:${shipmentId}:${lp.id}`);
+          await ctx.client.query(
+            `insert into public.lp_state_history (
+               org_id, site_id, lp_id, from_state, to_state, reason_code, reason_text,
+               stock_move_id, source_so_id, transaction_id, ext_jsonb, created_by
+             )
+             values (
+               app.current_org_id(), $1::uuid, $2::uuid, $3, 'shipped',
+               'shipment_dispatch', 'Shipment dispatch', $4::uuid, $5::uuid,
+               $6::uuid, $7::jsonb, $8::uuid
+             )
+             on conflict (org_id, transaction_id) do nothing`,
+            [
+              lp.site_id,
+              lp.id,
+              lp.prior_status,
+              stockMoveId,
+              shipment.sales_order_id,
+              historyTransactionId,
+              JSON.stringify({ source: 'shipping', shipment_id: shipmentId }),
+              userId,
+            ],
+          );
+        }
+      }
 
       const wacDebits: Array<{
         lp_id: string;

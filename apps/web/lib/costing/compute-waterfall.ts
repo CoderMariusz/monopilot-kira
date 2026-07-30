@@ -24,6 +24,7 @@ export type CostingWaterfallStepName = (typeof COSTING_WATERFALL_STEP_NAMES)[num
 export type WaterfallStatus = 'ok' | 'warn' | 'fail';
 export type CostingErrorCode =
   | 'yield_required'
+  | 'pack_weight_required'
   | 'brief_inputs_required'
   | 'packs_per_case_required'
   // Honesty contract carried over from the pct-era compute (W9-L6): an ingredient
@@ -200,7 +201,8 @@ export function computeWaterfall(
 
 export function computeNpdCostEngine(input: NpdCostEngineInput): WaterfallResult {
   const missing: CostingErrorCode[] = [];
-  const packWeightKg = Dec.from(input.packWeightKg);
+  const packWeightKgText = normaliseNumeric(input.packWeightKg);
+  const packWeightKg = Dec.from(packWeightKgText);
   const packsPerCase = Dec.from(input.packsPerCase);
   const avgBatchQty = Dec.from(input.avgBatchQty);
   const weeklyVolumePacks = Dec.from(input.weeklyVolumePacks);
@@ -209,6 +211,9 @@ export function computeNpdCostEngine(input: NpdCostEngineInput): WaterfallResult
 
   if (!yieldPctText || !decimalGt(yieldPctText, '0')) {
     missing.push('yield_required');
+  }
+  if (!packWeightKgText || !decimalGt(packWeightKgText, '0')) {
+    missing.push('pack_weight_required');
   }
   if (packsPerCase.isZero()) {
     missing.push('packs_per_case_required');

@@ -113,6 +113,7 @@ export type CostingLabels = {
   computing: string;
   computeError: string;
   blockedYieldRequired?: string;
+  blockedPackWeight?: string;
   blockedBriefInputs?: string;
   blockedPacksPerCase?: string;
   blockedIngredientCosts?: string;
@@ -402,6 +403,8 @@ export function CostingScreen({
         // every locale because the label keys were never wired (PF-R04-14c).
         case 'yield_required':
           return labels.blockedYieldRequired ?? 'Fill in the yield % on the recipe, then recompute.';
+        case 'pack_weight_required':
+          return labels.blockedPackWeight ?? 'Set the pack weight on the Brief, then recompute.';
         case 'brief_inputs_required':
           return (
             labels.blockedBriefInputs ??

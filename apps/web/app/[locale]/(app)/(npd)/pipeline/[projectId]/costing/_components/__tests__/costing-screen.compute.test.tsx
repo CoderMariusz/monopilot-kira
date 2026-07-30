@@ -353,6 +353,7 @@ describe('PF-R04-14c — typed compute blockers never render Polish under /en', 
   // fall through to hardcoded Polish copy regardless of locale.
   const CASES: Array<[string, string]> = [
     ['yield_required', 'Fill in the yield % on the recipe, then recompute.'],
+    ['pack_weight_required', 'Set the pack weight on the Brief, then recompute.'],
     ['brief_inputs_required', 'Complete the costing inputs:'],
     ['packs_per_case_required', 'Set packs per box on the Packaging stage.'],
     ['ingredient_costs_missing', 'At least one recipe ingredient has no cost'],

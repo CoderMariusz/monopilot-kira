@@ -99,6 +99,72 @@ describe('computeNpdCostEngine', () => {
     expect(result.marginPct).toBe('43.8389');
   });
 
+  it('reports a missing pack weight instead of silently pricing it as zero', () => {
+    const result = computeNpdCostEngine(
+      breadInput({
+        ingredients: [
+          { rmCode: 'FLOUR', qtyKg: '1', pct: '100', costPerKgEur: '1', allergensInherited: [] },
+        ],
+        yieldPct: '100',
+        packWeightKg: null,
+        packsPerCase: '1',
+        avgBatchQty: '100',
+        fgBaseUom: 'pack',
+        weeklyVolumePacks: '100',
+        runsPerWeek: '1',
+        targetPriceEur: '5',
+        packagingComponents: [],
+        processes: [
+          {
+            throughputPerHour: '100',
+            throughputUom: 'kg',
+            setupCost: '0',
+            additionalCost: '0',
+            roles: [{ ratePerHour: '20', headcount: '1' }],
+          },
+        ],
+        overheadPerKg: '1.2',
+        logisticsPerBox: '0',
+      }),
+    );
+
+    expect(result.missing).toContain('pack_weight_required');
+  });
+
+  it('keeps the exact £1.70 total and 66% margin when pack weight is present', () => {
+    const result = computeNpdCostEngine(
+      breadInput({
+        ingredients: [
+          { rmCode: 'FLOUR', qtyKg: '1', pct: '100', costPerKgEur: '1', allergensInherited: [] },
+        ],
+        yieldPct: '100',
+        packWeightKg: '0.5',
+        packsPerCase: '1',
+        avgBatchQty: '100',
+        fgBaseUom: 'pack',
+        weeklyVolumePacks: '100',
+        runsPerWeek: '1',
+        targetPriceEur: '5',
+        packagingComponents: [],
+        processes: [
+          {
+            throughputPerHour: '100',
+            throughputUom: 'kg',
+            setupCost: '0',
+            additionalCost: '0',
+            roles: [{ ratePerHour: '20', headcount: '1' }],
+          },
+        ],
+        overheadPerKg: '1.2',
+        logisticsPerBox: '0',
+      }),
+    );
+
+    expect(result.missing).toEqual([]);
+    expect(result.steps[7]!.valueEur).toBe('1.7000');
+    expect(result.marginPct).toBe('66.0000');
+  });
+
   it('returns typed errors for required yield, brief inputs, and packs per case', () => {
     const result = computeNpdCostEngine(
       breadInput({

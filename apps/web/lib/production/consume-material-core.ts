@@ -80,6 +80,7 @@ export async function selectFefoConsumableLpForUpdate(
     productIds: readonly string[];
     uom: string;
     qty: string;
+    siteId: string;
   },
 ): Promise<FefoLpCandidate | null> {
   const { rows } = await client.query<{
@@ -102,6 +103,7 @@ export async function selectFefoConsumableLpForUpdate(
         and cand.product_id = any($1::uuid[])
         and cand.uom = $2
         and cand.available_qty >= $3::numeric
+        and cand.site_id = $4::uuid
         and not exists (
           select 1
             from public.v_active_holds h
@@ -121,7 +123,7 @@ export async function selectFefoConsumableLpForUpdate(
       order by cand.expiry_date asc nulls last, cand.lp_number asc
       limit 1
       for update of lp`,
-    [input.productIds, input.uom, input.qty],
+    [input.productIds, input.uom, input.qty, input.siteId],
   );
   const row = rows[0];
   if (!row) return null;
@@ -144,6 +146,7 @@ async function findHeldConsumableLpId(
     productIds: readonly string[];
     uom: string;
     qty: string;
+    siteId: string;
   },
 ): Promise<string | null> {
   const { rows } = await client.query<{ lp_id: string }>(
@@ -155,6 +158,7 @@ async function findHeldConsumableLpId(
         and lp.qa_status in ('released', 'on_hold')
         and lp.status = 'available'
         and lp.quantity - $3::numeric >= lp.reserved_qty
+        and lp.site_id = $4::uuid
         and exists (
           select 1
             from public.v_active_holds h
@@ -173,7 +177,7 @@ async function findHeldConsumableLpId(
         )
       order by lp.expiry_date asc nulls last, lp.lp_number asc
       limit 1`,
-    [input.productIds, input.uom, input.qty],
+    [input.productIds, input.uom, input.qty, input.siteId],
   );
   return rows[0]?.lp_id ?? null;
 }
@@ -207,6 +211,7 @@ export async function resolveConsumptionLp(
     productIds: readonly string[];
     uom: string;
     qty: string;
+    siteId: string;
   },
 ): Promise<ResolveConsumptionLpResult> {
   const qty = normalizePersistedQuantity(input.qty);
@@ -242,9 +247,10 @@ export async function resolveConsumptionLp(
           and lp.product_id = any($2::uuid[])
           and lp.uom = $3
           and lp.quantity - $4::numeric >= lp.reserved_qty
+          and lp.site_id = $5::uuid
         limit 1
         for update`,
-      [lpId, productIds, input.uom, qty],
+      [lpId, productIds, input.uom, qty, input.siteId],
     );
     const lp = availability.rows[0];
     if (!lp) return { ok: false, error: 'lp_unavailable' };
@@ -263,12 +269,14 @@ export async function resolveConsumptionLp(
     productIds,
     uom: input.uom,
     qty,
+    siteId: input.siteId,
   });
   if (!fefo) {
     const heldLpId = await findHeldConsumableLpId(ctx.client, {
       productIds,
       uom: input.uom,
       qty,
+      siteId: input.siteId,
     });
     if (heldLpId) {
       const hold = await holdsGuard(ctx, { lpId: heldLpId });

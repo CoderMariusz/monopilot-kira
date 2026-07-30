@@ -142,6 +142,7 @@ runPg('consume-material-core FEFO hold exclusion (real Postgres)', () => {
           productIds: [itemId],
           uom: 'kg',
           qty: '1.000',
+          siteId,
         },
       );
 

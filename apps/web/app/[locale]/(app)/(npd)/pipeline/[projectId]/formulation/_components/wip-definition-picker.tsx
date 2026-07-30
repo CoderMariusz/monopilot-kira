@@ -3,6 +3,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 
+import { anchoredPanelPosition, type AnchoredPanelPosition } from '@monopilot/ui/anchoredPanel';
 import { Button } from '@monopilot/ui/Button';
 import Input from '@monopilot/ui/Input';
 
@@ -61,13 +62,15 @@ export function WipDefinitionPicker({
   const panelRef = React.useRef<HTMLDivElement>(null);
   const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const reqRef = React.useRef(0);
-  const [panelRect, setPanelRect] = React.useState<{ top: number; left: number; width: number } | null>(null);
+  const [panelRect, setPanelRect] = React.useState<AnchoredPanelPosition | null>(null);
 
   const updatePanelPosition = React.useCallback(() => {
     const el = containerRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
-    setPanelRect({ top: rect.bottom + 4, left: rect.left, width: Math.max(rect.width, 280) });
+    // Shared geometry: clamped on BOTH axes and flipped above the trigger when the
+    // panel would otherwise land below the fold (see @monopilot/ui/anchoredPanel).
+    setPanelRect(anchoredPanelPosition(rect, { width: Math.max(rect.width, 280) }));
   }, []);
 
   const close = React.useCallback(() => {
@@ -175,9 +178,14 @@ export function WipDefinitionPicker({
             data-testid="wip-definition-picker-panel"
             style={{
               position: 'fixed',
+              // Exactly one of top/bottom is set — `bottom` when the panel flips
+              // above the trigger, so it grows upward without being measured.
               top: panelRect.top,
+              bottom: panelRect.bottom,
               left: panelRect.left,
               width: panelRect.width,
+              maxHeight: panelRect.maxHeight,
+              overflowY: 'auto',
               zIndex: 1200,
               pointerEvents: 'auto',
             }}

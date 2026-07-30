@@ -108,12 +108,14 @@ const approverUserId = '30000000-0000-0000-0000-000000000099';
 const consumptionId = '71000000-0000-0000-0000-000000000001';
 const primaryItemId = '80000000-0000-0000-0000-000000000001';
 const substituteItemId = '80000000-0000-0000-0000-000000000099';
+const workOrderSiteId = '50000000-0000-4000-8000-000000000099';
 
 function materialGate(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     id: '70000000-0000-0000-0000-000000000001',
     product_id: '80000000-0000-0000-0000-000000000001',
     substitute_item_id: null,
+    wo_site_id: workOrderSiteId,
     material_name: 'Sugar',
     required_qty: '10.000',
     consumed_qty: '5.000',

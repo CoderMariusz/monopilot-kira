@@ -12,6 +12,8 @@ const TX_ID = '55555555-5555-4555-8555-555555555555';
 
 let client: QueryClient;
 let wacSnapshotUpdate: { params: readonly unknown[] } | null;
+let legacyConsumptionSnapshotUpdate: { params: readonly unknown[] } | null;
+let usedOrgUomCatalog = false;
 let wacUpsertCalls = 0;
 
 function makeCtx(): OrgContextLike {
@@ -22,7 +24,10 @@ function normalize(sql: string): string {
   return sql.replace(/\s+/g, ' ').toLowerCase();
 }
 
-function makeClient(standardCostPerKg: string | null): QueryClient {
+function makeClient(
+  standardCostPerKg: string | null,
+  options: { legacyGrams?: boolean } = {},
+): QueryClient {
   return {
     query: async (sql: string, params: readonly unknown[] = []) => {
       const n = normalize(sql);
@@ -35,7 +40,28 @@ function makeClient(standardCostPerKg: string | null): QueryClient {
       }
       if (n.includes('from public.user_roles')) return { rows: [{ ok: true }], rowCount: 1 };
       if (n.includes('select c.id::text as consumption_id')) {
+        if (options.legacyGrams && legacyConsumptionSnapshotUpdate === null) {
+          return {
+            rows: [
+              {
+                consumption_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+                component_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+                qty: '500.000',
+                uom: 'g',
+              },
+            ],
+            rowCount: 1,
+          };
+        }
         return { rows: [], rowCount: 0 };
+      }
+      if (n.includes('left join public.unit_of_measure input_uom')) {
+        usedOrgUomCatalog = true;
+        return { rows: [{ qty_kg: '0.5', resolved: true }], rowCount: 1 };
+      }
+      if (n.startsWith('update public.wo_material_consumption') && n.includes('wac_qty_kg')) {
+        legacyConsumptionSnapshotUpdate = { params };
+        return { rows: [], rowCount: 1 };
       }
       if (n.includes('from public.items')) {
         return {
@@ -64,10 +90,23 @@ function makeClient(standardCostPerKg: string | null): QueryClient {
         };
       }
       if (n.includes('with material_wac as')) {
-        return { rows: [{ material_cost: '0', prior_wac_booked: '0', output_baseline_kg: String(params[1] ?? '0') }], rowCount: 1 };
+        return {
+          rows: [{
+            material_cost: options.legacyGrams ? '2.5' : '0',
+            prior_wac_booked: '0',
+            output_baseline_kg: String(params[1] ?? '0'),
+          }],
+          rowCount: 1,
+        };
       }
       if (n.includes('select case') && n.includes('cost_per_kg')) {
-        return { rows: [{ cost_per_kg: null, output_value: null }], rowCount: 1 };
+        return {
+          rows: [{
+            cost_per_kg: options.legacyGrams ? '0.25' : null,
+            output_value: options.legacyGrams ? '2.5' : null,
+          }],
+          rowCount: 1,
+        };
       }
       if (n.startsWith('select ($1::numeric * $2::numeric)::text as output_value')) {
         return { rows: [{ output_value: String(Number(params[0]) * Number(params[1])) }], rowCount: 1 };
@@ -104,6 +143,8 @@ function makeClient(standardCostPerKg: string | null): QueryClient {
 describe('registerOutput WAC valuation', () => {
   beforeEach(() => {
     wacSnapshotUpdate = null;
+    legacyConsumptionSnapshotUpdate = null;
+    usedOrgUomCatalog = false;
     wacUpsertCalls = 0;
     client = makeClient(null);
   });
@@ -136,6 +177,32 @@ describe('registerOutput WAC valuation', () => {
         wac_qty_kg: '10.000',
         wac_value: '30',
         wac_cost_source: 'standard',
+      }),
+      USER_ID,
+    ]);
+  });
+
+  it('costs historical gram consumption through the organization UOM catalog', async () => {
+    client = makeClient(null, { legacyGrams: true });
+
+    await registerOutput(makeCtx(), WO_ID, {
+      transaction_id: TX_ID,
+      output_type: 'primary',
+      product_id: PRODUCT_ID,
+      qty_kg: '10.000',
+    });
+
+    expect(usedOrgUomCatalog).toBe(true);
+    expect(legacyConsumptionSnapshotUpdate?.params).toEqual([
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      '0.5',
+    ]);
+    expect(wacSnapshotUpdate?.params).toEqual([
+      '66666666-6666-4666-8666-666666666666',
+      JSON.stringify({
+        wac_qty_kg: '10.000',
+        wac_value: '2.5',
+        wac_cost_source: 'wo_computed',
       }),
       USER_ID,
     ]);

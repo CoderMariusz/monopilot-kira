@@ -291,17 +291,17 @@ test.describe.serial('NPD create → FG mint → recipe → packaging → produc
   }) => {
     expect(flow.projectId, 'project created in step 1').toBeTruthy();
     await signIn(page);
-    // ⚠ WORKAROUND for a PRODUCT BLOCKER, not a preference. The shared ItemPicker
-    // portals its option list to a `position: fixed` panel anchored at
-    // `top: trigger.bottom + 4` and clamps only the HORIZONTAL axis
-    // (item-picker.tsx:128-136 — `left` is clamped to the viewport, `top` never is).
-    // On the default 1280x720 viewport the ingredient row sits low enough that the
-    // options render BELOW the fold; because the panel is `fixed` and re-anchors to
-    // the trigger on scroll, the user can never bring them into view and the click
-    // times out. Measured: at 720 px the option click times out and
-    // formulation_ingredients stays EMPTY; at 1600 px the same click lands in ~50 ms
-    // and the row persists. Drop this resize once the picker flips above the trigger.
-    await page.setViewportSize({ width: 1280, height: 1600 });
+    // Runs at the DEFAULT 1280x720 viewport. The former `setViewportSize(1600)`
+    // here was a workaround for a product blocker: the ItemPicker anchored its
+    // portaled panel at `top: trigger.bottom + 4` and clamped only the horizontal
+    // axis, so the ingredient row's options landed below the fold and the click had
+    // no target (formulation_ingredients stayed at 0 rows over 11 runs at 720 px).
+    // The panel now flips above the trigger — @monopilot/ui/anchoredPanel.
+    // E2E_VIEWPORT_HEIGHT is the counter-control knob for that fix: the same click
+    // must persist a row at 720 (previously impossible) AND at 1600 (previously the
+    // only height that worked). It is not a workaround — leave it unset by default.
+    const viewportHeight = Number(process.env.E2E_VIEWPORT_HEIGHT ?? 0);
+    if (viewportHeight > 0) await page.setViewportSize({ width: 1280, height: viewportHeight });
     await page.goto(url(`/${L}/pipeline/${flow.projectId}/formulation`), {
       waitUntil: 'domcontentloaded',
     });
@@ -479,13 +479,14 @@ test.describe.serial('NPD create → FG mint → recipe → packaging → produc
     // Pick a supplier from the picker (click the trigger, choose an option from the
     // listbox). This is the exact seam the B1 regression broke on.
     //
-    // Selected by ROLE, not by test id: packaging-component-modal.tsx:303 does pass
-    // data-testid="field-supplier", but @monopilot/ui/Select DROPS it — SelectProps
-    // (packages/ui/src/Select.tsx:21-37) declares no 'data-testid', and JSX excess-
-    // property checks skip hyphenated attributes, so it compiles and vanishes. Only
-    // the compound SelectTrigger accepts it (Select.tsx:289). The accessible name is
-    // wired (aria-label={labels.fieldSupplier}), so the combobox role is reachable.
-    const supplier = form.getByRole('combobox', { name: /supplier/i });
+    // Selected by TEST ID again. This used to be a role selector because
+    // @monopilot/ui/Select silently dropped `data-testid`: SelectProps declared no
+    // such prop and JSX excess-property checks skip hyphenated attributes, so
+    // packaging-component-modal.tsx's data-testid="field-supplier" compiled and
+    // vanished. SelectProps now declares it and forwards it onto the combobox
+    // trigger (the same rule the aria-* props already followed), so this locator
+    // resolving at all is the regression test for that fix.
+    const supplier = form.getByTestId('field-supplier');
     await expect(supplier, 'supplier picker present on the component form').toBeVisible({ timeout: 5_000 });
     await supplier.click();
     const supplierOption = page.getByRole('option').first();

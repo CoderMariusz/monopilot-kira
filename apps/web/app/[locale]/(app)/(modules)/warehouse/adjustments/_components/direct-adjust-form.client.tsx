@@ -40,6 +40,7 @@ import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
+import { anchoredPanelPosition, type AnchoredPanelPosition } from '@monopilot/ui/anchoredPanel';
 import { Select } from '@monopilot/ui/Select';
 
 import type {
@@ -789,15 +790,15 @@ function SearchCombobox({
   const inputRef = useRef<HTMLInputElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reqRef = useRef(0);
-  const [panelRect, setPanelRect] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [panelRect, setPanelRect] = useState<AnchoredPanelPosition | null>(null);
 
   const updatePanelPosition = () => {
     const el = containerRef.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
-    const width = Math.min(420, Math.max(320, r.width));
-    const left = Math.max(12, Math.min(r.left, window.innerWidth - width - 12));
-    setPanelRect({ top: r.bottom + 4, left, width });
+    // Shared geometry: clamped on BOTH axes and flipped above the trigger when the
+    // panel would otherwise land below the fold (see @monopilot/ui/anchoredPanel).
+    setPanelRect(anchoredPanelPosition(r, { width: Math.min(420, Math.max(320, r.width)) }));
   };
 
   const runSearch = (term: string) => {
@@ -904,9 +905,14 @@ function SearchCombobox({
               aria-label={searchLabel}
               style={{
                 position: 'fixed',
+                // Exactly one of top/bottom is set — `bottom` when the panel flips
+                // above the trigger, so it grows upward without being measured.
                 top: panelRect.top,
+                bottom: panelRect.bottom,
                 left: panelRect.left,
                 width: panelRect.width,
+                maxHeight: panelRect.maxHeight,
+                overflowY: 'auto',
                 zIndex: 1000,
                 pointerEvents: 'auto',
               }}

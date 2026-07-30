@@ -74,6 +74,7 @@ export const DEFAULT_COSTING_LABELS: CostingLabels = {
   // translated and CostingScreen falls through to its inline fallback in EVERY
   // locale. That is how the PL blocker copy reached the EN screen (PF-R04-14c).
   blockedYieldRequired: 'Fill in the yield % on the recipe, then recompute.',
+  blockedPackWeight: 'Set the pack weight on the Brief, then recompute.',
   blockedBriefInputs:
     'Complete the costing inputs: avg batch (panel above) plus weekly volume and runs/week in Brief.',
   blockedPacksPerCase: 'Set packs per box on the Packaging stage.',

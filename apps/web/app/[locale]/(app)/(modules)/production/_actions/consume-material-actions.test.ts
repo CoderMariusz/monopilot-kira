@@ -13,6 +13,7 @@ const MATERIAL_ID = '44444444-4444-4444-8444-444444444444';
 const PRODUCT_ID = '55555555-5555-4555-8555-555555555555';
 const SUBSTITUTE_PRODUCT_ID = '55555555-5555-4555-8555-000000000001';
 const LP_ID = '66666666-6666-4666-8666-666666666666';
+const SITE_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const MANUAL_NO_LP_ID = '00000000-0000-0000-0000-000000000000';
 const CONSUMPTION_ID = '77777777-7777-4777-8777-777777777777';
 
@@ -160,6 +161,7 @@ function makeClient(): QueryClient {
                   id: MATERIAL_ID,
                   product_id: PRODUCT_ID,
                   substitute_item_id: state.substituteItemId,
+                  wo_site_id: SITE_ID,
                   material_name: 'Lean beef 80/20',
                   required_qty: '120.000',
                   consumed_qty: '2.500',
@@ -233,7 +235,10 @@ function makeClient(): QueryClient {
       // listConsumableLps material lookup
       if (n.includes('from public.wo_materials wm') && n.includes('left join public.bom_lines bl') && !n.includes('for update of wm')) {
         return state.materialExists
-          ? { rows: [{ product_id: PRODUCT_ID, substitute_item_id: state.substituteItemId, uom: 'kg' }], rowCount: 1 }
+          ? {
+              rows: [{ product_id: PRODUCT_ID, substitute_item_id: state.substituteItemId, uom: 'kg', site_id: SITE_ID }],
+              rowCount: 1,
+            }
           : { rows: [], rowCount: 0 };
       }
       if (n.includes('from public.v_inventory_available')) {
@@ -718,6 +723,7 @@ describe('listConsumableLps', () => {
     }
     const lpQuery = queries.find((q) => normalize(q.sql).includes('from public.v_inventory_available'));
     expect(lpQuery?.params[0]).toEqual([PRODUCT_ID, SUBSTITUTE_PRODUCT_ID]);
+    expect(lpQuery?.params[2]).toBe(SITE_ID);
   });
 
   it('refuses without permission', async () => {

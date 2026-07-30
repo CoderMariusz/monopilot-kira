@@ -338,11 +338,14 @@ function nonNegativeDec(value: unknown): Dec {
 }
 
 function validYieldFactor(yieldPct: unknown): Dec {
+  if (yieldPct === undefined) return ONE;
   if (typeof yieldPct !== 'string' || !/^\d+(\.\d+)?$/.test(yieldPct.trim())) {
-    return ONE;
+    throw new Error('wip-cost: yieldPct must be in (0, 100]');
   }
-  const pct = Dec.from(yieldPct);
-  if (pct.isZero() || pct.cmp(HUNDRED) > 0) return ONE;
+  const pct = Dec.from(yieldPct.trim());
+  if (pct.isZero() || pct.cmp(HUNDRED) > 0) {
+    throw new Error('wip-cost: yieldPct must be in (0, 100]');
+  }
   return pct.div(HUNDRED);
 }
 

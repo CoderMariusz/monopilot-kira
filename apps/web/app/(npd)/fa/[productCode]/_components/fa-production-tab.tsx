@@ -55,6 +55,7 @@ import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 
+import { anchoredPanelPosition, type AnchoredPanelPosition } from '@monopilot/ui/anchoredPanel';
 import { Badge } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
 import { Card, CardContent, CardHeader } from '@monopilot/ui/Card';
@@ -639,7 +640,7 @@ function OperationPicker({
   const containerRef = React.useRef<HTMLDivElement>(null);
   const panelRef = React.useRef<HTMLDivElement>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
-  const [rect, setRect] = React.useState<{ top: number; left: number; width: number } | null>(null);
+  const [rect, setRect] = React.useState<AnchoredPanelPosition | null>(null);
 
   const filtered = React.useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -650,9 +651,13 @@ function OperationPicker({
     const el = containerRef.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
-    const width = Math.min(420, Math.max(280, r.width, window.innerWidth - 24));
-    const left = Math.max(12, Math.min(r.left, window.innerWidth - width - 12));
-    setRect({ top: r.bottom + 4, left, width });
+    // Shared geometry: clamped on BOTH axes and flipped above the trigger when the
+    // panel would otherwise land below the fold (see @monopilot/ui/anchoredPanel).
+    setRect(
+      anchoredPanelPosition(r, {
+        width: Math.min(420, Math.max(280, r.width, window.innerWidth - 24)),
+      }),
+    );
   }, []);
 
   React.useEffect(() => {
@@ -735,9 +740,14 @@ function OperationPicker({
               aria-label={labels.pickerLabel}
               style={{
                 position: 'fixed',
+                // Exactly one of top/bottom is set — `bottom` when the panel flips
+                // above the trigger, so it grows upward without being measured.
                 top: rect.top,
+                bottom: rect.bottom,
                 left: rect.left,
                 width: rect.width,
+                maxHeight: rect.maxHeight,
+                overflowY: 'auto',
                 zIndex: 1000,
                 pointerEvents: 'auto',
               }}
