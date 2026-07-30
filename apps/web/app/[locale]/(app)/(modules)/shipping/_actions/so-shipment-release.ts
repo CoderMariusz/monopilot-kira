@@ -95,10 +95,10 @@ export async function releaseShipmentLiveAllocationsInContext(
 export async function voidShipmentBoxesInContext(ctx: ShippingContext, shipmentId: string, extData: string): Promise<void> {
   await ctx.client.query(
     `update public.shipment_box_contents sbc
-        set deleted_at = coalesce(deleted_at, now()),
+        set deleted_at = coalesce(sbc.deleted_at, now()),
             updated_at = now(),
             updated_by = $2::uuid,
-            ext_data = coalesce(ext_data, '{}'::jsonb) || $3::jsonb
+            ext_data = coalesce(sbc.ext_data, '{}'::jsonb) || $3::jsonb
        from public.shipment_boxes sb
       where sb.id = sbc.shipment_box_id
         and sb.org_id = app.current_org_id()

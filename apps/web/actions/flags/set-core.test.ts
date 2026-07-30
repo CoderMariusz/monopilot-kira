@@ -183,7 +183,7 @@ describe('setCoreFlag Server Action (TASK-000106/T-020 RED)', () => {
       failedChecks: ['V-SET-44'],
     });
     expect(statementIndex('org_authorization_policies')).toBeGreaterThanOrEqual(0);
-    expect(statementIndex('technical_product_spec_approval_gate_v1')).toBeGreaterThanOrEqual(0);
+    expect(statementIndex('rule_definitions')).toBeGreaterThanOrEqual(0);
     expect(statementIndex('feature_flags_core')).toBe(-1);
     expect(currentClient.featureFlags.get('technical.product_spec_approval.required')).toBe(false);
     expect(currentClient.auditEvents).toHaveLength(0);
@@ -341,8 +341,14 @@ function makeClient(): FakeClient {
         return { rows: row ? [row] : [], rowCount: row ? 1 : 0 };
       }
 
-      if (normalized.includes('technical_product_spec_approval_gate_v1')) {
-        return { rows: [{ rule_code: 'technical_product_spec_approval_gate_v1', active: true }], rowCount: 1 };
+      // Dispatch on the table and the bound parameter, never on a literal spliced
+      // into the SQL text: that is what let this query ship a column
+      // (rule_definitions.is_active) that does not exist.
+      if (normalized.includes('rule_definitions')) {
+        const ruleCode = params.find((param): param is string => typeof param === 'string');
+        return ruleCode === 'technical_product_spec_approval_gate_v1'
+          ? { rows: [{ rule_code: ruleCode, active_from: '2020-01-01T00:00:00Z', active_to: null }], rowCount: 1 }
+          : { rows: [], rowCount: 0 };
       }
 
       if (normalized.includes('from public.feature_flags_core') || normalized.includes('from feature_flags_core')) {

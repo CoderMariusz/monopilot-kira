@@ -10,6 +10,7 @@ import {
   type SaveVariantOverrides,
 } from './rule-variant-selector.client';
 import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
+import { readLastChangedByCode } from './last-changed';
 
 export const dynamic = 'force-dynamic';
 
@@ -136,35 +137,6 @@ function asOverrides(value: unknown): Record<string, string> {
   return Object.fromEntries(
     Object.entries(value as Record<string, unknown>).filter(([, variant]) => typeof variant === 'string'),
   ) as Record<string, string>;
-}
-
-type RuleVariantAuditRow = { rule_code: string; changed_at: string | Date | null };
-
-// Resilient read: pulls the most-recent change timestamp per rule_code from the
-// audit_log trail emitted by saveRuleVariantOverridesLive
-// (action = 'tenant_variations.rule_variant.batch_updated'). Any failure (e.g.
-// audit_log not present in a given test harness) degrades to an empty map so the
-// table still renders with `Never changed`.
-async function readLastChangedByCode(client: QueryClient): Promise<Record<string, string>> {
-  try {
-    const { rows } = await client.query<RuleVariantAuditRow>(
-      `select key as rule_code, max(created_at) as changed_at
-         from public.audit_log,
-              lateral jsonb_object_keys(coalesce(after_state->'rule_variant_overrides', '{}'::jsonb)) as key
-        where org_id = app.current_org_id()
-          and action = 'tenant_variations.rule_variant.batch_updated'
-        group by key`,
-    );
-    const map: Record<string, string> = {};
-    for (const row of rows) {
-      if (typeof row.rule_code !== 'string' || !row.changed_at) continue;
-      const iso = row.changed_at instanceof Date ? row.changed_at.toISOString() : String(row.changed_at);
-      map[row.rule_code] = iso;
-    }
-    return map;
-  } catch {
-    return {};
-  }
 }
 
 async function readRuleVariantRows(locale: string): Promise<{ state: 'ready' | 'error' | 'permission_denied'; rows: RuleVariantRow[] }> {

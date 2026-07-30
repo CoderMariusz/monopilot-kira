@@ -3,6 +3,7 @@
 import { revalidateLocalized } from '../../lib/i18n/revalidate-localized';
 import { withOrgContext } from '../../lib/auth/with-org-context';
 import { findMissingD365Constants } from '../../lib/integrations/d365/gate';
+import { readActiveGateRule } from '../authorization/preflight';
 
 export type SetCoreFlagInput = {
   flagCode: string;
@@ -73,15 +74,16 @@ export async function setCoreFlag(rawInput: SetCoreFlagInput): Promise<SetCoreFl
         return preflight;
       }
 
+      // feature_flags_core has no updated_by column; the actor is audited on the
+      // outbox event emitted below (actor_user_id).
       const updated = await client.query<FeatureFlagRow>(
         `update public.feature_flags_core
             set is_enabled = $1,
-                updated_at = now(),
-                updated_by = $2::uuid
+                updated_at = now()
           where org_id = app.current_org_id()
-            and flag_code = $3
+            and flag_code = $2
         returning flag_code, is_enabled`,
-        [input.enabled, userId, input.flagCode],
+        [input.enabled, input.flagCode],
       );
       const flag = updated.rows[0];
       if ((updated.rowCount ?? updated.rows.length) < 1 || !flag) {
@@ -89,13 +91,15 @@ export async function setCoreFlag(rawInput: SetCoreFlagInput): Promise<SetCoreFl
       }
 
       await client.query(
+        // aggregate_id is NOT NULL; the aggregate here is the flag itself.
         `insert into public.outbox_events
            (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
-         values ($1::uuid, $2, $3, null, $4::jsonb, $5)`,
+         values ($1::uuid, $2, $3, $4, $5::jsonb, $6)`,
         [
           orgId,
           'settings.core_flag.updated',
           'core_flag',
+          flag.flag_code,
           JSON.stringify({
             org_id: orgId,
             flag_code: flag.flag_code,
@@ -186,24 +190,15 @@ async function runEnablePreflight({
 
   if (flagCode === TECHNICAL_PRODUCT_SPEC_APPROVAL_FLAG) {
     const policy = await readAuthorizationPolicy(client, TECHNICAL_POLICY_CODE);
-    const gate = await client.query(
-      `select rule_code, is_active as active
-         from public.rule_definitions
-        where org_id = app.current_org_id()
-          and rule_code = $1
-          and rule_code = 'technical_product_spec_approval_gate_v1'
-          and rule_type = 'gate'
-          and is_active = true
-        order by version desc
-        limit 1`,
-      [TECHNICAL_APPROVAL_GATE_RULE],
-    );
+    // rule_definitions has no is_active column — activeness is the [active_from, active_to)
+    // window. Reuse the single implementation instead of a second copy that drifted.
+    const activeGate = await readActiveGateRule(client, TECHNICAL_APPROVAL_GATE_RULE);
     const minApprovers = toNumber(policy?.min_approvers);
     if (
       !policy?.enabled ||
       policy.approval_gate_rule_code !== TECHNICAL_APPROVAL_GATE_RULE ||
       minApprovers < 1 ||
-      (gate.rowCount ?? gate.rows.length) < 1
+      !activeGate
     ) {
       return {
         ok: false,

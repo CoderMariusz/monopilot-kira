@@ -131,7 +131,7 @@ export async function readAuthorizationPolicy(
   return rows[0] ?? null;
 }
 
-async function readActiveGateRule(client: QueryClient, gateRuleCode: string): Promise<boolean> {
+export async function readActiveGateRule(client: QueryClient, gateRuleCode: string): Promise<boolean> {
   const { rows, rowCount } = await client.query<GateRuleRow>(
     `select rule_code, active_from, active_to
        from public.rule_definitions
