@@ -37,6 +37,11 @@ export const orgAuthorizationPolicies = pgTable(
       sql`policy_code in ('npd_post_release_edit', 'technical_product_spec_approval')`,
     ),
     minApproversCheck: check('org_authorization_policies_min_approvers_check', sql`min_approvers >= 1`),
+    dualSignMinApproversCheck: check(
+      'org_authorization_policies_dual_sign_min_approvers_check',
+      sql`coalesce(settings_json -> 'require_dual_sign_off', 'false'::jsonb) <> 'true'::jsonb
+        or min_approvers >= 2`,
+    ),
     versionCheck: check('org_authorization_policies_version_check', sql`version >= 1`),
     npdRequiresNewVersionCheck: check(
       'org_authorization_policies_npd_requires_new_version_check',

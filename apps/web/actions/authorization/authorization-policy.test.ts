@@ -287,6 +287,19 @@ describe('authorization policy helpers and preflights (TASK-000216/T-126 RED)', 
     });
   });
 
+  it('accepts a coherent dual-sign policy with two approvers', async () => {
+    replacePolicy({
+      policy_code: TECHNICAL_POLICY,
+      min_approvers: 2,
+      settings_json: { require_dual_sign_off: true },
+    });
+
+    const { runTechnicalApprovalPreflight } = await loadPreflightModule();
+    const result = await runTechnicalApprovalPreflight({ client: currentClient });
+
+    expect(result).toEqual({ ok: true, blockers: [] });
+  });
+
   it('rejects technical dual-sign policy updates with min_approvers < 2 at the mutation boundary', async () => {
     currentClient.actorPermissions.add(SETTINGS_AUTHORIZATION_EDIT);
 
