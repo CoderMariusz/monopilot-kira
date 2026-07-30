@@ -597,3 +597,43 @@ Sprawdzałem zapadkę i18n usuwając linię z baseline — test przeszedł. **Tr
 Gdybym na tym poprzestał, zaraportowałbym „zapadka nie działa". Po usunięciu RZECZYWISTEGO
 wpisu test padł z nazwą pliku i klucza. **Liczy się nie to, że kontrola przeszła — tylko w co
 trafiła.** Kontrola negatywna sama wymaga kontroli.
+
+---
+
+# STAN NA 19:30 — 65 commitów, 12 torów w biegu
+
+Owner poprosił o 12 torów naraz i pełny raport na koniec. Ostatnie zlecenie puszczone 19:33.
+
+## Znaleziska rundy 19:00-19:30 (wszystkie zacommitowane z dowodami)
+
+**`928a08cb` GDPR — najgorszy przypadek dnia.** Kontrola uprawnień do kasowania danych
+osobowych ma DWIE warstwy obrony i OBIE są namalowane. Warstwa 1: atrapa ignoruje przekazane
+parametry w całości. Warstwa 2 nazywa się „prawdziwe zapytanie pod kontekstem aplikacji",
+a SPRAWDZIŁEM: `packages/db/__tests__/gdpr-erasure-rbac.test.ts:74-77` ma **własną kopię
+zapytania** wklejoną do testu. Mutacja produkcji jej nie dotyczy.
+Łącznie **3 miejsca**, gdzie usunięcie filtru organizacji nie rusza ani jednego testu (24+5+3).
+
+**`684b3c96` bramka QC — gorzej niż fail-open: MELDUJE ZIELEŃ.** `requireQcRelease` nie jest
+przekazywany przez ŻADEN kod produkcyjny (sprawdzone), a `bom/_actions/shared.ts:403` ma zaszyte
+`required: false`. Zapytanie o `lab_results` nigdy nie leci, a raport wypisuje „QC release present"
+ze wskazaniem źródła, którego nie odczytał. Drugi konsument robi to na ścieżce ZATWIERDZANIA.
+
+**`98e161a6` import** — `return` zamiast `throw` w pętli zapisu zostawia połowę wierszy
+i komunikuje niepowodzenie. **TRZECIE wystąpienie** semantyki „zwykły powrót = zatwierdzenie
+transakcji" w ciągu jednego dnia (po rewalidacji ×11 i zapisach). To systematyczna pułapka
+tego kodu, nie wpadka.
+
+**`b4a4d631` izolacja zakładów** — premisa, którą dałem torowi (13 tabel), była BŁĘDNA:
+poza predykatem stoi **116 tabel**, 6/6 badanych przecieka. Dziś nic realnie nie wycieka,
+bo restrykcja jest opt-in — wyciek materializuje się, GDY KLIENT UWIERZY, ŻE IZOLACJA DZIAŁA.
+
+**`7cb4726c` most laboratorium** rejestrowany TYLKO w testach → prod zawsze 501.
+Przy okazji OBALIŁEM zgłoszenie tego samego toru o bramce alergenowej (zapis istnieje w linii
+481; `grep` pominął plik jako binarny). **Pierwszy raz dziś, gdy fałsz poszedłby dalej
+jako „bramka bezpieczeństwa żywności nie działa".**
+
+## Wzorce dnia potwierdzone wielokrotnie
+1. **Zielony test obok żywego defektu** — 12×, w tym mutacyjnie udowodnione
+2. **`return` = commit w `withOrgContext`** — 3 niezależne wystąpienia
+3. **Fail-open przy braku danych** — 4× w bramkach, 1× w walidacji importu
+4. **Grep/narzędzia liczące kłamią** — 5 komend w tabeli na górze pliku
