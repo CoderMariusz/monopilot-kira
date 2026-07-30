@@ -29,11 +29,11 @@ import {
   type ApprovalCriterionStatus,
   type ApprovalScreenData,
   type ApprovalLabels,
-  type ApproveGateCall,
-  type ApproveGateOutcome,
 } from '../approval-screen';
 // Real module at its real depth (9 up from __tests__ → apps/web/lib), not a mock.
 import { formatEsignTimestamp } from '../../../../../../../../../lib/npd/esign-display';
+
+type ApprovalProps = React.ComponentProps<typeof ApprovalScreen>;
 
 afterEach(() => cleanup());
 
@@ -174,7 +174,7 @@ describe('ApprovalScreen — parity + gating + e-sign', () => {
   });
 
   it('opens GateApprovalModal and invokes approveProjectGate with the e-sign password (AC#3, §17.6)', async () => {
-    const onApprove = vi.fn<[ApproveGateCall], Promise<ApproveGateOutcome>>().mockResolvedValue({ ok: true });
+    const onApprove = vi.fn<NonNullable<ApprovalProps['onApprove']>>().mockResolvedValue({ ok: true });
     render(
       <ApprovalScreen
         state="ready"

@@ -19,9 +19,10 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { PoDetailView, type PoDetail, type PoDetailLabels, type PoTransitionResult } from '../_components/po-detail-view';
+import { PoDetailView, type PoDetail, type PoDetailLabels } from '../_components/po-detail-view';
 import type { PoSupplierOption } from '../_actions/po-form-data-types';
-import type { ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items-types';
+
+type DetailProps = React.ComponentProps<typeof PoDetailView>;
 
 const refresh = vi.fn();
 vi.mock('next/navigation', () => ({
@@ -87,6 +88,8 @@ const editLabels: PoDetailLabels['edit'] = {
     lineQty: 'Qty',
     lineUom: 'UoM',
     lineUnitPrice: 'Unit price',
+    lineTaxPct: 'Tax %',
+    taxPctPlaceholder: '0',
     uomPlaceholder: 'Unit',
     uomOptions: { kg: 'kg', g: 'g', l: 'l', ml: 'ml', pcs: 'pcs', pack: 'pack', box: 'box', pallet: 'pallet' },
     qtyPlaceholder: '0',
@@ -98,6 +101,8 @@ const editLabels: PoDetailLabels['edit'] = {
     errors: {
       itemRequired: 'Pick an item.',
       qtyRequired: 'Enter a quantity.',
+      priceInvalid: 'Enter a valid price.',
+      priceRequired: 'Enter a price.',
       invalid_input: 'invalid',
       forbidden: 'no permission',
       not_found: 'gone',
@@ -118,11 +123,12 @@ const editLabels: PoDetailLabels['edit'] = {
 
 const detailLabels: PoDetailLabels = {
   status: statusLabels,
-  summary: { title: 'PO summary', supplier: 'Supplier', status: 'Status', expected: 'Expected delivery', currency: 'Currency', total: 'Total', created: 'Created' },
-  lines: { title: 'PO lines', seq: '#', item: 'Item', qty: 'Qty', uom: 'UoM', unitPrice: 'Unit price', lineTotal: 'Line total', received: 'Received', receivedFull: 'Received', receivedPartial: 'Partial', empty: 'No lines.' },
+  summary: { title: 'PO summary', supplier: 'Supplier', status: 'Status', expected: 'Expected delivery', currency: 'Currency', destinationWarehouse: 'Destination warehouse', total: 'Total', netTotal: 'Net', taxTotal: 'Tax', created: 'Created' },
+  relatedGrns: { title: 'Related GRNs', empty: 'No GRNs yet.' },
+  lines: { title: 'PO lines', seq: '#', item: 'Item', qty: 'Qty', uom: 'UoM', unitPrice: 'Unit price', taxPct: 'Tax %', lineTotal: 'Line total', received: 'Received', receivedFull: 'Received', receivedPartial: 'Partial', empty: 'No lines.' },
   receivedSummary: { title: 'Receipt progress', lines: '{received} / {total} lines' },
-  transitions: { title: 'Status', send: 'Submit', confirm: 'Confirm', receivePartial: 'Mark partial', receive: 'Mark received', cancel: 'Cancel PO', pending: 'Updating…', confirmPrompt: 'Change status of {po} to {status}?' },
-  reopen: { button: 'Reopen to draft', pending: 'Reopening…', confirmPrompt: 'Reopen {po} to draft?' },
+  transitions: { title: 'Status', send: 'Submit', confirm: 'Confirm', receivePartial: 'Mark partial', receive: 'Mark received', cancel: 'Cancel PO', pending: 'Updating…', confirmPrompt: 'Change status of {po} to {status}?', cancelConfirmTitle: 'Cancel {po}?', cancelConfirmBody: 'Cancel this purchase order.', cancelSuccess: 'Purchase order cancelled.', cancelPoHasReceipts: 'This purchase order has receipts.' },
+  reopen: { button: 'Reopen to draft', pending: 'Reopening…', confirmPrompt: 'Reopen {po} to draft?', confirmTitle: 'Reopen {po}?', confirmBody: 'Reopen this purchase order.', success: 'Purchase order reopened.', error: 'Could not reopen purchase order.' },
   notesTitle: 'Notes',
   errors,
   edit: editLabels,
@@ -138,29 +144,31 @@ function makePo(over: Partial<PoDetail> = {}): PoDetail {
     status: 'draft',
     expectedDelivery: '2026-07-01',
     currency: 'EUR',
+    destinationWarehouseName: null,
     notes: 'hello',
     createdAt: '2026-06-01T00:00:00.000Z',
     lines: [
-      { id: 'line-1', itemCode: 'RM-001', itemName: 'Pork Belly', qty: '100', uom: 'kg', unitPrice: '5.50', lineNo: 1, receivedQty: '0' },
-      { id: 'line-2', itemCode: 'RM-002', itemName: 'Casing', qty: '40', uom: 'm', unitPrice: '0.20', lineNo: 2, receivedQty: '0' },
+      { id: 'line-1', itemCode: 'RM-001', itemName: 'Pork Belly', qty: '100', uom: 'kg', unitPrice: '5.50', taxPct: '0', lineNo: 1, receivedQty: '0' },
+      { id: 'line-2', itemCode: 'RM-002', itemName: 'Casing', qty: '40', uom: 'm', unitPrice: '0.20', taxPct: '0', lineNo: 2, receivedQty: '0' },
     ],
+    relatedGrns: [],
     ...over,
   };
 }
 
 function renderDetail(over: {
   po?: PoDetail;
-  update?: ReturnType<typeof vi.fn>;
-  addLine?: ReturnType<typeof vi.fn>;
-  updateLine?: ReturnType<typeof vi.fn>;
-  deleteLine?: ReturnType<typeof vi.fn>;
+  update?: NonNullable<DetailProps['updatePurchaseOrderAction']>;
+  addLine?: NonNullable<DetailProps['addPurchaseOrderLineAction']>;
+  updateLine?: NonNullable<DetailProps['updatePurchaseOrderLineAction']>;
+  deleteLine?: NonNullable<DetailProps['deletePurchaseOrderLineAction']>;
 } = {}) {
-  const transition = vi.fn<[string, string], Promise<PoTransitionResult>>().mockResolvedValue({ ok: true, data: {} });
-  const update = over.update ?? vi.fn().mockResolvedValue({ ok: true, data: {} });
-  const addLine = over.addLine ?? vi.fn().mockResolvedValue({ ok: true, data: {} });
-  const updateLine = over.updateLine ?? vi.fn().mockResolvedValue({ ok: true, data: {} });
-  const deleteLine = over.deleteLine ?? vi.fn().mockResolvedValue({ ok: true, data: {} });
-  const search = vi.fn<[unknown], Promise<ItemPickerOption[]>>().mockResolvedValue([
+  const transition = vi.fn<DetailProps['transitionPurchaseOrderStatusAction']>().mockResolvedValue({ ok: true, data: {} });
+  const update = over.update ?? vi.fn<NonNullable<DetailProps['updatePurchaseOrderAction']>>().mockResolvedValue({ ok: true, data: {} });
+  const addLine = over.addLine ?? vi.fn<NonNullable<DetailProps['addPurchaseOrderLineAction']>>().mockResolvedValue({ ok: true, data: {} });
+  const updateLine = over.updateLine ?? vi.fn<NonNullable<DetailProps['updatePurchaseOrderLineAction']>>().mockResolvedValue({ ok: true, data: {} });
+  const deleteLine = over.deleteLine ?? vi.fn<NonNullable<DetailProps['deletePurchaseOrderLineAction']>>().mockResolvedValue({ ok: true, data: {} });
+  const search = vi.fn<NonNullable<DetailProps['searchPoItemsAction']>>().mockResolvedValue([
     { id: 'item-9', itemCode: 'RM-009', name: 'New Item', itemType: 'rm', status: 'active', costPerKgEur: null, uomBase: 'kg' },
   ]);
   const utils = render(
@@ -224,7 +232,7 @@ describe('PO DRAFT edit affordances (Wave R1)', () => {
   });
 
   it('maps invalid_state from updatePurchaseOrder (no longer a draft)', async () => {
-    const update = vi.fn().mockResolvedValue({ ok: false, error: 'invalid_state' });
+    const update = vi.fn<NonNullable<DetailProps['updatePurchaseOrderAction']>>().mockResolvedValue({ ok: false, error: 'invalid_state' });
     renderDetail({ update });
     fireEvent.click(screen.getByTestId('po-edit-order'));
     await screen.findByTestId('edit-po-form');
@@ -244,7 +252,7 @@ describe('PO DRAFT edit affordances (Wave R1)', () => {
     fireEvent.change(within(form).getByTestId('po-line-qty'), { target: { value: '120' } });
     fireEvent.click(screen.getByTestId('po-line-submit'));
     await waitFor(() => expect(updateLine).toHaveBeenCalledTimes(1));
-    expect(updateLine).toHaveBeenCalledWith({ poId: 'po-1', lineId: 'line-1', qty: '120', uom: 'kg', unitPrice: '5.50' });
+    expect(updateLine).toHaveBeenCalledWith({ poId: 'po-1', lineId: 'line-1', qty: '120', uom: 'kg', unitPrice: '5.50', taxPct: '0' });
   });
 
   it('opens the add-line modal and submits addPurchaseOrderLine after picking an item', async () => {
@@ -263,11 +271,11 @@ describe('PO DRAFT edit affordances (Wave R1)', () => {
     fireEvent.change(within(form).getByTestId('po-line-price'), { target: { value: '1.25' } });
     fireEvent.click(screen.getByTestId('po-line-submit'));
     await waitFor(() => expect(addLine).toHaveBeenCalledTimes(1));
-    expect(addLine).toHaveBeenCalledWith({ poId: 'po-1', itemId: 'item-9', qty: '12', uom: 'kg', unitPrice: '1.25' });
+    expect(addLine).toHaveBeenCalledWith({ poId: 'po-1', itemId: 'item-9', qty: '12', uom: 'kg', unitPrice: '1.25', taxPct: '0' });
   });
 
   it('refuses deleting the last line with the dedicated message (client hint)', async () => {
-    const deleteLine = vi.fn();
+    const deleteLine = vi.fn<NonNullable<DetailProps['deletePurchaseOrderLineAction']>>();
     renderDetail({ po: makePo({ lines: [makePo().lines[0]] }), deleteLine });
     fireEvent.click(screen.getByTestId('po-line-delete-line-1'));
     expect(await screen.findByTestId('po-detail-error')).toHaveTextContent('must keep one line');
@@ -276,7 +284,7 @@ describe('PO DRAFT edit affordances (Wave R1)', () => {
 
   it('confirms then deletes a line, mapping the server last_line refusal', async () => {
     vi.stubGlobal('confirm', vi.fn(() => true));
-    const deleteLine = vi.fn().mockResolvedValue({ ok: false, error: 'last_line' });
+    const deleteLine = vi.fn<NonNullable<DetailProps['deletePurchaseOrderLineAction']>>().mockResolvedValue({ ok: false, error: 'last_line' });
     renderDetail({ deleteLine });
     fireEvent.click(screen.getByTestId('po-line-delete-line-1'));
     await waitFor(() => expect(deleteLine).toHaveBeenCalledWith({ poId: 'po-1', lineId: 'line-1' }));

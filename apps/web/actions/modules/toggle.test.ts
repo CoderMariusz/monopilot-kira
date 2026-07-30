@@ -15,7 +15,7 @@ vi.mock('../../lib/auth/with-org-context', () => ({
 
 vi.mock('../../lib/i18n/revalidate-localized', () => ({
   revalidateLocalized: _revalidateLocalized,
-})));
+}));
 
 const repoRoot = resolve(__dirname, '../../../..');
 const toggleModulePath = resolve(repoRoot, 'apps/web/actions/modules/toggle.ts');

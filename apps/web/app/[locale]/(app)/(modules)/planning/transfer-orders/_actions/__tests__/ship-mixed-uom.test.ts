@@ -4,8 +4,10 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+type AssertNoActiveHoldForLp = typeof import('@monopilot/server/quality/holdsGuard.js').assertNoActiveHoldForLp;
+
 const { mockAssertNoActiveHoldForLp } = vi.hoisted(() => ({
-  mockAssertNoActiveHoldForLp: vi.fn<[string, unknown], Promise<void>>(),
+  mockAssertNoActiveHoldForLp: vi.fn<AssertNoActiveHoldForLp>(),
 }));
 
 vi.mock('@monopilot/server/quality/holdsGuard.js', async (importOriginal) => {

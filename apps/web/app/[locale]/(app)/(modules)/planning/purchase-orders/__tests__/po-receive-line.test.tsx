@@ -24,9 +24,11 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { PoDetailView, type PoDetail, type PoDetailLabels, type PoTransitionResult } from '../_components/po-detail-view';
+import { PoDetailView, type PoDetail, type PoDetailLabels } from '../_components/po-detail-view';
 import type { ReceiveLocationOption } from '../_components/receive-po-line-modal';
 import type { DesktopReceiveInput, DesktopReceiveResult } from '../_actions/receive-po-line.types';
+
+type DetailProps = React.ComponentProps<typeof PoDetailView>;
 
 const refresh = vi.fn();
 vi.mock('next/navigation', () => ({
@@ -162,7 +164,7 @@ const OK_RESULT: DesktopReceiveResult = {
 };
 
 function renderDetail(over: { po?: PoDetail; receive?: ReturnType<typeof vi.fn>; locations?: ReceiveLocationOption[] } = {}) {
-  const transition = vi.fn<[string, string], Promise<PoTransitionResult>>().mockResolvedValue({ ok: true, data: {} });
+  const transition = vi.fn<DetailProps['transitionPurchaseOrderStatusAction']>().mockResolvedValue({ ok: true, data: {} });
   const receive = (over.receive ?? vi.fn().mockResolvedValue(OK_RESULT)) as unknown as (input: DesktopReceiveInput) => Promise<DesktopReceiveResult>;
   const utils = render(
     <PoDetailView

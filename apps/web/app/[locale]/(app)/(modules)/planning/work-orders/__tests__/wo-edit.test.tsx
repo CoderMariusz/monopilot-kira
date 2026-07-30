@@ -21,8 +21,10 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { WoDetailView, type WoDetailLabels } from '../_components/wo-detail-view';
-import type { GetPlanningWorkOrderResult, ReleaseWorkOrderResult } from '../_actions/shared';
+import type { GetPlanningWorkOrderResult } from '../_actions/shared';
 import type { FgProductOption, ProductionResources } from '../_actions/wo-form-data';
+
+type DetailProps = React.ComponentProps<typeof WoDetailView>;
 
 const refresh = vi.fn();
 vi.mock('next/navigation', () => ({
@@ -428,7 +430,10 @@ describe('WoDetailView — draft Release action (C066)', () => {
 
   it('confirms then calls releaseWorkOrderAction and refreshes', async () => {
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
-    const release = vi.fn<[], Promise<ReleaseWorkOrderResult>>().mockResolvedValue({ ok: true, workOrder: {} as any });
+    const release = vi.fn<NonNullable<DetailProps['releaseWorkOrderAction']>>().mockResolvedValue({
+      ok: true,
+      workOrder: makeWo(),
+    });
     renderDetail({ release });
 
     fireEvent.click(screen.getByTestId('wo-detail-release'));

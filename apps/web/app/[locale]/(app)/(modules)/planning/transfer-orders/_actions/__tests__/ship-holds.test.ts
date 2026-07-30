@@ -11,6 +11,8 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+type AssertNoActiveHoldForLp = typeof import('@monopilot/server/quality/holdsGuard.js').assertNoActiveHoldForLp;
+
 // ---------------------------------------------------------------------------
 // Hoisted mocks — must be declared before any module imports.
 // vi.hoisted() runs synchronously before the vi.mock factory is evaluated.
@@ -18,7 +20,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { mockAssertNoActiveHoldForLp } = vi.hoisted(() => {
   return {
-    mockAssertNoActiveHoldForLp: vi.fn<[string, unknown], Promise<void>>(),
+    mockAssertNoActiveHoldForLp: vi.fn<AssertNoActiveHoldForLp>(),
   };
 });
 

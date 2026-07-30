@@ -22,44 +22,11 @@ type OnboardingStepKey =
   | 'first_wo'
   | 'completion';
 
-type WarehouseType = 'finished' | 'raw' | 'wip' | 'quarantine';
-
-type CreateFirstWarehouseInput = {
-  orgId: string;
-  name: string;
-  code: string;
-  type: WarehouseType;
-  address?: string;
-};
-
-type CreateFirstWarehouseResult =
-  | {
-      ok: true;
-      warehouse: { id: string; orgId: string; name: string; code: string; type: WarehouseType };
-      organizationModules: { firstWarehouseId: string };
-      nextStep: 'first_location';
-    }
-  | { ok: false; error: 'CODE_TAKEN' | 'VALIDATION_FAILED' | 'PERSISTENCE_FAILED'; field?: string };
-
-type FirstWarehousePageProps = {
-  orgId: string;
-  onboardingState: {
-    currentStep: OnboardingStepKey;
-    completed: OnboardingStepKey[];
-    skipped: OnboardingStepKey[];
-    savedAt: string;
-  };
-  initialWarehouse: {
-    name: string;
-    code: string;
-    type: WarehouseType;
-    address: string;
-  };
-  state?: 'ready' | 'loading' | 'error' | 'permission_denied';
-  createFirstWarehouse: ReturnType<typeof vi.fn<[CreateFirstWarehouseInput], Promise<CreateFirstWarehouseResult>>>;
-  onNavigateStep: ReturnType<typeof vi.fn<[OnboardingStepKey], void>>;
-  onOpenRedirect: ReturnType<typeof vi.fn<[string], void>>;
-};
+type WarehouseClient = typeof import('./_components/warehouse-client')['default'];
+type FirstWarehousePageProps = React.ComponentProps<WarehouseClient>;
+type CreateFirstWarehouseAction = NonNullable<FirstWarehousePageProps['createFirstWarehouse']>;
+type NavigateStepAction = NonNullable<FirstWarehousePageProps['onNavigateStep']>;
+type OpenRedirectAction = NonNullable<FirstWarehousePageProps['onOpenRedirect']>;
 
 type FirstWarehousePage = (props: FirstWarehousePageProps) => React.ReactNode | Promise<React.ReactNode>;
 
@@ -99,7 +66,7 @@ async function renderFirstWarehouse(overrides: Partial<FirstWarehousePageProps> 
   const props: FirstWarehousePageProps = {
     ...defaultProps,
     state: 'ready',
-    createFirstWarehouse: vi.fn<[CreateFirstWarehouseInput], Promise<CreateFirstWarehouseResult>>().mockResolvedValue({
+    createFirstWarehouse: vi.fn<CreateFirstWarehouseAction>().mockResolvedValue({
       ok: true,
       warehouse: {
         id: 'wh-fg-01',
@@ -111,8 +78,8 @@ async function renderFirstWarehouse(overrides: Partial<FirstWarehousePageProps> 
       organizationModules: { firstWarehouseId: 'wh-fg-01' },
       nextStep: 'first_location',
     }),
-    onNavigateStep: vi.fn<[OnboardingStepKey], void>(),
-    onOpenRedirect: vi.fn<[string], void>(),
+    onNavigateStep: vi.fn<NavigateStepAction>(),
+    onOpenRedirect: vi.fn<OpenRedirectAction>(),
     ...overrides,
     onboardingState: {
       ...defaultProps.onboardingState,
@@ -203,7 +170,7 @@ describe('SET-002 first warehouse onboarding wizard parity', () => {
 
   it('submits valid name, code, and type through the Server Action contract and advances to step 3 with module linkage evidence', async () => {
     const user = userEvent.setup();
-    const createFirstWarehouse = vi.fn<[CreateFirstWarehouseInput], Promise<CreateFirstWarehouseResult>>().mockResolvedValue({
+    const createFirstWarehouse = vi.fn<CreateFirstWarehouseAction>().mockResolvedValue({
       ok: true,
       warehouse: {
         id: 'wh-cold-01',
@@ -215,7 +182,7 @@ describe('SET-002 first warehouse onboarding wizard parity', () => {
       organizationModules: { firstWarehouseId: 'wh-cold-01' },
       nextStep: 'first_location',
     });
-    const onNavigateStep = vi.fn<[OnboardingStepKey], void>();
+    const onNavigateStep = vi.fn<NavigateStepAction>();
 
     await renderFirstWarehouse({ createFirstWarehouse, onNavigateStep });
     await user.clear(screen.getByLabelText(/warehouse name/i));
@@ -245,12 +212,12 @@ describe('SET-002 first warehouse onboarding wizard parity', () => {
 
   it('keeps the user on SET-002 and shows CODE_TAKEN inline when the warehouse code already exists in the org', async () => {
     const user = userEvent.setup();
-    const createFirstWarehouse = vi.fn<[CreateFirstWarehouseInput], Promise<CreateFirstWarehouseResult>>().mockResolvedValue({
+    const createFirstWarehouse = vi.fn<CreateFirstWarehouseAction>().mockResolvedValue({
       ok: false,
       error: 'CODE_TAKEN',
       field: 'code',
     });
-    const onNavigateStep = vi.fn<[OnboardingStepKey], void>();
+    const onNavigateStep = vi.fn<NavigateStepAction>();
 
     await renderFirstWarehouse({ createFirstWarehouse, onNavigateStep });
     await user.clear(screen.getByLabelText(/warehouse code/i));
@@ -270,8 +237,8 @@ describe('SET-002 first warehouse onboarding wizard parity', () => {
 
   it('preserves prototype back/restart and skippable redirect-card semantics while first_warehouse itself remains non-skippable', async () => {
     const user = userEvent.setup();
-    const onNavigateStep = vi.fn<[OnboardingStepKey], void>();
-    const onOpenRedirect = vi.fn<[string], void>();
+    const onNavigateStep = vi.fn<NavigateStepAction>();
+    const onOpenRedirect = vi.fn<OpenRedirectAction>();
 
     await renderFirstWarehouse({ onNavigateStep, onOpenRedirect });
     await user.click(screen.getByRole('button', { name: /← back/i }));

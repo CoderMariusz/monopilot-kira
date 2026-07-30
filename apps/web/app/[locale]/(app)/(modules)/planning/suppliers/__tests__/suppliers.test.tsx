@@ -27,7 +27,10 @@ import staging from '../../../../../../../../../_meta/i18n-staging/suppliers.jso
 import { SupplierListView } from '../_components/supplier-list-view';
 import { SupplierDetailView } from '../_components/supplier-detail-view';
 import { buildListLabels, buildDetailLabels } from '../_components/supplier-labels';
-import type { Supplier, CreateSupplierResult, TransitionSupplierResult, UpdateSupplierResult } from '../_components/supplier-types';
+import type { Supplier } from '../_components/supplier-types';
+
+type ListProps = React.ComponentProps<typeof SupplierListView>;
+type DetailProps = React.ComponentProps<typeof SupplierDetailView>;
 
 const refresh = vi.fn();
 vi.mock('next/navigation', () => ({
@@ -61,9 +64,8 @@ const SUPPLIERS: Supplier[] = [
   makeSupplier({ id: 'sup-3', code: 'SUP-0003', name: 'Gamma Spice', status: 'blocked', leadTimeDays: 21, contact: {} }),
 ];
 
-function renderList(props: Partial<React.ComponentProps<typeof SupplierListView>> = {}) {
-  const createSupplierAction =
-    vi.fn<Parameters<React.ComponentProps<typeof SupplierListView>['createSupplierAction']>, Promise<CreateSupplierResult>>();
+function renderList(props: Partial<ListProps> = {}) {
+  const createSupplierAction = vi.fn<ListProps['createSupplierAction']>();
   const utils = render(
     <SupplierListView
       locale="en"
@@ -185,10 +187,8 @@ describe('SupplierListView — create modal (parity: suppliers.jsx:69 + supplier
 
 describe('SupplierDetailView — status transitions + RBAC (parity: suppliers.jsx:196-201,249-267)', () => {
   function renderDetail(supplier: Supplier) {
-    const transitionSupplierStatusAction =
-      vi.fn<[string, 'active' | 'inactive' | 'blocked'], Promise<TransitionSupplierResult>>();
-    const updateSupplierAction =
-      vi.fn<Parameters<React.ComponentProps<typeof SupplierDetailView>['updateSupplierAction']>, Promise<UpdateSupplierResult>>();
+    const transitionSupplierStatusAction = vi.fn<DetailProps['transitionSupplierStatusAction']>();
+    const updateSupplierAction = vi.fn<DetailProps['updateSupplierAction']>();
     const utils = render(
       <SupplierDetailView
         supplier={supplier}
@@ -242,10 +242,8 @@ describe('SupplierDetailView — status transitions + RBAC (parity: suppliers.js
 
 describe('SupplierDetailView — edit modal (parity: suppliers.jsx:197 + SupplierFormModal mode=edit)', () => {
   function renderEditable(supplier: Supplier) {
-    const transitionSupplierStatusAction =
-      vi.fn<[string, 'active' | 'inactive' | 'blocked'], Promise<TransitionSupplierResult>>();
-    const updateSupplierAction =
-      vi.fn<Parameters<React.ComponentProps<typeof SupplierDetailView>['updateSupplierAction']>, Promise<UpdateSupplierResult>>();
+    const transitionSupplierStatusAction = vi.fn<DetailProps['transitionSupplierStatusAction']>();
+    const updateSupplierAction = vi.fn<DetailProps['updateSupplierAction']>();
     const utils = render(
       <SupplierDetailView
         supplier={supplier}

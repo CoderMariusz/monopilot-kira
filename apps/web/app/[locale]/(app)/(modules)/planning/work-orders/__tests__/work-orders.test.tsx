@@ -31,8 +31,10 @@ import ukMessages from '../../../../../../../i18n/uk.json';
 import { WoListView, type WoListLabels } from '../_components/wo-list-view';
 import { normalizePage, toPaginatedResult } from '../../../../../../../lib/shared/pagination';
 import { WoDetailView, type WoDetailLabels } from '../_components/wo-detail-view';
-import type { ListPlanningWorkOrdersResult, GetPlanningWorkOrderResult, CreateWorkOrderResult, ReleaseWorkOrderResult, DeleteDraftWorkOrderResult } from '../_actions/shared';
+import type { ListPlanningWorkOrdersResult, GetPlanningWorkOrderResult } from '../_actions/shared';
 import { civilDateToUtcIso } from '../../../../../../../lib/planning/civil-date';
+
+type ListProps = React.ComponentProps<typeof WoListView>;
 
 const refresh = vi.fn();
 const push = vi.fn();
@@ -157,16 +159,13 @@ const defaultStatusCounts = {
   CANCELLED: 0,
 };
 
-function renderList(props: Partial<React.ComponentProps<typeof WoListView>> = {}) {
+function renderList(props: Partial<ListProps> = {}) {
   const searchFgProductsAction = vi.fn().mockResolvedValue([
     { id: 'p1', itemCode: 'FG-001', name: 'Demo FG', uomBase: 'kg' },
   ]);
-  const createWorkOrderAction = vi.fn<Parameters<React.ComponentProps<typeof WoListView>['createWorkOrderAction']>, Promise<CreateWorkOrderResult>>();
-  const releaseWorkOrderAction = vi.fn<Parameters<React.ComponentProps<typeof WoListView>['releaseWorkOrderAction']>, Promise<ReleaseWorkOrderResult>>();
-  const deleteDraftWorkOrderAction = vi.fn<
-    Parameters<NonNullable<React.ComponentProps<typeof WoListView>['deleteDraftWorkOrderAction']>>,
-    Promise<DeleteDraftWorkOrderResult>
-  >();
+  const createWorkOrderAction = vi.fn<ListProps['createWorkOrderAction']>();
+  const releaseWorkOrderAction = vi.fn<ListProps['releaseWorkOrderAction']>();
+  const deleteDraftWorkOrderAction = vi.fn<NonNullable<ListProps['deleteDraftWorkOrderAction']>>();
   const utils = render(
     <WoListView
       locale="en"
@@ -460,16 +459,10 @@ describe('WoListView — P0-UOM create-WO output unit + conversion', () => {
     weight_mode: 'fixed',
   };
 
-  function renderUomList(searchRows: unknown[], over: Partial<React.ComponentProps<typeof WoListView>> = {}) {
+  function renderUomList(searchRows: unknown[], over: Partial<ListProps> = {}) {
     const searchFgProductsAction = vi.fn().mockResolvedValue(searchRows);
-    const createWorkOrderAction = vi.fn<
-      Parameters<React.ComponentProps<typeof WoListView>['createWorkOrderAction']>,
-      Promise<CreateWorkOrderResult>
-    >();
-    const releaseWorkOrderAction = vi.fn<
-      Parameters<React.ComponentProps<typeof WoListView>['releaseWorkOrderAction']>,
-      Promise<ReleaseWorkOrderResult>
-    >();
+    const createWorkOrderAction = vi.fn<ListProps['createWorkOrderAction']>();
+    const releaseWorkOrderAction = vi.fn<ListProps['releaseWorkOrderAction']>();
     const utils = render(
       <WoListView
         locale="en"
@@ -720,10 +713,7 @@ describe('WoListView — P0-UOM Order unit selector', () => {
 
   function renderUomList(searchRows: unknown[]) {
     const searchFgProductsAction = vi.fn().mockResolvedValue(searchRows);
-    const createWorkOrderAction = vi.fn<
-      Parameters<React.ComponentProps<typeof WoListView>['createWorkOrderAction']>,
-      Promise<CreateWorkOrderResult>
-    >();
+    const createWorkOrderAction = vi.fn<ListProps['createWorkOrderAction']>();
     const utils = render(
       <WoListView
         locale="en"

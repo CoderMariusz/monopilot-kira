@@ -20,11 +20,15 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { CreatePoModal, type CreatePoLabels, type CreatePoResult } from '../_components/create-po-modal';
-import { PoLineModal, type PoLineModalLabels, type PoLineMutationResult } from '../_components/po-line-modal';
-import { PoDetailView, type PoDetail, type PoDetailLabels, type PoTransitionResult } from '../_components/po-detail-view';
+import { CreatePoModal, type CreatePoLabels } from '../_components/create-po-modal';
+import { PoLineModal, type PoLineModalLabels } from '../_components/po-line-modal';
+import { PoDetailView, type PoDetail, type PoDetailLabels } from '../_components/po-detail-view';
 import type { PoSupplierOption } from '../_actions/po-form-data-types';
 import type { ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items-types';
+
+type CreateProps = React.ComponentProps<typeof CreatePoModal>;
+type LineProps = React.ComponentProps<typeof PoLineModal>;
+type DetailProps = React.ComponentProps<typeof PoDetailView>;
 
 const refresh = vi.fn();
 vi.mock('next/navigation', () => ({
@@ -154,8 +158,8 @@ const lineLabels: PoLineModalLabels = {
 };
 
 function renderCreate() {
-  const createPurchaseOrderAction = vi.fn<[unknown], Promise<CreatePoResult>>().mockResolvedValue({ ok: true, data: {} });
-  const searchPoItemsAction = vi.fn<[unknown], Promise<ItemPickerOption[]>>().mockResolvedValue(items);
+  const createPurchaseOrderAction = vi.fn<CreateProps['createPurchaseOrderAction']>().mockResolvedValue({ ok: true, data: {} });
+  const searchPoItemsAction = vi.fn<CreateProps['searchPoItemsAction']>().mockResolvedValue(items);
   const utils = render(
     <CreatePoModal
       open
@@ -301,7 +305,7 @@ describe('CreatePoModal — started-line validation (FIX-T1 P-2)', () => {
 describe('PoLineModal — unit price precision (R07-01, edit surface)', () => {
   function renderLineModal() {
     const updatePurchaseOrderLineAction = vi
-      .fn<[unknown], Promise<PoLineMutationResult>>()
+      .fn<NonNullable<LineProps['updatePurchaseOrderLineAction']>>()
       .mockResolvedValue({ ok: true, data: {} });
     const utils = render(
       <PoLineModal
@@ -462,7 +466,7 @@ describe('PoDetailView — persisted price precision is visible (R07-07)', () =>
         po={po}
         labels={detailLabels}
         locale="en"
-        transitionPurchaseOrderStatusAction={vi.fn<[string, string], Promise<PoTransitionResult>>()}
+        transitionPurchaseOrderStatusAction={vi.fn<DetailProps['transitionPurchaseOrderStatusAction']>()}
       />,
     );
     const l1 = screen.getByTestId('po-line-l1');
@@ -480,7 +484,7 @@ describe('PoDetailView — persisted price precision is visible (R07-07)', () =>
         po={{ ...po, lines: [{ ...po.lines[0]!, unitPrice: '2.5' }] }}
         labels={detailLabels}
         locale="en"
-        transitionPurchaseOrderStatusAction={vi.fn<[string, string], Promise<PoTransitionResult>>()}
+        transitionPurchaseOrderStatusAction={vi.fn<DetailProps['transitionPurchaseOrderStatusAction']>()}
       />,
     );
     expect(screen.getByTestId('po-line-l1')).toHaveTextContent('2.5000 GBP');

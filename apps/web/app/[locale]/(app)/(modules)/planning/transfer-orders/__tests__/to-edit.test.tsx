@@ -19,7 +19,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ToDetailView, type ToDetailLabels, type TransferOrderDetail } from '../_components/to-detail-view';
 import type { WarehouseOption } from '../_actions/to-form-data';
-import type { ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items-types';
+
+type DetailProps = React.ComponentProps<typeof ToDetailView>;
 
 const refresh = vi.fn();
 vi.mock('next/navigation', () => ({
@@ -193,7 +194,7 @@ function renderDetail(over: {
   const addLine = over.addLine ?? vi.fn().mockResolvedValue({ ok: true, data: {} });
   const updateLine = over.updateLine ?? vi.fn().mockResolvedValue({ ok: true, data: {} });
   const deleteLine = over.deleteLine ?? vi.fn().mockResolvedValue({ ok: true, data: {} });
-  const search = vi.fn<[unknown], Promise<ItemPickerOption[]>>().mockResolvedValue([
+  const search = vi.fn<NonNullable<DetailProps['searchTransferItemsAction']>>().mockResolvedValue([
     { id: 'item-9', itemCode: 'RM-009', name: 'New Item', itemType: 'rm', status: 'active', costPerKgEur: null, uomBase: 'kg' },
   ]);
   const utils = render(
