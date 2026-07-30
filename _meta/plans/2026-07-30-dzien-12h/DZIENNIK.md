@@ -192,3 +192,52 @@ zdublowane kody w `unit_of_measure` (22 wiersze = 11 jednostek × 2).
 - **P0-1** → 🔵 tor Opus (UI, wspólny prymityw, przeglądarka + `monopilot`)
 - **P0-4 + P0-5** (most receptura→BOM + martwa bramka) → czeka na wolny klon
 - **P0-2 + P0-3** (cena 0, Confirm nie opuszcza draft) → czeka na wolny klon
+
+---
+
+# AUDYT SCHEDULER / MRP / JAKOŚĆ (09:35) — 13 znalezisk, 8 potwierdzonych uruchomieniem
+Raport: `FINDING-SCHEDULER-MRP-JAKOSC.md`.
+**Fable OBALIŁ własną hipotezę** (rzekomo martwe SLA dla niezgodności — trigger działa)
+i jej NIE zgłosił. Ta dyscyplina jest warta tyle, co same znaleziska.
+
+## Trzy najgroźniejsze
+| # | co | dowód |
+|---|---|---|
+| **MRP** | **zaalokowane SO odjęte DWA RAZY** (rezerwacja + pełny popyt) | 100 kg na stanie, SO 60 → „niedobór −20, kup 20"; przy pełnej alokacji → „kup 60". **Cichy, ciągły nadzakup przy KAŻDYM przeliczeniu** |
+| **JAKOŚĆ** | **„partial" zwalnia 100% nośnika** | QA zwalnia część wstrzymanej partii, system uwalnia całość do wysyłki, **bez śladu ilościowego**. Bezpieczeństwo żywności |
+| **SCHEDULER** | macierz przezbrojeń wyrzuca z harmonogramu **produkty bez alergenów** (`no_feasible_changeover`) | im staranniej wypełniona macierz, tym więcej czystych WO wypada z planowania |
+
+## Pozostałe
+**Scheduler:** okno kalendarzowe WO liczone jako czas biegu → WO z oknem >1 dnia **nigdy** nie
+znajdzie zdolności nawet na pustej linii · przezbrojenie rozliczane w środku okna PM (bieg rusza
+bez czasu na mycie/ATP) · `routing_duration` sumuje wersje `active`+`approved` (**91,7 → 183,3 min**)
+i wycina operacje innych linii (→70 min).
+**MRP:** prognoza niekonsumowana zamówieniami (1000 prognozy + 800 SO = popyt 1800) ·
+DRAFT WO liczy materiały jako popyt, ale **nie output jako podaż** → sugeruje zdublowanie
+własnego zlecenia.
+**Jakość:** PASS inspekcji LP zostawia `status='received'` → towar zatwierdzony przez QA
+**niewidoczny** w `v_inventory_available` · hold WO z dyspozycją scrap/rework/partial zamraża
+`wo_outputs` w ON_HOLD **na zawsze** · decyzja „hold" dla GRN/`wo_output` nic nie wstrzymuje
+i jest **terminalna** · cold-chain **fail-open** (`requires_check=false` gasi ocenę wykonanego
+pomiaru) · KPI pass-rate zaniżany przez zaległe inspekcje.
+
+---
+
+# STAN NA 09:47
+**7 commitów dziś · 37 defektów znalezionych · 17 naprawionych i ZWERYFIKOWANYCH uruchomieniem**
+
+## Tory w locie
+| tor | co | zasób |
+|---|---|---|
+| G1 | site-scope: konsumpcja ignoruje zakład · fail-open `user_can_see_site` · 3 tabele bez polityki | `t1` |
+| G2 | ledger wysyłki (brak `stock_moves`/`lp_state_history`) · alokacja bez filtra UoM | `t2` |
+| H1 | **bezpieczeństwo żywności**: partial=całość · hold zamraża outputy · „hold" terminalny | `t3` |
+| Opus-picker | **P0-1** przycinanie dropdownów (7 wystąpień, wspólny prymityw) | przeglądarka + `monopilot` |
+
+## Kolejka (gdy zwolni się klon)
+1. **MRP** — podwójne odjęcie alokacji + prognoza niekonsumowana + DRAFT WO
+2. **Scheduler** — macierz alergenowa · okno jako czas biegu · `routing_duration` 2×
+3. **P0-4/P0-5** — most receptura→BOM + martwa bramka Handoff
+4. **P0-2/P0-3** — cena 0 w linii SO · „Confirm" nie opuszcza `draft`
+5. Fixture: `warehouses_site_id_fkey` — **12 plików** wstawia magazyny, defekt ujawnia się
+   tylko z prawdziwą bazą (nie było go w baseline, bo tamten przebieg szedł bez `DATABASE_URL`)
