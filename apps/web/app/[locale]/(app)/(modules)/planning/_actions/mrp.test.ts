@@ -95,7 +95,13 @@ let thresholdRows: Array<{
 let flourOnHand = '40.000';
 let flourReserved = '10.000';
 /** Override WO-material demand rows returned by the mock. */
-let woMaterialRows: Array<{ product_id: string; uom: string; qty: string; need_date: string }> = [
+let woMaterialRows: Array<{
+  product_id: string;
+  uom: string;
+  qty: string;
+  need_date: string;
+  status?: 'DRAFT' | 'RELEASED' | 'IN_PROGRESS';
+}> = [
   { product_id: FLOUR_ID, uom: 'kg', qty: '80.000', need_date: MOCK_NEED_DATE },
   { product_id: DOUGH_ID, uom: 'kg', qty: '20.000', need_date: MOCK_NEED_DATE },
 ];
@@ -128,8 +134,9 @@ let includeFinishedGood = false;
 let openPoSupplierRows: Array<{ item_id: string; supplier_id: string }> = [];
 /** supplier_specs fallback rows for procurement supplier resolution (S13). */
 let supplierSpecLinkRows: Array<{ item_id: string; supplier_id: string }> = [];
-/** Draft-WO schedule output used to prove demand/supply status symmetry. */
+/** Schedule outputs used to prove the production-supply status boundary. */
 let draftWoSupplyQty: string | null = null;
+let releasedWoSupplyQty: string | null = null;
 /** Makes the SQL mock distinguish full SO remainder from the unallocated remainder. */
 let allocatedSoRemainderProbe: {
   beforeAllocationNetting: string;
@@ -486,17 +493,43 @@ function makeClient(): QueryClient {
       // NOTE: schedule_outputs is matched BEFORE wo_materials — its SQL embeds a
       // `not exists (select 1 from public.wo_materials …)` anti-join (batch-D F2).
       if (normalized.includes('from public.schedule_outputs')) {
-        expect(params[0]).toEqual(['DRAFT', 'RELEASED', 'IN_PROGRESS']);
         // Simulated DB state: raw open to_stock schedule_outputs rows, each
         // tagged with its WO; open wo_materials (wo, product) demand pairs.
-        const raw = [{ wo: WO_OTHER, product_id: DOUGH_ID, uom: 'kg', qty: '12.000' }];
+        const raw = [{
+          wo: WO_OTHER,
+          product_id: DOUGH_ID,
+          uom: 'kg',
+          qty: '12.000',
+          status: 'RELEASED',
+        }];
         const supplyStatuses = params[0] as string[];
-        if (draftWoSupplyQty && supplyStatuses.includes('DRAFT')) {
-          raw.push({ wo: 'draft-wo', product_id: FLOUR_ID, uom: 'kg', qty: draftWoSupplyQty });
+        if (draftWoSupplyQty) {
+          raw.push({
+            wo: 'draft-wo',
+            product_id: FLOUR_ID,
+            uom: 'kg',
+            qty: draftWoSupplyQty,
+            status: 'DRAFT',
+          });
+        }
+        if (releasedWoSupplyQty) {
+          raw.push({
+            wo: 'released-wo',
+            product_id: FLOUR_ID,
+            uom: 'kg',
+            qty: releasedWoSupplyQty,
+            status: 'RELEASED',
+          });
         }
         const openMaterialPairs = new Set([`${WO_OTHER}:${FLOUR_ID}`]);
         if (reworkSelfSupply) {
-          raw.push({ wo: WO_REWORK, product_id: DOUGH_ID, uom: 'kg', qty: '50.000' });
+          raw.push({
+            wo: WO_REWORK,
+            product_id: DOUGH_ID,
+            uom: 'kg',
+            qty: '50.000',
+            status: 'RELEASED',
+          });
           openMaterialPairs.add(`${WO_REWORK}:${DOUGH_ID}`);
         }
         // The mock honours the anti-join ONLY when the action's SQL asks for it —
@@ -506,9 +539,10 @@ function makeClient(): QueryClient {
           normalized.includes('not exists') &&
           normalized.includes('m.wo_id = so.planned_wo_id') &&
           normalized.includes('m.product_id = so.product_id');
+        const statusVisible = raw.filter((row) => supplyStatuses.includes(row.status));
         const visible = hasAntiJoin
-          ? raw.filter((r) => !openMaterialPairs.has(`${r.wo}:${r.product_id}`))
-          : raw;
+          ? statusVisible.filter((r) => !openMaterialPairs.has(`${r.wo}:${r.product_id}`))
+          : statusVisible;
         const rows = visible.map(({ product_id, uom, qty }) => ({
           product_id,
           uom,
@@ -518,8 +552,11 @@ function makeClient(): QueryClient {
         return { rows, rowCount: rows.length };
       }
       if (normalized.includes('from public.wo_materials')) {
-        expect(params[0]).toEqual(['DRAFT', 'RELEASED', 'IN_PROGRESS']);
-        return { rows: woMaterialRows, rowCount: woMaterialRows.length };
+        const demandStatuses = params[0] as string[];
+        const rows = woMaterialRows
+          .filter((row) => demandStatuses.includes(row.status ?? 'RELEASED'))
+          .map(({ status: _status, ...row }) => row);
+        return { rows, rowCount: rows.length };
       }
       if (normalized.includes('from public.demand_forecasts')) {
         expect(String(params[0])).toMatch(/^\d{4}-W\d{2}$/);
@@ -597,6 +634,7 @@ beforeEach(() => {
   openPoSupplierRows = [];
   supplierSpecLinkRows = [];
   draftWoSupplyQty = null;
+  releasedWoSupplyQty = null;
   allocatedSoRemainderProbe = null;
   executed = [];
   runInserts = [];
@@ -896,15 +934,91 @@ describe('runMrp', () => {
     expect(so).toContain('m.required_qty > m.consumed_qty');
   });
 
-  it('counts draft schedule_outputs because draft materials already count as demand', async () => {
-    draftWoSupplyQty = '100.000';
+  it('PLN-037: combines remaining WO, forecast and SO demand while preserving source totals', async () => {
+    flourOnHand = '0.000';
+    flourReserved = '0.000';
+    woMaterialRows = [
+      { product_id: FLOUR_ID, uom: 'kg', qty: '60.000', need_date: MOCK_NEED_DATE },
+    ];
+    forecastRows = [
+      { product_id: FLOUR_ID, uom: 'kg', iso_week: MOCK_ISO_WEEK, qty: '30.000' },
+    ];
+    soDemandRows = [{
+      product_id: FLOUR_ID,
+      uom: 'kg',
+      need_date: MOCK_NEED_DATE,
+      qty: '15.000',
+      forecast_consumption_qty: '0.000',
+    }];
+    poSupplyRows = [];
+
     const result = await runMrp();
     expect(result.ok).toBe(true);
     if (!result.ok) return;
 
     const flour = result.data.rows.find((r) => r.itemCode === 'RM-FLOUR')!;
-    expect(flour.openSupply).toBe('125.000');
-    expect(flour.net).toBe('75.000');
+    expect(flour.demand).toBe('105.000');
+    expect(flour.forecastDemand).toBe('30.000');
+    expect(flour.soDemand).toBe('15.000');
+    const dependentSql = executed.find((sql) => sql.includes('from public.wo_materials'))!;
+    expect(dependentSql).toContain('sum(greatest(m.required_qty - m.consumed_qty, 0))');
+    expect(dependentSql).toContain("w.status = any($1::text[])");
+  });
+
+  it('PLN-038: excludes DRAFT work orders symmetrically from demand and supply', async () => {
+    flourOnHand = '0.000';
+    flourReserved = '0.000';
+    woMaterialRows = [
+      {
+        product_id: FLOUR_ID,
+        uom: 'kg',
+        qty: '170.000',
+        need_date: MOCK_NEED_DATE,
+        status: 'RELEASED',
+      },
+      {
+        product_id: FLOUR_ID,
+        uom: 'kg',
+        qty: '40.000',
+        need_date: MOCK_NEED_DATE,
+        status: 'DRAFT',
+      },
+    ];
+    poSupplyRows = [
+      { product_id: FLOUR_ID, uom: 'kg', qty: '70.000', need_date: MOCK_NEED_DATE },
+    ];
+    releasedWoSupplyQty = '50.000';
+    draftWoSupplyQty = '40.000';
+
+    const withDraft = await runMrp();
+    expect(withDraft.ok).toBe(true);
+    if (!withDraft.ok) return;
+
+    const flour = withDraft.data.rows.find((r) => r.itemCode === 'RM-FLOUR')!;
+    expect(flour.demand).toBe('170.000');
+    expect(flour.supplyFromPo).toBe('70.000');
+    expect(flour.supplyFromProduction).toBe('50.000');
+    expect(flour.openSupply).toBe('120.000');
+    expect(flour.net).toBe('-50.000');
+    expect(flour.suggestedAction).toMatchObject({ type: 'buy', qty: '50' });
+
+    woMaterialRows = woMaterialRows.filter((row) => row.status !== 'DRAFT');
+    draftWoSupplyQty = null;
+    const withoutDraft = await runMrp();
+    expect(withoutDraft.ok).toBe(true);
+    if (!withoutDraft.ok) return;
+    expect(withoutDraft.data.rows.find((r) => r.itemCode === 'RM-FLOUR')).toMatchObject({
+      demand: flour.demand,
+      supplyFromPo: flour.supplyFromPo,
+      supplyFromProduction: flour.supplyFromProduction,
+      openSupply: flour.openSupply,
+      net: flour.net,
+      suggestedAction: flour.suggestedAction,
+    });
+
+    const poSql = executed.find((sql) => sql.includes('from public.purchase_order_lines'))!;
+    expect(poSql).toContain('greatest(l.qty - coalesce(rec.received_qty, 0), 0)');
+    expect(poSql).toContain("g.status <> 'cancelled'");
   });
 
   it('resolves buy planned-order supplier from open PO history when threshold is unset (S13)', async () => {

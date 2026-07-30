@@ -19,7 +19,7 @@
  * app.current_org_id() — no service-role bypass.
  *
  * Demand / supply sources (see mrp-compute.ts for the netting formula + caveats):
- *   - demand:      wo_materials (required − consumed) on DRAFT/RELEASED/IN_PROGRESS WOs (mig 176)
+ *   - demand:      wo_materials (required − consumed) on RELEASED/IN_PROGRESS WOs (mig 176)
  *                  — DEPENDENT demand (BOM-driven)
  *   - forecast:    demand_forecasts.qty (mig 302, base UoM) for iso_week >= the current
  *                  ISO week (the run horizon) — INDEPENDENT demand entered on
@@ -41,8 +41,7 @@
  *                  non-cancelled GRNs — same join shape as purchase-orders/_actions
  *                  fetchLines) on open POs (sent/confirmed/partially_received)
  *   - production:  schedule_outputs.expected_qty (mig 177, planning-owned) of
- *                  DRAFT/RELEASED/IN_PROGRESS WOs with disposition='to_stock'. Draft
- *                  supply is included because draft WO materials already count as demand.
+ *                  RELEASED/IN_PROGRESS WOs with disposition='to_stock'.
  *   - thresholds:  reorder_thresholds (mig 178) + suppliers.lead_time_days (mig 261)
  *
  * RBAC: reads gate on `scheduler.run.read` (the planning READ gate the dashboard
@@ -112,10 +111,8 @@ type QueryClient = {
 /** Planning read gate — byte-matches the module-registry planning-basic gate. */
 const PLANNING_READ_PERMISSION = 'scheduler.run.read';
 
-/** WO statuses whose unconsumed materials count as open dependent demand. */
-const OPEN_WO_DEMAND_STATUSES = ['DRAFT', 'RELEASED', 'IN_PROGRESS'];
-/** WO statuses whose materials and schedule_outputs both participate in MRP. */
-const SCHEDULABLE_WO_SUPPLY_STATUSES = ['DRAFT', 'RELEASED', 'IN_PROGRESS'];
+/** Committed WO statuses whose materials and schedule_outputs both participate in MRP. */
+const COMMITTED_WO_MRP_STATUSES = ['RELEASED', 'IN_PROGRESS'];
 /** PO statuses that represent committed open supply (draft POs are not yet committed). */
 const OPEN_PO_STATUSES = ['sent', 'confirmed', 'partially_received'];
 /**
@@ -298,7 +295,7 @@ export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
             and coalesce(w.scheduled_start_time, w.planned_start_date, $2::timestamptz)::date <= $3::date
           group by m.product_id, m.uom,
                    coalesce(w.scheduled_start_time, w.planned_start_date, $2::timestamptz)::date`,
-        [OPEN_WO_DEMAND_STATUSES, startedAt.toISOString(), horizonEnd],
+        [COMMITTED_WO_MRP_STATUSES, startedAt.toISOString(), horizonEnd],
       );
 
       // 3b) Independent (forecast) demand — demand_forecasts (mig 302), per ISO week.
@@ -431,7 +428,7 @@ export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
       );
 
       // 5) Planned production supply — schedule_outputs dated by WO start (in-horizon only).
-      // DRAFT is included symmetrically with the material-demand query above.
+      // Uses the same committed-status boundary as the material-demand query above.
       const productionSupply = await c.query<MrpTimedQtyBucket>(
         `select so.product_id, so.uom,
                 coalesce(w.scheduled_start_time, w.planned_start_date, $2::timestamptz)::date::text as need_date,
@@ -458,7 +455,7 @@ export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
             )
           group by so.product_id, so.uom,
                    coalesce(w.scheduled_start_time, w.planned_start_date, $2::timestamptz)::date`,
-        [SCHEDULABLE_WO_SUPPLY_STATUSES, startedAt.toISOString(), horizonEnd],
+        [COMMITTED_WO_MRP_STATUSES, startedAt.toISOString(), horizonEnd],
       );
 
       // 6) Reorder thresholds (mig 178) + the preferred supplier's lead time

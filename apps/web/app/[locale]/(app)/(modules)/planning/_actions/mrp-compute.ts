@@ -8,10 +8,10 @@
  *   onHand     = Σ v_inventory_available.quantity        (status=available, qa released)
  *   reserved   = Σ v_inventory_available.reserved_qty    (same view; see caveat below)
  *   openSupply = Σ open-PO line remainder (qty − received via grn_items, non-cancelled GRNs)
- *              + Σ schedule_outputs.expected_qty of DRAFT/RELEASED/IN_PROGRESS WOs
+ *              + Σ schedule_outputs.expected_qty of RELEASED/IN_PROGRESS WOs
  *                (disposition='to_stock')
  *   demand     = Σ greatest(wo_materials.required_qty − consumed_qty, 0)   (DEPENDENT)
- *                across WOs in DRAFT / RELEASED / IN_PROGRESS
+ *                across WOs in RELEASED / IN_PROGRESS
  *              + Σ demand_forecasts.qty remaining after same-week sales-order consumption
  *                (mig 302, base UoM) for the run horizon (INDEPENDENT)
  *              + Σ open sales_order_lines UNALLOCATED remainder
