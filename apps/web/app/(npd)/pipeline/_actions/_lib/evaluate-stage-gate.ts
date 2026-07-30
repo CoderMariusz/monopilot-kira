@@ -196,7 +196,11 @@ export async function evaluateStageGate(
   }
 
   const transition = resolveAdvanceTransition(projectRow);
-  if (mode === 'advance' || mode === 'readiness') {
+  // `readiness` renders what `advance` will enforce — they MUST evaluate the same
+  // condition set or the modal shows "ready to advance" over a rejection. Only
+  // `formal_approve` (the G3/G4 e-sign itself) evaluates a different set.
+  const evaluatesTransition = mode === 'advance' || mode === 'readiness';
+  if (evaluatesTransition) {
     if (readiness.currentGate === 'G3' && transition?.targetGate === 'G4') {
       const hasG3Sign = await hasG3ESignForApproval(db, projectId);
       if (!hasG3Sign) {
@@ -237,7 +241,7 @@ export async function evaluateStageGate(
     };
   }
 
-  if (mode === 'advance' && fromStage === 'costing_nutrition' && toStage === 'trial') {
+  if (evaluatesTransition && fromStage === 'costing_nutrition' && toStage === 'trial') {
     const advisoryMissing: string[] = [];
     const readinessCheck = await checkCostingNutritionReady(db, projectId);
     if (!readinessCheck.costReady) advisoryMissing.push('Cost breakdown computed');

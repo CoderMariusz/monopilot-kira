@@ -281,3 +281,91 @@ describe('evaluateStageGate checklist enforcement (S18 + D1)', () => {
     expect(evaluation).toEqual({ status: 'PASS' });
   });
 });
+
+/**
+ * The advance modal renders `readiness` and submits through `advance`. When the two
+ * modes evaluate different condition sets the user sees a green "ready to advance"
+ * banner and an "incomplete" rejection at the same time, and the first click is
+ * always wasted. Both modes must agree for every stage transition.
+ */
+describe('evaluateStageGate — readiness and advance evaluate the same conditions', () => {
+  function wireCostingNutrition(ready: { cost: boolean; nutrition: boolean }) {
+    ctx.handler = (sql) => {
+      const q = sql.replace(/\s+/g, ' ').trim().toLowerCase();
+      if (q.includes('from public.npd_projects') && q.includes('for update')) {
+        return {
+          rows: [
+            {
+              id: 'proj-1',
+              code: 'NPD-001',
+              name: 'Test',
+              type: 'standard',
+              current_gate: 'G3',
+              current_stage: 'costing_nutrition',
+              product_code: 'FG-001',
+            },
+          ],
+        };
+      }
+      if (q.includes('cost_ready')) {
+        return { rows: [{ cost_ready: ready.cost, nutrition_ready: ready.nutrition }] };
+      }
+      if (q.includes('from public.gate_checklist_items') && q.includes('gci.required = true')) {
+        return { rows: [] };
+      }
+      if (q.includes('from public.npd_projects p') && q.includes('linked_bom_count')) {
+        return satisfiedSignalsQuery();
+      }
+      if (q.includes('from public.npd_departments')) return { rows: [] };
+      return { rows: [] };
+    };
+  }
+
+  const db = () =>
+    ({
+      userId: ctx.userId,
+      orgId: ctx.orgId,
+      client: { query: async (sql: string, params?: readonly unknown[]) => ctx.handler(sql, params) },
+    }) as never;
+
+  it('soft-blocks costing_nutrition → trial in BOTH modes when cost/nutrition are not computed', async () => {
+    wireCostingNutrition({ cost: false, nutrition: false });
+
+    const advance = await evaluateStageGate('proj-1', 'costing_nutrition', 'trial', db(), undefined, {
+      mode: 'advance',
+    });
+    const readiness = await evaluateStageGate('proj-1', 'costing_nutrition', 'trial', db(), undefined, {
+      mode: 'readiness',
+    });
+
+    expect(advance).toEqual({
+      status: 'SOFT_GATE_BLOCKED',
+      missing: ['Cost breakdown computed', 'Nutrition computed'],
+    });
+    expect(readiness).toEqual(advance);
+  });
+
+  it('stays a SOFT gate — a computed cost/nutrition pair passes in both modes', async () => {
+    wireCostingNutrition({ cost: true, nutrition: true });
+
+    const advance = await evaluateStageGate('proj-1', 'costing_nutrition', 'trial', db(), undefined, {
+      mode: 'advance',
+    });
+    const readiness = await evaluateStageGate('proj-1', 'costing_nutrition', 'trial', db(), undefined, {
+      mode: 'readiness',
+    });
+
+    expect(advance).toEqual({ status: 'PASS' });
+    expect(readiness).toEqual({ status: 'PASS' });
+  });
+
+  it('reports only the missing half when one of the two advisory signals is computed', async () => {
+    wireCostingNutrition({ cost: true, nutrition: false });
+
+    const readiness = await evaluateStageGate('proj-1', 'costing_nutrition', 'trial', db(), undefined, {
+      mode: 'readiness',
+    });
+
+    expect(readiness).toEqual({ status: 'SOFT_GATE_BLOCKED', missing: ['Nutrition computed'] });
+  });
+});

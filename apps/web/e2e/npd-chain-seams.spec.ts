@@ -701,9 +701,11 @@ async function fillStageDeptField(page: Page, code: string, value: string): Prom
   const combo = editor.getByRole('combobox');
   if ((await combo.count()) > 0) {
     await combo.first().click({ timeout: 15_000 });
-    const option = page.getByRole('option').filter({ hasText: value }).first();
-    const anyOption = page.getByRole('option').first();
-    const target = (await option.count()) > 0 ? option : anyOption;
+    // Lista jest PORTALOWANA do <body>; szukam po roli `listbox`, a NIE `page.getByRole('option')`
+    // — to ostatnie łapie natywny <select> wyboru zakładu z nagłówka („All sites").
+    const options = page.getByRole('listbox').getByRole('option');
+    const wanted = options.filter({ hasText: value }).first();
+    const target = (await wanted.count()) > 0 ? wanted : options.first();
     await expect(target, `dropdown „${code}" ma opcje do wyboru`).toBeVisible({ timeout: 15_000 });
     await target.click({ timeout: 15_000 });
   } else {
