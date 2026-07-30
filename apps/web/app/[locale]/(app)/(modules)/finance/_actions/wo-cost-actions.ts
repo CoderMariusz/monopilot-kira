@@ -4,9 +4,9 @@
  * 10-Finance read-only WO actual costing.
  *
  * Cost-source inspection and resolution decisions:
- * - Materials: public.wo_material_consumption.qty_consumed joined to public.items by
- *   component_id; active `item_cost_history.cost_per_kg` is preferred, falling
- *   back to the denormalized `items.cost_per_kg`.
+ * - Materials: positive consumption WAC snapshot is preferred, then effective
+ *   `item_cost_history.cost_per_kg`, then denormalized `items.cost_per_kg`.
+ *   Zero WAC is missing; zero in either catalog is an explicit free-material cost.
  * - Process costing: WO operation crew snapshots are the primary source.
  *   Operation-level hourly cost is Σ(crew.headcount × effective-dated
  *   labor_rates.rate_per_hour). When wo_operations.crew IS NULL, fall back to
@@ -26,6 +26,7 @@
 import { withSiteContext } from '../../../../../../lib/auth/with-site-context';
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { WAC_VALUATION_CURRENCY_CODE } from '../../../../../../lib/finance/upsert-wac';
+import { materialUnitCostSql } from '../../../../../../lib/finance/material-cost-source';
 import {
   DEFAULT_FINANCE_WO_COST_PAGE_SIZE,
   normalizePage,
@@ -43,6 +44,13 @@ import {
 const FINANCE_COSTS_READ_PERMISSION = 'fin.costs.read';
 /** WO actual-cost reporting currency — labor/setup are GBP; no FX conversion table exists. */
 const WO_REPORTING_CURRENCY = WAC_VALUATION_CURRENCY_CODE;
+const MATERIAL_WAC_SNAPSHOT_SQL = "nullif(trim(c.ext_jsonb->>'wac_avg_cost'), '')";
+const MATERIAL_UNIT_COST_SQL = materialUnitCostSql({
+  wacSnapshot: MATERIAL_WAC_SNAPSHOT_SQL,
+  costHistory: 'ch.cost_per_kg',
+  itemMaster: 'i.cost_per_kg',
+});
+const POSITIVE_MATERIAL_WAC_SQL = `nullif((${MATERIAL_WAC_SNAPSHOT_SQL})::numeric, 0)`;
 
 /** Completion instant for finance windows — legacy rows may only have wo_events. */
 const COMPLETED_WO_COMPLETED_AT = `coalesce(x.completed_at, wo.completed_at, ev.completed_at)`;
@@ -345,13 +353,9 @@ async function computeWoActualCostInContext(
                   then c.qty_consumed::numeric * i.each_per_box::numeric * i.net_qty_per_each
                 else null
               end as qty_kg,
-              coalesce(
-                nullif(c.ext_jsonb->>'wac_avg_cost', '')::numeric,
-                ch.cost_per_kg,
-                i.cost_per_kg
-              ) as cost_per_kg,
+              ${MATERIAL_UNIT_COST_SQL} as cost_per_kg,
               case
-                when nullif(trim(c.ext_jsonb->>'wac_avg_cost'), '') is not null then $3::text
+                when ${POSITIVE_MATERIAL_WAC_SQL} is not null then $3::text
                 when ch.cost_per_kg is not null then ch.currency
                 else coalesce(ch.currency, $3::text)
               end as cost_currency
@@ -366,9 +370,9 @@ async function computeWoActualCostInContext(
               and item_id = c.component_id
               and effective_from <= coalesce(c.consumed_at::date, $2::date)
               and (effective_to is null or effective_to >= coalesce(c.consumed_at::date, $2::date))
-            order by effective_from desc
+            order by effective_from desc, created_at desc
             limit 1
-         ) ch on nullif(trim(c.ext_jsonb->>'wac_avg_cost'), '') is null
+         ) ch on true
         where c.org_id = app.current_org_id()
           and c.wo_id = $1::uuid
      )

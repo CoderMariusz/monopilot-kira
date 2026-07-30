@@ -1,6 +1,7 @@
 import { EventType } from '../../../../packages/outbox/src/events.enum';
 import { microToDecimal, toMicro } from '../shared/decimal';
 import { pieceUomToWacEach } from '../uom/piece';
+import { materialUnitCostSql } from './material-cost-source';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -695,7 +696,7 @@ export async function applyWacDebitDelta(
   });
 }
 
-/** Credits WAC on stock gain (count/adjust increase) at the locked pool avg_cost. */
+/** Credits WAC on stock gain at positive locked WAC, then catalog fallback. */
 export async function creditWacAtAvgCost(
   client: QueryClient,
   input: DebitWacInput,
@@ -730,7 +731,8 @@ export async function creditWacAtAvgCost(
 
 /**
  * Debit WAC on material consumption or shipment: decrement total_qty_kg and
- * total_value by (qty_kg × locked avg_cost). Skips unresolved UoM conversions.
+ * total_value by qty_kg × resolved material cost. Skips unresolved UoM and
+ * leaves an unknown basis as a reversible zero snapshot for the output cost gate.
  */
 export async function debitWac(client: QueryClient, input: DebitWacInput): Promise<DebitWacResult> {
   const currencyCode = input.currencyCode ?? DEFAULT_WAC_CURRENCY_CODE;
@@ -777,6 +779,22 @@ async function readLockedWacCreditValue(
   client: QueryClient,
   input: { orgId: string; itemId: string; qtyKg: string; currencyCode: string },
 ): Promise<string> {
+  const unitCostSql = materialUnitCostSql({
+    wacSnapshot: '(select avg_cost from existing)',
+    costHistory: `(select ch.cost_per_kg
+                     from public.item_cost_history ch
+                    where ch.org_id = $1::uuid
+                      and ch.item_id = $2::uuid
+                      and ch.currency = $4::text
+                      and ch.effective_from <= current_date
+                      and (ch.effective_to is null or ch.effective_to >= current_date)
+                    order by ch.effective_from desc, ch.created_at desc
+                    limit 1)`,
+    itemMaster: `(select i.cost_per_kg
+                    from public.items i
+                   where i.org_id = $1::uuid
+                     and i.id = $2::uuid)`,
+  });
   const { rows } = await client.query<{ delta_value: string }>(
     `with existing as materialized (
        select avg_cost
@@ -785,8 +803,12 @@ async function readLockedWacCreditValue(
           and item_id = $2::uuid
           and currency_id = (select id from public.currencies where code = $4::text)
         for update
+     ),
+     resolved as materialized (
+       select ${unitCostSql} as unit_cost
      )
-     select ($3::numeric * coalesce((select avg_cost from existing), 0))::text as delta_value`,
+     select ($3::numeric * coalesce(unit_cost, 0))::text as delta_value
+       from resolved`,
     [input.orgId, input.itemId, input.qtyKg, input.currencyCode],
   );
   return rows[0]?.delta_value ?? '0';
@@ -797,9 +819,25 @@ async function readLockedWacDebitAmounts(
   input: { orgId: string; itemId: string; qtyKg: string; currencyCode?: string },
 ): Promise<WacDebitDelta> {
   const currencyCode = input.currencyCode ?? DEFAULT_WAC_CURRENCY_CODE;
+  const unitCostSql = materialUnitCostSql({
+    wacSnapshot: '(select avg_cost from existing)',
+    costHistory: `(select ch.cost_per_kg
+                     from public.item_cost_history ch
+                    where ch.org_id = $1::uuid
+                      and ch.item_id = $2::uuid
+                      and ch.currency = $4::text
+                      and ch.effective_from <= current_date
+                      and (ch.effective_to is null or ch.effective_to >= current_date)
+                    order by ch.effective_from desc, ch.created_at desc
+                    limit 1)`,
+    itemMaster: `(select i.cost_per_kg
+                    from public.items i
+                   where i.org_id = $1::uuid
+                     and i.id = $2::uuid)`,
+  });
   const { rows } = await client.query<{
-    avg_cost_used: string;
-    value_debited: string;
+    avg_cost_used: string | null;
+    value_debited: string | null;
   }>(
     `with existing as materialized (
        select avg_cost
@@ -808,9 +846,13 @@ async function readLockedWacDebitAmounts(
           and item_id = $2::uuid
           and currency_id = (select id from public.currencies where code = $4::text)
         for update
+     ),
+     resolved as materialized (
+       select ${unitCostSql} as unit_cost
      )
-     select coalesce((select avg_cost from existing), 0)::text as avg_cost_used,
-            ($3::numeric * coalesce((select avg_cost from existing), 0))::text as value_debited`,
+     select coalesce(unit_cost, 0)::text as avg_cost_used,
+            ($3::numeric * coalesce(unit_cost, 0))::text as value_debited
+       from resolved`,
     [input.orgId, input.itemId, input.qtyKg, currencyCode],
   );
   const avgCostUsed = rows[0]?.avg_cost_used ?? '0';

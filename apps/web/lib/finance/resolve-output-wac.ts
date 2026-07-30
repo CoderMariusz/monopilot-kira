@@ -1,3 +1,5 @@
+import { materialUnitCostSql } from './material-cost-source';
+
 type QueryClient = {
   query<T = Record<string, unknown>>(
     sql: string,
@@ -44,6 +46,12 @@ const MATERIAL_COSTED_QTY_KG_CASE = `
   end
 `;
 
+const CONSUMPTION_MATERIAL_UNIT_COST_SQL = materialUnitCostSql({
+  wacSnapshot: "nullif(trim(c.ext_jsonb->>'wac_avg_cost'), '')",
+  costHistory: 'ch.cost_per_kg',
+  itemMaster: 'i.cost_per_kg',
+});
+
 /**
  * Resolves the WAC credit for a forward FG output registration.
  * Prefers WO actual material cost (consumption wac_value snapshots, then costed kg rows);
@@ -83,8 +91,8 @@ export async function resolveOutputWacContribution(
        select coalesce(
                 sum(
                   coalesce(
-                    nullif(c.ext_jsonb->>'wac_value', '')::numeric,
-                    (${MATERIAL_COSTED_QTY_KG_CASE}) * coalesce(ch.cost_per_kg, i.cost_per_kg)
+                    nullif(nullif(c.ext_jsonb->>'wac_value', '')::numeric, 0),
+                    (${MATERIAL_COSTED_QTY_KG_CASE}) * (${CONSUMPTION_MATERIAL_UNIT_COST_SQL})
                   )
                 ),
                 0
@@ -98,8 +106,12 @@ export async function resolveOutputWacContribution(
              from public.item_cost_history
             where org_id = app.current_org_id()
               and item_id = c.component_id
-              and effective_to is null
-            order by effective_from desc
+              and effective_from <= coalesce(c.consumed_at::date, c.created_at::date, current_date)
+              and (
+                effective_to is null
+                or effective_to >= coalesce(c.consumed_at::date, c.created_at::date, current_date)
+              )
+            order by effective_from desc, created_at desc
             limit 1
          ) ch on true
         where c.org_id = app.current_org_id()
@@ -224,8 +236,12 @@ async function loadUnCostedConsumptionLines(
            from public.item_cost_history
           where org_id = app.current_org_id()
             and item_id = c.component_id
-            and effective_to is null
-          order by effective_from desc
+            and effective_from <= coalesce(c.consumed_at::date, c.created_at::date, current_date)
+            and (
+              effective_to is null
+              or effective_to >= coalesce(c.consumed_at::date, c.created_at::date, current_date)
+            )
+          order by effective_from desc, created_at desc
           limit 1
        ) ch on true
       where c.org_id = app.current_org_id()
@@ -237,10 +253,10 @@ async function loadUnCostedConsumptionLines(
            where correction.org_id = c.org_id
              and correction.correction_of_id = c.id
         )
-        and nullif(c.ext_jsonb->>'wac_value', '') is null
+        and nullif(nullif(c.ext_jsonb->>'wac_value', '')::numeric, 0) is null
         and (
           (${MATERIAL_COSTED_QTY_KG_CASE}) is null
-          or coalesce(ch.cost_per_kg, i.cost_per_kg) is null
+          or (${CONSUMPTION_MATERIAL_UNIT_COST_SQL}) is null
         )`,
     [woId],
   );

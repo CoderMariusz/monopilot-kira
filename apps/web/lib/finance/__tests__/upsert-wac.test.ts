@@ -36,6 +36,7 @@ vi.mock('../../auth/with-org-context', () => ({
 
 vi.mock('../../site/site-context', () => ({
   getActiveSiteId: vi.fn(async () => SITE_ID),
+  resolveWriteSiteId: vi.fn(async () => ({ ok: true, siteId: SITE_ID, source: 'preferred' })),
 }));
 
 vi.mock('../../../app/[locale]/(app)/(modules)/warehouse/_actions/shared', () => ({
@@ -259,6 +260,88 @@ describe('upsertWac', () => {
 });
 
 describe('debitWac', () => {
+  it('uses active item cost when the WAC pool cost is zero', async () => {
+    const client = new WacMockClient({ historyCost: '2.5000', itemCost: '3.0000' });
+
+    const result = await debitWac(client, {
+      orgId: ORG_ID,
+      siteId: SITE_ID,
+      itemId: ITEM_ID,
+      qty: '60',
+      uom: 'kg',
+      updatedBy: USER_ID,
+    });
+
+    expect(result).toMatchObject({
+      applied: true,
+      qtyKg: '60',
+      valueDebited: '150',
+      avgCostUsed: '2.5000',
+    });
+  });
+
+  it('falls back to the item master when no active cost history exists', async () => {
+    const client = new WacMockClient({ historyCost: null, itemCost: '3.0000' });
+
+    const result = await debitWac(client, {
+      orgId: ORG_ID,
+      siteId: SITE_ID,
+      itemId: ITEM_ID,
+      qty: '60',
+      uom: 'kg',
+      updatedBy: USER_ID,
+    });
+
+    expect(result).toMatchObject({
+      applied: true,
+      valueDebited: '180',
+      avgCostUsed: '3.0000',
+    });
+  });
+
+  it('keeps an unknown cost as a reversible zero snapshot for the output gate', async () => {
+    const client = new WacMockClient();
+
+    const result = await debitWac(client, {
+      orgId: ORG_ID,
+      siteId: SITE_ID,
+      itemId: ITEM_ID,
+      qty: '60',
+      uom: 'kg',
+      updatedBy: USER_ID,
+    });
+
+    expect(result).toMatchObject({
+      applied: true,
+      qtyKg: '60',
+      valueDebited: '0',
+      avgCostUsed: '0',
+    });
+  });
+
+  it('keeps an explicit zero history cost as a known free-material cost', async () => {
+    const client = new WacMockClient({ historyCost: '0', itemCost: '2.5000' });
+
+    const result = await debitWac(client, {
+      orgId: ORG_ID,
+      siteId: SITE_ID,
+      itemId: ITEM_ID,
+      qty: '60',
+      uom: 'kg',
+      updatedBy: USER_ID,
+    });
+
+    expect(result).toMatchObject({
+      applied: true,
+      valueDebited: '0',
+      avgCostUsed: '0',
+    });
+    const lockedRead = client.calls.find(
+      (call) => normalize(call.sql).includes('avg_cost_used'),
+    );
+    expect(normalize(lockedRead?.sql ?? '')).toContain('from public.item_cost_history');
+  });
+
   it('over-debit clamps the pool, writes finance.wac.underflow, and still applies debit', async () => {
     const client = new WacMockClient();
     await upsertWac(client, {
@@ -514,6 +597,33 @@ describe('creditWacAtAvgCost', () => {
     });
 
     expect(client.row).toMatchObject({ totalQtyKg: '8', totalValue: '0', avgCost: '0' });
+  });
+
+  it('uses the active catalog cost when a zero WAC pool receives a stock gain', async () => {
+    const client = new WacMockClient({ historyCost: '2.5000' });
+    await upsertWac(client, {
+      orgId: ORG_ID,
+      siteId: null,
+      itemId: ITEM_ID,
+      deltaQtyKg: '5',
+      deltaValue: '0',
+      updatedBy: USER_ID,
+    });
+
+    await creditWacAtAvgCost(client, {
+      orgId: ORG_ID,
+      siteId: null,
+      itemId: ITEM_ID,
+      qty: '3',
+      uom: 'kg',
+      updatedBy: USER_ID,
+    });
+
+    expect(client.row).toMatchObject({
+      totalQtyKg: '8',
+      totalValue: '7.5',
+      avgCost: '0.9375',
+    });
   });
 });
 
@@ -948,6 +1058,10 @@ class WacMockClient {
   }> = [];
   private buckets = new Map<string, { totalQtyKg: string; totalValue: string; avgCost: string | null }>();
 
+  constructor(
+    private readonly catalog: { historyCost?: string | null; itemCost?: string | null } = {},
+  ) {}
+
   get row(): { totalQtyKg: string; totalValue: string; avgCost: string | null } | null {
     return this.buckets.get('GBP') ?? this.buckets.values().next().value ?? null;
   }
@@ -1004,16 +1118,43 @@ class WacMockClient {
     }
     if (normalized.includes('with existing as materialized') && normalized.includes('avg_cost_used')) {
       const existing = this.getBucketForParams(params);
-      const avgCost =
-        existing && compareDecimal(existing.totalQtyKg, '0') > 0 ? existing.avgCost ?? '0' : '0';
+      const wacCost =
+        existing &&
+        compareDecimal(existing.totalQtyKg, '0') > 0 &&
+        compareDecimal(existing.avgCost ?? '0', '0') > 0
+          ? existing.avgCost
+          : null;
+      const readsCatalog =
+        normalized.includes('from public.item_cost_history') &&
+        normalized.includes('from public.items');
+      const resolvedCost =
+        wacCost ??
+        (readsCatalog ? this.catalog.historyCost ?? this.catalog.itemCost ?? null : null);
+      const avgCost = resolvedCost ?? '0';
       const qtyKg = String(params[2]);
       const valueDebited = multiplyDecimal(qtyKg, avgCost);
-      return { rows: [{ avg_cost_used: avgCost, value_debited: valueDebited }] as T[] };
+      return {
+        rows: [{
+          avg_cost_used: avgCost,
+          value_debited: valueDebited,
+        }] as T[],
+      };
     }
     if (normalized.includes('with existing as materialized') && normalized.includes('delta_value')) {
       const existing = this.getBucketForParams(params);
+      const wacCost =
+        existing &&
+        compareDecimal(existing.totalQtyKg, '0') > 0 &&
+        compareDecimal(existing.avgCost ?? '0', '0') > 0
+          ? existing.avgCost
+          : null;
+      const readsCatalog =
+        normalized.includes('from public.item_cost_history') &&
+        normalized.includes('from public.items');
       const avgCost =
-        existing && compareDecimal(existing.totalQtyKg, '0') > 0 ? existing.avgCost ?? '0' : '0';
+        wacCost ??
+        (readsCatalog ? this.catalog.historyCost ?? this.catalog.itemCost ?? null : null) ??
+        '0';
       return { rows: [{ delta_value: multiplyDecimal(String(params[2]), avgCost) }] as T[] };
     }
     if (normalized.startsWith('select coalesce((') && normalized.includes('avg_cost')) {
