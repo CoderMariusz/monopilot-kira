@@ -99,3 +99,63 @@ przydziału zasobów na górze tego pliku.**
 1. **Deadlock korekt COMPLETED WO** — spiąć z `E2E-054-10` i nettingiem WAC, jeden węzeł polityki
 2. `UI-003` global search — budujemy czy topbar przestaje obiecywać
 3. Obejście B w `lp-downstream-guard.ts` (netto konsumpcji = 0)
+
+---
+
+# 🔴 AUDYT UPRAWNIEŃ (09:20) — ZAPIS PRZED BRAMKĄ
+
+Raport: `FINDING-UPRAWNIENIA.md`. **3 defekty jednej klasy, 2 potwierdzone PARĄ uruchomieniem.**
+
+Trzy akcje onboardingu robią mutację we **własnej, samodzielnie commitującej** transakcji
+`withOrgContext` **zanim** wykona się jakakolwiek bramka. Jedyne sprawdzenie
+(`settings.onboarding.complete`) siedzi w NASTĘPNYM kroku → odpala **po commicie**.
+RLS na tych tabelach jest **tylko org-scope, bez roli** — nie ratuje.
+
+| akcja | plik | co zapisuje bez uprawnień |
+|---|---|---|
+| `saveOrgProfile` | `save-org-profile.ts:65-66` → UPDATE `:127-143` | `name`, `currency`, `locale`, `timezone`, **`gs1_prefix`** |
+| `createFirstWarehouse` | `create-first-warehouse.ts:37` → INSERT `:88-90` | wiersz w `warehouses` |
+| `createFirstLocation` | `create-first-location.ts:31` → INSERT `:74-79` | wiersz w `locations` |
+
+**`gs1_prefix` steruje generowaniem SSCC i kodów kreskowych CAŁEJ organizacji.**
+Okno: każda org z `onboarding_completed_at IS NULL` — **Apex jest w oknie**.
+
+**Dowód pary:** `no_module_access` (0 uprawnień) → `saveOrgProfile` zwraca `PERSISTENCE_FAILED`,
+ale `organizations.name` i `gs1_prefix` **zmienione w bazie**. Kontrola: ta sama persona →
+`advanceOnboarding` → `forbidden`, stan bez zmian; `admin` → przechodzi. 3/3 zielone.
+**Bramka działa tam, gdzie jest — w tych trzech miejscach jest za późno.** Naprawia tor F8.
+
+## Trzy rzeczy poboczne, ważniejsze niż wyglądają
+1. **`requireAdmin()` to MARTWY KOD** — `gate-helpers.ts:475`, **0 wywołań** w repo.
+   Wyjaśnia, czemu `revertNpdGate` bramkuje się uprawnieniem modułowym: **nie ma czym**.
+   Każde miejsce, które „powinno wymagać admina", wymaga czegoś słabszego.
+2. **`app.user_can_see_site` jest FAIL-OPEN przy `site_id IS NULL`**, a `wo_outputs`,
+   `wo_events`, `downtime_events` mają **tylko** org-scope RLS — bez restrykcyjnej polityki
+   widoczności zakładu, którą mają `work_orders`/`license_plates`.
+   To rodzeństwo defektu „konsumpcja ignoruje zakład".
+3. `deleteProject` bramkowany uprawnieniem **create** (`delete-project.ts:121`).
+
+## ✅ Pokrycie negatywne — sprawdzone i POPRAWNE
+Utrzymanie ruchu (deactivate/reactivate aktywu, MWO, LOTO + podział obowiązków) · onboarding-core
+(`advance/back/jump/skip/restart/first_wo`) · bramki pipeline NPD · site-scope produkcji
+(`work_orders` + `license_plates`, RESTRICTIVE `FOR ALL`) · brak fail-open w helperach auth/rbac/site.
+**To pierwszy raz w tej kampanii, gdy mogę powiedzieć nie tylko „co zepsute", ale i „gdzie
+sprawdziłem i jest dobrze".**
+
+---
+
+# KOREKTA WŁASNEGO TWIERDZENIA (09:00)
+Zgłosiłem ownerowi „konwersja g→kg zwraca 0" jako defekt pieniężny. **NIEPRAWDA.**
+`upsert-wac.ts:319` robi poprawne `round($1::numeric / 1000, scale)`. Objaw `qtyKg:'0'` brał się
+z **testu repo** ustawiającego surowy GUC `app.current_org_id` zamiast `app.set_org_context` —
+zapytanie nie widziało wiersza `items` i wpadało w `unresolved_uom`. Fixture naprawiony, **8/8**.
+
+**Co się POTWIERDZA** (zweryfikowane przeze mnie wprost w zapytaniu `resolveWacDeltaQtyKg`):
+resolver zna **dokładnie sześć** przypadków (`kg`,`g`,`base`,`uom_base=kg`,`each`,`box`);
+`t`, `mg`, `mL` → `resolved:false` i ilość **wraca niezmieniona**; katalog jednostek organizacji
+**nie jest w ogóle odpytywany**. Przy `each`/`box` mnożenie przez `net_qty_per_each` **bez
+normalizacji** → błąd **1000×**. Naprawia tor F6.
+
+**Nauczka do wzorców:** „potwierdzone uruchomieniem" znaczy tyle, ile warte jest środowisko,
+w którym uruchomiono. Fable uruchomił poprawnie (używał `set_org_context`) — to **test repo**
+był zepsuty. Dwa różne artefakty, jeden objaw.
