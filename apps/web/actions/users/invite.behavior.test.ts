@@ -15,11 +15,13 @@ const {
   _withOrgContextRunner,
   _mockGenerateLink,
   _mockInviteUserByEmail,
+  _mockDeleteUser,
   _revalidateLocalized,
 } = vi.hoisted(() => ({
   _withOrgContextRunner: vi.fn(),
   _mockGenerateLink: vi.fn(),
   _mockInviteUserByEmail: vi.fn(),
+  _mockDeleteUser: vi.fn(),
   _revalidateLocalized: vi.fn(),
 }));
 
@@ -39,6 +41,7 @@ vi.mock('../../lib/auth/supabase-server', () => ({
       admin: {
         generateLink: _mockGenerateLink,
         inviteUserByEmail: _mockInviteUserByEmail,
+        deleteUser: _mockDeleteUser,
       },
     },
   })),
@@ -51,6 +54,7 @@ vi.mock('./supabase-admin', () => ({
       admin: {
         generateLink: _mockGenerateLink,
         inviteUserByEmail: _mockInviteUserByEmail,
+        deleteUser: _mockDeleteUser,
       },
     },
   })),
@@ -245,6 +249,7 @@ beforeEach(() => {
     },
     error: null,
   });
+  _mockDeleteUser.mockResolvedValue({ data: null, error: null });
   process.env.NEXT_PUBLIC_APP_URL = 'https://app.example.com';
 });
 
@@ -456,6 +461,65 @@ describe('inviteUser RBAC (behavior)', () => {
     expect(result).toEqual({ ok: false, error: 'persistence_failed' });
     expect(currentClient.upsertedUser).toBeNull();
     expect(currentClient.userSiteAssignment).toBeNull();
+    // F1 — the rolled-back transaction must not leave an Auth identity behind:
+    // it would be an account that cannot sign in and cannot be re-invited.
+    expect(_mockDeleteUser).toHaveBeenCalledWith(AUTH_USER_ID);
+  });
+
+  it('F1 — a resent invite that fails persistence does NOT delete the pre-existing auth identity', async () => {
+    currentClient = makeClient({
+      hasInvitePermission: true,
+      seatLimit: 100,
+      activeUsers: 5,
+      rolesById: {
+        [VIEWER_ROLE_ID]: { id: VIEWER_ROLE_ID, org_id: ORG_ID, code: 'viewer', is_system: false, display_order: 99 },
+      },
+      existingUser: {
+        id: 'pending-user-id',
+        org_id: ORG_ID,
+        email: 'resend@example.com',
+        name: 'Pending User',
+        role_id: VIEWER_ROLE_ID,
+        is_active: false,
+        invite_token: 'old-token',
+        invite_token_expires_at: '2026-07-01T00:00:00.000Z',
+      },
+      siteByName: { 'Warsaw Plant': WARSAW_SITE_ID },
+      scopeWriteSucceeds: false,
+    });
+    const { inviteUser } = await loadInvite();
+
+    const result = await inviteUser({
+      email: 'resend@example.com',
+      roleId: VIEWER_ROLE_ID,
+      site: 'Warsaw Plant',
+    });
+
+    expect(result).toEqual({ ok: false, error: 'persistence_failed' });
+    expect(_mockDeleteUser).not.toHaveBeenCalled();
+  });
+
+  it('F1 — a successful invite never deletes the auth identity it just created', async () => {
+    currentClient = makeClient({
+      hasInvitePermission: true,
+      seatLimit: 100,
+      activeUsers: 5,
+      rolesById: {
+        [VIEWER_ROLE_ID]: { id: VIEWER_ROLE_ID, org_id: ORG_ID, code: 'viewer', is_system: false, display_order: 99 },
+      },
+      siteByName: { 'Warsaw Plant': WARSAW_SITE_ID },
+    });
+    const { inviteUser } = await loadInvite();
+
+    const result = await inviteUser({
+      email: 'happy@example.com',
+      roleId: VIEWER_ROLE_ID,
+      site: 'Warsaw Plant',
+    });
+
+    expect(result.ok).toBe(true);
+    expect(currentClient.upsertedUser?.id).toBe(AUTH_USER_ID);
+    expect(_mockDeleteUser).not.toHaveBeenCalled();
   });
 
   it('rejects a site-restricted role when no site is supplied', async () => {

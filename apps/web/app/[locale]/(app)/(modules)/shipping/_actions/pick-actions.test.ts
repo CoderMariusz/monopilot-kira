@@ -44,15 +44,31 @@ let updatedSoStatuses: string[] = [];
 let outboxEvents: Array<Record<string, unknown>> = [];
 let queryLog: Array<{ sql: string; params: readonly unknown[] }> = [];
 
+// R4 — mirrors the real withOrgContext contract: COMMIT on any plain return,
+// ROLLBACK only on a thrown error (with-org-context.ts:356-365). Without that
+// distinction a test cannot tell "revalidate failed harmlessly" from
+// "revalidate unwound the transaction".
+const txn = vi.hoisted(() => ({ committed: 0, rolledBack: 0 }));
+
 vi.mock('../../../../../../lib/auth/with-org-context', () => ({
-  withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
-    action({ userId: USER_ID, orgId: ORG_ID, client }),
+  withOrgContext: vi.fn(
+    async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) => {
+      try {
+        const result = await action({ userId: USER_ID, orgId: ORG_ID, client });
+        txn.committed += 1;
+        return result;
+      } catch (err) {
+        txn.rolledBack += 1;
+        throw err;
+      }
+    },
   ),
 }));
 
-vi.mock('../../../../../../lib/i18n/revalidate-localized', () => ({
-  revalidateLocalized: vi.fn(),
-}));
+// The real revalidate-localized module is used on purpose so the production
+// chain runs: revalidatePath -> revalidateLocalized -> revalidateAfterCommit.
+const revalidatePathMock = vi.hoisted(() => vi.fn());
+vi.mock('next/cache', () => ({ revalidatePath: revalidatePathMock }));
 
 vi.mock('@monopilot/server/quality/holdsGuard.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@monopilot/server/quality/holdsGuard.js')>();
@@ -291,6 +307,62 @@ beforeEach(() => {
   outboxEvents = [];
   queryLog = [];
   client = makeClient();
+  txn.committed = 0;
+  txn.rolledBack = 0;
+  revalidatePathMock.mockReset();
+});
+
+describe('R4 — revalidate must not run inside the org transaction', () => {
+  function breakRevalidate(): void {
+    revalidatePathMock.mockImplementation(() => {
+      throw new Error('revalidatePath was called outside a request scope');
+    });
+  }
+
+  it('createPickList keeps the pick list committed when revalidation throws', async () => {
+    breakRevalidate();
+
+    const result = await createPickList(SO_ID);
+
+    expect(result).toEqual({ ok: true, pickListId: PICK_LIST_ID });
+    expect(insertedPickLists).toHaveLength(1);
+    expect(insertedPickLines).toHaveLength(1);
+    expect(txn).toEqual({ committed: 1, rolledBack: 0 });
+    expect(revalidatePathMock).toHaveBeenCalled();
+  });
+
+  it('pickLine keeps the picked allocation committed when revalidation throws', async () => {
+    breakRevalidate();
+    pendingLineCount = 0;
+
+    const result = await pickLine(PICK_LINE_ID, { quantityPicked: '10.000' });
+
+    expect(result).toEqual({ ok: true });
+    expect(updatedAllocations).toHaveLength(1);
+    expect(updatedSoStatuses).toEqual(['picked']);
+    expect(outboxEvents).toHaveLength(1);
+    expect(txn).toEqual({ committed: 1, rolledBack: 0 });
+  });
+
+  it('reassignPickLine keeps the reassignment committed when revalidation throws', async () => {
+    breakRevalidate();
+
+    const result = await reassignPickLine(PICK_LINE_ID, { licensePlateId: OTHER_LP_ID });
+
+    expect(result).toEqual({ ok: true });
+    expect(txn).toEqual({ committed: 1, rolledBack: 0 });
+  });
+
+  it('still rejects a rejected pick without revalidating', async () => {
+    breakRevalidate();
+    salesOrderStatus = 'confirmed';
+
+    const result = await createPickList(SO_ID);
+
+    expect(result).toEqual({ ok: false, error: 'invalid_state' });
+    expect(insertedPickLists).toEqual([]);
+    expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
 });
 
 describe('createPickList', () => {

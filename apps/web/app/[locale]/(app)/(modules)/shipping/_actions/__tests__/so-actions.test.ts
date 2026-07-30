@@ -85,14 +85,30 @@ let idempotencyRows = new Map<string, { request_hash: string; response_json: { o
 let soInsertCount = 0;
 let advisoryLockDepth = 0;
 const advisoryLockWaiters: Array<() => void> = [];
-const nextCacheMocks = vi.hoisted(() => ({ revalidateLocalized: vi.fn() }));
+// R4 — the real revalidate-localized module stays unmocked so the production
+// chain runs (revalidatePath -> revalidateLocalized -> revalidateAfterCommit);
+// only the Next primitive is faked.
+const revalidatePathMock = vi.hoisted(() => vi.fn());
+vi.mock('next/cache', () => ({ revalidatePath: revalidatePathMock }));
+
+// Mirrors the real withOrgContext contract: COMMIT on any plain return,
+// ROLLBACK only on a thrown error (with-org-context.ts:356-365).
+const txn = vi.hoisted(() => ({ committed: 0, rolledBack: 0 }));
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
-  withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
-    action({ userId: USER_ID, orgId: ORG_ID, client }),
+  withOrgContext: vi.fn(
+    async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) => {
+      try {
+        const result = await action({ userId: USER_ID, orgId: ORG_ID, client });
+        txn.committed += 1;
+        return result;
+      } catch (err) {
+        txn.rolledBack += 1;
+        throw err;
+      }
+    },
   ),
 }));
-vi.mock('../../../../../../../lib/i18n/revalidate-localized', () => nextCacheMocks);
 vi.mock('../../../quality/_actions/hold-actions', () => ({
   releaseHoldFromWarehouseLpUnblock: vi.fn(),
 }));
@@ -570,7 +586,9 @@ beforeEach(() => {
   soInsertCount = 0;
   advisoryLockDepth = 0;
   advisoryLockWaiters.length = 0;
-  nextCacheMocks.revalidateLocalized.mockClear();
+  revalidatePathMock.mockReset();
+  txn.committed = 0;
+  txn.rolledBack = 0;
   client = makeClient();
 });
 
@@ -770,13 +788,31 @@ describe('createSalesOrder', () => {
         ext_data: { order_uom: 'kg', order_qty: '10' },
       },
     ]);
-    expect(nextCacheMocks.revalidateLocalized).toHaveBeenCalledWith('/shipping');
+    expect(revalidatePathMock).toHaveBeenCalledWith('/pl/shipping', undefined);
     const headerInsert = queryLog.find((entry) => normalize(entry.sql).startsWith('insert into public.sales_orders'));
     expect(normalize(headerInsert?.sql ?? '')).toContain('(org_id, site_id, order_number');
     expect(headerInsert?.params?.[1]).toBe(SITE_ID);
     const lineInsert = queryLog.find((entry) => normalize(entry.sql).startsWith('insert into public.sales_order_lines'));
     expect(normalize(lineInsert?.sql ?? '')).toContain('(org_id, site_id, sales_order_id');
     expect(lineInsert?.params?.[1]).toBe(SITE_ID);
+  });
+
+  it('R4 — keeps the sales order committed when revalidation throws', async () => {
+    revalidatePathMock.mockImplementation(() => {
+      throw new Error('revalidatePath was called outside a request scope');
+    });
+
+    const result = await createSalesOrder({
+      client_op_id: CLIENT_OP_ID,
+      customer_id: CUSTOMER_ID,
+      requested_date: '2026-06-20',
+      lines: [{ item_id: ITEM_ID, qty: '10', uom: 'kg' }],
+    });
+
+    expect(result).toMatchObject({ ok: true, data: { so_number: 'SO-202606-00001' } });
+    expect(insertedSo).toMatchObject({ order_number: 'SO-202606-00001' });
+    expect(insertedLines).toHaveLength(1);
+    expect(txn).toEqual({ committed: 1, rolledBack: 0 });
   });
 
   it('refuses creation before the first write when no site can be resolved', async () => {
@@ -1542,6 +1578,19 @@ describe('updateSalesOrder', () => {
     expect(result).toEqual({ ok: false, error: 'not_draft' });
   });
 
+  it('R4 — keeps the header update committed when revalidation throws', async () => {
+    status = 'draft';
+    revalidatePathMock.mockImplementation(() => {
+      throw new Error('revalidatePath was called outside a request scope');
+    });
+
+    const result = await updateSalesOrder(SO_ID, { notes: 'rush order' });
+
+    expect(result.ok).toBe(true);
+    expect(insertedSo).toMatchObject({ notes: 'rush order' });
+    expect(txn).toEqual({ committed: 1, rolledBack: 0 });
+  });
+
   it('updates draft header fields and recomputes line totals while keeping unit price > 0', async () => {
     status = 'draft';
     lineOrderQty = '10';
@@ -1664,6 +1713,31 @@ describe('deleteSalesOrder', () => {
     expect(result).toEqual({ ok: true, data: null });
     expect(queryLog.some((entry) => normalize(entry.sql).includes('update public.sales_order_lines') && normalize(entry.sql).includes('deleted_at'))).toBe(true);
     expect(queryLog.some((entry) => normalize(entry.sql).includes('update public.sales_orders') && normalize(entry.sql).includes('deleted_at'))).toBe(true);
+  });
+
+  it('R4 — keeps the soft-delete committed when revalidation throws', async () => {
+    status = 'draft';
+    revalidatePathMock.mockImplementation(() => {
+      throw new Error('revalidatePath was called outside a request scope');
+    });
+
+    const result = await deleteSalesOrder(SO_ID);
+
+    expect(result).toEqual({ ok: true, data: null });
+    expect(queryLog.some((entry) => normalize(entry.sql).includes('update public.sales_orders') && normalize(entry.sql).includes('deleted_at'))).toBe(true);
+    expect(txn).toEqual({ committed: 1, rolledBack: 0 });
+  });
+
+  it('R4 — a rejected delete still returns its error and never revalidates', async () => {
+    status = 'confirmed';
+    revalidatePathMock.mockImplementation(() => {
+      throw new Error('revalidatePath was called outside a request scope');
+    });
+
+    const result = await deleteSalesOrder(SO_ID);
+
+    expect(result).toEqual({ ok: false, error: 'not_draft' });
+    expect(revalidatePathMock).not.toHaveBeenCalled();
   });
 
   it('releases live allocations before soft-deleting a draft sales order', async () => {

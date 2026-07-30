@@ -5,7 +5,7 @@ import { assertNoActiveHoldForLp, QaHoldActiveError } from '@monopilot/server/qu
 
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
-import { revalidateLocalized } from '../../../../../../lib/i18n/revalidate-localized';
+import { revalidateAfterCommit } from '../../../../../../lib/i18n/revalidate-localized';
 import {
   ALLOWED_CREATE_PICK_LIST_SO_STATUSES,
   isSalesOrderStatus,
@@ -113,7 +113,7 @@ async function emitPickCompletedOutbox(
 }
 
 export async function createPickList(soId: string): Promise<CreatePickListResult> {
-  return withOrgContext(async ({ userId, orgId, client }): Promise<CreatePickListResult> => {
+  const result = await withOrgContext(async ({ userId, orgId, client }): Promise<CreatePickListResult> => {
     const ctx: ShippingContext = { userId, orgId, client: client as QueryClient };
     const forbidden = await requirePermission(ctx, SHIP_PICK_EXECUTE);
     if (forbidden) return forbidden;
@@ -219,16 +219,18 @@ export async function createPickList(soId: string): Promise<CreatePickListResult
       sequence += 1;
     }
 
-    revalidateLocalized('/shipping');
     return { ok: true, pickListId };
   });
+
+  if (result.ok) revalidateAfterCommit('/shipping');
+  return result;
 }
 
 export async function pickLine(
   pickListLineId: string,
   input: { pickedLicensePlateId?: string; quantityPicked: string; shortPickReason?: string },
 ): Promise<PickLineResult> {
-  return withOrgContext(async ({ userId, orgId, client }): Promise<PickLineResult> => {
+  const result = await withOrgContext(async ({ userId, orgId, client }): Promise<PickLineResult> => {
     const ctx: ShippingContext = { userId, orgId, client: client as QueryClient };
     const forbidden = await requirePermission(ctx, SHIP_PICK_EXECUTE);
     if (forbidden) return forbidden;
@@ -491,16 +493,18 @@ export async function pickLine(
       );
     }
 
-    revalidateLocalized('/shipping');
     return { ok: true };
   });
+
+  if (result.ok) revalidateAfterCommit('/shipping');
+  return result;
 }
 
 export async function reassignPickLine(
   pickListLineId: string,
   input: { licensePlateId: string },
 ): Promise<PickLineResult> {
-  return withOrgContext(async ({ userId, orgId, client }): Promise<PickLineResult> => {
+  const result = await withOrgContext(async ({ userId, orgId, client }): Promise<PickLineResult> => {
     const ctx: ShippingContext = { userId, orgId, client: client as QueryClient };
     const forbidden = await requirePermission(ctx, SHIP_PICK_EXECUTE);
     if (forbidden) return forbidden;
@@ -579,9 +583,11 @@ export async function reassignPickLine(
     );
     if (rowCount !== 1) return { ok: false, error: 'persistence_failed' };
 
-    revalidateLocalized('/shipping');
     return { ok: true };
   });
+
+  if (result.ok) revalidateAfterCommit('/shipping');
+  return result;
 }
 
 async function resolveLicensePlateIdForPick(ctx: ShippingContext, input: string): Promise<string | null> {

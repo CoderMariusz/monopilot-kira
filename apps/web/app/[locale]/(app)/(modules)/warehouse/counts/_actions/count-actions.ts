@@ -31,7 +31,7 @@ import {
   type CreateCountSessionInput,
   type RecordCountInput,
 } from './count-types';
-import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
+import { revalidateAfterCommit } from '../../../../../../../lib/i18n/revalidate-localized';
 
 const WAREHOUSE_STOCK_ADJUST_PERMISSION = 'warehouse.stock.adjust';
 const WAREHOUSE_STOCK_ADJUST_APPROVE_PERMISSION = 'warehouse.stock.adjust';
@@ -310,7 +310,7 @@ async function readCountLines(client: QueryClient, sessionId: string): Promise<C
             cl.counted_qty::text,
             cl.variance_qty::text,
             cl.status,
-            coalesce(lp.uom, i.uom_base) as uom
+            coalesce(lp.uom, inventory_uom.uom, i.uom_base) as uom
        from public.count_lines cl
        join public.count_sessions cs
          on cs.id = cl.session_id
@@ -324,9 +324,21 @@ async function readCountLines(client: QueryClient, sessionId: string): Promise<C
        left join public.license_plates lp
          on lp.org_id = app.current_org_id()
         and lp.id = cl.lp_id
+       left join lateral (
+         select case
+                  when count(distinct lower(inv.uom)) = 1 then min(inv.uom)
+                  else null
+                end as uom
+           from public.license_plates inv
+          where inv.org_id = app.current_org_id()
+            and inv.location_id = cl.location_id
+            and inv.product_id = cl.item_id
+            and inv.quantity > 0
+            and inv.status <> all($2::text[])
+       ) inventory_uom on cl.lp_id is null
       where cl.session_id = $1::uuid
       order by loc.code asc nulls last, i.item_code asc nulls last, lp.lp_number asc nulls last, cl.id asc`,
-    [sessionId],
+    [sessionId, PHYSICAL_ON_HAND_EXCLUDED_LP_STATUSES],
   );
   return rows.map(mapCountLine);
 }
@@ -334,20 +346,35 @@ async function readCountLines(client: QueryClient, sessionId: string): Promise<C
 async function readCurrentOnHand(
   client: QueryClient,
   input: { locationId: string; itemId: string; lpId: string | null },
-): Promise<{ systemQty: string; uom: string | null }> {
-  const { rows } = await client.query<{ system_qty: string; uom: string | null }>(
+): Promise<{ systemQty: string; uom: string }> {
+  const { rows } = await client.query<{ system_qty: string; uom: string | null; uom_count: number }>(
     `select coalesce(sum(lp.quantity), 0)::text as system_qty,
-            min(lp.uom) as uom
-       from public.license_plates lp
-      where lp.org_id = app.current_org_id()
+            case
+              when count(distinct lower(lp.uom)) <= 1
+                then coalesce(min(lp.uom), i.uom_base)
+              else null
+            end as uom,
+            count(distinct lower(lp.uom))::int as uom_count
+       from public.items i
+       left join public.license_plates lp
+         on lp.org_id = i.org_id
         and lp.location_id = $1::uuid
-        and lp.product_id = $2::uuid
+        and lp.product_id = i.id
         and ($3::uuid is null or lp.id = $3::uuid)
         and lp.quantity > 0
-        and lp.status <> all($4::text[])`,
+        and lp.status <> all($4::text[])
+      where i.org_id = app.current_org_id()
+        and i.id = $2::uuid
+      group by i.id, i.uom_base`,
     [input.locationId, input.itemId, input.lpId, PHYSICAL_ON_HAND_EXCLUDED_LP_STATUSES],
   );
-  return { systemQty: rows[0]?.system_qty ?? '0', uom: rows[0]?.uom ?? null };
+  const row = rows[0];
+  if (!row) throw new Error('item_uom_not_found');
+  if (input.lpId === null && Number(row.uom_count) > 1) {
+    throw new Error('count_uom_ambiguous');
+  }
+  if (!row.uom) throw new Error('item_uom_not_found');
+  return { systemQty: row.system_qty ?? '0', uom: row.uom };
 }
 
 /**
@@ -427,31 +454,6 @@ async function readLineForApply(client: QueryClient, countLineId: string): Promi
     [countLineId],
   );
   return rows[0] ?? null;
-}
-
-async function resolveAdjustmentUom(
-  client: QueryClient,
-  input: { itemId: string; locationId: string; lpId: string | null },
-): Promise<string> {
-  const { rows } = await client.query<{ uom: string | null }>(
-    `select coalesce(
-              (select min(inv.uom)
-                 from public.v_inventory_available inv
-                where inv.org_id = app.current_org_id()
-                  and inv.product_id = $1::uuid
-                  and inv.location_id = $2::uuid
-                  and ($3::uuid is null or inv.lp_id = $3::uuid)),
-              (select i.uom_base
-                 from public.items i
-                where i.org_id = app.current_org_id()
-                  and i.id = $1::uuid
-                limit 1)
-            ) as uom`,
-    [input.itemId, input.locationId, input.lpId],
-  );
-  const uom = rows[0]?.uom;
-  if (!uom) throw new Error('item_uom_not_found');
-  return uom;
 }
 
 async function createAdjustmentLicensePlate(
@@ -915,7 +917,7 @@ export async function createCountSession(input: CreateCountSessionInput): Promis
   const warehouseId = assertUuid(input?.warehouseId, 'warehouse_id');
   const countType = assertCountType(input?.countType);
 
-  return await withOrgContext(async ({ userId, orgId, client }): Promise<string> => {
+  const createdSessionId = await withOrgContext(async ({ userId, orgId, client }): Promise<string> => {
     const ctx: WarehouseContext = { userId, orgId, client: client as QueryClient };
     await assertCanAdjustStock(ctx);
 
@@ -945,9 +947,11 @@ export async function createCountSession(input: CreateCountSessionInput): Promis
     const seededLines = await seedCountSessionLines(ctx.client, sessionId, warehouseId);
     if (seededLines === 0) throw new Error('count_no_stock');
 
-    revalidateLocalized('/warehouse/counts', 'page');
     return sessionId;
   });
+
+  revalidateAfterCommit('/warehouse/counts', 'page');
+  return createdSessionId;
 }
 
 export async function listCountSessions(): Promise<CountSession[]> {
@@ -1055,7 +1059,7 @@ export async function recordCount(input: RecordCountInput): Promise<CountLine> {
     );
     const sessionRow = session.rows[0];
     if (!sessionRow) throw new Error('count_session_not_found');
-    if (sessionRow.status !== 'open' && sessionRow.status !== 'counting') {
+    if (sessionRow.status !== 'counting') {
       throw new Error('count_session_not_open');
     }
 
@@ -1278,11 +1282,7 @@ export async function approveAndApplyVariance(input: ApproveAndApplyVarianceInpu
     const adjustmentLegs: AdjustmentLeg[] = [];
 
     if (varianceMicro > 0n) {
-      const uom = await resolveAdjustmentUom(ctx.client, {
-        itemId: countLineForApply.item_id,
-        locationId: countLineForApply.location_id,
-        lpId: countLineForApply.lp_id,
-      });
+      const uom = liveOnHand.uom;
       const metadata = await readCountLineAdjustmentMetadata(ctx.client, countLineForApply.id);
       adjustedLpId = await createAdjustmentLicensePlate(ctx, {
         siteId: increaseSiteId!,
@@ -1375,13 +1375,7 @@ export async function approveAndApplyVariance(input: ApproveAndApplyVarianceInpu
     });
 
     if (direction === 'increase') {
-      const varianceUom =
-        adjustmentLegs[0]?.uom ??
-        (await resolveAdjustmentUom(ctx.client, {
-          itemId: countLineForApply.item_id,
-          locationId: countLineForApply.location_id,
-          lpId: countLineForApply.lp_id,
-        }));
+      const varianceUom = adjustmentLegs[0]?.uom ?? liveOnHand.uom;
       const varianceSiteId =
         adjustmentLegs[0]?.siteId ??
         (await resolveAdjustmentSiteId(ctx.client, {
@@ -1433,9 +1427,20 @@ export async function approveAndApplyVariance(input: ApproveAndApplyVarianceInpu
 export async function closeCountSession(sessionId: string): Promise<string> {
   const normalizedSessionId = assertUuid(sessionId, 'session_id');
 
-  return await withOrgContext(async ({ userId, orgId, client }): Promise<string> => {
+  const closedSessionId = await withOrgContext(async ({ userId, orgId, client }): Promise<string> => {
     const ctx: WarehouseContext = { userId, orgId, client: client as QueryClient };
     await assertCanAdjustStock(ctx);
+
+    const current = await ctx.client.query<{ id: string; status: string }>(
+      `select id::text, status
+         from public.count_sessions
+        where org_id = app.current_org_id()
+          and id = $1::uuid
+        limit 1
+        for update`,
+      [normalizedSessionId],
+    );
+    if (current.rows[0]?.status !== 'review') throw new Error('count_session_not_closable');
 
     const { rows } = await ctx.client.query<{ id: string }>(
       `update public.count_sessions
@@ -1444,13 +1449,15 @@ export async function closeCountSession(sessionId: string): Promise<string> {
               closed_by = $2::uuid
         where org_id = app.current_org_id()
           and id = $1::uuid
-          and status in ('open', 'counting', 'review')
+          and status = 'review'
       returning id::text`,
       [normalizedSessionId, ctx.userId],
     );
     const closedId = rows[0]?.id;
     if (!closedId) throw new Error('count_session_not_closable');
-    revalidateLocalized('/warehouse/counts', 'page');
     return closedId;
   });
+
+  revalidateAfterCommit('/warehouse/counts', 'page');
+  return closedSessionId;
 }

@@ -32,7 +32,7 @@ import {
   writeSalesOrderStatusInContext,
   type SalesOrderConfirmationBlocker,
 } from './so-status-write';
-import { revalidateLocalized } from '../../../../../../lib/i18n/revalidate-localized';
+import { revalidateAfterCommit } from '../../../../../../lib/i18n/revalidate-localized';
 import { OrderLineUomError, resolveOrderQtyToInventoryQty, SALES_ORDER_LINE_ALLOCATED_TO_ORDER_SQL } from '../../../../../../lib/shipping/order-line-uom';
 import {
   buildSoCreateIdempotencyPayload,
@@ -627,7 +627,7 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
     return { ok: false, error: 'invalid_input', message: 'Sales order lines must use GBP' };
   }
 
-  return withOrgContext(async ({ userId, orgId, client }): Promise<CreateSalesOrderResult> => {
+  const result = await withOrgContext(async ({ userId, orgId, client }): Promise<CreateSalesOrderResult> => {
     const ctx: ShippingContext = { userId, orgId, client: client as QueryClient };
     const forbidden = await requirePermission(ctx, SHIP_SO_CREATE);
     if (forbidden) return forbidden;
@@ -906,9 +906,11 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
       }
     }
 
-    revalidateLocalized('/shipping');
     return { ok: true, data: created };
   });
+
+  if (result.ok) revalidateAfterCommit('/shipping');
+  return result;
 }
 
 export async function updateSalesOrder(soId: string, input: UpdateSalesOrderInput): Promise<UpdateSalesOrderResult> {
@@ -920,7 +922,7 @@ export async function updateSalesOrder(soId: string, input: UpdateSalesOrderInpu
     return { ok: false, error: 'invalid_input', message: 'Sales order lines must use GBP' };
   }
 
-  return withOrgContext(async ({ userId, orgId, client }): Promise<UpdateSalesOrderResult> => {
+  const result = await withOrgContext(async ({ userId, orgId, client }): Promise<UpdateSalesOrderResult> => {
     const ctx: ShippingContext = { userId, orgId, client: client as QueryClient };
     const forbidden = await requirePermission(ctx, SHIP_SO_CREATE);
     if (forbidden) return forbidden;
@@ -1199,10 +1201,11 @@ export async function updateSalesOrder(soId: string, input: UpdateSalesOrderInpu
     }
 
     const updated = await fetchSalesOrder(ctx, id);
-    revalidateLocalized('/shipping');
-    revalidateLocalized(`/shipping/${id}`);
     return { ok: true, data: updated };
   });
+
+  if (result.ok) revalidateAfterCommit(['/shipping', `/shipping/${id}`]);
+  return result;
 }
 
 export async function deleteSalesOrder(soId: string): Promise<DeleteSalesOrderResult> {
@@ -1211,7 +1214,7 @@ export async function deleteSalesOrder(soId: string): Promise<DeleteSalesOrderRe
     return { ok: false, error: 'not_found' };
   }
 
-  return withOrgContext(async ({ userId, orgId, client }): Promise<DeleteSalesOrderResult> => {
+  const result = await withOrgContext(async ({ userId, orgId, client }): Promise<DeleteSalesOrderResult> => {
     const ctx: ShippingContext = { userId, orgId, client: client as QueryClient };
     const forbidden = await requirePermission(ctx, SHIP_SO_CREATE);
     if (forbidden) return forbidden;
@@ -1252,10 +1255,11 @@ export async function deleteSalesOrder(soId: string): Promise<DeleteSalesOrderRe
       [id, userId],
     );
 
-    revalidateLocalized('/shipping');
-    revalidateLocalized(`/shipping/${id}`);
     return { ok: true, data: null };
   });
+
+  if (result.ok) revalidateAfterCommit(['/shipping', `/shipping/${id}`]);
+  return result;
 }
 
 export async function transitionSalesOrderStatus(

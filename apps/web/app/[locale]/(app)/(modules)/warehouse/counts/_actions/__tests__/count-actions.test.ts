@@ -1,13 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+// R4 — revalidate-localized stays REAL so the production chain runs
+// (revalidatePath -> revalidateLocalized -> revalidateAfterCommit); only the
+// Next primitive is faked, which is the thing that throws outside a request.
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
-vi.mock('../../../../../../../../lib/i18n/revalidate-localized', () => ({ revalidateLocalized: vi.fn() }));
 vi.mock('../../../../../../../../lib/site/site-context', () => ({
   getActiveSiteId: vi.fn(async () => 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'),
 }));
 
 import { revalidatePath } from 'next/cache';
-import { revalidateLocalized } from '../../../../../../../../lib/i18n/revalidate-localized';
 import { getActiveSiteId } from '../../../../../../../../lib/site/site-context';
 import { approveAndApplyVariance, closeCountSession, createCountSession, getCountSession, listCountSessions, recordCount } from '../count-actions';
 import type { CountLineStatus } from '../count-types';
@@ -55,6 +56,8 @@ let client: QueryClient;
 let queries: QueryCall[];
 let systemQty: string;
 let physicalSystemQty: string;
+let physicalUom: string;
+let physicalUomCount: number;
 let returnedCountedQty: string;
 let returnedVarianceQty: string;
 let applyLine: ApplyLine;
@@ -87,9 +90,22 @@ let warehouseStockLineCount: number;
 /** Site candidate returned for legacy/null-site count sessions. */
 let adjustmentSiteId: string | null;
 
+// Mirrors the real withOrgContext contract: COMMIT on any plain return,
+// ROLLBACK only on a thrown error (with-org-context.ts:356-365).
+const txn = vi.hoisted(() => ({ committed: 0, rolledBack: 0 }));
+
 vi.mock('../../../../../../../../lib/auth/with-org-context', () => ({
-  withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
-    action({ userId: USER_ID, orgId: ORG_ID, client }),
+  withOrgContext: vi.fn(
+    async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) => {
+      try {
+        const result = await action({ userId: USER_ID, orgId: ORG_ID, client });
+        txn.committed += 1;
+        return result;
+      } catch (err) {
+        txn.rolledBack += 1;
+        throw err;
+      }
+    },
   ),
 }));
 
@@ -231,8 +247,11 @@ function makeClient(): QueryClient {
         return { rows: [{ system_qty: systemQty, uom: 'kg' }], rowCount: 1 };
       }
 
-      if (n.startsWith('select coalesce(sum(lp.quantity)') && n.includes('from public.license_plates lp')) {
-        return { rows: [{ system_qty: physicalSystemQty, uom: 'kg' }], rowCount: 1 };
+      if (n.startsWith('select coalesce(sum(lp.quantity)') && n.includes('public.license_plates lp')) {
+        return {
+          rows: [{ system_qty: physicalSystemQty, uom: physicalUom, uom_count: physicalUomCount }],
+          rowCount: 1,
+        };
       }
 
       if (n.includes("feature_flags->>'count_variance_warn_pct'")) {
@@ -274,14 +293,10 @@ function makeClient(): QueryClient {
             counted_qty: returnedCountedQty,
             variance_qty: returnedVarianceQty,
             status: 'counted',
-            uom: 'kg',
+            uom: String(params[1] ?? physicalUom),
           }],
           rowCount: 1,
         };
-      }
-
-      if (n.startsWith('select coalesce( (select min(inv.uom)')) {
-        return { rows: [{ uom: 'kg' }], rowCount: 1 };
       }
 
       if (n.startsWith('select coalesce( (select lp.site_id')) {
@@ -368,6 +383,8 @@ beforeEach(async () => {
   queries = [];
   systemQty = '5';
   physicalSystemQty = '5';
+  physicalUom = 'kg';
+  physicalUomCount = 1;
   returnedCountedQty = '0';
   returnedVarianceQty = '0';
   applyLine = makeApplyLine();
@@ -383,7 +400,7 @@ beforeEach(async () => {
   // High default so pre-existing recordCount cases never trip the soft warning;
   // the variance-warning tests set this explicitly.
   countVarianceWarnPct = '100';
-  sessionStatus = 'open';
+  sessionStatus = 'counting';
   sessionWarehouseId = WAREHOUSE_ID;
   locationInWarehouse = true;
   itemExists = true;
@@ -396,8 +413,9 @@ beforeEach(async () => {
 
   const { signEvent } = await import('@monopilot/e-sign');
   vi.mocked(signEvent).mockClear();
-  vi.mocked(revalidatePath).mockClear();
-  vi.mocked(revalidateLocalized).mockClear();
+  vi.mocked(revalidatePath).mockReset();
+  txn.committed = 0;
+  txn.rolledBack = 0;
   vi.mocked(getActiveSiteId).mockResolvedValue(SITE_ID);
   verifyPin.mockReset();
   verifyPin.mockResolvedValue(true);
@@ -428,7 +446,7 @@ describe('stock count actions', () => {
       WAREHOUSE_ID,
       ['consumed', 'shipped', 'destroyed', 'merged', 'returned'],
     ]);
-    expect(revalidateLocalized).toHaveBeenCalledWith('/warehouse/counts', 'page');
+    expect(revalidatePath).toHaveBeenCalledWith('/pl/warehouse/counts', 'page');
   });
 
   it('seeds count lines from warehouse license plates with on-hand qty', async () => {
@@ -541,6 +559,22 @@ describe('stock count actions', () => {
     });
 
     expect(result.varianceQty).toBe('5');
+  });
+
+  it('rejects a no-LP count that would reinterpret 10 kg + 5000 g as 5010 g', async () => {
+    physicalSystemQty = '5010';
+    physicalUom = 'g';
+    physicalUomCount = 2;
+
+    await expect(recordCount({
+      sessionId: SESSION_ID,
+      locationId: LOCATION_ID,
+      itemId: ITEM_ID,
+      countedQty: '15',
+    })).rejects.toThrow('count_uom_ambiguous');
+
+    expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.count_lines'))).toBe(false);
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.count_lines'))).toBe(false);
   });
 
   it('emits a soft variance warning when |variance%| exceeds the configured threshold', async () => {
@@ -660,6 +694,48 @@ describe('stock count actions', () => {
     expect(wacWrite?.params).toEqual([ORG_ID, ITEM_ID, '4', '20', USER_ID, SITE_ID, 'GBP']);
   });
 
+  it('keeps a homogeneous no-LP count in g and mints 250 g, never 250 kg', async () => {
+    physicalSystemQty = '500';
+    physicalUom = 'g';
+    physicalUomCount = 1;
+    applyLine = makeApplyLine({
+      system_qty: '500',
+      counted_qty: '750',
+      variance_qty: '250',
+      lp_id: null,
+    });
+
+    await approveAndApplyVariance({
+      countLineId: COUNT_LINE_ID,
+      signature: { password: '123456' },
+    });
+
+    const lpInsert = queries.find((q) => normalize(q.sql).startsWith('insert into public.license_plates'));
+    expect(lpInsert?.params?.slice(5, 7)).toEqual(['250', 'g']);
+  });
+
+  it('rejects a legacy mixed-UoM no-LP count before e-sign or stock writes', async () => {
+    physicalSystemQty = '5010';
+    physicalUom = 'g';
+    physicalUomCount = 2;
+    applyLine = makeApplyLine({
+      system_qty: '5010',
+      counted_qty: '5011',
+      variance_qty: '1',
+      lp_id: null,
+    });
+
+    await expect(approveAndApplyVariance({
+      countLineId: COUNT_LINE_ID,
+      signature: { password: '123456' },
+    })).rejects.toThrow('count_uom_ambiguous');
+
+    const { signEvent } = await import('@monopilot/e-sign');
+    expect(signEvent).not.toHaveBeenCalled();
+    expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.license_plates'))).toBe(false);
+    expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.stock_adjustments'))).toBe(false);
+  });
+
   it('refuses positive variance before signing or writing when no site can be resolved', async () => {
     applyLine = makeApplyLine({
       variance_qty: '4',
@@ -715,12 +791,14 @@ describe('stock count actions', () => {
     expect(wacWrite?.params?.[2]).toBe('-2');
   });
 
-  it('mixed-UoM shrinkage debits WAC per leg using each LP UoM', async () => {
+  it('rejects mixed-UoM no-LP shrinkage before e-sign instead of summing unlike units', async () => {
     const LP_EACH = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
     const LP_BOX = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
     const LP_KG = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
     systemQty = '3';
     physicalSystemQty = '3';
+    physicalUom = 'box';
+    physicalUomCount = 3;
     applyLine = makeApplyLine({ system_qty: '3', counted_qty: '0', variance_qty: '-3', lp_id: null });
     shrinkageLps = [
       { id: LP_EACH, site_id: SITE_ID, status: 'available', quantity: '1', reserved_qty: '0', uom: 'each' },
@@ -729,29 +807,12 @@ describe('stock count actions', () => {
     ];
     stockAdjustmentIds = ['adj-each', 'adj-box', 'adj-kg'];
 
-    const result = await approveAndApplyVariance(decreaseVarianceInput());
+    await expect(approveAndApplyVariance(decreaseVarianceInput())).rejects.toThrow('count_uom_ambiguous');
 
-    expect(result).toMatchObject({
-      direction: 'decrease',
-      adjustmentQty: '3',
-      lpId: LP_EACH,
-    });
-
-    const resolveCalls = queries.filter((q) => normalize(q.sql).includes('from public.items i') && normalize(q.sql).includes('as qty_kg'));
-    expect(resolveCalls.map((q) => [q.params[0], q.params[1]])).toEqual([
-      ['1', 'each'],
-      ['1', 'box'],
-      ['1', 'kg'],
-    ]);
-
-    const wacReads = queries.filter((q) => normalize(q.sql).includes('with existing as materialized') && normalize(q.sql).includes('avg_cost_used'));
-    expect(wacReads.map((q) => q.params[2])).toEqual(['0.5', '12', '1']);
-
-    const wacWrites = queries.filter((q) => normalize(q.sql).includes('insert into public.item_wac_state'));
-    expect(wacWrites).toHaveLength(3);
-    const debitedKg = wacWrites.map((q) => Number(q.params[2]));
-    expect(debitedKg.reduce((sum, qty) => sum + qty, 0)).toBeCloseTo(-13.5);
-    expect(debitedKg).toEqual([-0.5, -12, -1]);
+    const { signEvent } = await import('@monopilot/e-sign');
+    expect(signEvent).not.toHaveBeenCalled();
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.license_plates'))).toBe(false);
+    expect(queries.some((q) => normalize(q.sql).includes('insert into public.item_wac_state'))).toBe(false);
   });
 
   it('approveAndApplyVariance blocks shrinkage when the LP has an active hold', async () => {
@@ -990,6 +1051,28 @@ describe('stock count actions', () => {
     ).rejects.toThrow('count_session_not_open');
   });
 
+  it.each([
+    ['open', false],
+    ['counting', true],
+    ['review', false],
+    ['closed', false],
+    ['cancelled', false],
+  ])('WH-063 records lines only while the session is counting: %s', async (status, allowed) => {
+    sessionStatus = status;
+    const operation = recordCount({
+      sessionId: SESSION_ID,
+      locationId: LOCATION_ID,
+      itemId: ITEM_ID,
+      countedQty: '8',
+    });
+
+    if (allowed) {
+      await expect(operation).resolves.toMatchObject({ countedQty: '8', status: 'counted' });
+    } else {
+      await expect(operation).rejects.toThrow('count_session_not_open');
+    }
+  });
+
   it('recordCount rejects a location outside the session warehouse', async () => {
     locationInWarehouse = false;
 
@@ -1003,13 +1086,13 @@ describe('stock count actions', () => {
     ).rejects.toThrow('location_not_in_warehouse');
   });
 
-  it('closeCountSession closes an open session and revalidates the list', async () => {
-    sessionStatus = 'open';
+  it('closeCountSession closes a review session and revalidates the list', async () => {
+    sessionStatus = 'review';
 
     const result = await closeCountSession(SESSION_ID);
 
     expect(result).toBe(SESSION_ID);
-    expect(revalidateLocalized).toHaveBeenCalledWith('/warehouse/counts', 'page');
+    expect(revalidatePath).toHaveBeenCalledWith('/pl/warehouse/counts', 'page');
     const update = queries.find((q) => normalize(q.sql).includes("status = 'closed'"));
     expect(update?.params).toEqual([SESSION_ID, USER_ID]);
   });
@@ -1018,6 +1101,60 @@ describe('stock count actions', () => {
     sessionStatus = 'closed';
 
     await expect(closeCountSession(SESSION_ID)).rejects.toThrow('count_session_not_closable');
+  });
+
+  it('R4 — createCountSession keeps the session committed when revalidation throws', async () => {
+    vi.mocked(revalidatePath).mockImplementation(() => {
+      throw new Error('revalidatePath was called outside a request scope');
+    });
+
+    const result = await createCountSession({ warehouseId: WAREHOUSE_ID, countType: 'cycle' });
+
+    expect(result).toBe(SESSION_ID);
+    expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.count_sessions'))).toBe(true);
+    expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.count_lines'))).toBe(true);
+    expect(txn).toEqual({ committed: 1, rolledBack: 0 });
+  });
+
+  it('R4 — closeCountSession keeps the close committed when revalidation throws', async () => {
+    sessionStatus = 'review';
+    vi.mocked(revalidatePath).mockImplementation(() => {
+      throw new Error('revalidatePath was called outside a request scope');
+    });
+
+    const result = await closeCountSession(SESSION_ID);
+
+    expect(result).toBe(SESSION_ID);
+    expect(queries.some((q) => normalize(q.sql).includes("status = 'closed'"))).toBe(true);
+    expect(txn).toEqual({ committed: 1, rolledBack: 0 });
+  });
+
+  it('R4 — a session that is not closable still throws and never revalidates', async () => {
+    sessionStatus = 'closed';
+    vi.mocked(revalidatePath).mockImplementation(() => {
+      throw new Error('revalidatePath was called outside a request scope');
+    });
+
+    await expect(closeCountSession(SESSION_ID)).rejects.toThrow('count_session_not_closable');
+    expect(revalidatePath).not.toHaveBeenCalled();
+    expect(txn).toEqual({ committed: 0, rolledBack: 1 });
+  });
+
+  it.each([
+    ['open', false],
+    ['counting', false],
+    ['review', true],
+    ['closed', false],
+    ['cancelled', false],
+  ])('WH-063 closes a session only from review: %s', async (status, allowed) => {
+    sessionStatus = status;
+    const operation = closeCountSession(SESSION_ID);
+
+    if (allowed) {
+      await expect(operation).resolves.toBe(SESSION_ID);
+    } else {
+      await expect(operation).rejects.toThrow('count_session_not_closable');
+    }
   });
 
   it('F1: getCountSession returns full lines when user_can_see_site passes for the session site', async () => {

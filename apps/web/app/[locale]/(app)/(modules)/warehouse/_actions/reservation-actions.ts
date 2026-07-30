@@ -13,7 +13,7 @@ import {
   type WarehouseContext,
   type WarehouseResult,
 } from './shared';
-import { revalidateLocalized } from '../../../../../../lib/i18n/revalidate-localized';
+import { revalidateAfterCommit } from '../../../../../../lib/i18n/revalidate-localized';
 import { LIVE_ALLOCATION_SQL } from '../../shipping/_actions/so-transitions';
 
 export async function listReservations(): Promise<WarehouseResult<ReservationRow[]>> {
@@ -83,7 +83,7 @@ export async function releaseReservation(input: ReleaseReservationInput): Promis
   if (!lpId || !reason) return { ok: false, reason: 'error', message: 'invalid_input' };
 
   try {
-    return await withOrgContext(async ({ userId, orgId, client }): Promise<WarehouseResult<ReservationRow>> => {
+    const result = await withOrgContext(async ({ userId, orgId, client }): Promise<WarehouseResult<ReservationRow>> => {
       const ctx: WarehouseContext = { userId, orgId, client: client as QueryClient };
       if (!(await hasWarehousePermission(ctx, WAREHOUSE_LP_RESERVE_PERMISSION))) return { ok: false, reason: 'forbidden' };
 
@@ -194,8 +194,6 @@ export async function releaseReservation(input: ReleaseReservationInput): Promis
         );
       }
 
-      revalidateLocalized('/warehouse/reservations', 'page');
-
       return {
         ok: true,
         data: {
@@ -212,6 +210,9 @@ export async function releaseReservation(input: ReleaseReservationInput): Promis
         },
       };
     });
+
+    if (result.ok) revalidateAfterCommit('/warehouse/reservations', 'page');
+    return result;
   } catch (error) {
     console.error('[warehouse] releaseReservation failed', error);
     return { ok: false, reason: 'error' };

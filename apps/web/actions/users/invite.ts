@@ -199,6 +199,12 @@ export async function inviteUser(input: InviteUserInput): Promise<InviteUserResu
     const inviteToken = sent.inviteToken;
     const authUserId = sent.authUserId;
 
+    // Compensation scope: only the brand-new-invite path owns the Auth identity
+    // this call just created. On the resend path the identity pre-dates the call
+    // and is still paired with a live public.users row — deleting it there would
+    // destroy a working account instead of cleaning up after ourselves.
+    const orphanAuthUserId = existing ? null : authUserId;
+
     try {
       if (existing) {
         if (!hasOutstandingInvite(existing)) {
@@ -253,6 +259,7 @@ export async function inviteUser(input: InviteUserInput): Promise<InviteUserResu
         [authUserId, orgId, email, name, roleId, language, inviteToken, expiresAt.toISOString()],
       );
       if ((invited.rowCount ?? invited.rows.length) < 1) {
+        await deleteOrphanAuthUser(orphanAuthUserId);
         return { ok: false, error: 'invalid_input' };
       }
 
@@ -280,6 +287,14 @@ export async function inviteUser(input: InviteUserInput): Promise<InviteUserResu
         personalMessage,
       );
     } catch {
+      // F1 — the DB writes are about to be rolled back by withOrgContext, but
+      // inviteUserByEmail already created the Auth identity AND sent the magic
+      // link. Without this the invitee ends up with an Auth account and no
+      // public.users row: they cannot sign in (withOrgContext cannot resolve an
+      // org) and the admin cannot re-invite either (Supabase rejects the second
+      // invite for a known email -> invite_failed). Same best-effort cleanup the
+      // twin path does in create-user-with-password.ts:314-318.
+      await deleteOrphanAuthUser(orphanAuthUserId);
       throw new InvitePersistenceError();
     }
 
@@ -393,6 +408,21 @@ async function sendInviteEmail(
   }
 
   return { ok: true, inviteToken: authUserId, authUserId };
+}
+
+/**
+ * F1 — best-effort removal of an Auth identity this call created but could not
+ * pair with a `public.users` row. `null` means the identity was not ours to
+ * delete (resend path), so this is a no-op.
+ */
+async function deleteOrphanAuthUser(authUserId: string | null): Promise<void> {
+  if (!authUserId) return;
+  try {
+    const supabase = await createSupabaseAuthAdmin();
+    await supabase.auth.admin.deleteUser(authUserId);
+  } catch (error) {
+    console.error('[inviteUser] orphan auth cleanup failed', { authUserId, error });
+  }
 }
 
 async function writeInviteAuditAndOutbox(
