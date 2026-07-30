@@ -44,15 +44,12 @@ import { readActiveGateRule } from '../../actions/authorization/preflight';
 import { readLastChangedByCode } from '../../app/[locale]/(app)/(admin)/settings/tenant/rules/last-changed';
 
 const connectionString = process.env.DATABASE_URL ?? '';
-const databaseName = (() => {
-  try {
-    return new URL(connectionString).pathname.slice(1);
-  } catch {
-    return '';
-  }
-})();
-// Never point this at anything but a disposable test database.
-const runPg = /^monopilot_t\d+$/.test(databaseName) ? describe : describe.skip;
+// Gate on "is there a database", like the rest of the repo. The previous gate
+// was /^monopilot_t\d+$/ on the database name — a clone CI never creates, so
+// these eleven tests were green-by-skip on every CI run. Every case runs inside
+// a transaction that is always rolled back, and the fixture org is torn down in
+// afterAll, so pointing this at any migrated database leaves no residue.
+const runPg = connectionString ? describe : describe.skip;
 
 runPg('schema drift — real SQL against a real database', () => {
   let pool: pg.Pool;

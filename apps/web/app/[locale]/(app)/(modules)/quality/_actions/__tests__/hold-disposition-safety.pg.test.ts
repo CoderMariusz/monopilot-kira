@@ -35,14 +35,13 @@ vi.mock('@monopilot/e-sign', () => ({
 import { createHoldForContext, releaseHoldCore } from '../hold-actions';
 import { submitInspectionDecision } from '../inspection-actions';
 
-const databaseName = (() => {
-  try {
-    return new URL(process.env.DATABASE_URL ?? '').pathname.slice(1);
-  } catch {
-    return '';
-  }
-})();
-const runPg = databaseName === 'monopilot_t3' ? describe : describe.skip;
+// Gate on "is there a database", like the rest of the repo. The previous gate
+// was `databaseName === 'monopilot_t3'`, a clone CI never creates — so these
+// seven security tests were green-by-skip on every CI run. The suite builds its
+// own org via createPgTestFixture and tears it down in afterAll, so it does not
+// need a specific clone.
+const databaseUrl = process.env.DATABASE_URL;
+const runPg = databaseUrl ? describe : describe.skip;
 
 type Carrier = {
   woId: string;
@@ -60,7 +59,7 @@ type HoldState = {
   output_qa_status: string;
 };
 
-runPg('quality hold disposition safety — persistent monopilot_t3 state', () => {
+runPg('quality hold disposition safety — persistent state on a real database', () => {
   let ownerPool: pg.Pool;
   let appPool: pg.Pool;
   let fixture: PgTestFixture;
@@ -318,7 +317,7 @@ runPg('quality hold disposition safety — persistent monopilot_t3 state', () =>
     await ownerPool.query(
       `insert into public.grns
          (id, org_id, site_id, grn_number, warehouse_id, status, created_by)
-       values ($1, $2, $3, $4, $5, 'completed', $6)`,
+       values ($1, $2, $3, $4, $5, 'draft', $6)`,
       [grnId, orgId, siteId, `GRN-QSAFE-${grnId.slice(0, 8)}`, warehouseId, userId],
     );
     await ownerPool.query(
@@ -335,6 +334,11 @@ runPg('quality hold disposition safety — persistent monopilot_t3 state', () =>
        values ($1, $2, $3, 1, $4, 40, 'kg', $5, $6)`,
       [randomUUID(), orgId, grnId, itemId, lpId, userId],
     );
+    // V-WH-GRN-001 (mig 193/299) freezes grn_items once the GRN is completed, so
+    // seed the line first and complete afterwards — the real draft→lines→complete
+    // order. Seeding 'completed' up front made this test error out; it had never
+    // run, so nobody saw it.
+    await ownerPool.query(`update public.grns set status = 'completed' where id = $1`, [grnId]);
     await ownerPool.query(
       `insert into public.quality_inspections
          (id, org_id, site_id, inspection_number, reference_type, reference_id,
