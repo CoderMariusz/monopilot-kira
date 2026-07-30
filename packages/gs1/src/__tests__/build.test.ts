@@ -6,7 +6,7 @@ const GS = '\x1d';
 describe('buildGs1Element', () => {
   it('builds a full LP label with GTIN, lot, expiry, and net weight', () => {
     const result = buildGs1Element({
-      gtin: '0061414112345',
+      gtin: '00614141123452',
       lot: 'BATCH001',
       expiry: '261231',
       netWeightKg: 5,
@@ -16,6 +16,44 @@ describe('buildGs1Element', () => {
     expect(result.raw).toContain(GS);
     expect(result.human).toBe('(01)00614141123452(10)BATCH001(17)261231(3103)005000');
     expect(result.human).not.toContain(GS);
+  });
+
+  it.each([
+    ['GTIN-8', '96385074', '00000096385074'],
+    ['GTIN-12', '614141123452', '00614141123452'],
+    ['GTIN-13', '5901234123457', '05901234123457'],
+    ['GTIN-14', '05901234123457', '05901234123457'],
+  ])('left-pads a valid %s for AI (01) without recalculating its check digit', (_format, input, gtin14) => {
+    expect(buildGs1Element({ gtin: input })).toEqual({
+      raw: `01${gtin14}`,
+      human: `(01)${gtin14}`,
+    });
+  });
+
+  it.each([
+    ['GTIN-8', '96385075'],
+    ['GTIN-12', '614141123453'],
+    ['GTIN-13', '5901234123458'],
+    ['GTIN-14', '05901234123458'],
+  ])('still rejects a %s with a wrong check digit', (_format, input) => {
+    expect(() => buildGs1Element({ gtin: input })).toThrow(/GTIN check digit/i);
+  });
+
+  it('accepts GS1 character set 82 punctuation in AI (10)', () => {
+    expect(buildGs1Element({ lot: 'AB-123/4' })).toEqual({
+      raw: '10AB-123/4',
+      human: '(10)AB-123/4',
+    });
+  });
+
+  it('still rejects an AI (10) lot longer than 20 characters', () => {
+    expect(() => buildGs1Element({ lot: 'DEMO-WO-259-001-OUT-001' })).toThrow(
+      /maximum is 20 characters/i,
+    );
+  });
+
+  it('still rejects characters outside GS1 character set 82 in AI (10)', () => {
+    expect(() => buildGs1Element({ lot: 'AB 123' })).toThrow(/character set 82/i);
   });
 
   it('builds an SSCC-only pallet element without a trailing separator', () => {

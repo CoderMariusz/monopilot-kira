@@ -68,14 +68,9 @@ function normalizeSSCC(value: string): string {
 }
 
 function normalizeGTIN(value: string): string {
-  const digits = normalizeDigits(value, 'GTIN', [13, 14]);
-
-  if (digits.length === 13) {
-    return `${digits}${computeMod10(digits)}`;
-  }
-
+  const digits = normalizeDigits(value, 'GTIN', [8, 12, 13, 14]);
   assertValidCheckDigit(digits, 'GTIN');
-  return digits;
+  return digits.padStart(14, '0');
 }
 
 function normalizeLot(value: string): string {
@@ -89,8 +84,8 @@ function normalizeLot(value: string): string {
     throw new Error('Invalid lot: lot too long, maximum is 20 characters');
   }
 
-  if (!/^[A-Za-z0-9]+$/.test(lot)) {
-    throw new Error('Invalid lot: expected 1 to 20 alphanumeric characters');
+  if (!/^[A-Za-z0-9!"%&'()*+,.\/:;<=>?_-]+$/.test(lot)) {
+    throw new Error('Invalid lot: expected 1 to 20 characters from GS1 character set 82');
   }
 
   return lot;

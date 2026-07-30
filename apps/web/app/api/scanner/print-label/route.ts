@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 
 import { buildGs1Element, type Gs1BuildInput } from '@monopilot/gs1/build';
 
+import { writeScannerSessionAudit } from '../../../../lib/scanner/audit';
 import { requireScannerSession } from '../../../../lib/scanner/guard';
 import { isRecord, jsonOk, readJson, stringField } from '../../../../lib/scanner/route-utils';
 import { withTxnOrgContext } from '../../../../lib/scanner/txn-org-context';
@@ -108,7 +109,16 @@ function buildLpPayload(lp: LicensePlateLabelRow): Record<string, unknown> {
   const netWeightKg = toGs1NetWeightKg(lp.catch_weight_kg);
   if (netWeightKg !== undefined) gs1Input.netWeightKg = netWeightKg;
   const hasGs1Input = Object.keys(gs1Input).length > 0;
-  const gs1Element = hasGs1Input ? buildGs1Element(gs1Input) : null;
+
+  let gs1Element: ReturnType<typeof buildGs1Element> | null = null;
+  let gs1BuildError: string | null = null;
+  if (hasGs1Input) {
+    try {
+      gs1Element = buildGs1Element(gs1Input);
+    } catch (error) {
+      gs1BuildError = error instanceof Error ? error.message : 'gs1_build_failed';
+    }
+  }
 
   const payload: Record<string, unknown> = {
     entity_type: 'lp',
@@ -131,6 +141,7 @@ function buildLpPayload(lp: LicensePlateLabelRow): Record<string, unknown> {
     },
   };
 
+  if (gs1BuildError) payload.gs1_build_error = gs1BuildError;
   if (!lp.gs1_gtin) payload.gtin_missing = true;
   return payload;
 }
@@ -193,6 +204,7 @@ export async function POST(request: NextRequest) {
       withScannerOrg(client, session, async ({ client: scopedClient }) =>
         withTxnOrgContext(scopedClient, session.org_id, session.user_id, async () => {
           if (!(await hasPrintPermission(scopedClient, session.user_id, session.org_id))) {
+            await writeScannerSessionAudit(scopedClient, session, 'scanner.print_label', 'forbidden', { lpId });
             return errorResponse('Forbidden', 403);
           }
 

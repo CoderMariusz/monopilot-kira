@@ -13,6 +13,7 @@ import {
 import { withTxnOrgContext } from '../../../../lib/scanner/txn-org-context';
 import { withScannerOrg } from '../../../../lib/scanner/with-scanner-org';
 import { isUuid } from '../site-access';
+import { auditAttempt } from '../../production/scanner/_support';
 
 const PRODUCTION_LABOR_WRITE_PERMISSION = 'production.consumption.write';
 
@@ -176,6 +177,11 @@ export async function POST(request: NextRequest) {
             orgId: scopedSession.org_id,
           };
           if (!(await hasPermission(permCtx, PRODUCTION_LABOR_WRITE_PERMISSION))) {
+            await auditAttempt(scopedClient, scopedSession, 'scanner.labor', 'forbidden', {
+              action,
+              woId,
+              lineId,
+            });
             return jsonError('forbidden', 403);
           }
 

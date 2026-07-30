@@ -57,8 +57,9 @@ function normalize(sql: string): string {
   return sql.replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
-function setupQueries(options: { lpFound?: boolean } = {}) {
+function setupQueries(options: { lpFound?: boolean; batchLot?: string } = {}) {
   const lpFound = options.lpFound ?? true;
+  const batchLot = options.batchLot ?? 'LOTA';
   fakeClient.query.mockImplementation(async (sql: string, params?: readonly unknown[]) => {
     const q = normalize(sql);
     if (q === 'begin' || q === 'commit' || q === 'rollback') return { rows: [] };
@@ -75,7 +76,7 @@ function setupQueries(options: { lpFound?: boolean } = {}) {
               lp_code: 'LP-0001',
               item_id: ITEM_ID,
               gs1_gtin: '00614141123452',
-              batch_lot: 'LOTA',
+              batch_lot: batchLot,
               expiry_date: '2026-07-31',
               catch_weight_kg: '12.500000',
             }]
@@ -197,5 +198,32 @@ describe('scanner print-label route', () => {
     expect(response.status).toBe(404);
     await expect(response.json()).resolves.toEqual({ error: 'LP not found' });
     expect(printJobInsertCall()).toBeUndefined();
+  });
+
+  it('prints a GS1 label for a legal AI (10) lot containing a hyphen', async () => {
+    setupQueries({ batchLot: 'AB-123' });
+    const { POST } = await import('./route');
+
+    const response = await POST(request() as never);
+
+    expect(response.status).toBe(200);
+    const payload = JSON.parse(String(printJobInsertCall()?.[1][6]));
+    expect(payload.gs1_human).toContain('(10)AB-123');
+    expect(payload).not.toHaveProperty('gs1_build_error');
+  });
+
+  it('degrades like desktop instead of returning 500 for an overlong production lot', async () => {
+    setupQueries({ batchLot: 'DEMO-WO-259-001-OUT-001' });
+    const { POST } = await import('./route');
+
+    const response = await POST(request() as never);
+
+    expect(response.status).toBe(200);
+    const payload = JSON.parse(String(printJobInsertCall()?.[1][6]));
+    expect(payload).toMatchObject({
+      lot: 'DEMO-WO-259-001-OUT-001',
+      gs1_element_string: null,
+      gs1_build_error: expect.stringMatching(/maximum is 20 characters/i),
+    });
   });
 });

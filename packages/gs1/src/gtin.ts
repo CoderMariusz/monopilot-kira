@@ -28,16 +28,11 @@ export function computeGtinCheckDigit(bodyWithoutCheck: string): string {
   return computeMod10(body);
 }
 
-/**
- * Validate a GTIN-14 string (13- or 14-digit inputs accepted; 13-digit EAN is promoted).
- */
+/** Validate a GTIN-8, GTIN-12, GTIN-13, or GTIN-14 check digit. */
 export function validateGtin14(input: string): boolean {
   const digits = digitsOnly(input, 'GTIN');
-  if (digits.length === GTIN13_LENGTH) {
-    return digits.slice(-1) === computeMod10(digits.slice(0, 12));
-  }
-  if (digits.length !== GTIN14_LENGTH) return false;
-  return digits.slice(-1) === computeMod10(digits.slice(0, 13));
+  if (![8, 12, GTIN13_LENGTH, GTIN14_LENGTH].includes(digits.length)) return false;
+  return digits.slice(-1) === computeMod10(digits.slice(0, -1));
 }
 
 /**
