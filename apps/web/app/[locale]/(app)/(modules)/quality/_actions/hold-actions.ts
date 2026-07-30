@@ -725,6 +725,10 @@ export async function releaseHoldCore(
     getSignatureHash: (current: HoldForRelease) => Promise<string>;
   },
 ): Promise<ActionResult<ReleasedHold>> {
+  if (input.disposition === 'partial') {
+    return { ok: false, reason: 'error', message: 'partial_release_requires_lp_split' };
+  }
+
   const hold = await ctx.client.query<HoldForRelease>(
     `select id::text, hold_number, reference_type, reference_id::text, hold_status, released_at
        from public.quality_holds
@@ -755,8 +759,13 @@ export async function releaseHoldCore(
         : input.disposition === 'rework'
           ? 'rework'
           : 'other';
-  const itemStatus = input.disposition === 'scrap' ? 'scrapped' : input.disposition === 'partial' ? 'partial_released' : 'released';
-  const lpQaStatus = input.disposition === 'scrap' ? 'rejected' : 'released';
+  const itemStatus = input.disposition === 'scrap' ? 'scrapped' : 'released';
+  const lpQaStatus =
+    input.disposition === 'scrap'
+      ? 'rejected'
+      : input.disposition === 'rework'
+        ? 'pending'
+        : 'released';
 
   const updated = await ctx.client.query<{ released_at: Date | string }>(
     `update public.quality_holds
@@ -779,10 +788,10 @@ export async function releaseHoldCore(
   await ctx.client.query(
     `update public.quality_hold_items
         set item_status = $2,
-            qty_released_kg = case when $2 = 'released' then qty_held_kg else qty_released_kg end
+            qty_released_kg = case when $3::boolean then qty_held_kg else 0 end
       where org_id = app.current_org_id()
         and hold_id = $1::uuid`,
-    [input.holdId, itemStatus],
+    [input.holdId, itemStatus, input.disposition === 'release'],
   );
 
   const heldLps = await ctx.client.query<{
@@ -901,7 +910,7 @@ export async function releaseHoldCore(
     }
   }
 
-  if (current.reference_type === 'wo' && input.disposition === 'release') {
+  if (current.reference_type === 'wo') {
     await ctx.client.query(
       `select pg_advisory_xact_lock(
          hashtext(app.current_org_id()::text || ':wo-hold-release:' || $1::text)
@@ -931,7 +940,11 @@ export async function releaseHoldCore(
       const qaSnapshots = snapshots.rows[0]?.snapshots ?? {};
       await restoreWoOutputsAfterWoHoldReleaseForContext(
         { userId: ctx.userId, orgId: ctx.orgId, client: ctx.client },
-        { woId: current.reference_id, snapshots: qaSnapshots },
+        {
+          woId: current.reference_id,
+          snapshots: qaSnapshots,
+          disposition: input.disposition,
+        },
       );
     }
   }

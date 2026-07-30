@@ -421,6 +421,71 @@ describe('quality hold server actions', () => {
     expect(restorePassed).toBeDefined();
   });
 
+  it.each([
+    ['scrap', 'FAILED', 'rejected'],
+    ['rework', 'PENDING', 'pending'],
+  ] as const)('resolves a released WO hold with %s instead of leaving outputs ON_HOLD', async (disposition, outputQaStatus, lpQaStatus) => {
+    holdReferenceType = 'wo';
+
+    const released = await releaseHold({
+      holdId: HOLD_ID,
+      disposition,
+      reasonText: `${disposition} disposition`,
+      signature: { password: 'pw' },
+    });
+
+    expect(released.ok).toBe(true);
+    const outputUpdate = vi
+      .mocked(client.query)
+      .mock.calls.find(
+        ([sql, params]) =>
+          normalize(String(sql)).startsWith('update public.wo_outputs') &&
+          normalize(String(sql)).includes('qa_status = $2') &&
+          params?.[0] === WO_ID &&
+          params?.[1] === outputQaStatus,
+      );
+    expect(outputUpdate).toBeDefined();
+    const lpUpdate = vi
+      .mocked(client.query)
+      .mock.calls.find(
+        ([sql, params]) =>
+          normalize(String(sql)).startsWith('update public.license_plates') &&
+          params?.[1] === lpQaStatus,
+      );
+    expect(lpUpdate).toBeDefined();
+  });
+
+  it('rejects partial release before e-sign or persistence because an LP split and destination are required', async () => {
+    const result = await releaseHold({
+      holdId: HOLD_ID,
+      disposition: 'partial',
+      reasonText: 'release 4 kg only',
+      signature: { password: 'pw' },
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'error',
+      message: 'partial_release_requires_lp_split',
+    });
+    expect(signEvent).not.toHaveBeenCalled();
+    expect(
+      vi.mocked(client.query).mock.calls.some(([sql]) =>
+        normalize(String(sql)).startsWith('update public.quality_holds'),
+      ),
+    ).toBe(false);
+    expect(
+      vi.mocked(client.query).mock.calls.some(([sql]) =>
+        normalize(String(sql)).startsWith('update public.quality_hold_items'),
+      ),
+    ).toBe(false);
+    expect(
+      vi.mocked(client.query).mock.calls.some(([sql]) =>
+        normalize(String(sql)).startsWith('update public.license_plates'),
+      ),
+    ).toBe(false);
+  });
+
   it('keeps WO outputs ON_HOLD when another open WO hold remains after release', async () => {
     holdReferenceType = 'wo';
     otherActiveWoHold = true;

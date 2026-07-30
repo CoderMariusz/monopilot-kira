@@ -66,8 +66,25 @@ export async function applyWoOutputHoldForContext(
  */
 export async function restoreWoOutputsAfterWoHoldReleaseForContext(
   ctx: ProductionContext,
-  params: { woId: string; snapshots: Record<string, string> },
+  params: {
+    woId: string;
+    snapshots: Record<string, string>;
+    disposition?: 'release' | 'scrap' | 'rework';
+  },
 ): Promise<void> {
+  if (params.disposition === 'scrap' || params.disposition === 'rework') {
+    await ctx.client.query(
+      `update public.wo_outputs
+          set qa_status = $2,
+              updated_by = $3::uuid
+        where org_id = app.current_org_id()
+          and wo_id = $1::uuid
+          and qa_status = 'ON_HOLD'`,
+      [params.woId, params.disposition === 'scrap' ? 'FAILED' : 'PENDING', ctx.userId],
+    );
+    return;
+  }
+
   for (const [outputId, priorQaStatus] of Object.entries(params.snapshots)) {
     await ctx.client.query(
       `update public.wo_outputs

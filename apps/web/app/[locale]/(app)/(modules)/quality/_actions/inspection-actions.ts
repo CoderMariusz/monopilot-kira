@@ -310,7 +310,7 @@ function mapDetailRow(
 
 async function findActiveHoldForReference(
   ctx: QualityContext,
-  params: { referenceType: 'lp' | 'grn'; referenceId: string; reasonText: string },
+  params: { referenceType: 'lp' | 'grn' | 'wo'; referenceId: string; reasonText: string },
 ): Promise<string | null> {
   const { rows } = await ctx.client.query<{ id: string }>(
     `select id::text
@@ -332,7 +332,7 @@ async function findActiveHoldForReference(
 async function createInspectionHoldIfMissing(
   ctx: QualityContext,
   params: {
-    referenceType: 'lp' | 'grn';
+    referenceType: 'lp' | 'grn' | 'wo';
     referenceId: string;
     lpIds: string[];
     reasonText: string;
@@ -575,14 +575,17 @@ async function applyLpDecisionSideEffects(
   },
 ): Promise<'released' | 'rejected' | 'on_hold' | null> {
   if (params.referenceType === 'grn') {
-    if (params.decision !== 'fail') return null;
+    if (params.decision === 'pass') return null;
     const lpIds = await findReceivedLpIdsForGrn(ctx, params.referenceId);
-    if (lpIds.length === 0) throw new Error('grn inspection failed but no received license plates were found');
+    if (lpIds.length === 0) throw new Error('grn inspection hold requires at least one received license plate');
     await createInspectionHoldIfMissing(ctx, {
       referenceType: 'grn',
       referenceId: params.referenceId,
       lpIds,
-      reasonText: params.note ?? 'failed GRN inspection',
+      reasonText:
+        params.decision === 'fail'
+          ? (params.note ?? 'failed GRN inspection')
+          : (params.note ?? 'GRN inspection hold'),
       priority: 'high',
       inspectionId: params.inspectionId,
     });
@@ -590,6 +593,29 @@ async function applyLpDecisionSideEffects(
   }
 
   if (params.referenceType === 'wo_output') {
+    if (params.decision === 'hold') {
+      const target = await ctx.client.query<{ wo_id: string; lp_id: string | null }>(
+        `select wo_id::text, lp_id::text
+           from public.wo_outputs
+          where org_id = app.current_org_id()
+            and id = $1::uuid
+          limit 1`,
+        [params.referenceId],
+      );
+      const output = target.rows[0];
+      if (!output) throw new Error('wo_output not found');
+
+      await createInspectionHoldIfMissing(ctx, {
+        referenceType: 'wo',
+        referenceId: output.wo_id,
+        lpIds: output.lp_id ? [output.lp_id] : [],
+        reasonText: params.note ?? 'WO output inspection hold',
+        priority: 'high',
+        inspectionId: params.inspectionId,
+      });
+      return 'on_hold';
+    }
+
     if (params.decision === 'pass') {
       const transitioned = await transitionWoOutputQaForContext(
         { userId: ctx.userId, orgId: ctx.orgId, client: ctx.client },
@@ -1259,7 +1285,7 @@ export async function submitInspectionDecision(input: {
       );
       const current = currentResult.rows[0];
       if (!current) throw new Error('quality inspection not found');
-      if (['passed', 'failed', 'on_hold', 'cancelled'].includes(current.status)) {
+      if (['passed', 'failed', 'cancelled'].includes(current.status)) {
         throw new Error('quality inspection decision is already final');
       }
 

@@ -34,6 +34,7 @@ const INSP_ID = '33333333-3333-4333-8333-333333333333';
 const LP_ID = '44444444-4444-4444-8444-444444444444';
 const HOLD_ID = '88888888-8888-4888-8888-888888888888';
 const WOO_ID = '77777777-7777-4777-8777-777777777777';
+const WO_ID = '66666666-6666-4666-8666-666666666666';
 const GRN_ID = '99999999-9999-4999-8999-999999999999';
 const ASSIGNEE_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const SITE_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -277,6 +278,12 @@ function makeClient(): QueryClient {
       }
       if (q.startsWith('select lp_id::text') && q.includes('from public.wo_outputs')) {
         return { rows: [{ lp_id: LP_ID }], rowCount: 1 };
+      }
+      if (q.startsWith('select wo_id::text') && q.includes('from public.wo_outputs')) {
+        return { rows: [{ wo_id: WO_ID, lp_id: LP_ID }], rowCount: 1 };
+      }
+      if (q.startsWith('select id::text, qa_status') && q.includes('from public.wo_outputs')) {
+        return { rows: [{ id: WOO_ID, qa_status: 'PENDING' }], rowCount: 1 };
       }
       if (q.startsWith('select id::text, qa_status, lp_id::text') && q.includes('from public.wo_outputs')) {
         return { rows: [{ id: WOO_ID, qa_status: 'PENDING', lp_id: LP_ID }], rowCount: 1 };
@@ -657,6 +664,53 @@ describe('submitInspectionDecision (review fix F8 — base decision flow)', () =
     expect(outbox).toBeTruthy();
     expect(outbox?.[1]?.[0]).toBe('quality.hold.created');
     expect(outbox?.[1]?.[1]).toBe(HOLD_ID);
+  });
+
+  it('decision=hold for a GRN places every received LP on a shared GRN hold', async () => {
+    inspectionReferenceType = 'grn';
+    inspectionReferenceId = GRN_ID;
+
+    const res = await submitInspectionDecision({ ...baseInput, decision: 'hold' });
+
+    expect(res).toMatchObject({ ok: true, data: { status: 'on_hold', qaStatus: 'on_hold' } });
+    expect(findCall('from public.grn_items')?.[1]).toEqual([GRN_ID]);
+    expect(findCall('insert into public.quality_holds')?.[1]?.[0]).toBe('grn');
+    expect(findCall('update public.license_plates')?.[1]).toEqual([
+      [LP_ID],
+      USER_ID,
+      ['consumed', 'merged', 'shipped', 'returned'],
+    ]);
+  });
+
+  it('decision=hold for a WO output creates a WO hold and moves its outputs to ON_HOLD', async () => {
+    inspectionReferenceType = 'wo_output';
+    inspectionReferenceId = WOO_ID;
+
+    const res = await submitInspectionDecision({ ...baseInput, decision: 'hold' });
+
+    expect(res).toMatchObject({ ok: true, data: { status: 'on_hold', qaStatus: 'on_hold' } });
+    expect(findCall('select wo_id::text')?.[1]).toEqual([WOO_ID]);
+    const holdInsert = findCall('insert into public.quality_holds');
+    expect(holdInsert?.[1]?.[0]).toBe('wo');
+    expect(holdInsert?.[1]?.[1]).toBe(WO_ID);
+    expect(
+      calls().some(
+        (sql) =>
+          sql.startsWith('update public.wo_outputs') &&
+          sql.includes("qa_status = 'on_hold'"),
+      ),
+    ).toBe(true);
+  });
+
+  it('allows a new decision after an on_hold inspection has had its hold resolved', async () => {
+    inspectionStatus = 'on_hold';
+    activeHold = false;
+
+    const res = await submitInspectionDecision({ ...baseInput, decision: 'pass' });
+
+    expect(res).toMatchObject({ ok: true, data: { status: 'passed', qaStatus: 'released' } });
+    expect(vi.mocked(signEvent)).toHaveBeenCalledTimes(1);
+    expect(calls().some((q) => q.startsWith('update public.quality_inspections'))).toBe(true);
   });
 
   it('blocks pass when stored bounded parameters are out of spec after server derivation', async () => {
