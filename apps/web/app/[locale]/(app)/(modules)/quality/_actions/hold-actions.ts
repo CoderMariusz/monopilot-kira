@@ -1,8 +1,7 @@
 'use server';
 
 import { randomUUID } from 'node:crypto';
-import type pg from 'pg';
-import { ESignPolicyError, signEvent, type ESignPolicyErrorCode } from '@monopilot/e-sign';
+import { ESignPolicyError, type ESignPolicyErrorCode } from '@monopilot/e-sign';
 import { assertNoActiveHoldForLp } from '@monopilot/server/quality/holdsGuard.js';
 import { z } from 'zod';
 
@@ -15,6 +14,8 @@ import {
 } from '../../../../../../lib/production/output/transition-output-qa';
 import { getActiveSiteId } from '../../../../../../lib/site/site-context';
 import { resolveLpQtyHeldKg } from '../../../../../../lib/quality/lp-hold-qty';
+import { collectQualitySignoff, readPendingQualitySignoff } from './quality-signoff';
+import type { PendingQualitySignoff } from './quality-signoff-types';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -41,7 +42,16 @@ function revalidateHoldRoutes(holdId?: string): void {
 type HoldStatusFilter = 'active' | 'released' | 'all';
 type ReferenceType = 'lp' | 'batch' | 'wo' | 'po' | 'grn';
 type HoldPriority = 'low' | 'medium' | 'high' | 'critical';
-type ReleaseDisposition = 'release' | 'scrap' | 'rework' | 'partial';
+/**
+ * V-QA-HOLD-005 dispositions the product actually implements. `partial` is NOT
+ * one of them: the PRD disposition enum (docs/prd/09-QUALITY-PRD.md:360) and the
+ * release-modal prototype (quality/modals.jsx:123-128) both list rework / scrap /
+ * release_as_is / return_supplier / other, and no quantity-split mechanic exists
+ * (`quality_hold_items.qty_released_kg` has no partial writer). It stays in the
+ * wire enum below only so a crafted or stale request is rejected with a stable
+ * code instead of a raw Zod dump.
+ */
+type ReleaseDisposition = 'release' | 'scrap' | 'rework';
 
 type HoldListRow = {
   id: string;
@@ -65,6 +75,10 @@ type HoldDetail = HoldListRow & {
   releaseNotes: string | null;
   releaseSignatureHash: string | null;
   releasedBy: string | null;
+  createdByCurrentUser: boolean;
+  pendingSignoff: PendingQualitySignoff | null;
+  pendingReleaseDisposition: ReleaseDisposition | null;
+  pendingReleaseReason: string | null;
   items: Array<{
     id: string;
     licensePlateId: string | null;
@@ -100,6 +114,13 @@ type ReleasedHold = {
   disposition: ReleaseDisposition;
   releasedAt: string;
   signatureHash: string;
+};
+type PendingHoldRelease = {
+  id: string;
+  holdNumber: string;
+  status: 'pending_second_signature';
+  disposition: ReleaseDisposition;
+  pendingSignoff: PendingQualitySignoff;
 };
 
 const ACTIVE_HOLD_STATUSES = ['open', 'investigating', 'escalated', 'quarantined'] as const;
@@ -553,6 +574,8 @@ export async function getHoldDetail(holdId: string): Promise<ActionResult<HoldDe
           release_notes: string | null;
           release_signature_hash: string | null;
           released_by: string | null;
+          created_by_id: string;
+          ext_jsonb: Record<string, unknown>;
         }
       >(
         `select
@@ -579,6 +602,8 @@ export async function getHoldDetail(holdId: string): Promise<ActionResult<HoldDe
            h.disposition,
            h.release_notes,
            h.release_signature_hash,
+           h.created_by::text as created_by_id,
+           h.ext_jsonb,
            coalesce(releaser.display_name, releaser.name, releaser.email::text, h.released_by::text) as released_by
          from public.quality_holds h
          left join public.license_plates lp on h.reference_type = 'lp' and lp.id = h.reference_id and lp.org_id = h.org_id
@@ -603,6 +628,20 @@ export async function getHoldDetail(holdId: string): Promise<ActionResult<HoldDe
       );
       const row = header.rows[0];
       if (!row) return { ok: true, data: null };
+      const releasePending =
+        typeof row.ext_jsonb?.releasePending === 'object'
+        && row.ext_jsonb.releasePending !== null;
+      const pendingRelease = releasePending
+        ? row.ext_jsonb.releasePending as { disposition?: unknown; reasonText?: unknown }
+        : null;
+      const pendingSignoff =
+        releasePending && row.release_signature_hash && row.released_at === null
+          ? await readPendingQualitySignoff(
+              ctx.client,
+              'qa.hold.release',
+              { subjectHash: row.release_signature_hash },
+            )
+          : null;
 
       const [items, ncrs] = await Promise.all([
         ctx.client.query<{
@@ -656,6 +695,16 @@ export async function getHoldDetail(holdId: string): Promise<ActionResult<HoldDe
           releaseNotes: row.release_notes,
           releaseSignatureHash: row.release_signature_hash,
           releasedBy: row.released_by,
+          createdByCurrentUser: row.created_by_id === ctx.userId,
+          pendingSignoff,
+          pendingReleaseDisposition:
+            pendingRelease && typeof pendingRelease.disposition === 'string'
+              ? pendingRelease.disposition as ReleaseDisposition
+              : null,
+          pendingReleaseReason:
+            pendingRelease && typeof pendingRelease.reasonText === 'string'
+              ? pendingRelease.reasonText
+              : null,
           items: items.rows.map((item) => ({
             id: item.id,
             licensePlateId: item.license_plate_id,
@@ -708,11 +757,15 @@ type HoldForRelease = {
   reference_id: string;
   hold_status: string;
   released_at: Date | string | null;
+  priority: HoldPriority;
+  created_by: string;
+  release_signature_hash: string | null;
+  ext_jsonb: Record<string, unknown>;
 };
 
 type ReleaseHoldCoreInput = {
   holdId: string;
-  disposition: ReleaseDisposition;
+  disposition: ReleaseDisposition | 'partial';
   reasonText: string;
 };
 
@@ -722,15 +775,20 @@ export async function releaseHoldCore(
   options: {
     releaseSource: string;
     expectedReference?: { type: ReferenceType; id: string };
-    getSignatureHash: (current: HoldForRelease) => Promise<string>;
+    signaturePassword?: string;
+    getSignatureHash?: (current: HoldForRelease) => Promise<string>;
   },
-): Promise<ActionResult<ReleasedHold>> {
+): Promise<ActionResult<ReleasedHold | PendingHoldRelease>> {
+  // Not reachable from the UI (the option was removed); kept as the fail-closed
+  // backstop for a crafted/stale request. See the ReleaseDisposition note above.
   if (input.disposition === 'partial') {
     return { ok: false, reason: 'error', message: 'partial_release_requires_lp_split' };
   }
+  const dispositionInput: ReleaseDisposition = input.disposition;
 
   const hold = await ctx.client.query<HoldForRelease>(
-    `select id::text, hold_number, reference_type, reference_id::text, hold_status, released_at
+    `select id::text, hold_number, reference_type, reference_id::text, hold_status, released_at,
+            priority, created_by::text, release_signature_hash, ext_jsonb
        from public.quality_holds
       where org_id = app.current_org_id()
         and id = $1::uuid
@@ -748,22 +806,106 @@ export async function releaseHoldCore(
   ) {
     throw new Error('quality hold does not match license plate');
   }
+  if (current.priority === 'critical' && current.created_by === ctx.userId) {
+    return {
+      ok: false,
+      reason: 'error',
+      message: 'Critical holds must be released by a user other than the creator',
+    };
+  }
+  const storedPending =
+    typeof current.ext_jsonb?.releasePending === 'object'
+    && current.ext_jsonb.releasePending !== null
+      ? (current.ext_jsonb.releasePending as { disposition?: unknown; reasonText?: unknown })
+      : null;
+  const pendingDisposition =
+    storedPending && typeof storedPending.disposition === 'string'
+      ? storedPending.disposition as ReleaseDisposition
+      : null;
+  const pendingReason =
+    storedPending && typeof storedPending.reasonText === 'string'
+      ? storedPending.reasonText
+      : null;
+  if (current.release_signature_hash && (!pendingDisposition || pendingReason === null)) {
+    throw new Error('Quality hold has an incomplete pending release-signature state');
+  }
+  if (
+    pendingDisposition
+    && (pendingDisposition !== dispositionInput || pendingReason !== input.reasonText)
+  ) {
+    throw new Error('The pending quality hold release decision cannot be changed');
+  }
+  const disposition = pendingDisposition ?? dispositionInput;
+  const reasonText = pendingReason ?? input.reasonText;
+  const signoff =
+    options.signaturePassword
+      ? await collectQualitySignoff({
+          client: ctx.client,
+          signerUserId: ctx.userId,
+          pin: options.signaturePassword,
+          intent: 'qa.hold.release',
+          subject: { holdId: input.holdId, disposition },
+          reason: reasonText,
+          pending: current.release_signature_hash
+            ? { subjectHash: current.release_signature_hash }
+            : undefined,
+          receiptHashErrorMessage: 'Hold release e-signature did not produce a receipt hash',
+        })
+      : {
+          complete: true as const,
+          receipt: { subjectHash: await options.getSignatureHash?.(current) },
+          firstSignature: null,
+        };
+  const signatureHash = signoff.receipt.subjectHash;
+  if (!signatureHash) throw new Error('Hold release e-signature did not produce a receipt hash');
 
-  const signatureHash = await options.getSignatureHash(current);
+  if (!signoff.complete) {
+    const pending = await ctx.client.query<{ hold_status: string }>(
+      `update public.quality_holds
+          set release_signature_hash = $2,
+              ext_jsonb = jsonb_set(
+                ext_jsonb,
+                '{releasePending}',
+                jsonb_build_object(
+                  'disposition', $3::text,
+                  'reasonText', $4::text,
+                  'firstSignatureId', $5::text
+                ),
+                true
+              )
+        where org_id = app.current_org_id()
+          and id = $1::uuid
+          and hold_status <> 'released'
+          and released_at is null
+        returning hold_status`,
+      [
+        input.holdId,
+        signatureHash,
+        disposition,
+        reasonText,
+        signoff.receipt.signatureId,
+      ],
+    );
+    if (!pending.rows[0]) throw new Error('Quality hold pending release update did not return a row');
+    revalidateHoldRoutes(input.holdId);
+    return {
+      ok: true,
+      data: {
+        id: input.holdId,
+        holdNumber: current.hold_number,
+        status: 'pending_second_signature',
+        disposition,
+        pendingSignoff: signoff.pendingSignoff,
+      },
+    };
+  }
 
-  const dbDisposition =
-    input.disposition === 'release'
-      ? 'release_as_is'
-      : input.disposition === 'scrap'
-        ? 'scrap'
-        : input.disposition === 'rework'
-          ? 'rework'
-          : 'other';
-  const itemStatus = input.disposition === 'scrap' ? 'scrapped' : 'released';
+  const dbDisposition = disposition === 'release' ? 'release_as_is' : disposition;
+  const itemStatus = disposition === 'scrap' ? 'scrapped' : 'released';
   const lpQaStatus =
-    input.disposition === 'scrap'
+    disposition === 'scrap'
       ? 'rejected'
-      : input.disposition === 'rework'
+      : disposition === 'rework'
         ? 'pending'
         : 'released';
 
@@ -774,13 +916,14 @@ export async function releaseHoldCore(
             released_at = pg_catalog.now(),
             disposition = $3,
             release_notes = $4,
-            release_signature_hash = $5
+            release_signature_hash = $5,
+            ext_jsonb = ext_jsonb - 'releasePending'
       where org_id = app.current_org_id()
         and id = $1::uuid
         and hold_status <> 'released'
         and released_at is null
       returning released_at`,
-    [input.holdId, ctx.userId, dbDisposition, input.reasonText, signatureHash],
+    [input.holdId, ctx.userId, dbDisposition, reasonText, signatureHash],
   );
   const releasedAt = updated.rows[0]?.released_at;
   if (!releasedAt) throw new Error('quality hold release update did not return a row');
@@ -791,7 +934,7 @@ export async function releaseHoldCore(
             qty_released_kg = case when $3::boolean then qty_held_kg else 0 end
       where org_id = app.current_org_id()
         and hold_id = $1::uuid`,
-    [input.holdId, itemStatus, input.disposition === 'release'],
+    [input.holdId, itemStatus, disposition === 'release'],
   );
 
   const heldLps = await ctx.client.query<{
@@ -849,14 +992,14 @@ export async function releaseHoldCore(
           lpQaStatus,
           ctx.userId,
           [...TERMINAL_LP_STATUSES],
-          input.disposition === 'release',
+          disposition === 'release',
         ],
       );
     }
 
     for (const lp of heldLps.rows.filter((row) => !TERMINAL_LP_STATUSES.includes(row.status as (typeof TERMINAL_LP_STATUSES)[number]))) {
       const restoresQaStatus = !blockedByOtherHold.has(lp.id);
-      const restoresBlockedStatus = input.disposition === 'release' && restoresQaStatus && lp.status === 'blocked';
+      const restoresBlockedStatus = disposition === 'release' && restoresQaStatus && lp.status === 'blocked';
       const toState = restoresBlockedStatus ? 'available' : lp.status;
       await ctx.client.query(
         `insert into public.lp_state_history (
@@ -891,14 +1034,14 @@ export async function releaseHoldCore(
           lp.status,
           toState,
           restoresBlockedStatus ? 'status_change' : 'quality_hold_release',
-          input.reasonText,
+          reasonText,
           lp.wo_id,
           lp.grn_id,
           ctx.userId,
           JSON.stringify({
             action: restoresBlockedStatus ? 'status_change' : 'qa_status_change',
             holdId: input.holdId,
-            disposition: input.disposition,
+            disposition,
             qaStatusFrom: lp.qa_status,
             qaStatusTo: restoresQaStatus ? lpQaStatus : lp.qa_status,
             releaseSource: options.releaseSource,
@@ -943,7 +1086,7 @@ export async function releaseHoldCore(
         {
           woId: current.reference_id,
           snapshots: qaSnapshots,
-          disposition: input.disposition,
+          disposition,
         },
       );
     }
@@ -955,7 +1098,7 @@ export async function releaseHoldCore(
     payload: {
       holdId: input.holdId,
       holdNumber: current.hold_number,
-      disposition: input.disposition,
+      disposition,
       signatureHash,
       releaseSource: options.releaseSource,
     },
@@ -975,7 +1118,7 @@ export async function releaseHoldCore(
       holdNumber: current.hold_number,
       status: 'released',
       disposition: dbDisposition,
-      releaseNotes: input.reasonText,
+      releaseNotes: reasonText,
       signatureHash,
       releasedAt: toIso(releasedAt),
       releaseSource: options.releaseSource,
@@ -990,7 +1133,7 @@ export async function releaseHoldCore(
       id: input.holdId,
       holdNumber: current.hold_number,
       status: 'released',
-      disposition: input.disposition,
+      disposition,
       releasedAt: toIso(releasedAt) ?? '',
       signatureHash,
     },
@@ -999,30 +1142,20 @@ export async function releaseHoldCore(
 
 export async function releaseHold(input: {
   holdId: string;
-  disposition: ReleaseDisposition;
+  // `'partial'` is accepted at the wire boundary and always refused (the UI no
+  // longer offers it) — see the ReleaseDisposition note at the top of this file.
+  disposition: ReleaseDisposition | 'partial';
   reasonText: string;
   signature: { password: string };
-}): Promise<ActionResult<ReleasedHold>> {
+}): Promise<ActionResult<ReleasedHold | PendingHoldRelease>> {
   try {
     const parsed = releaseSchema.parse(input);
-    return await withOrgContext(async (ctx): Promise<ActionResult<ReleasedHold>> => {
+    return await withOrgContext(async (ctx): Promise<ActionResult<ReleasedHold | PendingHoldRelease>> => {
       if (!(await hasPermission(ctx, 'quality.hold.release'))) return { ok: false, reason: 'forbidden' };
 
       return releaseHoldCore(ctx, parsed, {
         releaseSource: 'quality_hold_release',
-        getSignatureHash: async () => {
-          const receipt = await signEvent(
-            {
-              signerUserId: ctx.userId,
-              pin: parsed.signature.password,
-              intent: 'qa.hold.release',
-              subject: { holdId: parsed.holdId, disposition: parsed.disposition },
-              reason: parsed.reasonText,
-            },
-            { client: ctx.client as unknown as pg.PoolClient },
-          );
-          return receipt.subjectHash;
-        },
+        signaturePassword: parsed.signature.password,
       });
     });
   } catch (err) {
@@ -1038,10 +1171,10 @@ export async function releaseHoldFromWarehouseLpUnblock(input: {
   // non-optional makes tsc reject any stale caller that forgets the password,
   // instead of failing with a runtime ZodError.
   signature: { password: string };
-}): Promise<ActionResult<ReleasedHold>> {
+}): Promise<ActionResult<ReleasedHold | PendingHoldRelease>> {
   try {
     const parsed = warehouseLpUnblockReleaseSchema.parse(input);
-    return await withOrgContext(async (ctx): Promise<ActionResult<ReleasedHold>> => {
+    return await withOrgContext(async (ctx): Promise<ActionResult<ReleasedHold | PendingHoldRelease>> => {
       if (!(await hasPermission(ctx, 'quality.hold.release'))) return { ok: false, reason: 'forbidden' };
 
       const lp = await ctx.client.query<{ id: string; status: string; qa_status: string }>(
@@ -1077,19 +1210,7 @@ export async function releaseHoldFromWarehouseLpUnblock(input: {
       return releaseHoldCore(ctx, { holdId: activeHold.id, disposition: 'release', reasonText: parsed.reasonText }, {
         releaseSource: 'warehouse_lp_unblock',
         expectedReference: { type: 'lp', id: parsed.lpId },
-        getSignatureHash: async () => {
-          const receipt = await signEvent(
-            {
-              signerUserId: ctx.userId,
-              pin: parsed.signature.password,
-              intent: 'qa.hold.release',
-              subject: { holdId: activeHold.id, disposition: 'release' },
-              reason: parsed.reasonText,
-            },
-            { client: ctx.client as unknown as pg.PoolClient },
-          );
-          return receipt.subjectHash;
-        },
+        signaturePassword: parsed.signature.password,
       });
     });
   } catch (err) {

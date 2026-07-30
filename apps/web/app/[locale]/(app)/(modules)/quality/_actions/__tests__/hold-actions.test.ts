@@ -18,12 +18,27 @@ const TERMINAL_LP_ID = '55555555-5555-4555-8555-555555555555';
 const WO_ID = '66666666-6666-4666-8666-666666666666';
 const HOLD_B_ID = '99999999-9999-4999-8999-999999999999';
 const REASON_ID = '77777777-7777-4777-8777-777777777777';
+const SECOND_ROLE_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+
+const eSignState = vi.hoisted(() => ({
+  requiredSignatures: 1,
+  currentUserId: '22222222-2222-4222-8222-222222222222',
+  storedSignature: null as null | {
+    signature_id: string;
+    signer_user_id: string;
+    signer_display_name: string;
+    subject_hash: string;
+    created_at: string;
+  },
+}));
 
 let client: QueryClient;
 let allowPermission = true;
 let permissionOverrides: Record<string, boolean> = {};
 let holdAlreadyReleased = false;
 let holdReferenceType: 'lp' | 'wo' = 'lp';
+let holdPriority: 'low' | 'medium' | 'high' | 'critical' = 'high';
+let holdCreatorId = USER_ID;
 let otherActiveHoldLpIds: string[] = [];
 let otherActiveWoHold = false;
 let overlappingWoHoldIds: string[] = [];
@@ -34,7 +49,7 @@ let woHoldReleaseUnlock: (() => void) | null = null;
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) => {
     try {
-      return await action({ userId: USER_ID, orgId: ORG_ID, client });
+      return await action({ userId: eSignState.currentUserId, orgId: ORG_ID, client });
     } finally {
       woHoldReleaseUnlock?.();
       woHoldReleaseUnlock = null;
@@ -49,26 +64,44 @@ vi.mock('../../../../../../../lib/site/site-context', () => ({
   getActiveSiteId: vi.fn(async () => null),
 }));
 
-vi.mock('@monopilot/e-sign', () => ({
-  // wave F4: hold/NCR actions detect policy errors via instanceof — the mock must export the class
-  ESignPolicyError: class ESignPolicyError extends Error {
+vi.mock('@monopilot/e-sign', () => {
+  class ESignPolicyError extends Error {
     code: string;
     constructor(code: string, message?: string) {
       super(message ?? code);
       this.code = code;
     }
-  },
+  }
 
-  signEvent: vi.fn(async () => ({
-    signatureId: '88888888-8888-4888-8888-888888888888',
-    signerUserId: USER_ID,
-    intent: 'qa.hold.release',
-    subjectHash: 'a'.repeat(64),
-    signedAt: '2026-06-11T12:00:00.000Z',
-    auditEventId: 42,
-    nonce: 'nonce-1',
-  })),
-}));
+  return {
+  // wave F4: hold/NCR actions detect policy errors via instanceof — the mock must export the class
+    ESignPolicyError,
+    ESignSoDError: class ESignSoDError extends Error {},
+    hashESignSubject: vi.fn(() => 'a'.repeat(64)),
+    readSignoffPolicy: vi.fn(async () => ({
+      signoffType: 'qa.hold.release',
+      requiredSignatures: eSignState.requiredSignatures,
+      firstSignerRoleId: null,
+      secondSignerRoleId: eSignState.requiredSignatures === 2 ? SECOND_ROLE_ID : null,
+      allowSameUser: false,
+    })),
+
+    signEvent: vi.fn(async (input: { signerUserId: string }, options?: { policyMode?: string }) => {
+      if (eSignState.requiredSignatures === 2 && (options?.policyMode ?? 'single') === 'single') {
+        throw new ESignPolicyError('second_signature_required');
+      }
+      return {
+        signatureId: '88888888-8888-4888-8888-888888888888',
+        signerUserId: input.signerUserId,
+        intent: 'qa.hold.release',
+        subjectHash: 'a'.repeat(64),
+        signedAt: '2026-06-11T12:00:00.000Z',
+        auditEventId: 42,
+        nonce: 'nonce-1',
+      };
+    }),
+  };
+});
 
 function normalize(sql: string): string {
   return sql.replace(/\s+/g, ' ').trim().toLowerCase();
@@ -83,6 +116,21 @@ function makeClient(): QueryClient {
         const permission = String(params[2]);
         const permitted = permission in permissionOverrides ? permissionOverrides[permission] : allowPermission;
         return { rows: permitted ? [{ ok: true }] : [], rowCount: permitted ? 1 : 0 };
+      }
+
+      if (q.includes('from public.e_sign_log es')) {
+        return {
+          rows: eSignState.storedSignature ? [eSignState.storedSignature] : [],
+          rowCount: eSignState.storedSignature ? 1 : 0,
+        };
+      }
+
+      if (q.includes('from public.users') && q.includes('as display_name')) {
+        return { rows: [{ display_name: 'Quality Lead Anna' }], rowCount: 1 };
+      }
+
+      if (q.includes('from public.roles')) {
+        return { rows: [{ display_name: 'Production Manager' }], rowCount: 1 };
       }
 
       if (q.includes("from public.reference_tables rt") && q.includes("default_hold_duration_days")) {
@@ -183,6 +231,17 @@ function makeClient(): QueryClient {
               reference_id: holdReferenceType === 'wo' ? WO_ID : LP_ID,
               hold_status: alreadyReleased ? 'released' : 'open',
               released_at: alreadyReleased ? '2026-06-11T11:00:00.000Z' : null,
+              priority: holdPriority,
+              created_by: holdCreatorId,
+              release_signature_hash: eSignState.storedSignature?.subject_hash ?? null,
+              ext_jsonb: eSignState.storedSignature
+                ? {
+                    releasePending: {
+                      disposition: 'release',
+                      reasonText: 'inspection passed',
+                    },
+                  }
+                : {},
             },
           ],
           rowCount: 1,
@@ -317,12 +376,17 @@ describe('quality hold server actions', () => {
     permissionOverrides = {};
     holdAlreadyReleased = false;
     holdReferenceType = 'lp';
+    holdPriority = 'high';
+    holdCreatorId = USER_ID;
     otherActiveHoldLpIds = [];
     otherActiveWoHold = false;
     overlappingWoHoldIds = [];
     releasedWoHoldIds = new Set();
     woHoldReleaseMutex = Promise.resolve();
     woHoldReleaseUnlock = null;
+    eSignState.requiredSignatures = 1;
+    eSignState.currentUserId = USER_ID;
+    eSignState.storedSignature = null;
     client = makeClient();
     vi.clearAllMocks();
   });
@@ -658,6 +722,91 @@ describe('quality hold server actions', () => {
     expect(second).toEqual({ ok: false, reason: 'error', message: 'quality hold is already released' });
   });
 
+  it('keeps the hold active after the first signature when policy requires two', async () => {
+    eSignState.requiredSignatures = 2;
+
+    const result = await releaseHold({
+      holdId: HOLD_ID,
+      disposition: 'release',
+      reasonText: 'inspection passed',
+      signature: { password: 'Account-Password-1!' },
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        id: HOLD_ID,
+        status: 'pending_second_signature',
+      },
+    });
+    expect(
+      vi.mocked(client.query).mock.calls.some(([sql]) =>
+        normalize(String(sql)).includes("hold_status = 'released'"),
+      ),
+    ).toBe(false);
+  });
+
+  it('rejects the first signer in the second slot and releases for a different signer', async () => {
+    eSignState.requiredSignatures = 2;
+    eSignState.storedSignature = {
+      signature_id: '99999999-9999-4999-8999-999999999999',
+      signer_user_id: USER_ID,
+      signer_display_name: 'Quality Lead Anna',
+      subject_hash: 'a'.repeat(64),
+      created_at: '2026-07-30T10:00:00.000Z',
+    };
+    const input = {
+      holdId: HOLD_ID,
+      disposition: 'release' as const,
+      reasonText: 'inspection passed',
+      signature: { password: 'secret' },
+    };
+
+    const sameSigner = await releaseHold(input);
+    expect(sameSigner).toEqual({
+      ok: false,
+      reason: 'error',
+      message: 'Second signature must be provided by a different user',
+    });
+    expect(signEvent).not.toHaveBeenCalled();
+
+    vi.clearAllMocks();
+    eSignState.currentUserId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const otherSigner = await releaseHold(input);
+    expect(otherSigner).toMatchObject({
+      ok: true,
+      data: { id: HOLD_ID, status: 'released' },
+    });
+    expect(signEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ signerUserId: eSignState.currentUserId }),
+      expect.objectContaining({ policyMode: 'dual-secondary' }),
+    );
+  });
+
+  it('rejects release of a critical hold by its creator before signing or mutating', async () => {
+    holdPriority = 'critical';
+    holdCreatorId = USER_ID;
+
+    const result = await releaseHold({
+      holdId: HOLD_ID,
+      disposition: 'release',
+      reasonText: 'inspection passed',
+      signature: { password: 'Account-Password-1!' },
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'error',
+      message: 'Critical holds must be released by a user other than the creator',
+    });
+    expect(signEvent).not.toHaveBeenCalled();
+    expect(
+      vi.mocked(client.query).mock.calls.some(([sql]) =>
+        normalize(String(sql)).startsWith('update public.quality_holds'),
+      ),
+    ).toBe(false);
+  });
+
   it("keeps an LP on hold instead of restoring released when another active LP hold remains", async () => {
     otherActiveHoldLpIds = [LP_ID];
 
@@ -736,6 +885,8 @@ describe('quality hold server actions', () => {
     expect(vi.mocked(client.query).mock.calls.some(([sql]) => normalize(String(sql)).startsWith('update public.quality_holds'))).toBe(false);
 
     vi.clearAllMocks();
+    const { hashESignSubject } = await import('@monopilot/e-sign');
+    vi.mocked(hashESignSubject).mockReturnValueOnce('b'.repeat(64));
     vi.mocked(signEvent).mockResolvedValueOnce({
       signatureId: '99999999-9999-4999-8999-999999999999',
       signerUserId: USER_ID,

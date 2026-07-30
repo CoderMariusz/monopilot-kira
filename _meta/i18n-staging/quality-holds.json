@@ -197,8 +197,7 @@
       "dispositionOptions": {
         "release": "Release as-is",
         "scrap": "Scrap",
-        "rework": "Rework",
-        "partial": "Partial release"
+        "rework": "Rework"
       },
       "reasonText": "Release notes",
       "reasonTextHelp": "Describe the release rationale and any conditions. Required.",
@@ -214,6 +213,13 @@
       "cancel": "Cancel",
       "submit": "Release hold",
       "submitting": "Releasing…",
+      "pendingSignoff": {
+        "title": "First signature recorded — the hold remains active",
+        "signedBy": "Signed by",
+        "awaitingRole": "Awaiting",
+        "anyAuthorizedSigner": "another authorized signer",
+        "submitSecond": "Add second signature"
+      },
       "validation": {
         "dispositionRequired": "A disposition is required.",
         "reasonRequired": "Release notes are required.",
@@ -420,8 +426,7 @@
       "dispositionOptions": {
         "release": "Zwolnij bez zmian",
         "scrap": "Złom",
-        "rework": "Przeróbka",
-        "partial": "Zwolnienie częściowe"
+        "rework": "Przeróbka"
       },
       "reasonText": "Uwagi do zwolnienia",
       "reasonTextHelp": "Opisz uzasadnienie zwolnienia i ewentualne warunki. Wymagane.",
@@ -437,6 +442,13 @@
       "cancel": "Anuluj",
       "submit": "Zwolnij blokadę",
       "submitting": "Zwalnianie…",
+      "pendingSignoff": {
+        "title": "Pierwszy podpis zapisany — blokada pozostaje aktywna",
+        "signedBy": "Podpisał(a)",
+        "awaitingRole": "Oczekuje na",
+        "anyAuthorizedSigner": "innego uprawnionego podpisującego",
+        "submitSecond": "Dodaj drugi podpis"
+      },
       "validation": {
         "dispositionRequired": "Decyzja jest wymagana.",
         "reasonRequired": "Uwagi do zwolnienia są wymagane.",

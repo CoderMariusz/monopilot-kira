@@ -30,6 +30,7 @@
  *   closeNcr({ncrId, resolution, signature:{password}}) -> ClosedNcr
  *     (every close requires e-sign via signEvent; critical additionally enforces SoD policy).
  */
+import type { PendingQualitySignoff } from '../../_actions/quality-signoff-types';
 
 export type NcrSeverity = 'critical' | 'major' | 'minor';
 export const NCR_SEVERITIES: NcrSeverity[] = ['critical', 'major', 'minor'];
@@ -162,6 +163,9 @@ export type NcrDetail = NcrServerListRow & {
   closedBy: string | null;
   closedAt: string | null;
   closureSignatureHash: string | null;
+  pendingSignoff: PendingQualitySignoff | null;
+  pendingCloseResolution: string | null;
+  requiredCloseSignatures: 1 | 2;
   inspection: null;
   ccpBreach: NcrCcpBreach | null;
   /** Detail-page-DERIVED overdue flag (responseDueAt < now AND not terminal). */
@@ -215,6 +219,12 @@ export type UpdatedNcrInvestigation = {
   capaRecordId: string | null;
 };
 export type ClosedNcr = { id: string; ncrNumber: string; status: 'closed'; closedAt: string; signatureHash: string | null };
+export type PendingNcrClose = {
+  id: string;
+  ncrNumber: string;
+  status: 'pending_second_signature';
+  pendingSignoff: PendingQualitySignoff;
+};
 
 /** Action function signatures the pages import and the islands consume as props. */
 export type ListNcrsAction = (input?: ListNcrsInput) => Promise<NcrActionResult<NcrServerListRow[]>>;
@@ -223,4 +233,6 @@ export type CreateNcrAction = (input: CreateNcrInput) => Promise<NcrActionResult
 export type UpdateNcrInvestigationAction = (
   input: UpdateNcrInvestigationInput,
 ) => Promise<NcrActionResult<UpdatedNcrInvestigation>>;
-export type CloseNcrAction = (input: CloseNcrInput) => Promise<NcrActionResult<ClosedNcr>>;
+export type CloseNcrAction = (
+  input: CloseNcrInput,
+) => Promise<NcrActionResult<ClosedNcr | PendingNcrClose>>;

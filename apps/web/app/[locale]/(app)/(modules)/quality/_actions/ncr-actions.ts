@@ -2,7 +2,11 @@
 
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
-import { ESignPolicyError, signEvent, type ESignPolicyErrorCode } from '@monopilot/e-sign';
+import {
+  ESignPolicyError,
+  readSignoffPolicy,
+  type ESignPolicyErrorCode,
+} from '@monopilot/e-sign';
 import { z } from 'zod';
 
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
@@ -16,6 +20,8 @@ import {
   type PaginatedResult,
 } from '../../../../../../lib/shared/pagination';
 import { qualityListSiteClause, qualityListSiteParams } from './list-site-scope';
+import { collectQualitySignoff, readPendingQualitySignoff } from './quality-signoff';
+import type { PendingQualitySignoff } from './quality-signoff-types';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -100,6 +106,9 @@ type NcrDetail = NcrListRow & {
   closedBy: string | null;
   closedAt: string | null;
   closureSignatureHash: string | null;
+  pendingSignoff: PendingQualitySignoff | null;
+  pendingCloseResolution: string | null;
+  requiredCloseSignatures: 1 | 2;
   inspection: null;
   ccpBreach: NcrCcpBreach | null;
 };
@@ -110,6 +119,12 @@ type UpdatedNcrInvestigation = Pick<
   'id' | 'status' | 'rootCause' | 'rootCauseCategory' | 'immediateAction' | 'capaRecordId'
 >;
 type ClosedNcr = { id: string; ncrNumber: string; status: 'closed'; closedAt: string; signatureHash: string | null };
+type PendingNcrClose = {
+  id: string;
+  ncrNumber: string;
+  status: 'pending_second_signature';
+  pendingSignoff: PendingQualitySignoff;
+};
 
 const uuidSchema = z.string().uuid();
 const ncrTypeSchema = z.enum(['quality', 'yield_issue', 'allergen_deviation', 'supplier', 'process', 'complaint_related']);
@@ -636,6 +651,7 @@ export async function getNcrDetail(ncrId: string): Promise<ActionResult<NcrDetai
           closed_by: string | null;
           closed_at: Date | string | null;
           closure_signature_hash: string | null;
+          ext_jsonb: Record<string, unknown>;
         }
       >(
         `select
@@ -662,6 +678,7 @@ export async function getNcrDetail(ncrId: string): Promise<ActionResult<NcrDetai
            n.closed_by::text,
            n.closed_at,
            n.closure_signature_hash,
+           n.ext_jsonb,
            n.linked_hold_id::text,
            h.hold_number as linked_hold_number,
            n.response_due_at,
@@ -678,9 +695,28 @@ export async function getNcrDetail(ncrId: string): Promise<ActionResult<NcrDetai
       const row = rows[0];
       if (!row) return { ok: true, data: null };
 
-      const ccpBreach =
+      const [ccpBreach, closePolicy] = await Promise.all([
         row.reference_type === 'ccp_deviation' && row.reference_id
-          ? await fetchCcpBreachContext(ctx, parsedNcrId, row.reference_id)
+          ? fetchCcpBreachContext(ctx, parsedNcrId, row.reference_id)
+          : Promise.resolve(null),
+        readSignoffPolicy(ctx.client as pg.PoolClient, 'qa.ncr.close'),
+      ]);
+      const closure = row.ext_jsonb?.closure;
+      const closurePending =
+        typeof closure === 'object'
+        && closure !== null
+        && (closure as { pending?: unknown }).pending === true;
+      const pendingCloseResolution =
+        closurePending && typeof (closure as { resolution?: unknown }).resolution === 'string'
+          ? (closure as { resolution: string }).resolution
+          : null;
+      const pendingSignoff =
+        closurePending && row.closure_signature_hash && row.status !== 'closed'
+          ? await readPendingQualitySignoff(
+              ctx.client,
+              'qa.ncr.close',
+              { subjectHash: row.closure_signature_hash },
+            )
           : null;
 
       return {
@@ -701,6 +737,9 @@ export async function getNcrDetail(ncrId: string): Promise<ActionResult<NcrDetai
           closedBy: row.closed_by,
           closedAt: toIso(row.closed_at),
           closureSignatureHash: row.closure_signature_hash,
+          pendingSignoff,
+          pendingCloseResolution,
+          requiredCloseSignatures: closePolicy?.requiredSignatures === 2 ? 2 : 1,
           inspection: null,
           ccpBreach,
         },
@@ -936,10 +975,10 @@ export async function closeNcr(input: {
   ncrId: string;
   resolution: string;
   signature: { password: string };
-}): Promise<ActionResult<ClosedNcr>> {
+}): Promise<ActionResult<ClosedNcr | PendingNcrClose>> {
   try {
     const parsed = closeSchema.parse(input);
-    return await withOrgContext(async (ctx): Promise<ActionResult<ClosedNcr>> => {
+    return await withOrgContext(async (ctx): Promise<ActionResult<ClosedNcr | PendingNcrClose>> => {
       const [canCreateNcr, canCloseCritical] = await Promise.all([
         hasPermission(ctx, 'quality.ncr.create'),
         hasPermission(ctx, 'quality.ncr.close_critical'),
@@ -952,8 +991,12 @@ export async function closeNcr(input: {
         severity: NcrSeverity;
         status: NcrStatus;
         closed_at: Date | string | null;
+        closure_signature_hash: string | null;
+        root_cause: string | null;
+        ext_jsonb: Record<string, unknown>;
       }>(
-        `select id::text, ncr_number, severity, status, closed_at
+        `select id::text, ncr_number, severity, status, closed_at, closure_signature_hash,
+                root_cause, ext_jsonb
            from public.ncr_reports
           where org_id = app.current_org_id()
             and id = $1::uuid
@@ -972,19 +1015,78 @@ export async function closeNcr(input: {
         return { ok: false, reason: 'forbidden' };
       }
 
-      const receipt = await signEvent(
-        {
-          signerUserId: ctx.userId,
-          pin: parsed.signature.password,
-          intent: 'qa.ncr.close',
-          subject: { ncrId: parsed.ncrId, resolution: parsed.resolution, severity: ncr.severity },
-          reason: parsed.resolution,
-        },
-        { client: ctx.client as unknown as pg.PoolClient },
-      );
-      if (!receipt.subjectHash) {
-        throw new Error('NCR close e-signature did not produce a receipt hash');
+      // V-QA-NCR-005 — close requires a recorded root cause (the Investigation card
+      // marks the field required and the prototype hides Close until it is filled:
+      // quality/ncr-screens.jsx:191,268). Enforced HERE, not in
+      // updateNcrInvestigation, so saving a partial investigation stays possible.
+      // CAPA stays optional on purpose — capa_records is Phase 2 (PRD Epic 8G).
+      if ((ncr.root_cause ?? '').trim().length === 0) {
+        return { ok: false, reason: 'error', message: 'root_cause_required' };
       }
+
+      const closure =
+        typeof ncr.ext_jsonb?.closure === 'object' && ncr.ext_jsonb.closure !== null
+          ? (ncr.ext_jsonb.closure as { pending?: unknown; resolution?: unknown })
+          : null;
+      const pendingResolution =
+        closure?.pending === true && typeof closure.resolution === 'string'
+          ? closure.resolution
+          : null;
+      if (pendingResolution && !ncr.closure_signature_hash) {
+        throw new Error('NCR has an incomplete pending close-signature state');
+      }
+      if (pendingResolution && pendingResolution !== parsed.resolution) {
+        throw new Error('The pending NCR close decision cannot be changed');
+      }
+      const resolution = pendingResolution ?? parsed.resolution;
+      const signoff = await collectQualitySignoff({
+        client: ctx.client,
+        signerUserId: ctx.userId,
+        pin: parsed.signature.password,
+        intent: 'qa.ncr.close',
+        subject: { ncrId: parsed.ncrId, resolution, severity: ncr.severity },
+        reason: resolution,
+        pending: pendingResolution && ncr.closure_signature_hash
+          ? { subjectHash: ncr.closure_signature_hash }
+          : undefined,
+        receiptHashErrorMessage: 'NCR close e-signature did not produce a receipt hash',
+      });
+
+      if (!signoff.complete) {
+        const pending = await ctx.client.query<{ status: NcrStatus }>(
+          `update public.ncr_reports
+              set closure_signature_hash = $2,
+                  ext_jsonb = jsonb_set(
+                    ext_jsonb,
+                    '{closure}',
+                    jsonb_build_object(
+                      'pending', true,
+                      'resolution', $3::text,
+                      'firstSignatureId', $4::text
+                    ),
+                    true
+                  )
+            where org_id = app.current_org_id()
+              and id = $1::uuid
+              and status not in ('closed', 'cancelled')
+              and closed_at is null
+            returning status`,
+          [parsed.ncrId, signoff.receipt.subjectHash, resolution, signoff.receipt.signatureId],
+        );
+        if (!pending.rows[0]) throw new Error('NCR pending close update did not return a row');
+
+        safeRevalidateNcrRoutes(parsed.ncrId);
+        return {
+          ok: true,
+          data: {
+            id: parsed.ncrId,
+            ncrNumber: ncr.ncr_number,
+            status: 'pending_second_signature',
+            pendingSignoff: signoff.pendingSignoff,
+          },
+        };
+      }
+      const receipt = signoff.receipt;
 
       const updated = await ctx.client.query<{ closed_at: Date | string }>(
         `update public.ncr_reports
@@ -992,13 +1094,30 @@ export async function closeNcr(input: {
                 closed_by = $2::uuid,
                 closed_at = pg_catalog.now(),
                 closure_signature_hash = $3,
-                ext_jsonb = jsonb_set(ext_jsonb, '{closure,resolution}', to_jsonb($4::text), true)
+                ext_jsonb = jsonb_set(
+                  ext_jsonb,
+                  '{closure}',
+                  jsonb_build_object(
+                    'pending', false,
+                    'resolution', $4::text,
+                    'firstSignatureId', $5::text,
+                    'finalSignatureId', $6::text
+                  ),
+                  true
+                )
           where org_id = app.current_org_id()
             and id = $1::uuid
             and status not in ('closed', 'cancelled')
             and closed_at is null
           returning closed_at`,
-        [parsed.ncrId, ctx.userId, receipt.subjectHash, parsed.resolution],
+        [
+          parsed.ncrId,
+          ctx.userId,
+          receipt.subjectHash,
+          resolution,
+          signoff.firstSignature?.signatureId ?? receipt.signatureId,
+          receipt.signatureId,
+        ],
       );
       const closedAt = updated.rows[0]?.closed_at;
       if (!closedAt) throw new Error('NCR close update did not return a row');
@@ -1031,7 +1150,7 @@ export async function closeNcr(input: {
           severity: ncr.severity,
           signatureHash: receipt.subjectHash,
           closedAt: toIso(closedAt),
-          resolution: parsed.resolution,
+          resolution,
         },
       });
 

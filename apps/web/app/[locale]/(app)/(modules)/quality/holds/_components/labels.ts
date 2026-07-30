@@ -15,7 +15,7 @@ import type { HoldDetailLabels } from '../[holdId]/_components/hold-detail.clien
 const REF_TYPES: HoldRefType[] = ['lp', 'batch', 'wo', 'po', 'grn'];
 const PRIORITIES = ['low', 'medium', 'high', 'critical'];
 const STATUSES = ['open', 'investigating', 'escalated', 'quarantined', 'released'];
-const DISPOSITIONS: ReleaseDisposition[] = ['release', 'scrap', 'rework', 'partial'];
+const DISPOSITIONS: ReleaseDisposition[] = ['release', 'scrap', 'rework'];
 
 export function buildHoldsListLabels(t: QaHoldsTranslator): HoldsListLabels {
   return {
@@ -152,6 +152,13 @@ export function buildHoldReleaseLabels(t: QaHoldsTranslator): HoldReleaseLabels 
       signer_role_not_allowed: t.has('releaseModal.policyErrors.signer_role_not_allowed')
         ? t('releaseModal.policyErrors.signer_role_not_allowed')
         : 'Your role is not allowed to sign this release under the configured sign-off policy.',
+    },
+    pendingSignoff: {
+      title: t('releaseModal.pendingSignoff.title'),
+      signedBy: t('releaseModal.pendingSignoff.signedBy'),
+      awaitingRole: t('releaseModal.pendingSignoff.awaitingRole'),
+      anyAuthorizedSigner: t('releaseModal.pendingSignoff.anyAuthorizedSigner'),
+      submitSecond: t('releaseModal.pendingSignoff.submitSecond'),
     },
     error: t('releaseModal.error'),
     success: t('releaseModal.success'),

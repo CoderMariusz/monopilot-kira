@@ -18,10 +18,15 @@
  * never trusts a client-only SoD flag and surfaces e-sign failures VERBATIM.
  *
  * DEVIATIONS (red-lines): the prototype's 6-digit numeric PIN is replaced by the
- * backend's account-password signature (signEvent verifies the password); the
- * "Release as-is / Scrap / Rework / Return to supplier / Other" disposition list
- * maps to the action's release/scrap/rework/partial union. Server time + signer
- * identity in the e-sign block are rendered by the server (not faked client-side).
+ * backend's account-password signature (signEvent verifies the password); each
+ * signer supplies only their own credential and a two-signature policy leaves
+ * the frozen release decision pending for the configured second role. The
+ * prototype's "Release as-is / Scrap / Rework / Return to supplier / Other" list
+ * maps to the action's release/scrap/rework union (return-to-supplier and other
+ * have no backing action yet). There is NO "partial release" option: the PRD
+ * disposition enum does not contain one and no quantity-split mechanic exists,
+ * so offering it only produced an unconditional server refusal. Server time +
+ * signer identity in the e-sign block are rendered by the server (not faked).
  */
 
 import { useState, useTransition } from 'react';
@@ -29,10 +34,15 @@ import { useState, useTransition } from 'react';
 import Modal from '@monopilot/ui/Modal';
 import { Select } from '@monopilot/ui/Select';
 
+import {
+  PendingQualitySignoffPanel,
+  type PendingSignoffLabels,
+} from '../../_components/pending-quality-signoff';
+import type { PendingQualitySignoff } from '../../_actions/quality-signoff-types';
 import type { releaseHold } from '../../_actions/hold-actions';
 
-export type ReleaseDisposition = 'release' | 'scrap' | 'rework' | 'partial';
-const DISPOSITIONS: ReleaseDisposition[] = ['release', 'scrap', 'rework', 'partial'];
+export type ReleaseDisposition = 'release' | 'scrap' | 'rework';
+const DISPOSITIONS: ReleaseDisposition[] = ['release', 'scrap', 'rework'];
 
 export type HoldReleaseTarget = {
   id: string;
@@ -60,6 +70,7 @@ export type HoldReleaseLabels = {
   formIncomplete: string;
   validation: { dispositionRequired: string; reasonRequired: string; passwordRequired: string };
   policyErrors: Record<'second_signature_required' | 'signer_role_not_allowed', string>;
+  pendingSignoff: PendingSignoffLabels;
   error: string;
   success: string;
 };
@@ -82,6 +93,10 @@ export function HoldReleaseModal({
   labels,
   releaseHoldAction,
   onReleased,
+  onPending,
+  initialPendingSignoff = null,
+  initialDisposition = '',
+  initialReasonText = '',
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -89,21 +104,31 @@ export function HoldReleaseModal({
   labels: HoldReleaseLabels;
   releaseHoldAction: typeof releaseHold;
   onReleased?: () => void;
+  onPending?: (
+    pendingSignoff: PendingQualitySignoff,
+    disposition: ReleaseDisposition,
+    reasonText: string,
+  ) => void;
+  initialPendingSignoff?: PendingQualitySignoff | null;
+  initialDisposition?: ReleaseDisposition | '';
+  initialReasonText?: string;
 }) {
-  const [disposition, setDisposition] = useState<ReleaseDisposition | ''>('');
-  const [reasonText, setReasonText] = useState('');
+  const [disposition, setDisposition] = useState<ReleaseDisposition | ''>(initialDisposition);
+  const [reasonText, setReasonText] = useState(initialReasonText);
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [pendingSignoff, setPendingSignoff] = useState(initialPendingSignoff);
   const [pending, startTransition] = useTransition();
 
   const trimmedReason = reasonText.trim();
   const valid = disposition !== '' && trimmedReason.length > 0 && password.length > 0;
 
   function reset() {
-    setDisposition('');
-    setReasonText('');
+    setDisposition(initialDisposition);
+    setReasonText(initialReasonText);
     setPassword('');
     setError(null);
+    setPendingSignoff(initialPendingSignoff);
   }
 
   function close() {
@@ -126,6 +151,12 @@ export function HoldReleaseModal({
       });
       if (!result.ok) {
         setError(releaseErrorMessage(labels, result));
+        return;
+      }
+      if (result.data.status === 'pending_second_signature') {
+        setPendingSignoff(result.data.pendingSignoff);
+        setPassword('');
+        onPending?.(result.data.pendingSignoff, disposition, trimmedReason);
         return;
       }
       reset();
@@ -157,6 +188,10 @@ export function HoldReleaseModal({
           </dl>
 
           {/* Disposition (parity modals.jsx:123-128) — shadcn Select, no raw <select>. */}
+          {pendingSignoff && (
+            <PendingQualitySignoffPanel signoff={pendingSignoff} labels={labels.pendingSignoff} />
+          )}
+
           <label className="flex flex-col gap-1">
             <span className="font-medium text-slate-700">
               {labels.disposition} <span aria-hidden className="text-red-500">*</span>
@@ -165,6 +200,7 @@ export function HoldReleaseModal({
               <Select
                 aria-label={labels.disposition}
                 value={disposition}
+                disabled={pendingSignoff !== null}
                 onValueChange={(v) => setDisposition(v as ReleaseDisposition)}
                 placeholder={labels.dispositionPlaceholder}
                 options={DISPOSITIONS.map((d) => ({ value: d, label: labels.dispositionOptions[d] }))}
@@ -181,6 +217,7 @@ export function HoldReleaseModal({
             <textarea
               data-testid="hold-release-reason"
               value={reasonText}
+              disabled={pendingSignoff !== null}
               onChange={(e) => setReasonText(e.target.value)}
               placeholder={labels.reasonTextPlaceholder}
               rows={3}
@@ -244,7 +281,11 @@ export function HoldReleaseModal({
           title={!valid ? labels.formIncomplete : undefined}
           className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white transition enabled:hover:bg-emerald-700 disabled:opacity-50"
         >
-          🔒 {pending ? labels.submitting : labels.submit}
+          🔒 {pending
+            ? labels.submitting
+            : pendingSignoff
+              ? labels.pendingSignoff.submitSecond
+              : labels.submit}
         </button>
       </Modal.Footer>
     </Modal>

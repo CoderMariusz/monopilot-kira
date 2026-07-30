@@ -23,18 +23,34 @@ const CONFLICT_PRODUCT_ID = '77777777-7777-4777-8777-777777777777';
 
 const CCP_ID = '66666666-6666-4666-8666-666666666666';
 const SITE_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const SECOND_ROLE_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+
+const eSignState = vi.hoisted(() => ({
+  requiredSignatures: 1,
+  currentUserId: '22222222-2222-4222-8222-222222222222',
+  storedSignature: null as null | {
+    signature_id: string;
+    signer_user_id: string;
+    signer_display_name: string;
+    subject_hash: string;
+    created_at: string;
+  },
+}));
 
 let client: QueryClient;
 let permissions: Set<string>;
 let currentSeverity: 'critical' | 'major' | 'minor' = 'critical';
-let currentStatus: 'open' | 'closed' | 'cancelled' = 'open';
+let currentStatus: 'open' | 'reopened' | 'closed' | 'cancelled' = 'open';
+// V-QA-NCR-005 — root cause as stored on the NCR being closed.
+let currentRootCause: string | null = 'Sieve gap allowed a fragment through.';
+let historicalClosure = false;
 // reference of the row returned by the getNcrDetail header select.
 let detailReference: { type: string | null; id: string | null } = { type: 'lp', id: 'ref-uuid' };
 let listTotal = 1;
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
-    action({ userId: USER_ID, orgId: ORG_ID, client }),
+    action({ userId: eSignState.currentUserId, orgId: ORG_ID, client }),
   ),
 }));
 vi.mock('../../../../../../../lib/site/site-context', () => ({
@@ -43,26 +59,44 @@ vi.mock('../../../../../../../lib/site/site-context', () => ({
 vi.mock('../../../../../../../lib/i18n/revalidate-localized', () => ({ revalidateLocalized: vi.fn() }));
 import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
 
-vi.mock('@monopilot/e-sign', () => ({
-  // wave F4: hold/NCR actions detect policy errors via instanceof — the mock must export the class
-  ESignPolicyError: class ESignPolicyError extends Error {
+vi.mock('@monopilot/e-sign', () => {
+  class ESignPolicyError extends Error {
     code: string;
     constructor(code: string, message?: string) {
       super(message ?? code);
       this.code = code;
     }
-  },
+  }
 
-  signEvent: vi.fn(async () => ({
-    signatureId: '88888888-8888-4888-8888-888888888888',
-    signerUserId: USER_ID,
-    intent: 'qa.ncr.close',
-    subjectHash: 'b'.repeat(64),
-    signedAt: '2026-06-11T12:00:00.000Z',
-    auditEventId: 44,
-    nonce: 'nonce-ncr',
-  })),
-}));
+  return {
+  // wave F4: hold/NCR actions detect policy errors via instanceof — the mock must export the class
+    ESignPolicyError,
+    ESignSoDError: class ESignSoDError extends Error {},
+    hashESignSubject: vi.fn(() => 'b'.repeat(64)),
+    readSignoffPolicy: vi.fn(async () => ({
+      signoffType: 'qa.ncr.close',
+      requiredSignatures: eSignState.requiredSignatures,
+      firstSignerRoleId: null,
+      secondSignerRoleId: eSignState.requiredSignatures === 2 ? SECOND_ROLE_ID : null,
+      allowSameUser: false,
+    })),
+
+    signEvent: vi.fn(async (input: { signerUserId: string }, options?: { policyMode?: string }) => {
+      if (eSignState.requiredSignatures === 2 && (options?.policyMode ?? 'single') === 'single') {
+        throw new ESignPolicyError('second_signature_required');
+      }
+      return {
+        signatureId: '88888888-8888-4888-8888-888888888888',
+        signerUserId: input.signerUserId,
+        intent: 'qa.ncr.close',
+        subjectHash: 'b'.repeat(64),
+        signedAt: '2026-06-11T12:00:00.000Z',
+        auditEventId: 44,
+        nonce: 'nonce-ncr',
+      };
+    }),
+  };
+});
 
 function normalize(sql: string): string {
   return sql.replace(/\s+/g, ' ').trim().toLowerCase();
@@ -101,6 +135,21 @@ function makeClient(): QueryClient {
         const permission = String(params[2]);
         const allowed = permissions.has(permission);
         return { rows: allowed ? [{ ok: true }] : [], rowCount: allowed ? 1 : 0 };
+      }
+
+      if (q.includes('from public.e_sign_log es')) {
+        return {
+          rows: eSignState.storedSignature ? [eSignState.storedSignature] : [],
+          rowCount: eSignState.storedSignature ? 1 : 0,
+        };
+      }
+
+      if (q.includes('from public.users') && q.includes('as display_name')) {
+        return { rows: [{ display_name: 'Quality Lead Anna' }], rowCount: 1 };
+      }
+
+      if (q.includes('from public.roles')) {
+        return { rows: [{ display_name: 'Production Manager' }], rowCount: 1 };
       }
 
       if (q.includes('select count(*)::int as total') && q.includes('from public.ncr_reports n')) {
@@ -235,7 +284,7 @@ function makeClient(): QueryClient {
       if (q.startsWith('select id::text, ncr_number, severity')) {
         return {
           rows:
-            currentStatus === 'open'
+            currentStatus === 'open' || currentStatus === 'reopened'
               ? [
                   {
                     id: NCR_ID,
@@ -243,6 +292,15 @@ function makeClient(): QueryClient {
                     severity: currentSeverity,
                     status: currentStatus,
                     closed_at: null,
+                    root_cause: currentRootCause,
+                    closure_signature_hash:
+                      eSignState.storedSignature?.subject_hash
+                      ?? (historicalClosure ? 'c'.repeat(64) : null),
+                    ext_jsonb: eSignState.storedSignature
+                      ? { closure: { pending: true, resolution: 'Resolved' } }
+                      : historicalClosure
+                        ? { closure: { pending: false, resolution: 'Previously closed' } }
+                        : {},
                   },
                 ]
               : [
@@ -252,6 +310,9 @@ function makeClient(): QueryClient {
                     severity: currentSeverity,
                     status: currentStatus,
                     closed_at: '2026-06-11T11:00:00.000Z',
+                    root_cause: currentRootCause,
+                    closure_signature_hash: null,
+                    ext_jsonb: {},
                   },
                 ],
           rowCount: 1,
@@ -260,6 +321,10 @@ function makeClient(): QueryClient {
 
       if (q.startsWith('update public.ncr_reports') && q.includes("set status = 'closed'")) {
         return { rows: [{ closed_at: '2026-06-11T12:00:00.000Z' }], rowCount: 1 };
+      }
+
+      if (q.startsWith('update public.ncr_reports') && q.includes('closure_signature_hash')) {
+        return { rows: [{ status: currentStatus }], rowCount: 1 };
       }
 
       if (q.startsWith('insert into public.outbox_events')) {
@@ -276,8 +341,13 @@ describe('quality NCR server actions', () => {
     permissions = new Set(['quality.dashboard.view', 'quality.ncr.create', 'quality.ncr.close_critical']);
     currentSeverity = 'critical';
     currentStatus = 'open';
+    currentRootCause = 'Sieve gap allowed a fragment through.';
+    historicalClosure = false;
     detailReference = { type: 'lp', id: 'ref-uuid' };
     listTotal = 1;
+    eSignState.requiredSignatures = 1;
+    eSignState.currentUserId = USER_ID;
+    eSignState.storedSignature = null;
     client = makeClient();
     vi.mocked(getActiveSiteId).mockResolvedValue(SITE_ID);
     vi.mocked(revalidateLocalized).mockClear();
@@ -525,6 +595,26 @@ describe('quality NCR server actions', () => {
     expect(insertCall?.[1]?.[10]).toBeNull();
   });
 
+  it('V-QA-NCR-005: refuses to close without a root cause, and closes once one is recorded', async () => {
+    const { signEvent } = await import('@monopilot/e-sign');
+    currentRootCause = '   ';
+
+    await expect(
+      closeNcr({ ncrId: NCR_ID, resolution: 'Resolved', signature: { password: 'pw' } }),
+    ).resolves.toEqual({ ok: false, reason: 'error', message: 'root_cause_required' });
+    // Fail-closed: no signature consumed and no write attempted.
+    expect(signEvent).not.toHaveBeenCalled();
+    expect(
+      vi.mocked(client.query).mock.calls.some(([sql]) => normalize(String(sql)).includes("set status = 'closed'")),
+    ).toBe(false);
+
+    // Same NCR, root cause recorded → the close still goes through unchanged.
+    currentRootCause = 'Sieve gap allowed a fragment through.';
+    const closed = await closeNcr({ ncrId: NCR_ID, resolution: 'Resolved', signature: { password: 'pw' } });
+    expect(closed.ok).toBe(true);
+    expect(signEvent).toHaveBeenCalledTimes(1);
+  });
+
   it('requires e-signature for every NCR close and stores a real receipt hash', async () => {
     const { signEvent } = await import('@monopilot/e-sign');
 
@@ -593,6 +683,92 @@ describe('quality NCR server actions', () => {
         subject: expect.objectContaining({ severity: 'minor' }),
       }),
       expect.any(Object),
+    );
+  });
+
+  it('keeps the NCR open after the first signature when policy requires two', async () => {
+    eSignState.requiredSignatures = 2;
+
+    const result = await closeNcr({
+      ncrId: NCR_ID,
+      resolution: 'Resolved',
+      signature: { password: 'pw' },
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        id: NCR_ID,
+        status: 'pending_second_signature',
+      },
+    });
+    expect(
+      vi.mocked(client.query).mock.calls.some(([sql]) =>
+        normalize(String(sql)).includes("set status = 'closed'"),
+      ),
+    ).toBe(false);
+  });
+
+  it('closes a reopened NCR without mistaking its historical signature for a pending slot', async () => {
+    currentStatus = 'reopened';
+    historicalClosure = true;
+
+    const result = await closeNcr({
+      ncrId: NCR_ID,
+      resolution: 'Resolved after reopening',
+      signature: { password: 'pw' },
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      data: { id: NCR_ID, status: 'closed' },
+    });
+    const { signEvent } = await import('@monopilot/e-sign');
+    expect(signEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subject: expect.objectContaining({ resolution: 'Resolved after reopening' }),
+      }),
+      expect.objectContaining({ policyMode: 'single' }),
+    );
+  });
+
+  it('rejects the first signer in the second slot and closes for a different signer', async () => {
+    eSignState.requiredSignatures = 2;
+    eSignState.storedSignature = {
+      signature_id: '77777777-7777-4777-8777-777777777777',
+      signer_user_id: USER_ID,
+      signer_display_name: 'Quality Lead Anna',
+      subject_hash: 'b'.repeat(64),
+      created_at: '2026-07-30T10:00:00.000Z',
+    };
+
+    const sameSigner = await closeNcr({
+      ncrId: NCR_ID,
+      resolution: 'Resolved',
+      signature: { password: 'same-secret' },
+    });
+    expect(sameSigner).toEqual({
+      ok: false,
+      reason: 'error',
+      message: 'Second signature must be provided by a different user',
+    });
+    const { signEvent } = await import('@monopilot/e-sign');
+    expect(signEvent).not.toHaveBeenCalled();
+
+    vi.clearAllMocks();
+    eSignState.currentUserId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+    const otherSigner = await closeNcr({
+      ncrId: NCR_ID,
+      resolution: 'Resolved',
+      signature: { password: 'other-secret' },
+    });
+    expect(otherSigner).toMatchObject({
+      ok: true,
+      data: { id: NCR_ID, status: 'closed' },
+    });
+    expect(signEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ signerUserId: eSignState.currentUserId }),
+      expect.objectContaining({ policyMode: 'dual-secondary' }),
     );
   });
 

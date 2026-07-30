@@ -237,6 +237,20 @@ describe('HoldReleaseModal (MODAL-HOLD-RELEASE parity)', () => {
     });
   });
 
+  it('offers only the three implemented dispositions — no "partial release" affordance', () => {
+    renderRelease();
+    fireEvent.click(within(screen.getByTestId('hold-release-disposition')).getByRole('combobox'));
+    // Positive direction: the implemented dispositions are all still selectable.
+    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual([
+      RELEASE_LABELS.dispositionOptions.release,
+      RELEASE_LABELS.dispositionOptions.scrap,
+      RELEASE_LABELS.dispositionOptions.rework,
+    ]);
+    // Negative direction: nothing offers a partial release any more (the server
+    // rejected it unconditionally with a raw code — see releaseHoldCore).
+    expect(screen.queryByRole('option', { name: /partial|częściow/i })).toBeNull();
+  });
+
   it('surfaces an e-sign failure verbatim from the action', async () => {
     const releaseHoldAction = vi.fn().mockResolvedValue({ ok: false, reason: 'error', message: 'invalid signature pin' });
     renderRelease(releaseHoldAction);
@@ -267,6 +281,38 @@ describe('HoldReleaseModal (MODAL-HOLD-RELEASE parity)', () => {
       ),
     );
   });
+
+  it('keeps the modal open after the first signature and freezes the release decision', async () => {
+    const releaseHoldAction = vi.fn().mockResolvedValue({
+      ok: true,
+      data: {
+        id: 'h-1',
+        status: 'pending_second_signature',
+        pendingSignoff: {
+          state: 'pending_second_signature',
+          subjectHash: 'b'.repeat(64),
+          firstSignatureId: 'sig-1',
+          firstSignedAt: '2026-07-30T10:00:00.000Z',
+          firstSigner: { id: 'u-1', displayName: 'Quality Lead Anna' },
+          awaitingRole: { id: 'r-2', displayName: 'Production Manager' },
+        },
+      },
+    });
+    renderRelease(releaseHoldAction);
+    fireEvent.change(screen.getByTestId('hold-release-reason'), {
+      target: { value: 'Inspection passed' },
+    });
+    fireEvent.change(screen.getByTestId('hold-release-password'), { target: { value: 'first-secret' } });
+    fireEvent.click(within(screen.getByTestId('hold-release-disposition')).getByRole('combobox'));
+    fireEvent.click(screen.getByRole('option', { name: RELEASE_LABELS.dispositionOptions.release }));
+    fireEvent.click(screen.getByTestId('hold-release-submit'));
+
+    expect(await screen.findByTestId('pending-quality-signoff-signer')).toHaveTextContent('Quality Lead Anna');
+    expect(screen.getByTestId('pending-quality-signoff-role')).toHaveTextContent('Production Manager');
+    expect(within(screen.getByTestId('hold-release-disposition')).getByRole('combobox')).toBeDisabled();
+    expect(screen.getByTestId('hold-release-reason')).toBeDisabled();
+    expect(screen.getByTestId('hold-release-password')).toHaveValue('');
+  });
 });
 
 describe('HoldDetailClient (QA-002a parity)', () => {
@@ -290,6 +336,10 @@ describe('HoldDetailClient (QA-002a parity)', () => {
       releaseNotes: null,
       releaseSignatureHash: null,
       releasedBy: null,
+      createdByCurrentUser: false,
+      pendingSignoff: null,
+      pendingReleaseDisposition: null,
+      pendingReleaseReason: null,
       items: [
         { id: 'i-1', licensePlateId: 'lp-uuid', lpNumber: 'LP-4820', itemId: 'it-1', itemCode: 'R-1001', qtyHeldKg: '120', qtyReleasedKg: '0', status: 'held' },
       ],
@@ -321,6 +371,20 @@ describe('HoldDetailClient (QA-002a parity)', () => {
     );
     expect(screen.queryByTestId('hold-detail-release-open')).not.toBeInTheDocument();
     expect(screen.getByTestId('hold-detail-no-release')).toBeInTheDocument();
+  });
+
+  it('hides release from the creator of a critical hold even when the permission grant exists', () => {
+    render(
+      <HoldDetailClient
+        hold={makeDetail({ priority: 'critical', createdByCurrentUser: true })}
+        canRelease
+        labels={DETAIL_LABELS}
+        locale="en"
+        releaseHoldAction={vi.fn() as never}
+      />,
+    );
+    expect(screen.queryByTestId('hold-detail-release-open')).not.toBeInTheDocument();
+    expect(screen.getByTestId('hold-detail-no-release')).toHaveTextContent(DETAIL_LABELS.actions.sod);
   });
 
   it('renders the immutable signed banner and NO action buttons for a released hold', () => {

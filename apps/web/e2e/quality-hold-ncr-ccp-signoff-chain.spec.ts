@@ -168,8 +168,10 @@ test.describe('Jakość: blokada / NCR / odchylenie CCP — podpisy i trwały st
     await shot(page, 'T1-02-detail-dualsign-note');
 
     // ── Krok 3a: „Zamknij" pojawia się dopiero w statusie `investigating`.
-    //   Zapisujemy dochodzenie z PUSTĄ przyczyną źródłową — pole jest oznaczone
-    //   gwiazdką „wymagane", więc sprawdzamy, czy ta gwiazdka cokolwiek znaczy.
+    //   Zapisujemy dochodzenie z PUSTĄ przyczyną źródłową. Zapis częściowy MA
+    //   przechodzić (dochodzenie się prowadzi etapami), ale gwiazdka przy
+    //   „Root cause" musi coś znaczyć: po NAPRAWIE (Z-06) przycisk „Zamknij"
+    //   nie pojawia się, dopóki przyczyna nie jest zapisana — V-QA-NCR-005.
     await expect(page.getByTestId('ncr-detail-close-open')).toHaveCount(0);
     await expect(page.getByTestId('ncr-investigation-rootcause')).toHaveValue('');
     await page.getByTestId('ncr-investigation-save').click();
@@ -184,6 +186,24 @@ test.describe('Jakość: blokada / NCR / odchylenie CCP — podpisy i trwały st
     )[0]!;
     console.log(`[T1] po zapisie dochodzenia (puste pola): ${JSON.stringify(afterInvestigation)}`);
     expect(afterInvestigation.status).toBe('investigating');
+    // Kierunek negatywny: przyczyna pusta → zamknięcie niedostępne.
+    expect((afterInvestigation.root_cause ?? '').trim()).toBe('');
+    await expect(page.getByTestId('ncr-detail-close-open')).toHaveCount(0);
+    await shot(page, 'T1-02b-close-blocked-without-root-cause');
+
+    // ── Krok 3b: zapisujemy przyczynę źródłową — dopiero teraz wolno zamykać.
+    await page.getByTestId('ncr-investigation-rootcause').fill('Szczelina sita przepuscila fragment.');
+    await page.getByTestId('ncr-investigation-save').click();
+    await expect
+      .poll(
+        async () =>
+          (await sql<{ root_cause: string | null }>(
+            `select root_cause from public.ncr_reports where org_id = $1::uuid and id = $2::uuid`,
+            [ORG_ID, created.id],
+          ))[0]?.root_cause,
+        { timeout: 30_000, message: 'przyczyna źródłowa nie została zapisana' },
+      )
+      .toBe('Szczelina sita przepuscila fragment.');
 
     // ── Krok 4: modal zamknięcia — ostrzeżenie „obaj muszą podpisać" ───────
     await expect(page.getByTestId('ncr-detail-close-open')).toBeVisible({ timeout: 30_000 });
@@ -683,8 +703,12 @@ test.describe('Jakość: blokada / NCR / odchylenie CCP — podpisy i trwały st
 
       await page.goto(url(`/${L}/quality/ncrs/${ncrId}`), { waitUntil: 'domcontentloaded' });
       await expect(page.getByTestId('ncr-detail-status')).toBeVisible({ timeout: COMPILE });
+      // Przyczyna źródłowa jest wymagana do zamknięcia (V-QA-NCR-005) — wypełniamy
+      // ją, żeby ten test badał WYŁĄCZNIE bramkę roli podpisującego.
+      await page.getByTestId('ncr-investigation-rootcause').fill('Przyczyna zapisana dla testu roli.');
       await page.getByTestId('ncr-investigation-save').click();
       await expect(page.getByTestId('ncr-investigation-saved')).toBeVisible({ timeout: 30_000 });
+      await expect(page.getByTestId('ncr-detail-close-open')).toBeVisible({ timeout: 30_000 });
       await page.getByTestId('ncr-detail-close-open').click();
       await expect(page.getByTestId('ncr-close-form')).toBeVisible({ timeout: 30_000 });
       await page.getByTestId('ncr-close-resolution').fill('Proba zamkniecia bez wymaganej roli.');
@@ -829,36 +853,24 @@ test.describe('Jakość: blokada / NCR / odchylenie CCP — podpisy i trwały st
     await expect(page.getByTestId('hold-detail-release-open')).toBeVisible({ timeout: COMPILE });
     await page.getByTestId('hold-detail-release-open').click();
     await expect(page.getByTestId('hold-release-form')).toBeVisible({ timeout: 30_000 });
-    // Modal „częściowego" zwolnienia nie ma pola ilości: jedyne pola to lista
-    // dyspozycji, notatka i hasło.
+    // Modal zwolnienia nie ma pola ilości: jedyne pola to lista dyspozycji,
+    // notatka i hasło.
     const releaseForm = page.getByTestId('hold-release-form');
     expect(await releaseForm.locator('input[type="number"]').count()).toBe(0);
-    await pickSelect(page, page.getByTestId('hold-release-disposition'), /^Partial release$/);
-    await page.getByTestId('hold-release-reason').fill('Zwolnienie czesciowe w tescie E2E.');
-    await page.getByTestId('hold-release-password').fill('e2e-local');
-    await shot(page, 'T5-01-partial-release-modal');
-    await page.getByTestId('hold-release-submit').click();
 
-    // Modal albo się zamyka (sukces), albo pokazuje komunikat — logujemy oba,
-    // żeby „nic się nie stało" miało nazwę.
-    const releaseError = page.getByTestId('hold-release-error');
-    const outcome = await Promise.race([
-      releaseForm.waitFor({ state: 'hidden', timeout: 30_000 }).then(() => 'modal-zamkniety'),
-      releaseError.waitFor({ state: 'visible', timeout: 30_000 }).then(() => 'blad-w-modalu'),
-    ]);
-    console.log(`[T5] wynik kliknięcia „zwolnij": ${outcome}`);
-    if (outcome === 'blad-w-modalu') {
-      console.log(`[T5] KOMUNIKAT: ${(await releaseError.innerText()).trim()}`);
-      await shot(page, 'T5-01b-release-error');
-    }
-
-    // FAKTYCZNE ZACHOWANIE: „Partial release" jest odrzucane BEZWARUNKOWO
-    // (hold-actions.ts:728 — pierwszy warunek w releaseHoldCore, przed
-    // jakimkolwiek sprawdzeniem nośnika). Opcja jest w liście, ale nie ma
-    // wejścia, dla którego by zadziałała, a użytkownik dostaje surowy kod.
-    expect(outcome).toBe('blad-w-modalu');
-    const errorText = (await releaseError.innerText()).trim();
-    expect(errorText).toContain('partial_release_requires_lp_split');
+    // NAPRAWIONE (Z-05): „Partial release" było odrzucane bezwarunkowo surowym
+    // kodem `partial_release_requires_lp_split`, bo taka dyspozycja nie istnieje
+    // ani w PRD (docs/prd/09-QUALITY-PRD.md:360), ani w prototypie modala, ani
+    // w mechanice ilościowej. Kontrolka została USUNIĘTA — lista oferuje wyłącznie
+    // dyspozycje, które faktycznie działają. Serwer nadal odrzuca spreparowane
+    // żądanie (hold-actions.ts — guard w releaseHoldCore).
+    await page.getByTestId('hold-release-disposition').getByRole('combobox').click();
+    const dispositionOptions = await page.getByRole('option').allInnerTexts();
+    console.log(`[T5] dyspozycje w liście: ${JSON.stringify(dispositionOptions)}`);
+    expect(dispositionOptions.map((o) => o.trim())).toEqual(['Release as-is', 'Scrap', 'Rework']);
+    expect(await page.getByRole('option', { name: /partial/i }).count()).toBe(0);
+    await page.keyboard.press('Escape');
+    await shot(page, 'T5-01-release-dispositions');
 
     const stillOpen = (
       await sql<{ hold_status: string; disposition: string | null; released_by: string | null }>(
@@ -878,11 +890,11 @@ test.describe('Jakość: blokada / NCR / odchylenie CCP — podpisy i trwały st
         [lp!.id],
       )
     )[0]!;
-    console.log(`[T5] blokada po próbie „częściowego" zwolnienia: ${JSON.stringify(stillOpen)}`);
+    console.log(`[T5] blokada po otwarciu listy dyspozycji: ${JSON.stringify(stillOpen)}`);
     console.log(`[T5] pozycje blokady: ${JSON.stringify(itemsAfter)}`);
-    console.log(`[T5] nośnik po próbie: ${JSON.stringify(lpAfter)}`);
+    console.log(`[T5] nośnik: ${JSON.stringify(lpAfter)}`);
 
-    // Odmowa jest SZCZELNA: nic się nie zmieniło (to dobra wiadomość).
+    // Samo obejrzenie listy niczego nie zmienia — blokada dalej trzyma nośnik.
     expect(stillOpen.hold_status).toBe('open');
     expect(stillOpen.released_by).toBeNull();
     expect(lpAfter.qa_status).toBe('on_hold');

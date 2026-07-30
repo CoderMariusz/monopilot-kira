@@ -176,6 +176,7 @@ export function buildNcrCloseLabels(t: QaNcrsTranslator): NcrCloseLabels {
     validation: {
       resolutionRequired: t('closeModal.validation.resolutionRequired'),
       passwordRequired: t('closeModal.validation.passwordRequired'),
+      rootCauseRequired: t('closeModal.validation.rootCauseRequired'),
     },
     policyErrors: {
       second_signature_required: t.has('closeModal.policyErrors.second_signature_required')
@@ -184,6 +185,13 @@ export function buildNcrCloseLabels(t: QaNcrsTranslator): NcrCloseLabels {
       signer_role_not_allowed: t.has('closeModal.policyErrors.signer_role_not_allowed')
         ? t('closeModal.policyErrors.signer_role_not_allowed')
         : 'Your role is not allowed to sign this critical NCR close under the configured sign-off policy.',
+    },
+    pendingSignoff: {
+      title: t('closeModal.pendingSignoff.title'),
+      signedBy: t('closeModal.pendingSignoff.signedBy'),
+      awaitingRole: t('closeModal.pendingSignoff.awaitingRole'),
+      anyAuthorizedSigner: t('closeModal.pendingSignoff.anyAuthorizedSigner'),
+      submitSecond: t('closeModal.pendingSignoff.submitSecond'),
     },
     error: t('closeModal.error'),
     success: t('closeModal.success'),

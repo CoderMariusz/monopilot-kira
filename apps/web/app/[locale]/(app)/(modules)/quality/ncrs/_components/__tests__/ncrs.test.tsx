@@ -331,12 +331,23 @@ describe('NcrListClient (QA-009 §3.3 attention partition)', () => {
 });
 
 describe('NcrCloseModal (MODAL-NCR-CLOSE parity — e-sign required)', () => {
-  function renderClose(severity: 'critical' | 'major' | 'minor', closeNcrAction = vi.fn()) {
+  function renderClose(
+    severity: 'critical' | 'major' | 'minor',
+    closeNcrAction = vi.fn(),
+    requiredCloseSignatures: 1 | 2 = severity === 'critical' ? 2 : 1,
+  ) {
     return render(
       <NcrCloseModal
         open
         onOpenChange={() => {}}
-        ncr={{ id: 'n-1', ncrNumber: 'NCR-1', title: 'Metal', severity, status: 'investigating' }}
+        ncr={{
+          id: 'n-1',
+          ncrNumber: 'NCR-1',
+          title: 'Metal',
+          severity,
+          status: 'investigating',
+          requiredCloseSignatures,
+        }}
         labels={CLOSE_LABELS}
         closeNcrAction={closeNcrAction as never}
       />,
@@ -386,6 +397,15 @@ describe('NcrCloseModal (MODAL-NCR-CLOSE parity — e-sign required)', () => {
     });
   });
 
+  it('shows the dual-sign promise only when the active policy actually requires two', () => {
+    const { unmount } = renderClose('critical', vi.fn(), 1);
+    expect(screen.queryByTestId('ncr-close-dualsign-warning')).not.toBeInTheDocument();
+    unmount();
+
+    renderClose('major', vi.fn(), 2);
+    expect(screen.getByTestId('ncr-close-dualsign-warning')).toBeInTheDocument();
+  });
+
   it('MINOR: requires e-sign password before closing', async () => {
     const closeNcrAction = vi.fn().mockResolvedValue({ ok: true, data: { id: 'n-1', status: 'closed' } });
     renderClose('minor', closeNcrAction);
@@ -428,6 +448,37 @@ describe('NcrCloseModal (MODAL-NCR-CLOSE parity — e-sign required)', () => {
       ),
     );
   });
+
+  it('keeps the modal open after the first signature and shows who signed and which role is next', async () => {
+    const closeNcrAction = vi.fn().mockResolvedValue({
+      ok: true,
+      data: {
+        id: 'n-1',
+        status: 'pending_second_signature',
+        pendingSignoff: {
+          state: 'pending_second_signature',
+          subjectHash: 'a'.repeat(64),
+          firstSignatureId: 'sig-1',
+          firstSignedAt: '2026-07-30T10:00:00.000Z',
+          firstSigner: { id: 'u-1', displayName: 'Quality Lead Anna' },
+          awaitingRole: { id: 'r-2', displayName: 'Production Manager' },
+        },
+      },
+    });
+    renderClose('critical', closeNcrAction);
+    fireEvent.change(screen.getByTestId('ncr-close-resolution'), {
+      target: { value: 'Retested OK, sieve replaced.' },
+    });
+    fireEvent.change(screen.getByTestId('ncr-close-password'), { target: { value: 'first-secret' } });
+    fireEvent.click(screen.getByTestId('ncr-close-submit'));
+
+    expect(await screen.findByTestId('pending-quality-signoff-signer')).toHaveTextContent('Quality Lead Anna');
+    expect(screen.getByTestId('pending-quality-signoff-role')).toHaveTextContent('Production Manager');
+    expect(screen.getByTestId('ncr-close-resolution')).toBeDisabled();
+    expect(screen.getByTestId('ncr-close-password')).toHaveValue('');
+    expect(screen.getByTestId('ncr-close-submit')).toHaveTextContent(CLOSE_LABELS.pendingSignoff.submitSecond);
+    expect(screen.getByTestId('ncr-close-form')).toBeInTheDocument();
+  });
 });
 
 describe('NcrDetailClient (QA-009a parity)', () => {
@@ -452,13 +503,18 @@ describe('NcrDetailClient (QA-009a parity)', () => {
       affectedQtyKg: '120',
       detectedBy: 'QA.Inspector1',
       detectedAt: '2026-04-21T14:35:00.000Z',
-      rootCause: null,
+      // An investigating NCR that is genuinely closable: V-QA-NCR-005 requires a
+      // persisted root cause before Close is offered (see the dedicated test below).
+      rootCause: 'Sieve gap allowed fragment through.',
       rootCauseCategory: null,
       immediateAction: null,
       capaRecordId: null,
       closedBy: null,
       closedAt: null,
       closureSignatureHash: null,
+      pendingSignoff: null,
+      pendingCloseResolution: null,
+      requiredCloseSignatures: 2,
       inspection: null,
       ccpBreach: null,
       overdue: false,
@@ -477,10 +533,11 @@ describe('NcrDetailClient (QA-009a parity)', () => {
   it('saves the investigation while non-terminal via updateNcrInvestigation', async () => {
     const updateInvestigationAction = vi.fn().mockResolvedValue({
       ok: true,
-      data: { id: 'n-1', status: 'investigating' },
+      // updateNcrInvestigation returns the PERSISTED investigation, root cause included.
+      data: { id: 'n-1', status: 'investigating', rootCause: 'Sieve gap allowed fragment through.' },
     });
     render(
-      <NcrDetailClient ncr={makeDetail({ status: 'open' })} labels={DETAIL_LABELS} locale="en" updateInvestigationAction={updateInvestigationAction as never} closeNcrAction={vi.fn() as never} />,
+      <NcrDetailClient ncr={makeDetail({ status: 'open', rootCause: null })} labels={DETAIL_LABELS} locale="en" updateInvestigationAction={updateInvestigationAction as never} closeNcrAction={vi.fn() as never} />,
     );
     fireEvent.change(screen.getByTestId('ncr-investigation-rootcause'), { target: { value: 'Sieve gap allowed fragment through.' } });
     fireEvent.change(screen.getByTestId('ncr-investigation-immediate'), { target: { value: 'Line stopped; batch held.' } });
@@ -504,6 +561,44 @@ describe('NcrDetailClient (QA-009a parity)', () => {
     );
     fireEvent.click(screen.getByTestId('ncr-detail-close-open'));
     expect(screen.getByTestId('ncr-close-form')).toBeInTheDocument();
+  });
+
+  it('V-QA-NCR-005: no Close affordance until a root cause is persisted, asterisk stays visible', () => {
+    const { rerender } = render(
+      <NcrDetailClient ncr={makeDetail({ rootCause: null })} labels={DETAIL_LABELS} locale="en" updateInvestigationAction={vi.fn() as never} closeNcrAction={vi.fn() as never} />,
+    );
+    // Negative direction: required field empty → no Close button…
+    expect(screen.queryByTestId('ncr-detail-close-open')).not.toBeInTheDocument();
+    // …but the requirement is still announced (the star must not vanish with the button).
+    expect(screen.getByTestId('ncr-detail-investigation')).toHaveTextContent('*');
+    // Typing without saving is not enough — closeNcr reads the persisted value.
+    fireEvent.change(screen.getByTestId('ncr-investigation-rootcause'), { target: { value: 'typed but unsaved' } });
+    expect(screen.queryByTestId('ncr-detail-close-open')).not.toBeInTheDocument();
+
+    // Positive direction: a persisted root cause restores the Close affordance.
+    rerender(
+      <NcrDetailClient ncr={makeDetail({ rootCause: 'Sieve gap allowed fragment through.' })} labels={DETAIL_LABELS} locale="en" updateInvestigationAction={vi.fn() as never} closeNcrAction={vi.fn() as never} />,
+    );
+    expect(screen.getByTestId('ncr-detail-close-open')).toBeInTheDocument();
+  });
+
+  it('maps the server root_cause_required refusal to readable copy (no raw code on screen)', async () => {
+    const closeNcrAction = vi.fn().mockResolvedValue({
+      ok: false,
+      reason: 'error',
+      message: 'root_cause_required',
+    });
+    render(
+      <NcrDetailClient ncr={makeDetail()} labels={DETAIL_LABELS} locale="en" updateInvestigationAction={vi.fn() as never} closeNcrAction={closeNcrAction as never} />,
+    );
+    fireEvent.click(screen.getByTestId('ncr-detail-close-open'));
+    fireEvent.change(screen.getByTestId('ncr-close-resolution'), { target: { value: 'Closed after minor rework.' } });
+    fireEvent.change(screen.getByTestId('ncr-close-password'), { target: { value: 'pw' } });
+    fireEvent.click(screen.getByTestId('ncr-close-submit'));
+
+    const error = await screen.findByTestId('ncr-close-error');
+    expect(error).toHaveTextContent(DETAIL_LABELS.closeLabels.validation.rootCauseRequired);
+    expect(error).not.toHaveTextContent('root_cause_required');
   });
 
   it('does NOT render the CCP breach card for a non-ccp_deviation NCR', () => {
