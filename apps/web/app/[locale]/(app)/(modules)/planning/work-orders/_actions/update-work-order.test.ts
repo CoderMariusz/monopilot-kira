@@ -270,7 +270,7 @@ describe('updateWorkOrder', () => {
     await expect(updateWorkOrder({ id: WO_ID, productionLineId: LINE_ID })).resolves.toEqual({ ok: false, error: 'forbidden' });
   });
 
-  it('re-snapshots materials, operations, and uom data for a new product and quantity', async () => {
+  it('PLN-016: re-snapshots scrap-adjusted materials and routing duration for the new draft quantity', async () => {
     const result = await updateWorkOrder({ id: WO_ID, productId: PRODUCT_B_ID, plannedQuantity: '50.000' });
 
     expect(result.ok).toBe(true);
@@ -279,9 +279,15 @@ describe('updateWorkOrder', () => {
     expect(calls.some(([sql]) => sql.startsWith('delete from public.wo_operations'))).toBe(true);
     const materialInsert = calls.find(([sql]) => sql.startsWith('insert into public.wo_materials'));
     expect(materialInsert?.[0]).toContain('select app.current_org_id(), $1::uuid, i.id, bl.component_code');
+    expect(materialInsert?.[0]).toContain(
+      'round((bl.quantity * $2::numeric) / greatest(1 - coalesce(bl.scrap_pct, 0) / 100.0, 0.01), 3)',
+    );
     expect(materialInsert?.[0]).not.toContain('coalesce(i.id, bl.id)');
     expect(materialInsert?.[1]).toEqual([WO_ID, '50.000000', 9, BOM_B_ID]);
     const operationInsert = calls.find(([sql]) => sql.startsWith('insert into public.wo_operations'));
+    expect(operationInsert?.[0]).toContain(
+      'coalesce(ro.setup_time_min, 0)::numeric + coalesce(ceil((ro.run_time_per_unit_sec * $2::numeric) / 60.0), 0)',
+    );
     expect(operationInsert?.[1]).toEqual([WO_ID, '50.000', PRODUCT_B_ID]);
     const scheduleOutputUpdate = calls.find(([sql]) => sql.startsWith('update public.schedule_outputs'));
     expect(scheduleOutputUpdate?.[0]).toContain('planned_wo_id = $1::uuid');

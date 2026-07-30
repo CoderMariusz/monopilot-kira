@@ -198,6 +198,7 @@ describe('propagateParentWoChainQuantities', () => {
   const NEW_MATERIAL_ID = '11111111-1111-4111-8111-111111111111';
   const CHILD_PRODUCT_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
   const BOM_LINE_ID = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
+  const CHILD_BOM_ID = '22222222-2222-4222-8222-222222222222';
 
   const edgeSnapshot: ChainEdgeSnapshot = {
     childWoId: CHILD_WO_ID,
@@ -209,7 +210,7 @@ describe('propagateParentWoChainQuantities', () => {
     childScheduledEndTime: null,
   };
 
-  it('B1a: relinks after resnapshot (material_link null) and propagates child qty from new parent material', async () => {
+  it('PLN-030: propagates dependency, child, schedule output, materials and operations from parent qty', async () => {
     const calls: Array<{ sql: string; params: readonly unknown[] }> = [];
     const client = {
       query: vi.fn(async (sql: string, params: readonly unknown[] = []) => {
@@ -260,7 +261,10 @@ describe('propagateParentWoChainQuantities', () => {
           };
         }
         if (n.includes('from public.bom_headers')) {
-          return { rows: [], rowCount: 0 };
+          return {
+            rows: [{ id: CHILD_BOM_ID, version: 4, line_basis: 'per_kg' }],
+            rowCount: 1,
+          };
         }
         if (n.startsWith('delete from public.wo_materials') || n.startsWith('delete from public.wo_operations')) {
           return { rows: [], rowCount: 1 };
@@ -287,6 +291,24 @@ describe('propagateParentWoChainQuantities', () => {
 
     const childUpdate = calls.find((c) => c.sql.replace(/\s+/g, ' ').trim().toLowerCase().startsWith('update public.work_orders'));
     expect(childUpdate?.params).toEqual([CHILD_WO_ID, '10.710', USER_ID]);
+
+    const scheduleUpdate = calls.find((c) =>
+      c.sql.replace(/\s+/g, ' ').trim().toLowerCase().startsWith('update public.schedule_outputs'),
+    );
+    expect(scheduleUpdate?.params).toEqual([CHILD_WO_ID, '10.710']);
+
+    const materialInsert = calls.find((c) =>
+      c.sql.replace(/\s+/g, ' ').trim().toLowerCase().startsWith('insert into public.wo_materials'),
+    );
+    expect(materialInsert?.params).toEqual([CHILD_WO_ID, '10.710000', 4, CHILD_BOM_ID]);
+    expect(materialInsert?.sql.replace(/\s+/g, ' ').trim().toLowerCase()).toContain(
+      'round((bl.quantity * $2::numeric) / greatest(1 - coalesce(bl.scrap_pct, 0) / 100.0, 0.01), 3)',
+    );
+
+    const operationInsert = calls.find((c) =>
+      c.sql.replace(/\s+/g, ' ').trim().toLowerCase().startsWith('insert into public.wo_operations'),
+    );
+    expect(operationInsert?.params).toEqual([CHILD_WO_ID, '10.710', CHILD_PRODUCT_ID]);
 
     const historyInsert = calls.find((c) => c.sql.replace(/\s+/g, ' ').trim().toLowerCase().startsWith('insert into public.wo_status_history'));
     expect(historyInsert?.params?.[0]).toBe(CHILD_WO_ID);

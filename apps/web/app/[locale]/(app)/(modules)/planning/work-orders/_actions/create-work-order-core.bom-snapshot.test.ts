@@ -104,7 +104,23 @@ function makeSuccessfulClient(overrides?: { bom?: { id: string; version: number;
         };
       }
       if (sql.includes('insert into public.wo_materials')) {
-        return { rows: [] };
+        return {
+          rows: [{
+            id: '77777777-7777-4777-8777-777777777777',
+            wo_id: WO_ID,
+            product_id: '88888888-8888-4888-8888-888888888888',
+            material_name: 'RM-10KG-20PCT-SCRAP',
+            required_qty: '12.500',
+            consumed_qty: '0.000',
+            reserved_qty: '0.000',
+            uom: 'kg',
+            sequence: 1,
+            material_source: 'stock',
+            bom_item_id: '99999999-9999-4999-8999-999999999999',
+            bom_version: 3,
+            notes: null,
+          }],
+        };
       }
       if (sql.includes('insert into public.schedule_outputs')) {
         return {
@@ -189,5 +205,30 @@ describe('createWorkOrderCore BOM snapshot at creation (PF-R06-11)', () => {
         siteId: SITE_ID,
       }),
     ).rejects.toBeInstanceOf(BomSnapshotError);
+  });
+
+  it('PLN-006: snapshots 10 kg with 20% scrap as 12.500 kg using the yield denominator', async () => {
+    const client = makeSuccessfulClient();
+
+    const result = await createWorkOrderCore(makeCtx(client), {
+      productId: PRODUCT_ID,
+      itemCode: 'FG-001',
+      plannedQuantity: '100',
+      siteId: SITE_ID,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.materials[0]?.requiredQty).toBe('12.500');
+
+    const materialInsert = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      String(sql).replace(/\s+/g, ' ').trim().toLowerCase().startsWith('insert into public.wo_materials'),
+    );
+    const normalizedSql = String(materialInsert?.[0]).replace(/\s+/g, ' ').trim().toLowerCase();
+    expect(normalizedSql).toContain(
+      'round((bl.quantity * $2::numeric) / greatest(1 - coalesce(bl.scrap_pct, 0) / 100.0, 0.01), 3)',
+    );
+    expect(normalizedSql).not.toContain('bl.quantity * (1 +');
+    expect(materialInsert?.[1]?.[1]).toBe('100.000000');
   });
 });

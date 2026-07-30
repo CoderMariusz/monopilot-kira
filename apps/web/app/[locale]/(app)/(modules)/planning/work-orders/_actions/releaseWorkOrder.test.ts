@@ -20,6 +20,8 @@ let netQtyPerEach: string | null = null;
 let eachPerBox: string | null = null;
 let deletedCount = 1;
 let chainDeleteBlocked = false;
+let hasActiveExecution = false;
+let hasPostedOutput = false;
 let upstreamBlockers: Array<{ child_wo_number: string; child_status: string }> = [];
 const WIP_ID = '55555555-5555-4555-8555-555555555555';
 let itemTypeAtCreation = 'fg';
@@ -46,14 +48,26 @@ function makeClient(): QueryClient {
         return { rows: allowPermission ? [{ ok: true }] : [], rowCount: allowPermission ? 1 : 0 };
       }
       if (normalized.includes('with recursive chain')) {
+        if (normalized.includes('as blocked')) {
+          const executionGuardPresent =
+            normalized.includes('from public.wo_executions')
+            && normalized.includes("not in ('planned', 'cancelled')");
+          const outputGuardPresent = normalized.includes('from public.wo_outputs');
+          return {
+            rows: [{
+              blocked:
+                chainDeleteBlocked
+                || (hasActiveExecution && executionGuardPresent)
+                || (hasPostedOutput && outputGuardPresent),
+            }],
+            rowCount: 1,
+          };
+        }
         if (normalized.includes('where ch.depth > 0')) {
           return { rows: chainReleaseOrder, rowCount: chainReleaseOrder.length };
         }
         if (normalized.includes('select ch.wo_id::text as id')) {
           return { rows: chainMembers, rowCount: chainMembers.length };
-        }
-        if (normalized.includes('as blocked')) {
-          return { rows: [{ blocked: chainDeleteBlocked }], rowCount: 1 };
         }
       }
       if (normalized.startsWith('select id, wo_number, status')) {
@@ -159,6 +173,8 @@ function makeClient(): QueryClient {
         return { rows: [], rowCount: 1 };
       }
       if (normalized.includes('from public.wo_dependencies')) {
+        const cancelledReleaseGuardPresent =
+          normalized.includes("upper(child.status) in ('draft', 'cancelled')");
         return {
           rows: upstreamBlockers.map((b, i) => ({
             child_wo_id: `child-${i}`,
@@ -166,7 +182,9 @@ function makeClient(): QueryClient {
             child_status: b.child_status,
             required_qty: '100',
             posted_output_kg: '0',
-            release_blocked: b.child_status.toUpperCase() === 'DRAFT',
+            release_blocked:
+              b.child_status.toUpperCase() === 'DRAFT'
+              || (b.child_status.toUpperCase() === 'CANCELLED' && cancelledReleaseGuardPresent),
             start_complete_blocked: true,
           })),
           rowCount: upstreamBlockers.length,
@@ -195,6 +213,8 @@ describe('releaseWorkOrder', () => {
     eachPerBox = null;
     deletedCount = 1;
     chainDeleteBlocked = false;
+    hasActiveExecution = false;
+    hasPostedOutput = false;
     upstreamBlockers = [];
     chainMembers = [];
     chainReleaseOrder = [];
@@ -214,6 +234,30 @@ describe('releaseWorkOrder', () => {
       expect.stringContaining('uom_snapshot = coalesce'),
       [WO_ID, USER_ID],
     );
+  });
+
+  it('PLN-018: self-heals BOM, factory spec and UoM before persisting RELEASED history', async () => {
+    const result = await releaseWorkOrder({ id: WO_ID });
+
+    expect(result).toMatchObject({ ok: true, workOrder: { id: WO_ID, status: 'RELEASED' } });
+    const calls = vi.mocked(client.query).mock.calls.map(([sql, params]) => ({
+      sql: String(sql).replace(/\s+/g, ' ').trim().toLowerCase(),
+      params,
+    }));
+    const heal = calls.find(({ sql }) =>
+      sql.startsWith('update public.work_orders')
+      && sql.includes('returning active_bom_header_id'),
+    );
+    expect(heal?.sql).toContain('active_factory_spec_id = coalesce');
+    expect(heal?.sql).toContain('active_bom_header_id = coalesce');
+    expect(heal?.sql).toContain('uom_snapshot = coalesce');
+    expect(heal?.params).toEqual([WO_ID, USER_ID]);
+
+    const history = calls.find(({ sql }) => sql.startsWith('insert into public.wo_status_history'));
+    expect(history?.sql).toContain(
+      "values (app.current_org_id(), $1::uuid, 'draft', 'released', 'release', $2::uuid, $3::jsonb)",
+    );
+    expect(history?.params?.slice(0, 2)).toEqual([WO_ID, USER_ID]);
   });
 
   it('releases an intermediate WIP child without a factory spec when BOM is present', async () => {
@@ -237,6 +281,23 @@ describe('releaseWorkOrder', () => {
       missing: ['factory_spec'],
       message: expect.stringContaining('factory spec'),
     });
+  });
+
+  it('releases a Technical FG after its factory spec is approved for factory use', async () => {
+    itemTypeAtCreation = 'fg';
+    healedSpecId = '99999999-9999-4999-8999-999999999999';
+
+    const result = await releaseWorkOrder({ id: WO_ID });
+
+    expect(result).toMatchObject({
+      ok: true,
+      workOrder: { id: WO_ID, status: 'RELEASED' },
+    });
+    expect(
+      sqlCalls().some((sql) =>
+        sql.includes("fs.status in ('approved_for_factory', 'released_to_factory')"),
+      ),
+    ).toBe(true);
   });
 
   it('returns factory_release_incomplete with the missing list and does not release', async () => {
@@ -329,6 +390,19 @@ describe('releaseWorkOrder', () => {
     expect(sqlCalls().some((sql) => sql.includes("set status = 'released'"))).toBe(false);
   });
 
+  it('PLN-022: blocks FG release when an upstream WIP prerequisite is CANCELLED', async () => {
+    upstreamBlockers = [{ child_wo_number: 'WIP-CANCELLED', child_status: 'CANCELLED' }];
+
+    const result = await releaseWorkOrder({ id: WO_ID });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: 'upstream_wip_not_ready',
+      message: expect.stringContaining('WIP-CANCELLED'),
+    });
+    expect(sqlCalls().some((sql) => sql.includes("set status = 'released'"))).toBe(false);
+  });
+
   it('stamps the UOM snapshot during the self-heal preflight', async () => {
     const result = await releaseWorkOrder({ id: WO_ID });
 
@@ -415,6 +489,8 @@ describe('cancelWorkOrderChain (Extra-3)', () => {
     allowPermission = true;
     currentStatus = 'DRAFT';
     chainDeleteBlocked = false;
+    hasActiveExecution = false;
+    hasPostedOutput = false;
     chainMembers = [
       { id: WIP_ID, depth: 1, status: 'DRAFT', wo_number: 'WO-001-W1' },
       { id: WO_ID, depth: 0, status: 'DRAFT', wo_number: 'WO-001' },
@@ -429,6 +505,46 @@ describe('cancelWorkOrderChain (Extra-3)', () => {
     const updates = sqlCalls().filter((sql) => sql.startsWith('update public.work_orders') && sql.includes("status = 'cancelled'"));
     expect(updates.length).toBe(2);
     expect(sqlCalls().filter((sql) => sql.includes('cancel_chain')).length).toBe(2);
+  });
+
+  it.each(['IN_PROGRESS', 'COMPLETED'])(
+    'PLN-024: blocks the entire chain when one member is %s',
+    async (status) => {
+      chainMembers[0] = { ...chainMembers[0]!, status };
+
+      const result = await cancelWorkOrderChain({ id: WO_ID });
+
+      expect(result).toEqual({ ok: false, error: 'chain_cancel_blocked' });
+      expect(sqlCalls().some((sql) =>
+        sql.startsWith('update public.work_orders') && sql.includes("status = 'cancelled'"),
+      )).toBe(false);
+      expect(sqlCalls().some((sql) => sql.includes('cancel_chain'))).toBe(false);
+    },
+  );
+
+  it.each([
+    ['active execution', true, false],
+    ['posted output', false, true],
+  ])('PLN-025: blocks chain cancellation for %s', async (_label, execution, output) => {
+    hasActiveExecution = execution;
+    hasPostedOutput = output;
+
+    const result = await cancelWorkOrderChain({ id: WO_ID });
+
+    expect(result).toEqual({ ok: false, error: 'chain_cancel_blocked' });
+    expect(sqlCalls().some((sql) =>
+      sql.startsWith('update public.work_orders') && sql.includes("status = 'cancelled'"),
+    )).toBe(false);
+  });
+
+  it('PLN-032: rejects cancel-chain without npd.planning.write before reading the chain', async () => {
+    allowPermission = false;
+
+    const result = await cancelWorkOrderChain({ id: WO_ID });
+
+    expect(result).toEqual({ ok: false, error: 'forbidden' });
+    expect(sqlCalls().some((sql) => sql.includes('with recursive chain'))).toBe(false);
+    expect(sqlCalls().some((sql) => sql.startsWith('update public.work_orders'))).toBe(false);
   });
 
   it('allows deleting the FG after the full chain is cancelled', async () => {

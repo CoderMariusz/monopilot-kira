@@ -39,4 +39,15 @@ describe('mrp-buckets', () => {
     expect(dateToBucketIndex('2026-08-01', buckets)).toBe(OUT_OF_HORIZON_BUCKET_INDEX);
     expect(isoWeekToBucketIndex('2026-W31', buckets)).toBe(OUT_OF_HORIZON_BUCKET_INDEX);
   });
+
+  it('PLN-045: follows the ISO Thursday rule across year end and keeps horizon boundaries', () => {
+    const buckets = buildMrpBucketDates('2026-12-31', 3);
+
+    expect(buckets).toEqual(['2026-12-28', '2027-01-04', '2027-01-11']);
+    expect(isoWeekStartDate('2026-W53')).toBe('2026-12-28');
+    expect(dateToBucketIndex('2026-12-20', buckets)).toBe(0);
+    expect(dateToBucketIndex('2027-01-10', buckets)).toBe(1);
+    expect(dateToBucketIndex('2027-01-17', buckets)).toBe(2);
+    expect(dateToBucketIndex('2027-01-18', buckets)).toBe(OUT_OF_HORIZON_BUCKET_INDEX);
+  });
 });

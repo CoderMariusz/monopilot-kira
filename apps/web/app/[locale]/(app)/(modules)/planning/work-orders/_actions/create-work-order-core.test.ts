@@ -47,6 +47,7 @@ vi.mock('./shared', async (importOriginal) => {
 });
 
 import { assertFgReleasedToFactoryForWo } from '../../../../../../../lib/planning/factory-release-wo-gate';
+import { resolveWriteSiteId } from '../../../../../../../lib/site/site-context';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
@@ -61,6 +62,7 @@ describe('createWorkOrderCore factory-release gate', () => {
   beforeEach(() => {
     vi.mocked(hasPermission).mockResolvedValue(true);
     vi.mocked(assertFgReleasedToFactoryForWo).mockReset();
+    vi.mocked(resolveWriteSiteId).mockResolvedValue({ ok: true, siteId: SITE_ID });
     createBomSnapshotMock.mockReset();
     createBomSnapshotMock.mockResolvedValue({
       id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
@@ -293,5 +295,19 @@ describe('createWorkOrderCore factory-release gate', () => {
 
     expect(assertFgReleasedToFactoryForWo).toHaveBeenCalledWith(client, PRODUCT_ID);
     expect(result).toEqual({ ok: false, error: 'not_released_to_factory' });
+  });
+
+  it('PLN-011: returns ambiguous_site and performs no WO insert when write site is not unique', async () => {
+    vi.mocked(resolveWriteSiteId).mockResolvedValueOnce({ ok: false, reason: 'ambiguous_site' });
+    const client = { query: vi.fn() } as unknown as QueryClient;
+
+    const result = await createWorkOrderCore(makeCtx(client), {
+      productId: PRODUCT_ID,
+      itemCode: 'FG-001',
+      plannedQuantity: '100',
+    });
+
+    expect(result).toEqual({ ok: false, error: 'ambiguous_site' });
+    expect(client.query).not.toHaveBeenCalled();
   });
 });
