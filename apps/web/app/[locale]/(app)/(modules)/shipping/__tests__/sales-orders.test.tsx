@@ -97,6 +97,8 @@ const createLabels: SoListLabels['create'] = {
   errors: {
     customerRequired: 'Select a customer.',
     linesRequired: 'Add at least one line with an item and a positive quantity.',
+    priceInvalid: 'Enter a non-negative unit price on every line.',
+    termsInvalid: 'Discount and tax must be 0–100, and currency must be a 3-letter code.',
     invalid_input: 'invalid',
     forbidden: "You don't have permission to do that.",
     already_exists: 'already exists',
@@ -226,6 +228,8 @@ const detailLabels: SoDetailLabels = {
     ILLEGAL_TRANSITION: 'illegal transition',
     INSUFFICIENT_STOCK: 'not enough stock',
     persistence_failed: 'save failed',
+    so_lines_required: 'Add at least one sales order line before confirming.',
+    so_unit_price_required: 'Set a unit price greater than zero on every line before confirming.',
   },
 };
 
@@ -481,6 +485,43 @@ describe('CreateSoModal — exposes all createSalesOrder fields + validation + R
     expect(screen.queryByTestId('create-so-error')).toBeNull();
   });
 
+  it('saves zero as an explicitly unpriced draft line', async () => {
+    const { createSalesOrderAction } = renderList({ autoOpenCreate: true });
+    const form = screen.getByTestId('create-so-form');
+    fireEvent.click(within(form).getAllByRole('combobox')[0]);
+    fireEvent.click(screen.getByRole('option', { name: /CUST-01/ }));
+    fireEvent.click(screen.getByRole('button', { name: '+ Add finished good' }));
+    fireEvent.change(screen.getByPlaceholderText('Search by code or name…'), { target: { value: 'FG' } });
+    fireEvent.click(await screen.findByText(/Sausage roll/));
+    fireEvent.change(screen.getByTestId('create-so-line-qty'), { target: { value: '3' } });
+    fireEvent.change(screen.getByTestId('create-so-line-price'), { target: { value: '0.0000' } });
+    fireEvent.click(screen.getByTestId('create-so-submit'));
+
+    await waitFor(() => expect(createSalesOrderAction).toHaveBeenCalled());
+    expect(createSalesOrderAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        lines: [expect.objectContaining({ qty: '3', unit_price_gbp: '0.0000' })],
+      }),
+    );
+    expect(screen.queryByTestId('create-so-error')).toBeNull();
+  });
+
+  it('names the price field when a draft line price is invalid', async () => {
+    const { createSalesOrderAction } = renderList({ autoOpenCreate: true });
+    const form = screen.getByTestId('create-so-form');
+    fireEvent.click(within(form).getAllByRole('combobox')[0]);
+    fireEvent.click(screen.getByRole('option', { name: /CUST-01/ }));
+    fireEvent.click(screen.getByRole('button', { name: '+ Add finished good' }));
+    fireEvent.change(screen.getByPlaceholderText('Search by code or name…'), { target: { value: 'FG' } });
+    fireEvent.click(await screen.findByText(/Sausage roll/));
+    fireEvent.change(screen.getByTestId('create-so-line-qty'), { target: { value: '3' } });
+    fireEvent.change(screen.getByTestId('create-so-line-price'), { target: { value: '-1' } });
+    fireEvent.click(screen.getByTestId('create-so-submit'));
+
+    expect(await screen.findByTestId('create-so-error')).toHaveTextContent('non-negative unit price');
+    expect(createSalesOrderAction).not.toHaveBeenCalled();
+  });
+
   it('blocks a synchronous double submit with one client_op_id', async () => {
     const { createSalesOrderAction } = renderList({ autoOpenCreate: true });
     let resolveCreate: ((value: CreateSoResult) => void) | undefined;
@@ -617,6 +658,21 @@ describe('SoDetailView — header, lines, allocation badges + gated actions', ()
     const { transition } = renderDetail(makeSo({ status: 'draft', allocationStatus: 'unallocated' }));
     fireEvent.click(screen.getByTestId('so-action-confirm'));
     await waitFor(() => expect(transition).toHaveBeenCalledWith(SO_ID, 'confirmed'));
+    confirmSpy.mockRestore();
+  });
+
+  it('[Confirm] surfaces the unit-price blocker instead of failing silently', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const { transition } = renderDetail(makeSo({ status: 'draft', allocationStatus: 'unallocated' }), allCaps, {
+      transition: async () => ({ ok: false, error: 'so_unit_price_required' }),
+    });
+    fireEvent.click(screen.getByTestId('so-action-confirm'));
+
+    expect(await screen.findByTestId('so-detail-error')).toHaveTextContent(
+      'Set a unit price greater than zero on every line before confirming.',
+    );
+    expect(transition).toHaveBeenCalledWith(SO_ID, 'confirmed');
+    expect(refresh).not.toHaveBeenCalled();
     confirmSpy.mockRestore();
   });
 

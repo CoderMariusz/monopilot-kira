@@ -250,6 +250,8 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): SoDetailLa
       so_cancel_blocked_shipped: t('errors.so_cancel_blocked_shipped'),
       deallocate_not_allowed: t('errors.deallocate_not_allowed'),
       not_draft: t('errors.not_draft'),
+      so_lines_required: t('errors.so_lines_required'),
+      so_unit_price_required: t('errors.so_unit_price_required'),
     },
   };
 }

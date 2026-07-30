@@ -17,6 +17,7 @@ type QueryClient = {
 type ShippingContext = { userId: string; orgId: string; client: QueryClient };
 
 export type StatusWriteResult = 'ok' | 'not_found' | 'illegal_transition';
+export type SalesOrderConfirmationBlocker = 'so_lines_required' | 'so_unit_price_required';
 
 type SalesOrderStatusWriteOptions = {
   currentStatus?: SalesOrderStatus;
@@ -58,6 +59,33 @@ export async function readLockedSalesOrderStatus(
   const current = rows[0]?.status;
   if (!current || !isSalesOrderStatus(current)) return 'not_found';
   return current;
+}
+
+/**
+ * Draft lines may carry zero while pricing is incomplete, but a commercial SO
+ * cannot be confirmed without at least one positively-priced line.
+ */
+export async function readSalesOrderConfirmationBlocker(
+  ctx: ShippingContext,
+  soId: string,
+): Promise<SalesOrderConfirmationBlocker | null> {
+  const { rows } = await ctx.client.query<{
+    line_count: number | string;
+    unpriced_line_count: number | string;
+  }>(
+    `select count(*)::int as line_count,
+            count(*) filter (
+              where unit_price_gbp is null or unit_price_gbp <= 0
+            )::int as unpriced_line_count
+       from public.sales_order_lines
+      where org_id = app.current_org_id()
+        and sales_order_id = $1::uuid
+        and deleted_at is null`,
+    [soId],
+  );
+  const lineCount = Number(rows[0]?.line_count ?? 0);
+  if (lineCount === 0) return 'so_lines_required';
+  return Number(rows[0]?.unpriced_line_count ?? 0) > 0 ? 'so_unit_price_required' : null;
 }
 
 export async function writeSalesOrderStatusInContext(

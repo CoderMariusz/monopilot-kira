@@ -101,7 +101,11 @@ export type AllocateSalesOrderResult =
   | ForbiddenFailure
   | IllegalTransitionError
   | InsufficientStockError
-  | UnresolvedUomFailure;
+  | UnresolvedUomFailure
+  // Alokacja przechodzi przez tę samą funkcję zmiany statusu co potwierdzenie, więc
+  // strukturalnie może wrócić z jej bramką danych. Wywołujący i tak obsługują `'error' in result`
+  // ogólnie — zawężanie tego generykami po stronie docelowego statusu byłoby droższe niż warte.
+  | { ok: false; error: 'so_lines_required' | 'so_unit_price_required' };
 
 export type ListSalesOrdersResult = ActionResult<PaginatedResult<SalesOrderListRow>>;
 export type GetSalesOrderResult = ActionResult<SalesOrder | null>;

@@ -179,6 +179,8 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
       errors: {
         customerRequired: t('create.errors.customerRequired'),
         linesRequired: t('create.errors.linesRequired'),
+        priceInvalid: t('create.errors.priceInvalid'),
+        termsInvalid: t('create.errors.termsInvalid'),
         invalid_input: t('errors.invalid_input'),
         forbidden: t('errors.forbidden'),
         already_exists: t('errors.already_exists'),

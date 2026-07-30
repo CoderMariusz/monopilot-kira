@@ -20,10 +20,12 @@ describe('so-line-numeric — trailing-zero acceptance (C114)', () => {
     expect(isValidSoLineUnitPriceInput('2.345600')).toBe(true);
   });
 
-  it('rejects zero and non-decimal strings', () => {
+  it('keeps zero illegal for quantity but legal for a draft unit price', () => {
     expect(normalizeSoLineQty('0')).toBeNull();
     expect(normalizeSoLineQty('0.000')).toBeNull();
     expect(normalizeSoLineQty('abc')).toBeNull();
+    expect(normalizeSoLineUnitPrice('0.0000')).toBe('0.0000');
+    expect(isValidSoLineUnitPriceInput('0')).toBe(true);
     expect(normalizeSoLineUnitPrice('-1')).toBeNull();
   });
 });

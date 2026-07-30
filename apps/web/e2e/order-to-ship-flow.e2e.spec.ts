@@ -140,13 +140,13 @@ test.describe('Order → ship: SO create → confirm → allocate → pack (SSCC
     page,
   }) => {
     await signIn(page);
-    // ⚠ WORKAROUND for a PRODUCT BLOCKER shared with the NPD recipe editor: the
-    // ItemPicker portals its options into a `position: fixed` panel anchored at
-    // `top: trigger.bottom + 4` and clamps only the horizontal axis
-    // (item-picker.tsx:128-136). Inside this modal on a 720 px viewport the option
-    // list lands below the fold, the click cannot land, and the SO submit then fails
-    // with "Add at least one line with an item and a positive quantity".
-    await page.setViewportSize({ width: 1280, height: 1600 });
+    // Runs at the DEFAULT 1280x720 viewport. The former `setViewportSize(1600)`
+    // here was a workaround for the same product blocker as the NPD recipe editor:
+    // the ItemPicker anchored its portaled panel at `top: trigger.bottom + 4` and
+    // clamped only the horizontal axis, so inside this modal the option list landed
+    // below the fold and the SO submit failed with "Add at least one line with an
+    // item and a positive quantity". The panel now flips above the trigger —
+    // @monopilot/ui/anchoredPanel.
     await page.goto(url(`/${L}/shipping?new=1`), { waitUntil: 'domcontentloaded' });
 
     const form = page.getByTestId('create-so-form');
@@ -221,6 +221,7 @@ test.describe('Order → ship: SO create → confirm → allocate → pack (SSCC
 
     const confirm = page.getByTestId('so-action-confirm');
     if ((await confirm.count()) && !(await confirm.isDisabled().catch(() => true))) {
+      page.once('dialog', (dialog) => dialog.accept());
       await confirm.click();
       await expect(page.getByTestId('so-status-confirmed').first(), 'SO advances to confirmed').toBeVisible({ timeout: 10_000 });
     } else {

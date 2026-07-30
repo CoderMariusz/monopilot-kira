@@ -351,7 +351,7 @@ export const salesOrderLines = pgTable(
     soIdx: index('sales_order_lines_so_idx').on(t.salesOrderId),
     productIdx: index('sales_order_lines_product_idx').on(t.orgId, t.productId),
     qtyCheck: check('sales_order_lines_qty_check', sql`${t.quantityOrdered} > 0`),
-    priceCheck: check('sales_order_lines_price_check', sql`${t.unitPriceGbp} > 0`),
+    priceCheck: check('sales_order_lines_price_check', sql`${t.unitPriceGbp} >= 0`),
     discountCheck: check(
       'sales_order_lines_discount_pct_check',
       sql`${t.discountPct} is null or ${t.discountPct} between 0 and 100`,

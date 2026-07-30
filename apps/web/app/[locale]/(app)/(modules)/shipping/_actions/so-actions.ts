@@ -7,9 +7,6 @@ import { listOrgUnits } from '../../planning/_actions/procurement-shared';
 import {
   fetchActiveCustomerItemPrices,
   fetchActiveCustomerItemPricesAnyCurrency,
-  normalizePriceString,
-  normalizeSoUnitPriceGbp,
-  resolveSalesLinePrice,
   resolveSalesLinePriceDetailed,
   SO_LINE_PRICE_CURRENCY,
 } from './sales-line-price';
@@ -29,7 +26,12 @@ import {
   SO_LEGAL_TRANSITIONS,
   type SalesOrderStatus,
 } from './so-transitions';
-import { readLockedSalesOrderStatus, writeSalesOrderStatusInContext } from './so-status-write';
+import {
+  readLockedSalesOrderStatus,
+  readSalesOrderConfirmationBlocker,
+  writeSalesOrderStatusInContext,
+  type SalesOrderConfirmationBlocker,
+} from './so-status-write';
 import { revalidateLocalized } from '../../../../../../lib/i18n/revalidate-localized';
 import { OrderLineUomError, resolveOrderQtyToInventoryQty, SALES_ORDER_LINE_ALLOCATED_TO_ORDER_SQL } from '../../../../../../lib/shipping/order-line-uom';
 import {
@@ -81,9 +83,10 @@ type InvalidInputFailure = { ok: false; error: 'invalid_input'; message?: string
 type PersistenceFailure = { ok: false; error: 'persistence_failed'; message?: string };
 
 type SoCancelBlockedError = { ok: false; error: 'so_cancel_blocked_shipped' };
+type SoConfirmationBlockedError = { ok: false; error: SalesOrderConfirmationBlocker };
 type TransitionSalesOrderStatusResult = ActionResult<
   SalesOrder | null,
-  ForbiddenFailure | IllegalTransitionError | SoCancelBlockedError
+  ForbiddenFailure | IllegalTransitionError | SoCancelBlockedError | SoConfirmationBlockedError
 >;
 type DeallocateSalesOrderResult = ActionResult<null, ForbiddenFailure | { ok: false; error: 'deallocate_not_allowed' }>;
 
@@ -419,7 +422,7 @@ async function transitionSalesOrderStatusInContext(
   ctx: ShippingContext,
   id: string,
   newStatus: TransitionTarget,
-): Promise<SalesOrder | IllegalTransitionError | null> {
+): Promise<SalesOrder | IllegalTransitionError | SoConfirmationBlockedError | null> {
   // `for update` locks the SO row for the whole withOrgContext txn so two
   // concurrent transitions serialize: the loser blocks here, then re-reads the
   // committed status and its LEGAL_TRANSITIONS check rejects the now-illegal move.
@@ -443,6 +446,11 @@ async function transitionSalesOrderStatusInContext(
   if (!current) return null;
   if (!isSalesOrderStatus(current) || !isLegalSoTransition(current, newStatus)) {
     return { ok: false, error: 'ILLEGAL_TRANSITION', from: current, to: newStatus };
+  }
+
+  if (newStatus === 'confirmed') {
+    const blocker = await readSalesOrderConfirmationBlocker(ctx, id);
+    if (blocker) return { ok: false, error: blocker };
   }
 
   if (newStatus === 'cancelled') {
@@ -755,7 +763,7 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
       if (submittedPrice != null && submittedPrice.length > 0) {
         const normalizedPrice = normalizeSoLineUnitPrice(submittedPrice);
         if (normalizedPrice == null) {
-          return { ok: false, error: 'invalid_input', message: 'Unit price must be greater than zero' };
+          return { ok: false, error: 'invalid_input', message: 'Unit price must be zero or greater' };
         }
         unitPriceGbp = normalizedPrice;
       } else {
@@ -763,9 +771,9 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
           customerPriceGbp: customerPricesByItemId.get(line.item_id) ?? null,
           customerPriceAny: customerPricesAnyByItemId.get(line.item_id) ?? null,
         }).unitPriceGbp;
-        const normalized = normalizeSoUnitPriceGbp(unitPriceGbp);
-        if (normalized == null || Number(normalized) <= 0) {
-          return { ok: false, error: 'invalid_input', message: 'Unit price must be greater than zero' };
+        const normalized = normalizeSoLineUnitPrice(unitPriceGbp);
+        if (normalized == null) {
+          return { ok: false, error: 'invalid_input', message: 'Unit price must be zero or greater' };
         }
         unitPriceGbp = normalized;
       }
@@ -987,13 +995,13 @@ export async function updateSalesOrder(soId: string, input: UpdateSalesOrderInpu
         if (submittedPrice && submittedPrice.length > 0) {
           const normalizedPrice = normalizeSoLineUnitPrice(submittedPrice);
           if (normalizedPrice == null) {
-            return { ok: false, error: 'invalid_input', message: 'Unit price must be greater than zero' };
+            return { ok: false, error: 'invalid_input', message: 'Unit price must be zero or greater' };
           }
           unitPriceGbp = normalizedPrice;
         } else {
-          const normalized = normalizeSoUnitPriceGbp(currentPrice);
-          if (normalized == null || Number(normalized) <= 0) {
-            return { ok: false, error: 'invalid_input', message: 'Unit price must be greater than zero' };
+          const normalized = normalizeSoLineUnitPrice(currentPrice);
+          if (normalized == null) {
+            return { ok: false, error: 'invalid_input', message: 'Unit price must be zero or greater' };
           }
           unitPriceGbp = normalized;
         }

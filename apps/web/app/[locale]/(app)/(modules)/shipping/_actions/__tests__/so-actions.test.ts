@@ -49,6 +49,7 @@ let lineQuantityOrdered = '10';
 let lineOrderQty: string | null = null;
 let lineOrderUom: string | null = null;
 let lineUnitPriceGbp = '7.2500';
+let hasSalesOrderLine = true;
 let lineNotes: string | null = 'line note';
 let lineUpdateCallCount = 0;
 let candidateRows: Array<{
@@ -353,6 +354,15 @@ function makeClient(): QueryClient {
       if (q.startsWith('select status from public.sales_orders')) {
         return { rows: [{ status }], rowCount: 1 };
       }
+      if (q.startsWith('select count(*)::int as line_count') && q.includes('from public.sales_order_lines')) {
+        return {
+          rows: [{
+            line_count: hasSalesOrderLine ? 1 : 0,
+            unpriced_line_count: hasSalesOrderLine && lineUnitPriceGbp === '0.0000' ? 1 : 0,
+          }],
+          rowCount: 1,
+        };
+      }
       if (
         q.startsWith('update public.sales_orders') &&
         !q.includes('total_amount_gbp') &&
@@ -478,6 +488,7 @@ beforeEach(() => {
   lineOrderQty = null;
   lineOrderUom = null;
   lineUnitPriceGbp = '7.2500';
+  hasSalesOrderLine = true;
   lineNotes = 'line note';
   lineUpdateCallCount = 0;
   candidateRows = [];
@@ -839,7 +850,7 @@ describe('createSalesOrder', () => {
     });
   });
 
-  it('rejects SO creation when item list_price_gbp is null (unit price must be > 0)', async () => {
+  it('creates a draft SO with zero price when item list_price_gbp is null', async () => {
     listPriceGbp = null;
 
     const result = await createSalesOrder({
@@ -849,12 +860,17 @@ describe('createSalesOrder', () => {
       lines: [{ item_id: ITEM_ID, qty: '3', uom: 'kg' }],
     });
 
-    expect(result).toEqual({
-      ok: false,
-      error: 'invalid_input',
-      message: 'Unit price must be greater than zero',
+    expect(result).toMatchObject({
+      ok: true,
+      data: { id: SO_ID, status: 'draft' },
     });
-    expect(insertedLines).toEqual([]);
+    expect(insertedLines).toEqual([
+      expect.objectContaining({
+        sales_order_id: SO_ID,
+        unit_price_gbp: '0.0000',
+        line_total_gbp: '0',
+      }),
+    ]);
   });
 
   it('rejects SO creation for an inactive customer', async () => {
@@ -1042,6 +1058,24 @@ describe('transitionSalesOrderStatus', () => {
 
     expect(status).toBe('confirmed');
     expect(result).toMatchObject({ ok: true, data: { id: SO_ID, status: 'confirmed' } });
+  });
+
+  it('keeps an unpriced SO in draft and names the blocking unit-price field', async () => {
+    lineUnitPriceGbp = '0.0000';
+
+    const result = await transitionSalesOrderStatus(SO_ID, 'confirmed');
+
+    expect(result).toEqual({ ok: false, error: 'so_unit_price_required' });
+    expect(status).toBe('draft');
+  });
+
+  it('keeps an empty SO in draft and names the missing-lines field', async () => {
+    hasSalesOrderLine = false;
+
+    const result = await transitionSalesOrderStatus(SO_ID, 'confirmed');
+
+    expect(result).toEqual({ ok: false, error: 'so_lines_required' });
+    expect(status).toBe('draft');
   });
 
   it('returns ILLEGAL_TRANSITION for an invalid transition', async () => {
@@ -1380,6 +1414,18 @@ describe('updateSalesOrder', () => {
     );
     expect(headerUpdate).toBeDefined();
     expect(insertedSo).toMatchObject({ promised_ship_date: '2026-08-01', notes: 'rush order' });
+  });
+
+  it('updates an unpriced draft line without forcing a positive price', async () => {
+    lineUnitPriceGbp = '0.0000';
+
+    const result = await updateSalesOrder(SO_ID, {
+      lines: [{ id: LINE_ID, qty: '4', notes: 'sample line' }],
+    });
+
+    expect(result).toMatchObject({ ok: true, data: { id: SO_ID, status: 'draft' } });
+    expect(lineUnitPriceGbp).toBe('0.0000');
+    expect(lineNotes).toBe('sample line');
   });
 
   it('leaves the sales order unchanged when a later line patch is invalid', async () => {

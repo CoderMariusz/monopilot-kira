@@ -89,6 +89,8 @@ export type CreateSoLabels = {
   errors: {
     customerRequired: string;
     linesRequired: string;
+    priceInvalid: string;
+    termsInvalid: string;
     invalid_input: string;
     forbidden: string;
     already_exists: string;
@@ -321,12 +323,23 @@ export function CreateSoModal({
     if (!clientOpId) {
       setClientOpId(opId);
     }
-    const validLines = lines.filter(
+    const structurallyValidLines = lines.filter(
       (l) =>
         l.item &&
         isValidSoLineQtyInput(l.qty) &&
-        l.uom.trim().length > 0 &&
-        isValidSoLineUnitPriceInput(l.unitPriceGbp) &&
+        l.uom.trim().length > 0,
+    );
+    if (structurallyValidLines.length === 0 || structurallyValidLines.length !== lines.length) {
+      setFormError(labels.errors.linesRequired);
+      return;
+    }
+    if (lines.some((line) => !isValidSoLineUnitPriceInput(line.unitPriceGbp))) {
+      setFormError(labels.errors.priceInvalid);
+      return;
+    }
+    const validLines = lines.filter(
+      (l) =>
+        l.item &&
         PCT_PATTERN.test(l.discountPct.trim()) &&
         Number(l.discountPct) >= 0 &&
         Number(l.discountPct) <= 100 &&
@@ -336,7 +349,7 @@ export function CreateSoModal({
         CURRENCY_PATTERN.test(l.currency.trim()),
     );
     if (validLines.length === 0 || validLines.length !== lines.length) {
-      setFormError(labels.errors.linesRequired);
+      setFormError(labels.errors.termsInvalid);
       return;
     }
 
