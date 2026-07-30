@@ -57,3 +57,21 @@ export function normalizeBomSnapshotJsonUoms<T extends BomSnapshotUomCarrier>(js
       : {}),
   };
 }
+
+/**
+ * True when a quantity denominated in `uom` is really a mass in kilograms.
+ *
+ * `wo_outputs.qty_kg` / `wo_material_consumption.qty_consumed` etc. are legacy column
+ * names: they hold the quantity in whatever unit sits next to them in `uom`. Any
+ * mass-denominated aggregate (a kg tile, a kg-based waste ratio) must partition on this
+ * predicate instead of blind-summing, or 500 pcs land in the total as 500 kg.
+ * Same rule as `partitionKgRows` in quality/trace/_actions/trace-mass-balance.ts.
+ *
+ * NULL/absent uom counts as kg here because `wo_outputs.uom` is NOT NULL DEFAULT 'kg'.
+ * The trace module keeps its own stricter local `isKgUom` (NULL → unreconciled) on
+ * purpose: it partitions license plates, where a missing uom is genuinely unknown.
+ */
+export function isKgUom(uom: string | null | undefined): boolean {
+  const trimmed = uom?.trim().toLowerCase();
+  return trimmed === undefined || trimmed === '' || trimmed === 'kg';
+}

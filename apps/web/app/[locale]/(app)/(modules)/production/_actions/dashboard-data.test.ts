@@ -109,6 +109,9 @@ describe('getProductionDashboard', () => {
     expect(PRODUCTION_DASHBOARD_WO_LIST_SQL).toContain('coalesce(sum(o.qty_kg), 0) as qty_kg');
     expect(PRODUCTION_DASHBOARD_WO_LIST_SQL).not.toContain('coalesce(sum(o.qty_kg), 0)::text as qty_kg');
     expect(PRODUCTION_DASHBOARD_WO_LIST_SQL).toContain(PRODUCTION_DASHBOARD_SITE_WO_PREDICATE);
+    // U1 — produced_quantity/progress_pct divide by planned_quantity (work_orders.uom),
+    // so the lateral must only sum outputs in that same unit.
+    expect(PRODUCTION_DASHBOARD_WO_LIST_SQL).toContain("nullif(trim(w.uom), '')");
   });
 
   it('preserves exact decimal produced/planned kg strings from the WO list query', async () => {
@@ -139,6 +142,62 @@ describe('getProductionDashboard', () => {
     expect(result.data.woRows[0]?.producedKg).toBe('0.960');
     expect(formatDashboardKg(result.data.woRows[0]?.producedKg)).toBe('0.96');
     expect(formatDashboardKg(result.data.outputTodayKg)).toBe('0.48');
+  });
+
+  it('never adds pcs to kg — mixed-uom output is partitioned, not summed (U1)', async () => {
+    // Live proof from monopilot_t3: PROBE-KG-1 200 kg + PROBE-PCS-1 500 pcs used to
+    // render as "700 kg". The tile must show 200 kg and surface the 500 pcs separately.
+    client = {
+      query: vi.fn(async (sql: string) => {
+        const normalized = sql.replace(/\s+/g, ' ').trim().toLowerCase();
+        executed.push(normalized);
+        if (normalized.includes('from public.user_roles')) return { rows: [{ ok: true }] as never[], rowCount: 1 };
+        if (normalized.includes('coalesce(sum(o.qty_kg), 0)::text as kg')) {
+          return {
+            rows: [
+              { uom: 'kg', kg: '200.000' },
+              { uom: 'pcs', kg: '500.000' },
+            ] as never[],
+            rowCount: 2,
+          };
+        }
+        if (normalized.includes('count(*)::int as n')) return { rows: [{ n: 0 }] as never[], rowCount: 1 };
+        return { rows: [] as never[], rowCount: 0 };
+      }),
+    };
+
+    const result = await getProductionDashboard();
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.outputTodayKg).toBe('200.000');
+    expect(result.data.outputTodayKg).not.toBe('700.000');
+    expect(result.data.outputTodayOther).toEqual([{ uom: 'pcs', qty: '500.000' }]);
+
+    // The SQL must partition, not blind-sum.
+    const outputSql = executed.find((sql) => sql.includes('coalesce(sum(o.qty_kg), 0)::text as kg'));
+    expect(outputSql!).toContain('group by');
+  });
+
+  it('single-uom (all kg) output still totals exactly as before — no frozen neighbour (U1)', async () => {
+    client = {
+      query: vi.fn(async (sql: string) => {
+        const normalized = sql.replace(/\s+/g, ' ').trim().toLowerCase();
+        executed.push(normalized);
+        if (normalized.includes('from public.user_roles')) return { rows: [{ ok: true }] as never[], rowCount: 1 };
+        if (normalized.includes('coalesce(sum(o.qty_kg), 0)::text as kg')) {
+          return { rows: [{ uom: 'kg', kg: '123.456' }] as never[], rowCount: 1 };
+        }
+        if (normalized.includes('count(*)::int as n')) return { rows: [{ n: 0 }] as never[], rowCount: 1 };
+        return { rows: [] as never[], rowCount: 0 };
+      }),
+    };
+
+    const result = await getProductionDashboard();
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.outputTodayKg).toBe('123.456');
+    expect(result.data.outputTodayOther).toEqual([]);
   });
 
   it('scopes WO KPI counts to the active site so KPI and list agree (regression Z10-01)', async () => {

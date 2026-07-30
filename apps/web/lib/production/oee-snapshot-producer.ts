@@ -55,6 +55,7 @@
  */
 
 import type { ProductionContext } from './shared';
+import { isKgUom } from '../uom/piece';
 
 // ── Pure math (unit-tested in __tests__/oee-snapshot-producer.test.ts) ────────
 
@@ -223,8 +224,10 @@ export async function recordWoCompletionSnapshot(
     line_id: string | null;
     site_id: string | null;
     planned_quantity: string | null;
+    uom: string | null;
   }>(
-    `select production_line_id::text as line_id, site_id, planned_quantity::text as planned_quantity
+    `select production_line_id::text as line_id, site_id, planned_quantity::text as planned_quantity,
+            coalesce(nullif(trim(uom), ''), 'kg') as uom
        from public.work_orders
       where org_id = app.current_org_id() and id = $1::uuid`,
     [input.woId],
@@ -234,6 +237,11 @@ export async function recordWoCompletionSnapshot(
   const siteId = woRes.rows[0]!.site_id ?? null;
   // Planned qty is in work_orders.uom (the item's base uom) and so is wo_outputs.qty_kg
   // for this WO — the produced/planned ratio is dimensionless either way.
+  // `qty_kg` is a legacy column name: the unit actually lives in wo_outputs.uom. Outputs
+  // in a DIFFERENT unit than the WO (a by-product logged in pcs on a kg WO) must not be
+  // added in, and wo_waste_log — which has no uom at all, i.e. always kg — must not enter
+  // the denominator of a non-kg WO's quality score (U1).
+  const woUom = woRes.rows[0]!.uom ?? 'kg';
   const plannedQty =
     woRes.rows[0]!.planned_quantity == null ? null : Number(woRes.rows[0]!.planned_quantity);
 
@@ -277,8 +285,9 @@ export async function recordWoCompletionSnapshot(
     `select coalesce(sum(qty_kg) filter (where qa_status <> 'FAILED'), 0)::text as good_kg,
             coalesce(sum(qty_kg) filter (where qa_status = 'FAILED'), 0)::text as rejected_kg
        from public.wo_outputs
-      where org_id = app.current_org_id() and wo_id = $1::uuid`,
-    [input.woId],
+      where org_id = app.current_org_id() and wo_id = $1::uuid
+        and lower(coalesce(nullif(trim(uom), ''), 'kg')) = lower($2::text)`,
+    [input.woId, woUom],
   );
   const goodKgText = outRes.rows[0]?.good_kg ?? '0';
   const rejectedKgText = outRes.rows[0]?.rejected_kg ?? '0';
@@ -289,7 +298,9 @@ export async function recordWoCompletionSnapshot(
       where org_id = app.current_org_id() and wo_id = $1::uuid`,
     [input.woId],
   );
-  const wasteKgText = wasteRes.rows[0]?.waste_kg ?? '0';
+  // wo_waste_log has no uom column — its rows are kg. Attributing kg waste to a WO scored
+  // in pieces would make quality a ratio of two different dimensions.
+  const wasteKgText = isKgUom(woUom) ? (wasteRes.rows[0]?.waste_kg ?? '0') : '0';
 
   const availabilityPct = computeAvailabilityPct(runtimeMin, downtimeMin);
   if (availabilityPct == null) return { recorded: false, reason: 'zero_runtime' };

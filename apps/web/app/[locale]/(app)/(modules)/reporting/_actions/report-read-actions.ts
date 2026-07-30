@@ -21,6 +21,7 @@
  */
 
 import { withSiteContext } from '../../../../../../lib/auth/with-site-context';
+import { isKgUom } from '../../../../../../lib/uom/piece';
 import {
   RPT_DASHBOARD_VIEW_PERMISSION,
   RPT_EXPORT_CSV_PERMISSION,
@@ -243,8 +244,9 @@ export async function productionSummaryCore(
           [window.fromIso, window.toIso, window.lineId, window.orderQuery],
         );
 
-        const output = await ctx.client.query<{ output_kg: string | null }>(
-          `select sum(o.qty_kg)::text as output_kg
+        const output = await ctx.client.query<{ uom: string | null; output_kg: string | null }>(
+          `select coalesce(nullif(trim(o.uom), ''), 'kg') as uom,
+                  sum(o.qty_kg)::text as output_kg
              from public.wo_outputs o
              join public.work_orders wo
                on wo.org_id = app.current_org_id()
@@ -256,7 +258,9 @@ export async function productionSummaryCore(
               and o.registered_at >= $1::timestamptz
               and o.registered_at <= $2::timestamptz
               and ($3::text is null or wo.production_line_id::text = $3::text)
-              and ($4::text is null or wo.wo_number ilike '%' || $4::text || '%')`,
+              and ($4::text is null or wo.wo_number ilike '%' || $4::text || '%')
+            group by 1
+            order by 1`,
           [window.fromIso, window.toIso, window.lineId, window.orderQuery],
         );
 
@@ -331,7 +335,10 @@ export async function productionSummaryCore(
           [window.fromIso, window.toIso, window.lineId, window.orderQuery],
         );
 
-        const outputKg = num(output.rows[0]?.output_kg);
+        // wo_waste_log carries no uom — waste is always kg — so only the kg slice of
+        // wo_outputs may share a ratio with it. The rest is declared, never summed in (U1).
+        const outputKg = num(output.rows.find((r) => isKgUom(r.uom))?.output_kg);
+        const outputExcludedUoms = output.rows.filter((r) => !isKgUom(r.uom)).map((r) => String(r.uom));
         const wasteKg = num(waste.rows[0]?.waste_kg);
         const avgYieldRaw = agg.rows[0]?.avg_yield;
 
@@ -341,8 +348,13 @@ export async function productionSummaryCore(
             days: window.days,
             wosCompleted: num(agg.rows[0]?.wos_completed),
             outputKg: outputKg.toFixed(3),
+            outputExcludedUoms,
             wasteKg: wasteKg.toFixed(3),
-            wastePct: pct(wasteKg, outputKg + wasteKg),
+            // Non-kg-only window: waste/(0+waste) would read a fabricated 100 %.
+            wastePct:
+              outputKg === 0 && outputExcludedUoms.length > 0
+                ? null
+                : pct(wasteKg, outputKg + wasteKg),
             // yield_percent is a 0..1 fraction (actual/planned) — ×100 for display.
             avgYieldPct: avgYieldRaw == null ? null : (num(avgYieldRaw) * 100).toFixed(2),
             downtimeMinutes: num(downtime.rows[0]?.downtime_min),

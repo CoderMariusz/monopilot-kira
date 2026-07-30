@@ -45,7 +45,7 @@ let actionReceivedSiteId: string | null | undefined;
 
 let woAggRow: Record<string, unknown>;
 let woRows: Array<Record<string, unknown>>;
-let outputRow: Record<string, unknown>;
+let outputRows: Record<string, unknown>[];
 let wasteRow: Record<string, unknown>;
 let downtimeRow: Record<string, unknown>;
 let lpRows: Array<Record<string, unknown>>;
@@ -100,7 +100,7 @@ function makeClient(): QueryClient {
         capturedParams.woAgg = [...(params ?? [])];
         return { rows: [woAggRow] };
       }
-      if (q.includes('from public.wo_outputs')) return { rows: [outputRow] };
+      if (q.includes('from public.wo_outputs')) return { rows: outputRows };
       if (q.includes('from public.wo_waste_log')) return { rows: [wasteRow] };
       if (q.includes('from public.downtime_events')) return { rows: [downtimeRow] };
       if (q.includes('from public.work_orders') && q.includes('order by wo.completed_at')) {
@@ -167,7 +167,7 @@ beforeEach(() => {
       completed_at: '2026-06-09T08:00:00Z',
     },
   ];
-  outputRow = { output_kg: '80.000' };
+  outputRows = [{ output_kg: '80.000' }];
   wasteRow = { waste_kg: '20.000' };
   downtimeRow = { downtime_min: '45' };
 
@@ -328,7 +328,7 @@ describe('productionSummary', () => {
   it('returns honest NULLs when there is no output, waste or yield data', async () => {
     woAggRow = { wos_completed: '0', avg_yield: null };
     woRows = [];
-    outputRow = { output_kg: null };
+    outputRows = [{ output_kg: null }];
     wasteRow = { waste_kg: null };
     downtimeRow = { downtime_min: null };
     const res = await productionSummary();
@@ -341,6 +341,31 @@ describe('productionSummary', () => {
     expect(res.data.avgYieldPct).toBeNull();
     expect(res.data.downtimeMinutes).toBe(0);
     expect(res.data.rows).toEqual([]);
+  });
+
+  it('does not add pcs output to kg output (U1): 200 kg + 500 pcs, 20 kg waste', async () => {
+    outputRows = [
+      { uom: 'kg', output_kg: '200.000' },
+      { uom: 'pcs', output_kg: '500.000' },
+    ];
+    wasteRow = { waste_kg: '20.000' };
+    const res = await productionSummary({ days: 7 });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.data.outputKg).toBe('200.000'); // was '700.000'
+    expect(res.data.wastePct).toBe('9.09'); // was '2.78'
+    expect(res.data.outputExcludedUoms).toEqual(['pcs']);
+  });
+
+  it('pcs-only output → wastePct is null (no mass basis), never a fabricated 100 %', async () => {
+    outputRows = [{ uom: 'pcs', output_kg: '500.000' }];
+    wasteRow = { waste_kg: '20.000' };
+    const res = await productionSummary({ days: 7 });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.data.outputKg).toBe('0.000');
+    expect(res.data.wastePct).toBeNull();
+    expect(res.data.outputExcludedUoms).toEqual(['pcs']);
   });
 
   it('defaults and clamps the day window (default 7; invalid input → default)', async () => {

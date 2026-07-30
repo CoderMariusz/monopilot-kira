@@ -16,6 +16,7 @@
  * server-side on `production.oee.read` (migration 185) like the dashboard loader.
  */
 import { num, numOrNull, pct } from '../../../reporting/_actions/shared';
+import { isKgUom } from '../../../../../../../lib/uom/piece';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 
 type QueryClient = {
@@ -45,8 +46,18 @@ export type AnalyticsScreenData = {
   fpqAvgPct: number | null;
   /** avg(work_orders.yield_percent) × 100 over completed WOs; null when none. */
   yieldAvgPct: number | null;
-  /** Waste % of produced over 7 days = waste_kg / (waste_kg + output_kg); null when no output. */
+  /**
+   * Waste % of produced over the window = waste_kg / (waste_kg + output_kg).
+   * `wo_waste_log` has no `uom` column — waste is always kg — so the denominator counts
+   * ONLY kg-denominated `wo_outputs`. Null when there is no kg basis at all (including
+   * "everything produced was pieces"), never a fabricated 0 % or 100 %.
+   */
   wastePct: number | null;
+  /**
+   * Units whose output was left out of the kg-only waste basis, so the UI can say so.
+   * Empty on a kg-only window. Silence here would hide part of production (U1).
+   */
+  wasteBasisExcludedUoms: string[];
   /** OEE trend points (hourly buckets), oldest→newest. */
   oeeTrend: OeeTrendPoint[];
   /** Per-line avg(yield_percent) × 100, sorted desc. */
@@ -153,15 +164,18 @@ export async function getAnalyticsScreen(input?: AnalyticsScreenInput): Promise<
         avgYieldRaw === null || avgYieldRaw === undefined ? null : num(avgYieldRaw) * 100;
 
       // Waste % — same numerator/denominator as Reporting: sums over WO-linked rows.
-      const outputKpiRes = await c.query<{ output_kg: string | null }>(
-        `select sum(o.qty_kg)::text as output_kg
+      const outputKpiRes = await c.query<{ uom: string | null; output_kg: string | null }>(
+        `select coalesce(nullif(trim(o.uom), ''), 'kg') as uom,
+                sum(o.qty_kg)::text as output_kg
            from public.wo_outputs o
            join public.work_orders wo
              on wo.org_id = app.current_org_id()
             and wo.id = o.wo_id
           where o.org_id = app.current_org_id()
             and o.registered_at >= $1::timestamptz
-            and o.registered_at <= $2::timestamptz`,
+            and o.registered_at <= $2::timestamptz
+          group by 1
+          order by 1`,
         [analyticsWindow.from, analyticsWindow.to],
       );
       const wasteKpiRes = await c.query<{ waste_kg: string | null }>(
@@ -175,9 +189,17 @@ export async function getAnalyticsScreen(input?: AnalyticsScreenInput): Promise<
             and w.recorded_at <= $2::timestamptz`,
         [analyticsWindow.from, analyticsWindow.to],
       );
-      const outputKg = num(outputKpiRes.rows[0]?.output_kg);
+      // A ratio needs ONE dimension. Waste is kg (wo_waste_log has no uom), so only the
+      // kg slice of output belongs in the denominator; the rest is reported, not summed.
+      const outputKg = num(outputKpiRes.rows.find((r) => isKgUom(r.uom))?.output_kg);
+      const wasteBasisExcludedUoms = outputKpiRes.rows
+        .filter((r) => !isKgUom(r.uom))
+        .map((r) => String(r.uom));
       const wasteKg = num(wasteKpiRes.rows[0]?.waste_kg);
-      const wastePctRaw = pct(wasteKg, outputKg + wasteKg);
+      // Pieces-only window: waste/(0+waste) would read 100 % waste. That is a fabricated
+      // number, not a measurement — same class as the 0 %-instead-of-noData bug.
+      const wastePctRaw =
+        outputKg === 0 && wasteBasisExcludedUoms.length > 0 ? null : pct(wasteKg, outputKg + wasteKg);
       const wastePct = wastePctRaw === null ? null : num(wastePctRaw);
 
       // OEE trend — hourly buckets over the selected/default 7 days, oldest→newest.
@@ -254,7 +276,16 @@ export async function getAnalyticsScreen(input?: AnalyticsScreenInput): Promise<
 
       return {
         ok: true,
-        data: { oeeAvgPct, fpqAvgPct, yieldAvgPct, wastePct, oeeTrend, yieldByLine, topDowntime },
+        data: {
+          oeeAvgPct,
+          fpqAvgPct,
+          yieldAvgPct,
+          wastePct,
+          wasteBasisExcludedUoms,
+          oeeTrend,
+          yieldByLine,
+          topDowntime,
+        },
       };
     });
   } catch (error) {

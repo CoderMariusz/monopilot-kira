@@ -106,11 +106,20 @@ export function reportingSiteScope(siteIdColumn: string): string {
 export type ProductionSummary = {
   days: number;
   wosCompleted: number;
-  /** Sum of wo_outputs.qty_kg registered in the window (kg-canonical column). */
+  /**
+   * Sum of wo_outputs.qty_kg registered in the window, restricted to rows whose `uom`
+   * really is kg. `qty_kg` is a legacy column name — it holds the quantity in whatever
+   * unit `wo_outputs.uom` names, so a blind sum counted 500 pcs as 500 kg (U1).
+   */
   outputKg: string;
-  /** Sum of wo_waste_log.qty_kg recorded in the window. */
+  /** Units excluded from `outputKg`, one entry per unit; empty on a kg-only window. */
+  outputExcludedUoms: string[];
+  /** Sum of wo_waste_log.qty_kg recorded in the window (that table has no uom — always kg). */
   wasteKg: string;
-  /** waste / (output + waste) × 100, 2 dp; null when no output AND no waste. */
+  /**
+   * waste / (output + waste) × 100, 2 dp; null when no output AND no waste, and also null
+   * when the window produced only non-kg output (waste/(0+waste) would read 100 %).
+   */
   wastePct: string | null;
   /**
    * avg(work_orders.yield_percent) × 100 over WOs completed in the window,

@@ -26,6 +26,7 @@
  */
 import { withSiteContext } from '../../../../../../lib/auth/with-site-context';
 import { SITE_DAY_START_SQL } from '../../../../../../lib/site/site-day';
+import { isKgUom } from '../../../../../../lib/uom/piece';
 import {
   PRODUCTION_DASHBOARD_WO_LIST_SQL,
   PRODUCTION_DASHBOARD_SITE_WO_PREDICATE,
@@ -74,8 +75,19 @@ export type ProductionDashboardKpis = {
   woActiveTotal: number;
   /** count(work_orders WHERE over_production_flagged = true) */
   overProducedCount: number;
-  /** sum(wo_outputs.qty_kg registered on the current SITE-LOCAL calendar day), exact numeric string. */
+  /**
+   * sum(wo_outputs.qty_kg) for the current SITE-LOCAL calendar day, restricted to rows
+   * whose `uom` really is kg. `qty_kg` is a legacy column name: it holds the quantity in
+   * whatever unit sits next to it in `wo_outputs.uom`, so a blind sum added pieces to
+   * kilograms one-for-one (200 kg + 500 pcs rendered as "700 kg").
+   */
   outputTodayKg: string;
+  /**
+   * The non-kg part of the same day, one entry per unit, so nothing is silently dropped
+   * from the tile. Empty on a kg-only day. Mirrors `partitionKgRows` in
+   * quality/trace/_actions/trace-mass-balance.ts — partition, never blind-sum.
+   */
+  outputTodayOther: Array<{ uom: string; qty: string }>;
   /** Latest oee_snapshots.oee_pct (most recent snapshot_minute); null = no snapshot yet. */
   oeeCurrentPct: number | null;
   /** count(downtime_events WHERE ended_at IS NULL) — currently-open downtime. */
@@ -187,8 +199,9 @@ export async function getProductionDashboard(): Promise<ProductionDashboardResul
       // scheduler already counted the site-local day. `mv_reporting_production_throughput`
       // deliberately KEEPS its UTC `output_date` bucket — it is a cross-site
       // historical aggregate whose key must not move when a site's timezone is edited.
-      const outputRes = await c.query<{ kg: string | null }>(
-        `select coalesce(sum(o.qty_kg), 0)::text as kg
+      const outputRes = await c.query<{ uom: string | null; kg: string | null }>(
+        `select coalesce(nullif(trim(o.uom), ''), 'kg') as uom,
+                coalesce(sum(o.qty_kg), 0)::text as kg
            from public.wo_outputs o
            join public.work_orders w
              on w.id = o.wo_id and w.org_id = o.org_id
@@ -197,9 +210,14 @@ export async function getProductionDashboard(): Promise<ProductionDashboardResul
           where o.org_id = app.current_org_id()
             and ${PRODUCTION_DASHBOARD_SITE_WO_PREDICATE}
             and o.registered_at >= ${SITE_DAY_START_SQL}
-            and o.registered_at < ${SITE_DAY_START_SQL} + interval '1 day'`,
+            and o.registered_at < ${SITE_DAY_START_SQL} + interval '1 day'
+          group by 1
+          order by 1`,
       );
-      const outputTodayKg = String(outputRes.rows[0]?.kg ?? '0');
+      const outputTodayKg = String(outputRes.rows.find((r) => isKgUom(r.uom))?.kg ?? '0');
+      const outputTodayOther = outputRes.rows
+        .filter((r) => !isKgUom(r.uom))
+        .map((r) => ({ uom: String(r.uom), qty: String(r.kg ?? '0') }));
 
       // KPI 3 — OEE current: most recent snapshot's oee_pct (08 is the sole producer).
       const oeeRes = await c.query<{ oee_pct: string | number | null }>(
@@ -324,6 +342,7 @@ export async function getProductionDashboard(): Promise<ProductionDashboardResul
           woActiveTotal,
           overProducedCount,
           outputTodayKg,
+          outputTodayOther,
           oeeCurrentPct,
           openDowntime,
           statusCounts,

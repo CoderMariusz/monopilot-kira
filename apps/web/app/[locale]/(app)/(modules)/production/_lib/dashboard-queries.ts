@@ -27,6 +27,11 @@ export function productionDashboardSiteRowPredicate(alias: string): string {
  * WO list for SCR-08-01. The lateral `produced.qty_kg` must stay numeric so
  * `progress_pct` can divide by `work_orders.planned_quantity` (numeric).
  * Cast to text only in the output alias (`produced_quantity`).
+ *
+ * The lateral is restricted to outputs denominated in the WO's own unit: `qty_kg` is a
+ * legacy column name holding the quantity in whatever unit `wo_outputs.uom` names, and
+ * `planned_quantity` is in `work_orders.uom`. Without the filter a 500-pcs by-product on
+ * a kg WO inflated produced_quantity and progress_pct one-for-one (U1).
  */
 export const PRODUCTION_DASHBOARD_WO_LIST_SQL = `select w.id::text as id,
                 w.wo_number,
@@ -68,6 +73,8 @@ export const PRODUCTION_DASHBOARD_WO_LIST_SQL = `select w.id::text as id,
                from public.wo_outputs o
               where o.wo_id = w.id
                 and o.org_id = app.current_org_id()
+                and lower(coalesce(nullif(trim(o.uom), ''), 'kg'))
+                    = lower(coalesce(nullif(trim(w.uom), ''), 'kg'))
            ) produced on true
           where w.org_id = app.current_org_id()
             and w.status in ('RELEASED', 'IN_PROGRESS', 'ON_HOLD', 'COMPLETED', 'CLOSED', 'CANCELLED')

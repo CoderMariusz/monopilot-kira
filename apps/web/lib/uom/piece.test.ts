@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { normalizePieceUom, normalizeBomSnapshotJsonUoms, pieceUomsEqual, pieceUomToWacEach } from './piece';
+import { isKgUom, normalizePieceUom, normalizeBomSnapshotJsonUoms, pieceUomsEqual, pieceUomToWacEach } from './piece';
 
 describe('normalizePieceUom', () => {
   it('maps legacy szt and ea to pcs', () => {
@@ -56,5 +56,19 @@ describe('normalizeBomSnapshotJsonUoms', () => {
     expect(normalized.lines?.[0]?.uom).toBe('pcs');
     expect(normalized.lines?.[1]?.uom).toBe('kg');
     expect(normalized.co_products?.[0]?.uom).toBe('pcs');
+  });
+});
+
+describe('isKgUom', () => {
+  it('accepts kg (any casing/padding) and the NOT NULL DEFAULT absence', () => {
+    for (const v of ['kg', 'KG', ' kg ', null, undefined, '']) {
+      expect(isKgUom(v)).toBe(true);
+    }
+  });
+
+  it('rejects every piece/volume code — this is what stops 500 pcs becoming 500 kg', () => {
+    for (const v of ['pcs', 'szt', 'ea', 'each', 'g', 'l', 'm']) {
+      expect(isKgUom(v)).toBe(false);
+    }
   });
 });

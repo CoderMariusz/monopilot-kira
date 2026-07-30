@@ -12,6 +12,9 @@ type QueryCall = { sql: string; params: unknown[] };
 let calls: QueryCall[];
 /** Overridable so a test can serve the "no snapshots in window" shape (avg() → NULL). */
 let oeeKpiRow: { oee_avg: string | null; fpq_avg: string | null };
+/** Overridable per-uom output rows (U1 mixed-uom partitioning). */
+let outputRows: Array<{ uom?: string; output_kg: string | null }>;
+let wasteRow: { waste_kg: string | null };
 
 const client = {
   query: vi.fn(async (sql: string, params?: readonly unknown[]) => {
@@ -35,10 +38,10 @@ const client = {
       return { rows: [{ avg_yield: '0.0300' }], rowCount: 1 };
     }
     if (normalized.includes('from public.wo_outputs o') && normalized.includes('sum(o.qty_kg)')) {
-      return { rows: [{ output_kg: '11.760' }], rowCount: 1 };
+      return { rows: outputRows, rowCount: outputRows.length };
     }
     if (normalized.includes('from public.wo_waste_log w') && normalized.includes('sum(w.qty_kg)')) {
-      return { rows: [{ waste_kg: '0.020' }], rowCount: 1 };
+      return { rows: [wasteRow], rowCount: 1 };
     }
 
     return { rows: [], rowCount: 0 };
@@ -55,6 +58,8 @@ vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
 beforeEach(() => {
   calls = [];
   oeeKpiRow = { oee_avg: '80.5', fpq_avg: '92.1' };
+  outputRows = [{ output_kg: '11.760' }];
+  wasteRow = { waste_kg: '0.020' };
 });
 
 describe('getAnalyticsScreen OEE/FPQ — "no data" is not 0%', () => {
@@ -122,5 +127,45 @@ describe('getAnalyticsScreen yield/waste parity with Reporting', () => {
     const wasteSql = calls.find((call) => call.sql.includes('from public.wo_waste_log w'));
     expect(outputSql?.sql).toContain('join public.work_orders wo');
     expect(wasteSql?.sql).toContain('join public.work_orders wo');
+  });
+});
+
+describe('getAnalyticsScreen waste % — mass ratio must not eat pieces (U1)', () => {
+  it('200 kg + 500 pcs output with 20 kg waste → 9.09 %, NOT 2.78 %', async () => {
+    outputRows = [
+      { uom: 'kg', output_kg: '200.000' },
+      { uom: 'pcs', output_kg: '500.000' },
+    ];
+    wasteRow = { waste_kg: '20.000' };
+
+    const result = await getAnalyticsScreen({ window: { from: FROM, to: TO } });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // 20 / (200 + 20) = 9.09 %. The blind sum gave 20 / (700 + 20) = 2.78 %.
+    expect(result.data.wastePct).toBe(9.09);
+    // ...and the exclusion is DECLARED, never silent.
+    expect(result.data.wasteBasisExcludedUoms).toEqual(['pcs']);
+  });
+
+  it('all-kg output is unchanged and declares no exclusion', async () => {
+    const result = await getAnalyticsScreen({ window: { from: FROM, to: TO } });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.wastePct).toBe(0.17);
+    expect(result.data.wasteBasisExcludedUoms).toEqual([]);
+  });
+
+  it('pcs-only output with kg waste is "no data", not a fabricated 100 %', async () => {
+    outputRows = [{ uom: 'pcs', output_kg: '500.000' }];
+    wasteRow = { waste_kg: '20.000' };
+
+    const result = await getAnalyticsScreen({ window: { from: FROM, to: TO } });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.wastePct).toBeNull();
+    expect(result.data.wasteBasisExcludedUoms).toEqual(['pcs']);
   });
 });

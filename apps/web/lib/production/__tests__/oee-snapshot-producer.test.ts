@@ -146,7 +146,12 @@ describe('computeOeePct (NULL propagation, mirrors GENERATED column)', () => {
 type Call = { sql: string; params: readonly unknown[] };
 
 function makeCtx(script: {
-  wo?: Array<{ line_id: string | null; site_id: string | null; planned_quantity?: string | null }>;
+  wo?: Array<{
+    line_id: string | null;
+    site_id: string | null;
+    planned_quantity?: string | null;
+    uom?: string | null;
+  }>;
   shift?: Array<{ shift_id: string }>;
   downtime?: Array<{ started_at: string; ended_at: string | null }>;
   expected?: Array<{ expected_min: number | null }>;
@@ -218,6 +223,49 @@ describe('recordWoCompletionSnapshot (writer)', () => {
     expect(insert.params[8]).toBe('90.000'); // exact NUMERIC text, no float roundtrip
     expect(insert.params[9]).toBe(30);
     expect(insert.params[10]).toBe('5.000');
+  });
+
+  // U1: quality is good/(good+rejected+waste). wo_waste_log has NO uom column — it is
+  // always kg. A pcs-denominated WO must therefore not have kg waste folded in, and the
+  // output sums must be restricted to the WO's own uom (work_orders.uom).
+  it('a pcs WO scores quality on pieces only — kg waste is not folded in (U1)', async () => {
+    const { ctx, calls } = makeCtx({
+      wo: [{ line_id: 'line-uuid-1', site_id: 'site-1', planned_quantity: '500.000', uom: 'pcs' }],
+      expected: [{ expected_min: null }],
+      outputs: [{ good_kg: '500.000', rejected_kg: '0' }],
+      waste: [{ waste_kg: '20.000' }], // 20 kg of trim — not 20 pieces
+      insert: [{ id: '81' }],
+    });
+
+    const res = await recordWoCompletionSnapshot(ctx, {
+      woId: WO_ID,
+      startedAt: T0,
+      completedAt: T_END,
+    });
+
+    expect(res).toEqual({ recorded: true, snapshotId: '81' });
+    const insert = calls.find((c) => c.sql.includes('insert into public.oee_snapshots'))!;
+    expect(insert.params[6]).toBe('100.00'); // 500/(500+0) — was 500/(500+20) = 96.15
+    expect(insert.params[10]).toBe('0'); // waste delta not attributed to a pcs WO
+
+    // The output sums must be filtered to the WO's uom, not blind-summed.
+    const outSql = calls.find((c) => c.sql.includes('from public.wo_outputs'))!;
+    expect(outSql.sql).toContain('uom');
+  });
+
+  it('a kg WO keeps the waste term in quality — the neighbour case is not frozen (U1)', async () => {
+    const { ctx, calls } = makeCtx({
+      wo: [{ line_id: 'line-uuid-1', site_id: 'site-1', planned_quantity: '500.000', uom: 'kg' }],
+      expected: [{ expected_min: null }],
+      outputs: [{ good_kg: '500.000', rejected_kg: '0' }],
+      waste: [{ waste_kg: '20.000' }],
+      insert: [{ id: '82' }],
+    });
+
+    await recordWoCompletionSnapshot(ctx, { woId: WO_ID, startedAt: T0, completedAt: T_END });
+    const insert = calls.find((c) => c.sql.includes('insert into public.oee_snapshots'))!;
+    expect(insert.params[6]).toBe('96.15'); // 500/(500+20)
+    expect(insert.params[10]).toBe('20.000');
   });
 
   // Z7 end-to-end through the writer: half the plan produced must NOT score 100 %.

@@ -134,6 +134,16 @@ async function AnalyticsContent({ window }: { window: ReportingWindow }) {
         <Card data-testid="production-analytics-kpi-waste" className="rounded-xl border border-slate-200 bg-white p-4">
           <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t('kpi.waste')}</div>
           <div className="mt-2 font-mono text-2xl font-bold tabular-nums text-slate-900">{pct(data.wastePct)}</div>
+          {/* Waste is a kg ratio; piece-denominated output is out of basis, and saying so
+              beats silently shrinking the denominator (U1). */}
+          {data.wasteBasisExcludedUoms.length > 0 && (
+            <div
+              data-testid="production-analytics-waste-basis-note"
+              className="mt-1 text-[11px] leading-tight text-slate-500"
+            >
+              kg only — excludes {data.wasteBasisExcludedUoms.join(', ')}
+            </div>
+          )}
         </Card>
       </div>
 

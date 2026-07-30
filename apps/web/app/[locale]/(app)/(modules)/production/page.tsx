@@ -117,7 +117,12 @@ async function DashboardContent({ locale }: { locale: string }) {
   const data = result.data;
 
   // ── KPI tiles (4 live, in prototype order) ──────────────────────────────────
-  const outputVal = `${formatDashboardKg(data.outputTodayKg)} kg`;
+  // The tile is a MASS tile, but a day can also carry piece-denominated output. Show the
+  // non-kg part next to it instead of folding pieces into the kilograms (U1).
+  const outputOther = data.outputTodayOther
+    .map((o) => `${formatDashboardKg(o.qty)} ${o.uom}`)
+    .join(' + ');
+  const outputVal = `${formatDashboardKg(data.outputTodayKg)} kg${outputOther ? ` + ${outputOther}` : ''}`;
   const oeeVal = data.oeeCurrentPct === null ? t('kpi.oee.none') : `${data.oeeCurrentPct.toFixed(1)}%`;
   const outputTodayKg = Number(data.outputTodayKg);
 
