@@ -5,7 +5,9 @@ import {
   SequenceCapacityInfeasibleError,
   __resolvePlannedStartForTests,
   buildPreoccupiedSeed,
+  durationMs,
   sequenceWorkOrders,
+  workOrderPlannedEndMs,
 } from '../sequence-solver';
 import { ATP_STEP_MINUTES, CLEANING_STEP_MINUTES } from '../changeover-matrix-lookup';
 import type { ChangeoverMatrixEntry, WorkOrderForScheduling } from '../scheduler-types';
@@ -236,6 +238,20 @@ describe('sequenceWorkOrders', () => {
     const end = new Date(result[0].planned_end_at ?? '').getTime();
 
     expect(end - start).toBe(2 * 60 * 60 * 1000);
+  });
+
+  it('uses routing work time instead of a multi-day WO calendar window', () => {
+    const openWo = wo({
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      due: '2026-06-26T08:00:00.000Z',
+      allergens: ['milk'],
+      routingDurationMs: 4 * 60 * 60 * 1000,
+    });
+    openWo.planned_start_date = '2026-06-24T08:00:00.000Z';
+    openWo.planned_end_date = '2026-06-26T08:00:00.000Z';
+
+    expect(durationMs(openWo)).not.toBe(48 * 60 * 60 * 1000);
+    expect(durationMs(openWo)).toBe(4 * 60 * 60 * 1000);
   });
 
   it('avoids segregated allergen transitions when a same-profile alternative exists', () => {
@@ -782,6 +798,33 @@ describe('sequenceWorkOrders', () => {
     expect(withOccupancy[0].planned_start_at).toBe('2026-06-24T11:00:00.000Z');
   });
 
+  it('uses work time for dependency and line occupancy instead of the planned calendar end', () => {
+    const startMs = Date.parse('2026-06-24T08:00:00.000Z');
+    const calendarEndMs = Date.parse('2026-06-26T08:00:00.000Z');
+    const workEndMs = startMs + 4 * 60 * 60 * 1000;
+    const activeWo = wo({
+      id: 'active-wo',
+      due: '2026-06-26T08:00:00.000Z',
+      allergens: ['milk'],
+      routingDurationMs: 4 * 60 * 60 * 1000,
+    });
+    activeWo.status = 'IN_PROGRESS';
+    activeWo.planned_start_date = '2026-06-24T08:00:00.000Z';
+    activeWo.planned_end_date = '2026-06-26T08:00:00.000Z';
+
+    const dependencyEndMs = workOrderPlannedEndMs(activeWo, startMs);
+    const preoccupied = buildPreoccupiedSeed(
+      [activeWo],
+      { ...DEFAULT_SEQUENCE_SOLVER_CONFIG, nowMs: startMs },
+    );
+
+    expect(dependencyEndMs).not.toBe(calendarEndMs);
+    expect(dependencyEndMs).toBe(workEndMs);
+    expect(preoccupied.plannedEndByLine[LINE_ID]).not.toBe(calendarEndMs);
+    expect(preoccupied.plannedEndByLine[LINE_ID]).toBe(workEndMs);
+    expect(preoccupied.dayUsageMs[`${LINE_ID}|2026-06-24`]).toBe(4 * 60 * 60 * 1000);
+  });
+
   it('schedules milk then nuts when no changeover matrix is configured (permissive)', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-06-24T12:00:00.000Z'));
@@ -859,6 +902,30 @@ describe('sequenceWorkOrders', () => {
     expect(result.omitted).toEqual([
       { wo_id: nuts.id, reason: 'no_feasible_changeover' },
     ]);
+  });
+
+  it('keeps an allergen-free WO in the schedule when the configured matrix lacks a NONE transition', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-24T12:00:00.000Z'));
+    const clean = wo({
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      due: '2026-06-01T08:00:00.000Z',
+      allergens: [],
+      scheduledStart: '2026-06-01T08:00:00.000Z',
+      scheduledEnd: '2026-06-01T09:00:00.000Z',
+    });
+    const milk = wo({
+      id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      due: '2026-06-02T08:00:00.000Z',
+      allergens: ['milk'],
+      scheduledStart: '2026-06-02T08:00:00.000Z',
+      scheduledEnd: '2026-06-02T09:00:00.000Z',
+    });
+
+    const result = sequenceWorkOrders([clean, milk], [matrix('milk', 'nuts', 10)]);
+
+    expect(result.assignments.map((assignment) => assignment.wo_id)).toEqual([clean.id, milk.id]);
+    expect(result.omitted).toEqual([]);
   });
 
   it('surfaces omitted work orders with no_feasible_changeover in the solver result', () => {

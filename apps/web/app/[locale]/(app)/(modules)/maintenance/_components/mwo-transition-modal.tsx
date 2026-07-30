@@ -43,16 +43,20 @@ export function MwoTransitionModal({
   const submit = () => {
     setError(null);
     startSubmit(async () => {
-      const result = await transitionMwoAction({
-        mwoId: row.id,
-        to,
-        note: note.trim() || undefined,
-      });
-      if (result.ok) onDone();
-      else if (result.reason === 'forbidden') setError(labels.transition.errorForbidden);
-      else if (result.reason === 'invalid_transition') setError(labels.transition.errorIllegal);
-      else if (result.reason === 'loto_not_verified') setError(result.message ?? labels.transition.errorFailed);
-      else setError(labels.transition.errorFailed);
+      try {
+        const result = await transitionMwoAction({
+          mwoId: row.id,
+          to,
+          note: note.trim() || undefined,
+        });
+        if (result.ok) onDone();
+        else if (result.reason === 'forbidden') setError(labels.transition.errorForbidden);
+        else if (result.reason === 'invalid_transition') setError(labels.transition.errorIllegal);
+        else if (result.reason === 'loto_not_verified') setError(result.message ?? labels.transition.errorFailed);
+        else setError(labels.transition.errorFailed);
+      } catch {
+        setError(labels.transition.errorFailed);
+      }
     });
   };
 

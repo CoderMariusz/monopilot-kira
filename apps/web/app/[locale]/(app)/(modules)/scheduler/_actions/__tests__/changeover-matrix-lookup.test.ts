@@ -155,6 +155,52 @@ describe('resolveChangeoverTransition', () => {
     expect(transition.minutes).toBe(0);
     expect(transition.feasible).toBe(true);
   });
+
+  it('resolves an allergen-free product through the configured NONE matrix row', () => {
+    const transition = resolveChangeoverTransition(
+      [],
+      ['milk'],
+      null,
+      [matrix('NONE', 'milk', 12, { requires_cleaning: true })],
+    );
+
+    expect(transition.minutes).toBe(12);
+    expect(transition.requires_cleaning).toBe(true);
+    expect(transition.feasible).toBe(true);
+  });
+
+  it('keeps an allergen-free source feasible when the configured matrix lacks a NONE row', () => {
+    const transition = resolveChangeoverTransition(
+      [],
+      ['milk'],
+      null,
+      [matrix('milk', 'nuts', 30)],
+    );
+
+    expect(transition).toEqual({
+      minutes: 0,
+      step_minutes: 0,
+      requires_cleaning: false,
+      requires_atp: false,
+      risk_level: 'low',
+      feasible: true,
+    });
+  });
+
+  it('requires cleaning and ATP before an allergen-free target when the NONE row is missing', () => {
+    const transition = resolveChangeoverTransition(
+      ['milk'],
+      [],
+      null,
+      [matrix('milk', 'nuts', 30)],
+    );
+
+    expect(transition.requires_cleaning).toBe(true);
+    expect(transition.requires_atp).toBe(true);
+    expect(transition.step_minutes).toBe(CLEANING_STEP_MINUTES + ATP_STEP_MINUTES);
+    expect(transition.risk_level).toBe('high');
+    expect(transition.feasible).toBe(true);
+  });
 });
 
 describe('transitionScore', () => {

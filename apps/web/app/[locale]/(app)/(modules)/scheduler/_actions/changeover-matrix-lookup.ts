@@ -20,6 +20,7 @@ const RISK_RANK: Record<ChangeoverRiskLevel, number> = {
 
 export const CLEANING_STEP_MINUTES = 15;
 export const ATP_STEP_MINUTES = 30;
+const NO_ALLERGEN_PROFILE_ID = 'NONE';
 
 function minutes(value: string | number | null | undefined): number {
   const parsed = Number(value ?? 0);
@@ -116,9 +117,8 @@ export function resolveChangeoverTransition(
     return ZERO_TRANSITION;
   }
 
-  if (from.length === 0 || to.length === 0) {
-    return matrixConfigured ? UNCONFIGURED_PAIR_TRANSITION : ZERO_TRANSITION;
-  }
+  const fromProfile = from.length === 0 ? [NO_ALLERGEN_PROFILE_ID] : from;
+  const toProfile = to.length === 0 ? [NO_ALLERGEN_PROFILE_ID] : to;
 
   let aggregated: Omit<ChangeoverTransition, 'step_minutes' | 'feasible'> = {
     minutes: 0,
@@ -128,14 +128,26 @@ export function resolveChangeoverTransition(
   };
   let matchedCrossPair = false;
 
-  for (const fromCode of from) {
-    for (const toCode of to) {
+  for (const fromCode of fromProfile) {
+    for (const toCode of toProfile) {
       if (fromCode === toCode) continue;
       matchedCrossPair = true;
       const entry =
         resolvePairEntry(fromCode, toCode, lineId, matrix) ??
         resolvePairEntry(toCode, fromCode, lineId, matrix);
       if (!entry) {
+        if (fromCode === NO_ALLERGEN_PROFILE_ID) {
+          continue;
+        }
+        if (toCode === NO_ALLERGEN_PROFILE_ID) {
+          aggregated = {
+            ...aggregated,
+            requires_cleaning: true,
+            requires_atp: true,
+            risk_level: rankRisk(aggregated.risk_level, 'high'),
+          };
+          continue;
+        }
         return matrixConfigured ? UNCONFIGURED_PAIR_TRANSITION : ZERO_TRANSITION;
       }
       aggregated = {

@@ -110,24 +110,19 @@ function processDurationMs(wo: WorkOrderForScheduling): number | null {
   return numericMs(wo.process_duration_ms);
 }
 
-/** Derive WO run duration: scheduled/planned window, then routing, then process masters, else 1h floor. */
+/** Derive work time from routing/process masters; a planned date range is only a calendar window. */
 export function durationMs(wo: WorkOrderForScheduling): number {
-  const pairs: Array<[string | Date | null, string | Date | null]> = [
-    [wo.scheduled_start_time, wo.scheduled_end_time],
-    [wo.planned_start_date, wo.planned_end_date],
-  ];
-  for (const [startValue, endValue] of pairs) {
-    const start = timestampMs(startValue);
-    const end = timestampMs(endValue);
-    if (start === null || end === null || end <= start) continue;
-    return end - start;
-  }
-
   const routing = routingDurationMs(wo);
   if (routing !== null) return routing;
 
   const process = processDurationMs(wo);
   if (process !== null) return process;
+
+  const scheduledStart = timestampMs(wo.scheduled_start_time);
+  const scheduledEnd = timestampMs(wo.scheduled_end_time);
+  if (scheduledStart !== null && scheduledEnd !== null && scheduledEnd > scheduledStart) {
+    return scheduledEnd - scheduledStart;
+  }
 
   return DEFAULT_MIN_DURATION_MS;
 }
@@ -708,28 +703,32 @@ export function sequenceWorkOrders(
   return { assignments, omitted };
 }
 
+function workOrderIntervalMs(
+  wo: WorkOrderForScheduling,
+  nowMs: number,
+): { startMs: number; endMs: number } | null {
+  const runDuration = durationMs(wo);
+  const endHint = timestampMs(wo.scheduled_end_time) ?? timestampMs(wo.planned_end_date);
+  let startMs =
+    timestampMs(wo.scheduled_start_time) ??
+    timestampMs(wo.planned_start_date) ??
+    (endHint === null ? null : endHint - runDuration);
+  if (startMs === null) return null;
+
+  let endMs = startMs + runDuration;
+  if ((wo.status as string) === 'IN_PROGRESS' && endMs <= nowMs) {
+    startMs = nowMs;
+    endMs = nowMs + runDuration;
+  }
+  return { startMs, endMs };
+}
+
 /** Resolve a WO's planned end timestamp (ms) for dependency anchoring. */
 export function workOrderPlannedEndMs(
   wo: WorkOrderForScheduling,
   nowMs: number,
 ): number | null {
-  const runDuration = durationMs(wo);
-  const scheduledStart = timestampMs(wo.scheduled_start_time) ?? timestampMs(wo.planned_start_date);
-  const scheduledEnd = timestampMs(wo.scheduled_end_time) ?? timestampMs(wo.planned_end_date);
-  let startMs = scheduledStart;
-  let endMs = scheduledEnd;
-  if ((wo.status as string) === 'IN_PROGRESS' && (endMs === null || endMs <= nowMs)) {
-    startMs = nowMs;
-    endMs = nowMs + runDuration;
-  } else if (startMs === null && endMs !== null) {
-    startMs = endMs - runDuration;
-  } else if (startMs !== null && endMs === null) {
-    endMs = startMs + runDuration;
-  } else if (startMs === null && endMs === null) {
-    return null;
-  }
-  if (startMs === null || endMs === null || endMs <= startMs) return null;
-  return endMs;
+  return workOrderIntervalMs(wo, nowMs)?.endMs ?? null;
 }
 
 /** Build occupancy seed maps from WOs already consuming line capacity. */
@@ -746,21 +745,9 @@ export function buildPreoccupiedSeed(
   for (const wo of occupying) {
     const lineKey = wo.production_line_id ?? '__unassigned__';
     const runDuration = durationMs(wo);
-    const scheduledStart = timestampMs(wo.scheduled_start_time) ?? timestampMs(wo.planned_start_date);
-    const scheduledEnd = timestampMs(wo.scheduled_end_time) ?? timestampMs(wo.planned_end_date);
-    let startMs = scheduledStart;
-    let endMs = scheduledEnd;
-    if ((wo.status as string) === 'IN_PROGRESS' && (endMs === null || endMs <= nowMs)) {
-      startMs = nowMs;
-      endMs = nowMs + runDuration;
-    } else if (startMs === null && endMs !== null) {
-      startMs = endMs - runDuration;
-    } else if (startMs !== null && endMs === null) {
-      endMs = startMs + runDuration;
-    } else if (startMs === null && endMs === null) {
-      continue;
-    }
-    if (startMs === null || endMs === null || endMs <= startMs) continue;
+    const interval = workOrderIntervalMs(wo, nowMs);
+    if (!interval) continue;
+    const { startMs, endMs } = interval;
 
     plannedEndByLine[lineKey] = Math.max(plannedEndByLine[lineKey] ?? 0, endMs);
     const current = lineEndMs.get(lineKey);

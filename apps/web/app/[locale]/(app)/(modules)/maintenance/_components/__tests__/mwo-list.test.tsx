@@ -403,6 +403,19 @@ describe('MwoListScreen — transitions', () => {
     );
     expect(refresh).not.toHaveBeenCalled();
   });
+
+  it('surfaces a rejected Start action instead of leaving the modal silent', async () => {
+    const { transitionMwoAction } = renderScreen();
+    transitionMwoAction.mockRejectedValueOnce(new Error('server action transport failed'));
+
+    fireEvent.click(screen.getByTestId(`mwo-start-${OPEN_ROW.id}`));
+    fireEvent.click(screen.getByTestId('mwo-transition-confirm'));
+
+    expect(await screen.findByTestId('mwo-transition-error')).toHaveTextContent(
+      LABELS.transition.errorFailed,
+    );
+    expect(refresh).not.toHaveBeenCalled();
+  });
 });
 
 describe('MwoListScreen — PM schedules view', () => {

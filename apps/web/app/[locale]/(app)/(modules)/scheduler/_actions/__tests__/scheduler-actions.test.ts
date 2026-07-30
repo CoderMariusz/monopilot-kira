@@ -33,6 +33,7 @@ let staleWoIds = new Set<string>();
 let matrixVersionInsertConflict = false;
 let simulateNoActiveMatrixVersion = false;
 let shiftCalendarRows: Array<Record<string, unknown>> = [];
+let routingVersions: Array<{ status: 'active' | 'approved'; durationMs: number }> | null = null;
 const ACTIVE_MATRIX_VERSION_ID = '77777777-7777-4777-8777-777777777777';
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
@@ -201,10 +202,24 @@ function makeClient(): QueryClient {
         if (q.includes("wo.status = 'in_progress'")) {
           return { rows: [], rowCount: 0 };
         }
+        const routingDurationMs = routingVersions === null
+          ? 3_600_000
+          : q.includes("r.status = 'active'") ||
+              (q.includes('order by case r.status') && q.includes('limit 1'))
+            ? routingVersions.find((routing) => routing.status === 'active')?.durationMs
+              ?? routingVersions.find((routing) => routing.status === 'approved')?.durationMs
+              ?? 0
+            : routingVersions.reduce((sum, routing) => sum + routing.durationMs, 0);
         return {
           rows: [
-            wo({ id: WO_A, due: '2026-06-01T08:00:00.000Z', allergens: ['milk'] }),
-            wo({ id: WO_B, due: '2026-06-02T08:00:00.000Z', allergens: ['nuts'] }),
+            {
+              ...wo({ id: WO_A, due: '2026-06-01T08:00:00.000Z', allergens: ['milk'] }),
+              routing_duration_ms: String(routingDurationMs),
+            },
+            {
+              ...wo({ id: WO_B, due: '2026-06-02T08:00:00.000Z', allergens: ['nuts'] }),
+              routing_duration_ms: String(routingDurationMs),
+            },
           ],
           rowCount: 2,
         };
@@ -366,6 +381,7 @@ beforeEach(() => {
   includeLineSpecificOverride = false;
   includeSchedulerConfig = true;
   shiftCalendarRows = [];
+  routingVersions = null;
   schedulerConfigRows = [
     {
       id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
@@ -406,6 +422,21 @@ afterEach(() => {
 });
 
 describe('runScheduler', () => {
+  it('uses one preferred routing version instead of adding active and approved durations', async () => {
+    routingVersions = [
+      { status: 'active', durationMs: 5_500_000 },
+      { status: 'approved', durationMs: 5_500_000 },
+    ];
+
+    const result = await runScheduler({ lineId: LINE_ID, horizonDays: 7 });
+
+    expect(result.ok).toBe(true);
+    const startMs = Date.parse(String(insertedAssignmentPayload[0]?.planned_start_at));
+    const endMs = Date.parse(String(insertedAssignmentPayload[0]?.planned_end_at));
+    expect(endMs - startMs).not.toBe(11_000_000);
+    expect(endMs - startMs).toBe(5_500_000);
+  });
+
   it('inserts one scheduler_runs row and one scheduler_assignments payload per sequenced WO', async () => {
     const result = await runScheduler({ lineId: LINE_ID, horizonDays: 7 });
 

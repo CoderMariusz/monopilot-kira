@@ -529,7 +529,7 @@ describe('reverseConsumption', () => {
 
     expect(result).toEqual({ ok: true });
     const wacWrite = queries.find((q) => normalize(q.sql).includes('insert into public.item_wac_state'));
-    expect(wacWrite?.params).toEqual([ORG_ID, COMPONENT_ID, '4.250', '42.5', USER_ID]);
+    expect(wacWrite?.params).toEqual([ORG_ID, COMPONENT_ID, '4.250', '42.5', USER_ID, null, 'GBP']);
     const wacSnapshot = queries.find(
       (q) => normalize(q.sql).startsWith('update public.wo_material_consumption') && normalize(q.sql).includes('ext_jsonb'),
     );
@@ -1021,7 +1021,7 @@ describe('voidWoOutput', () => {
     expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.wo_events'))).toBe(false);
   });
 
-  it('rejects output void on a completed WO (PF-R15-01 terminal guard)', async () => {
+  it('allows output void on a completed WO when the LP is untouched and the e-signature is valid', async () => {
     state.woStatus = 'completed';
 
     const result = await voidWoOutput({
@@ -1030,9 +1030,9 @@ describe('voidWoOutput', () => {
       signature: { password: '123456' },
     });
 
-    expect(result).toEqual({ ok: false, error: 'invalid_state' });
-    expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.wo_outputs'))).toBe(false);
-    expect(signEvent).not.toHaveBeenCalled();
+    expect(result).toEqual({ ok: true });
+    expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.wo_outputs'))).toBe(true);
+    expect(signEvent).toHaveBeenCalled();
   });
 
   it('rejects output void on a legacy CLOSED work_orders row without wo_executions', async () => {

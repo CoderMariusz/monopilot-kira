@@ -72,12 +72,6 @@ export function normalizeCorrectionWoStatus(
   return null;
 }
 
-/** PF-R15-01 — output void on a terminal WO needs a full reopen/compensation workflow. */
-export function isTerminalOutputVoidForbiddenStatus(status: CorrectionWoStatus): boolean {
-  const normalized = normalizeCorrectionWoStatus(status);
-  return normalized === 'completed' || normalized === 'closed';
-}
-
 export type CorrectionSignature = {
   pin: string;
   intent: string;

@@ -6,13 +6,13 @@ import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { revalidateLocalized } from '../../../../../../lib/i18n/revalidate-localized';
 import {
   assertCorrectionAllowed,
-  isTerminalOutputVoidForbiddenStatus,
   CORRECTION_REASON_CODES,
   CorrectionForbiddenError,
   CorrectionInvalidInputError,
   correctionTransactionId,
   type CorrectionReasonCode,
   insertCounterEntry,
+  normalizeCorrectionWoStatus,
 } from '../../../../../../lib/corrections/correct-ledger-entry';
 import { CONSUMPTION_CORRECT_PERMISSION } from '../../../../../../lib/corrections/constants';
 import { materialIdFromConsumptionExt } from '../../../../../../lib/corrections/material-scope';
@@ -62,8 +62,7 @@ export type VoidWoOutputResult =
         | 'not_found'
         | 'already_corrected'
         | 'lp_not_voidable'
-        // F10 — voiding an output on a terminal WO would leave the WO Completed
-        // after its output is gone; the modal already renders this code.
+        // A financially closed WO still needs a full compensation workflow.
         | 'invalid_state'
         | 'invalid_input'
         | 'esign_failed'
@@ -951,10 +950,6 @@ export async function voidWoOutput(input: VoidWoOutputInput): Promise<VoidWoOutp
         return { ok: false, error: 'already_corrected' };
       }
 
-      if (isTerminalOutputVoidForbiddenStatus(original.wo_status)) {
-        return { ok: false, error: 'invalid_state' };
-      }
-
       if (!original.lp_id) {
         return { ok: false, error: 'lp_not_voidable' };
       }
@@ -968,6 +963,10 @@ export async function voidWoOutput(input: VoidWoOutputInput): Promise<VoidWoOutp
         (await hasLpConsumptionOrChildren(ctx, original.lp_id))
       ) {
         return { ok: false, error: 'lp_not_voidable' };
+      }
+
+      if (normalizeCorrectionWoStatus(original.wo_status) === 'closed') {
+        return { ok: false, error: 'invalid_state' };
       }
 
       try {

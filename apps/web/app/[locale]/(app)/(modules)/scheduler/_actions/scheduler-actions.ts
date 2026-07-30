@@ -352,13 +352,19 @@ const WORK_ORDERS_FOR_SCHEDULING_SELECT = `select
                )
            )
          )::bigint as routing_duration_ms
-         from public.routings r
-         join public.routing_operations ro
-           on ro.routing_id = r.id
-          and ro.org_id = r.org_id
-        where r.org_id = wo.org_id
-          and r.item_id = wo.product_id
-          and r.status in ('active', 'approved')
+         from public.routing_operations ro
+        where ro.org_id = wo.org_id
+          and ro.routing_id = (
+            select r.id
+              from public.routings r
+             where r.org_id = wo.org_id
+               and r.item_id = wo.product_id
+               and r.status in ('active', 'approved')
+             order by case r.status when 'active' then 0 else 1 end,
+                      r.version desc,
+                      r.id
+             limit 1
+          )
           and (
             wo.production_line_id is null
             or ro.line_id = wo.production_line_id
