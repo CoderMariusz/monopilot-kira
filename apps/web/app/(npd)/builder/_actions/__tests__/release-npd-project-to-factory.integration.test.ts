@@ -170,8 +170,25 @@ run('releaseNpdProjectToFactory — REAL DB integration', () => {
     expect(result.ok === false ? result.blockers : []).toEqual(
       expect.arrayContaining([expect.objectContaining({ code: 'G4_REQUIRED' })]),
     );
-    const statusRows = await owner.query(`select 1 from public.factory_release_status where org_id = $1`, [orgId]);
-    expect(statusRows.rowCount).toBe(0);
+    const persisted = await owner.query<{ release_rows: string; active_boms: string; factory_specs: string; fg_items: string }>(
+      `select
+         (select count(*)::text from public.factory_release_status
+           where org_id = $1) as release_rows,
+         (select count(*)::text from public.bom_headers
+           where org_id = $1 and npd_project_id = $2 and status = 'active') as active_boms,
+         (select count(*)::text from public.factory_specs fs
+           join public.items i on i.org_id = fs.org_id and i.id = fs.fg_item_id
+          where fs.org_id = $1 and i.item_code = $3) as factory_specs,
+         (select count(*)::text from public.items
+           where org_id = $1 and item_code = $3) as fg_items`,
+      [orgId, nonG4ProjectId, nonG4ProductCode],
+    );
+    expect(persisted.rows[0]).toEqual({
+      release_rows: '0',
+      active_boms: '0',
+      factory_specs: '0',
+      fg_items: '0',
+    });
   });
 
   it('rejects a forged supplied factorySpecId and persists no release state (NSA-028)', async () => {

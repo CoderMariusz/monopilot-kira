@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { getAppConnection, getOwnerConnection } from '../../../../../packages/db/src/clients.js';
 
 import { cancelWo } from '../../production/complete-cancel-wo';
-import { resolveWacDeltaQtyKg, upsertWac } from '../upsert-wac';
+import { debitWac, resolveWacDeltaQtyKg, upsertWac } from '../upsert-wac';
 
 const databaseUrl = process.env.DATABASE_URL;
 const runIntegrationSuite = databaseUrl ? describe : describe.skip;
@@ -198,10 +198,12 @@ runIntegrationSuite('upsertWac real Postgres behavior', () => {
   async function runUnderOrg<T>(fn: (client: pg.PoolClient) => Promise<T>): Promise<T> {
     const sessionToken = randomUUID();
     await ownerPool.query(
-      `insert into app.session_org_contexts (session_token, org_id)
-       values ($1::uuid, $2::uuid)
-       on conflict (session_token) do update set org_id = excluded.org_id`,
-      [sessionToken, orgId],
+      `insert into app.session_org_contexts (session_token, org_id, user_id)
+       values ($1::uuid, $2::uuid, $3::uuid)
+       on conflict (session_token) do update
+         set org_id = excluded.org_id,
+             user_id = excluded.user_id`,
+      [sessionToken, orgId, userId],
     );
     const client = await appPool.connect();
     try {
@@ -328,11 +330,8 @@ runIntegrationSuite('upsertWac real Postgres behavior', () => {
   });
 
   it('unknown-UoM receipt leaves total_qty_kg and total_value unchanged', async () => {
-    const client = await ownerPool.connect();
     const unknownUomItemId = randomUUID();
-    try {
-      await client.query('begin');
-      await client.query(`select set_config('app.current_org_id', $1, true)`, [orgId]);
+    await runUnderOrg(async (client) => {
       await client.query(
         `insert into public.items (id, org_id, item_code, item_type, name, uom_base, created_by)
          values ($1, $2, $3, 'rm', 'WAC Unknown UoM RM', 'kg', $4)`,
@@ -378,23 +377,14 @@ runIntegrationSuite('upsertWac real Postgres behavior', () => {
           avg_cost: '5.000000',
         },
       ]);
-      await client.query('commit');
-    } catch (error) {
-      await client.query('rollback').catch(() => undefined);
-      throw error;
-    } finally {
-      client.release();
-    }
+    });
   });
 
   // R07-03: priced g/pcs lines could be ordered but never received. Grams are an exact
   // ÷1000 decimal shift; kg/each/box must keep converting exactly as before.
   it('converts g to kg by exact decimal division and leaves kg/each/box untouched', async () => {
-    const client = await ownerPool.connect();
     const gramItemId = randomUUID();
-    try {
-      await client.query('begin');
-      await client.query(`select set_config('app.current_org_id', $1, true)`, [orgId]);
+    await runUnderOrg(async (client) => {
       await client.query(
         `insert into public.items (
            id, org_id, item_code, item_type, name, uom_base, net_qty_per_each, each_per_box, created_by
@@ -419,7 +409,7 @@ runIntegrationSuite('upsertWac real Postgres behavior', () => {
         resolved: true,
       });
 
-      // Anti-regression: the three paths production already uses are byte-for-byte unchanged.
+      // Anti-regression: the three paths production already uses remain numerically unchanged.
       expect(await resolveWacDeltaQtyKg(client, { itemId: gramItemId, qty: '10.5', uom: 'kg' })).toEqual({
         qtyKg: '10.5',
         resolved: true,
@@ -430,13 +420,6 @@ runIntegrationSuite('upsertWac real Postgres behavior', () => {
       const boxResolution = await resolveWacDeltaQtyKg(client, { itemId: gramItemId, qty: '2', uom: 'box' });
       expect(boxResolution.resolved).toBe(true);
       expect(Number(boxResolution.qtyKg)).toBe(4.8); // 2 boxes × 6 each × 0.4 kg
-
-      // Litres still have no density to convert with — deliberately still unresolved.
-      expect(await resolveWacDeltaQtyKg(client, { itemId: gramItemId, qty: '3', uom: 'l' })).toEqual({
-        qtyKg: '0',
-        resolved: false,
-        marker: 'unresolved_uom',
-      });
 
       // Storage truth: item_wac_state.total_qty_kg is numeric(14,3), so the exact
       // 0.100125 kg quantizes to 1 g in the pool — the same rounding each/box always had.
@@ -456,14 +439,153 @@ runIntegrationSuite('upsertWac real Postgres behavior', () => {
         [orgId, gramItemId],
       );
       expect(rows).toEqual([{ total_qty_kg: '0.100', total_value: '1.9925' }]);
+    });
+  });
 
-      await client.query('commit');
-    } catch (error) {
-      await client.query('rollback').catch(() => undefined);
-      throw error;
-    } finally {
-      client.release();
-    }
+  it('debits t, mg and mL through the organization UoM catalog', async () => {
+    const massItemId = randomUUID();
+    const volumeItemId = randomUUID();
+    await runUnderOrg(async (client) => {
+      await client.query(
+        `insert into public.items (id, org_id, item_code, item_type, name, uom_base, created_by)
+         values ($1, $2, $3, 'rm', 'WAC Catalog UoM RM', 'kg', $4)`,
+        [massItemId, orgId, `WAC-MASS-${massItemId.slice(0, 8)}`, userId],
+      );
+      await client.query(
+        `insert into public.items (id, org_id, item_code, item_type, name, uom_base, created_by)
+         values ($1, $2, $3, 'rm', 'WAC Catalog Volume RM', 'L', $4)`,
+        [volumeItemId, orgId, `WAC-VOLUME-${volumeItemId.slice(0, 8)}`, userId],
+      );
+      await upsertWac(client, {
+        orgId,
+        siteId: null,
+        itemId: massItemId,
+        deltaQtyKg: '3000',
+        deltaValue: '6000',
+        updatedBy: userId,
+      });
+      // Volume inventory is valued in the catalog's volume base (L); total_qty_kg is
+      // the legacy WAC column name and must not imply a density conversion.
+      await upsertWac(client, {
+        orgId,
+        siteId: null,
+        itemId: volumeItemId,
+        deltaQtyKg: '1',
+        deltaValue: '2',
+        updatedBy: userId,
+      });
+
+      const tonne = await debitWac(client, {
+        orgId,
+        siteId: null,
+        itemId: massItemId,
+        qty: '2',
+        uom: 't',
+        updatedBy: userId,
+      });
+      const milligram = await debitWac(client, {
+        orgId,
+        siteId: null,
+        itemId: massItemId,
+        qty: '500000',
+        uom: 'mg',
+        updatedBy: userId,
+      });
+      const millilitre = await debitWac(client, {
+        orgId,
+        siteId: null,
+        itemId: volumeItemId,
+        qty: '500',
+        uom: 'mL',
+        updatedBy: userId,
+      });
+
+      expect(tonne.applied).toBe(true);
+      expect(milligram.applied).toBe(true);
+      expect(millilitre.applied).toBe(true);
+      if (!tonne.applied || !milligram.applied || !millilitre.applied) {
+        throw new Error('expected catalog UoMs to debit WAC');
+      }
+      expect(Number(tonne.qtyKg)).toBe(2000);
+      expect(Number(milligram.qtyKg)).toBe(0.5);
+      expect(Number(millilitre.qtyKg)).toBe(0.5);
+
+      const massState = await client.query<{ total_qty_kg: string; total_value: string }>(
+        `select total_qty_kg::text, total_value::text
+           from public.item_wac_state
+          where org_id = $1::uuid
+            and item_id = $2::uuid`,
+        [orgId, massItemId],
+      );
+      expect(massState.rows).toEqual([{ total_qty_kg: '999.500', total_value: '1999.0000' }]);
+
+      const volumeState = await client.query<{ total_qty_kg: string; total_value: string }>(
+        `select total_qty_kg::text, total_value::text
+           from public.item_wac_state
+          where org_id = $1::uuid
+            and item_id = $2::uuid`,
+        [orgId, volumeItemId],
+      );
+      expect(volumeState.rows).toEqual([{ total_qty_kg: '0.500', total_value: '1.0000' }]);
+    });
+  });
+
+  it('normalizes each and box quantities from item uom_base to the WAC base', async () => {
+    const gramBaseItemId = randomUUID();
+    await runUnderOrg(async (client) => {
+      await client.query(
+        `insert into public.items (
+           id, org_id, item_code, item_type, name, uom_base, net_qty_per_each, each_per_box, created_by
+         )
+         values ($1, $2, $3, 'rm', 'WAC Gram-base Pack RM', 'g', 250, 8, $4)`,
+        [gramBaseItemId, orgId, `WAC-GRAM-BASE-${gramBaseItemId.slice(0, 8)}`, userId],
+      );
+
+      const each = await resolveWacDeltaQtyKg(client, {
+        itemId: gramBaseItemId,
+        qty: '10',
+        uom: 'each',
+      });
+      const box = await resolveWacDeltaQtyKg(client, {
+        itemId: gramBaseItemId,
+        qty: '2',
+        uom: 'box',
+      });
+
+      expect(each.resolved).toBe(true);
+      expect(box.resolved).toBe(true);
+      expect(Number(each.qtyKg)).toBe(2.5);
+      expect(Number(box.qtyKg)).toBe(4);
+    });
+  });
+
+  it('preserves legacy pack math when a count code is stored as item uom_base', async () => {
+    const countBaseItemId = randomUUID();
+    await runUnderOrg(async (client) => {
+      await client.query(
+        `insert into public.items (
+           id, org_id, item_code, item_type, name, uom_base, net_qty_per_each, each_per_box, created_by
+         )
+         values ($1, $2, $3, 'fg', 'WAC Legacy Count-base FG', 'pcs', 0.300000, 12, $4)`,
+        [countBaseItemId, orgId, `WAC-COUNT-BASE-${countBaseItemId.slice(0, 8)}`, userId],
+      );
+
+      const each = await resolveWacDeltaQtyKg(client, {
+        itemId: countBaseItemId,
+        qty: '10',
+        uom: 'each',
+      });
+      const box = await resolveWacDeltaQtyKg(client, {
+        itemId: countBaseItemId,
+        qty: '2',
+        uom: 'box',
+      });
+
+      expect(each.resolved).toBe(true);
+      expect(box.resolved).toBe(true);
+      expect(Number(each.qtyKg)).toBe(3);
+      expect(Number(box.qtyKg)).toBe(7.2);
+    });
   });
 
   /**
@@ -479,19 +601,16 @@ runIntegrationSuite('upsertWac real Postgres behavior', () => {
    * one gram. This test pins both halves.
    */
   it('never strands value at zero quantity when a sub-gram receipt quantizes away', async () => {
-    const client = await ownerPool.connect();
     const subGramItemId = randomUUID();
-    const readPool = () =>
-      client.query<{ total_qty_kg: string; total_value: string; avg_cost: string }>(
-        `select total_qty_kg::text, total_value::text, avg_cost::text
-           from public.item_wac_state
-          where org_id = $1::uuid
-            and item_id = $2::uuid`,
-        [orgId, subGramItemId],
-      );
-    try {
-      await client.query('begin');
-      await client.query(`select set_config('app.current_org_id', $1, true)`, [orgId]);
+    await runUnderOrg(async (client) => {
+      const readPool = () =>
+        client.query<{ total_qty_kg: string; total_value: string; avg_cost: string }>(
+          `select total_qty_kg::text, total_value::text, avg_cost::text
+             from public.item_wac_state
+            where org_id = $1::uuid
+              and item_id = $2::uuid`,
+          [orgId, subGramItemId],
+        );
 
       // 0.4 g = 0.0004 kg, worth £4. numeric(14,3) rounds the quantity to 0.000 on
       // store; numeric(18,4) keeps every penny of the value.
@@ -525,24 +644,13 @@ runIntegrationSuite('upsertWac real Postgres behavior', () => {
       expect((await readPool()).rows).toEqual([
         { total_qty_kg: '0.001', total_value: '0.0100', avg_cost: '10.000000' },
       ]);
-
-      await client.query('commit');
-    } catch (error) {
-      await client.query('rollback').catch(() => undefined);
-      throw error;
-    } finally {
-      client.release();
-    }
+    });
   });
 
   /** A receipt big enough to survive the 3-dp store is untouched by the clamp. */
   it('leaves a normal receipt fully intact, applied amounts equal to the requested delta', async () => {
-    const client = await ownerPool.connect();
     const normalItemId = randomUUID();
-    try {
-      await client.query('begin');
-      await client.query(`select set_config('app.current_org_id', $1, true)`, [orgId]);
-
+    await runUnderOrg(async (client) => {
       const result = await upsertWac(client, {
         orgId,
         siteId: null,
@@ -557,13 +665,6 @@ runIntegrationSuite('upsertWac real Postgres behavior', () => {
       // actually took, which is what the reversal snapshot must record.
       expect(result.appliedQtyKg).toBe('0.1');
       expect(result.appliedValue).toBe('1.9925');
-
-      await client.query('commit');
-    } catch (error) {
-      await client.query('rollback').catch(() => undefined);
-      throw error;
-    } finally {
-      client.release();
-    }
+    });
   });
 });

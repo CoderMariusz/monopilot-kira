@@ -52,7 +52,11 @@ function makeClient(): QueryClient {
       }
 
       if (normalized.includes('lp.lp_number') && normalized.includes('from public.wo_outputs o')) {
-        return { rows: [] as T[], rowCount: 0 };
+        const rows =
+          executionStatus === 'completed' && lpStatus !== 'consumed'
+            ? [{ lp_number: 'LP-OUT-001', qty: '10.000' }]
+            : [];
+        return { rows: rows as T[], rowCount: rows.length };
       }
 
       if (normalized.includes('select distinct lp.id::text as lp_id')) {

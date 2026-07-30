@@ -872,6 +872,12 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
                 and mc.lp_id is not null
                 and mc.lp_id <> $2::uuid
                 and mc.correction_of_id is null
+                and not exists (
+                  select 1
+                    from public.wo_material_consumption correction
+                   where correction.org_id = mc.org_id
+                     and correction.correction_of_id = mc.id
+                )
               group by mc.lp_id, lp.lp_number
               order by lp.lp_number asc nulls last`,
             [woId, NIL_LP_SENTINEL],

@@ -312,6 +312,8 @@ export async function resolveWacDeltaQtyKg(
   { itemId, qty, uom }: { itemId: string; qty: string; uom: string },
 ): Promise<WacDeltaQtyKgResolution> {
   const resolveUom = pieceUomToWacEach(uom) ?? uom;
+  // net_qty_per_each is stored in items.uom_base (migration 502). Normalize known
+  // mass/volume bases through the org catalog; keep legacy count-base pack rows unchanged.
   const { rows } = await client.query<{ qty_kg: string; resolved: boolean }>(
     `select (
        case
@@ -319,9 +321,25 @@ export async function resolveWacDeltaQtyKg(
          when lower($2::text) = 'g' then round($1::numeric / ${WAC_GRAMS_PER_KG}, ${WAC_QTY_KG_SCALE})
          when lower($2::text) = 'base' and lower(coalesce(i.uom_base, '')) = 'kg' then $1::numeric
          when lower($2::text) = lower(coalesce(i.uom_base, '')) and lower(coalesce(i.uom_base, '')) = 'kg' then $1::numeric
-         when lower($2::text) = 'each' and i.net_qty_per_each is not null then $1::numeric * i.net_qty_per_each
+         when lower($2::text) = 'each' and i.net_qty_per_each is not null and lower(coalesce(i.uom_base, '')) = 'kg'
+           then $1::numeric * i.net_qty_per_each
+         when lower($2::text) = 'box' and i.net_qty_per_each is not null and i.each_per_box is not null
+           and lower(coalesce(i.uom_base, '')) = 'kg'
+           then $1::numeric * i.each_per_box::numeric * i.net_qty_per_each
+         when lower($2::text) = 'each' and i.net_qty_per_each is not null and base_uom.factor_to_base is not null
+           then $1::numeric * i.net_qty_per_each * base_uom.factor_to_base
+         when lower($2::text) = 'box' and i.net_qty_per_each is not null and i.each_per_box is not null
+           and base_uom.factor_to_base is not null
+           then $1::numeric * i.each_per_box::numeric * i.net_qty_per_each * base_uom.factor_to_base
+         when lower($2::text) = 'each' and i.net_qty_per_each is not null
+           then $1::numeric * i.net_qty_per_each
          when lower($2::text) = 'box' and i.net_qty_per_each is not null and i.each_per_box is not null
            then $1::numeric * i.each_per_box::numeric * i.net_qty_per_each
+         when lower($2::text) = 'base' and base_uom.factor_to_base is not null
+           then $1::numeric * base_uom.factor_to_base
+         when input_uom.factor_to_base is not null
+           and (input_uom.category = 'mass' or input_uom.category = base_uom.category)
+           then $1::numeric * input_uom.factor_to_base
          else $1::numeric
        end
      )::text as qty_kg,
@@ -333,10 +351,23 @@ export async function resolveWacDeltaQtyKg(
          when lower($2::text) = lower(coalesce(i.uom_base, '')) and lower(coalesce(i.uom_base, '')) = 'kg' then true
          when lower($2::text) = 'each' and i.net_qty_per_each is not null then true
          when lower($2::text) = 'box' and i.net_qty_per_each is not null and i.each_per_box is not null then true
+         when lower($2::text) = 'base' and base_uom.factor_to_base is not null then true
+         when input_uom.factor_to_base is not null
+           and (input_uom.category = 'mass' or input_uom.category = base_uom.category) then true
          else false
        end
      ) as resolved
        from public.items i
+       left join public.unit_of_measure input_uom
+         on input_uom.org_id = i.org_id
+        and lower(input_uom.code) = lower($2::text)
+        and input_uom.category in ('mass', 'volume')
+        and input_uom.deleted_at is null
+       left join public.unit_of_measure base_uom
+         on base_uom.org_id = i.org_id
+        and lower(base_uom.code) = lower(i.uom_base)
+        and base_uom.category in ('mass', 'volume')
+        and base_uom.deleted_at is null
       where i.org_id = app.current_org_id()
         and i.id = $3::uuid
       limit 1`,

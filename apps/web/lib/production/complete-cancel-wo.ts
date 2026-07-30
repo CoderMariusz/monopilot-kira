@@ -474,11 +474,7 @@ export async function cancelWo(
 
   const previousStatus = await readWoExecutionStatus(ctx, input.woId);
 
-  if (
-    previousStatus === 'in_progress' ||
-    previousStatus === 'paused' ||
-    previousStatus === 'completed'
-  ) {
+  if (previousStatus === 'in_progress' || previousStatus === 'paused') {
     const liveOutputs = await loadLiveOutputLps(ctx, input.woId);
     if (liveOutputs.length > 0) {
       return fail('invalid_state', {

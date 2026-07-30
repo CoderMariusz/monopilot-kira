@@ -21,6 +21,7 @@ const DEST_SITE_ID = '99999999-9999-4999-8999-999999999999';
 
 let client: QueryClient;
 let sourceStatus: 'shipped' | 'consumed' | 'destroyed' = 'shipped';
+let consumptionHistory: Array<{ id: string; correction_of_id: string | null }>;
 
 vi.mock('../../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -91,7 +92,14 @@ function makeClient(): QueryClient {
         return { rows: [receivedLink()], rowCount: 1 };
       }
       if (q.startsWith('select array_remove')) {
-        return { rows: [{ blockers: [] }], rowCount: 1 };
+        const excludesCorrectedOriginals = q.includes('correction.correction_of_id = wmc.id');
+        const blocked = consumptionHistory.some(
+          (row) =>
+            row.correction_of_id === null &&
+            (!excludesCorrectedOriginals ||
+              !consumptionHistory.some((correction) => correction.correction_of_id === row.id)),
+        );
+        return { rows: [{ blockers: blocked ? ['consumed_wo_inputs'] : [] }], rowCount: 1 };
       }
       if (q.startsWith('select count(*) filter')) {
         return { rows: [{ received_count: '0' }], rowCount: 1 };
@@ -123,6 +131,7 @@ function makeClient(): QueryClient {
 describe('reverseToReceiveLine source LP state guards', () => {
   beforeEach(() => {
     sourceStatus = 'shipped';
+    consumptionHistory = [];
     client = makeClient();
   });
 
@@ -162,11 +171,28 @@ describe('reverseToReceiveLine source LP state guards', () => {
     });
     expect(sourceUpdate).toBeUndefined();
   });
+
+  it('ignores corrected consumption as a blocker but retains ordinary consumption', async () => {
+    consumptionHistory = [
+      { id: 'corrected', correction_of_id: null },
+      { id: 'correction', correction_of_id: 'corrected' },
+    ];
+    await expect(reverseToReceiveLine(makeInput())).resolves.toMatchObject({ ok: true });
+
+    consumptionHistory = [{ id: 'ordinary', correction_of_id: null }];
+    client = makeClient();
+    await expect(reverseToReceiveLine(makeInput())).resolves.toMatchObject({
+      ok: false,
+      error: 'lp_active',
+      message: expect.stringContaining('consumed_wo_inputs'),
+    });
+  });
 });
 
 describe('reverseToReceiveLine ship-link cleanup (PF-R10-02)', () => {
   beforeEach(() => {
     sourceStatus = 'shipped';
+    consumptionHistory = [];
     client = makeClient();
   });
 

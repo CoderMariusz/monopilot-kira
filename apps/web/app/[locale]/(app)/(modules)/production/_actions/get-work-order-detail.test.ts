@@ -169,6 +169,58 @@ describe('getWorkOrderDetail', () => {
     expect(depSql).toContain('ri.item_code');
   });
 
+  it('excludes corrected disassembly consumption while retaining ordinary consumption', async () => {
+    const history = [
+      { id: 'ordinary', correction_of_id: null, qty: 25 },
+      { id: 'corrected', correction_of_id: null, qty: 10 },
+      { id: 'correction', correction_of_id: 'corrected', qty: -10 },
+    ];
+    client = {
+      query: vi.fn(async (sql: string) => {
+        const n = normalize(sql);
+        if (n.includes('from public.user_roles')) {
+          return { rows: [{ ok: true }] as never[], rowCount: 1 };
+        }
+        if (n.includes('from public.work_orders w') && n.includes('where w.org_id = app.current_org_id()')) {
+          return {
+            rows: [makeHeaderRow({
+              bom_type: 'disassembly',
+              bom_header_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+            })] as never[],
+            rowCount: 1,
+          };
+        }
+        if (
+          n.includes('from public.wo_material_consumption mc') &&
+          n.includes('coalesce(sum(mc.qty_consumed), 0) as qty_kg')
+        ) {
+          const excludesCorrectedOriginals = n.includes('correction.correction_of_id = mc.id');
+          const qty = history
+            .filter(
+              (row) =>
+                row.correction_of_id === null &&
+                (!excludesCorrectedOriginals ||
+                  !history.some((correction) => correction.correction_of_id === row.id)),
+            )
+            .reduce((sum, row) => sum + row.qty, 0);
+          return {
+            rows: [{ lp_id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', lp_number: 'LP-DIS-1', qty_kg: qty }] as never[],
+            rowCount: 1,
+          };
+        }
+        return { rows: [] as never[], rowCount: 0 };
+      }),
+    };
+
+    const result = await getWorkOrderDetail(WO_ID);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected ok');
+    expect(result.data.disassemblyInputLps).toEqual([
+      { lpId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', lpNumber: 'LP-DIS-1', qtyKg: 25 },
+    ]);
+  });
+
   it('freezes elapsedMin at cancelled_at for cancelled WOs (PF-R13-02)', async () => {
     const startedAt = '2026-07-18T05:47:00.000Z';
     const cancelledAt = '2026-07-18T05:56:00.000Z';

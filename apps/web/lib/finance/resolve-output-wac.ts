@@ -72,6 +72,12 @@ export async function resolveOutputWacContribution(
         where c.org_id = app.current_org_id()
           and c.wo_id = $1::uuid
           and c.correction_of_id is null
+          and not exists (
+            select 1
+              from public.wo_material_consumption correction
+             where correction.org_id = c.org_id
+               and correction.correction_of_id = c.id
+          )
      ),
      material_costed as (
        select coalesce(
@@ -99,6 +105,12 @@ export async function resolveOutputWacContribution(
         where c.org_id = app.current_org_id()
           and c.wo_id = $1::uuid
           and c.correction_of_id is null
+          and not exists (
+            select 1
+              from public.wo_material_consumption correction
+             where correction.org_id = c.org_id
+               and correction.correction_of_id = c.id
+          )
      ),
      prior_outputs as (
        select coalesce(sum(o.qty_kg), 0) as prior_output_kg,
@@ -110,6 +122,12 @@ export async function resolveOutputWacContribution(
         where o.org_id = app.current_org_id()
           and o.wo_id = $1::uuid
           and o.correction_of_id is null
+          and not exists (
+            select 1
+              from public.wo_outputs correction
+             where correction.org_id = o.org_id
+               and correction.correction_of_id = o.id
+          )
      ),
      wo_baseline as (
        select case
@@ -213,6 +231,12 @@ async function loadUnCostedConsumptionLines(
       where c.org_id = app.current_org_id()
         and c.wo_id = $1::uuid
         and c.correction_of_id is null
+        and not exists (
+          select 1
+            from public.wo_material_consumption correction
+           where correction.org_id = c.org_id
+             and correction.correction_of_id = c.id
+        )
         and nullif(c.ext_jsonb->>'wac_value', '') is null
         and (
           (${MATERIAL_COSTED_QTY_KG_CASE}) is null

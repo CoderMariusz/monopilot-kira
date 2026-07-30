@@ -347,14 +347,14 @@ describe('findUnvaluablePricedPoLines (PO-confirm gate)', () => {
 
   it('reports a UoM with no kg conversion at all separately from a missing pack factor', async () => {
     const client = new PoLineGateMockClient([
-      { item_id: ITEM_ID, line_no: 3, item_code: 'OIL-001', qty: '20', uom: 'l', net_qty_per_each: null },
+      { item_id: ITEM_ID, line_no: 3, item_code: 'ROPE-001', qty: '20', uom: 'm', net_qty_per_each: null },
     ]);
 
     const blocked = await findUnvaluablePricedPoLines(client, ORG_ID, PO_ID);
 
     expect(blocked[0]?.missingField).toBe('kg_conversion');
     expect(describeUnvaluablePoLines(blocked)).toBe(
-      'line 3 (OIL-001): UoM "l" has no conversion to kg for costing',
+      'line 3 (ROPE-001): UoM "m" has no conversion to kg for costing',
     );
   });
 
@@ -382,7 +382,7 @@ type GateLineRow = {
   net_qty_per_each: string | null;
 };
 
-/** Answers the priced-line scan, then resolves kg/g only — the real resolvable set. */
+/** Answers the priced-line scan, then fakes only the resolver branches exercised here. */
 class PoLineGateMockClient {
   calls: MockCall[] = [];
 

@@ -97,8 +97,8 @@ describe('cancelWo live output LP guard', () => {
     expect(applyTransition).toHaveBeenCalled();
   });
 
-  it('blocks cancel when live output LPs remain on a completed WO', async () => {
-    executionStatus = 'completed';
+  it('blocks cancel when live output LPs remain on a paused WO', async () => {
+    executionStatus = 'paused';
     liveOutputs = [{ lp_number: 'LP-OUT-002', qty: '40.000' }];
 
     const result = await cancelWo(makeCtx(), {

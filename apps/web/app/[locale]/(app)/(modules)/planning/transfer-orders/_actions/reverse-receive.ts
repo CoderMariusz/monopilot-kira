@@ -202,6 +202,12 @@ async function getDestinationLpBlockers(ctx: OrgActionContext, destLpId: string)
           where wmc.org_id = app.current_org_id()
             and wmc.lp_id = $1::uuid
             and wmc.correction_of_id is null
+            and not exists (
+              select 1
+                from public.wo_material_consumption correction
+               where correction.org_id = wmc.org_id
+                 and correction.correction_of_id = wmc.id
+            )
        ) then 'consumed_wo_inputs'::text end
      ], null) as blockers`,
     [destLpId],

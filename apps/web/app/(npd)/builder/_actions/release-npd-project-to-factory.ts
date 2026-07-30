@@ -62,6 +62,10 @@ export async function releaseNpdProjectToFactory(
         };
       }
 
+      // NSA-027: release readiness is evidence supplied by NPD/Technical, not
+      // something this action may create to make its own preflight pass.
+      await runReleasePreflight(context, parsed.data);
+
       const materialized = await materializeNpdBom(context, { projectId: parsed.data.projectId });
       if (materialized.code === 'PRODUCTION_CODE_CONFLICT') {
         return {
@@ -93,6 +97,8 @@ export async function releaseNpdProjectToFactory(
           ],
         };
       }
+      // Materialization may supersede an otherwise-valid BOM/spec version.
+      // Re-read the evidence used by release persistence after that write.
       const ready = await runReleasePreflight(context, parsed.data);
 
       const releaseEventId = await insertReleasedToFactoryEvent(context, {

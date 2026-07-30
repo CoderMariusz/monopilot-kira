@@ -333,7 +333,13 @@ async function loadInputConsumptionWacSnapshot(
       where c.org_id = app.current_org_id()
         and c.wo_id = $1::uuid
         and c.lp_id = $2::uuid
-        and c.correction_of_id is null`,
+        and c.correction_of_id is null
+        and not exists (
+          select 1
+            from public.wo_material_consumption correction
+           where correction.org_id = c.org_id
+             and correction.correction_of_id = c.id
+        )`,
     [woId, inputLpId],
   );
   const row = rows[0];

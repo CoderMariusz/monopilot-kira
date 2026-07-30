@@ -33,6 +33,12 @@ type CoProductFixture = {
   allocation_pct: string;
   is_byproduct: boolean;
 };
+type ConsumptionWacFixture = {
+  id: string;
+  correction_of_id: string | null;
+  wac_value: string;
+  wac_qty_kg: string;
+};
 
 let client: MockClient;
 let bomType: 'forward' | 'disassembly';
@@ -43,6 +49,7 @@ let consumedQty: string;
 let consumedQtyHasUnsupported: boolean;
 let consumptionWacValue: string | null;
 let consumptionWacQtyKg: string | null;
+let consumptionWacHistory: ConsumptionWacFixture[] | null;
 let woSiteId: string;
 let warehouseSiteParam: string | null | undefined;
 let existingDisassemblyOutputs: Array<{ lp_id: string; lp_number: string }>;
@@ -110,6 +117,26 @@ class MockClient implements QueryClient {
       normalized.includes('from public.wo_material_consumption c') &&
       normalized.includes("ext_jsonb->>'wac_value'")
     ) {
+      if (consumptionWacHistory) {
+        const excludesCorrectedOriginals = normalized.includes('correction.correction_of_id = c.id');
+        const activeRows = consumptionWacHistory.filter(
+          (row) =>
+            row.correction_of_id === null &&
+            (!excludesCorrectedOriginals ||
+              !consumptionWacHistory!.some((correction) => correction.correction_of_id === row.id)),
+        );
+        return {
+          rows: [{
+            wac_value: activeRows.length
+              ? activeRows.reduce((sum, row) => sum + Number(row.wac_value), 0).toFixed(6)
+              : null,
+            wac_qty_kg: activeRows.length
+              ? activeRows.reduce((sum, row) => sum + Number(row.wac_qty_kg), 0).toFixed(3)
+              : null,
+          }] as T[],
+          rowCount: 1,
+        };
+      }
       if (!consumptionWacValue || !consumptionWacQtyKg) {
         return { rows: [{ wac_value: null, wac_qty_kg: null }] as T[], rowCount: 1 };
       }
@@ -237,6 +264,7 @@ describe('registerDisassemblyOutput', () => {
     consumedQtyHasUnsupported = false;
     consumptionWacValue = '500.000000';
     consumptionWacQtyKg = '100';
+    consumptionWacHistory = null;
     woSiteId = SITE_ID;
     warehouseSiteParam = undefined;
     existingDisassemblyOutputs = [];
@@ -706,6 +734,29 @@ describe('registerDisassemblyOutput', () => {
     expect(upsertWacMock.mock.calls[0]?.[1]).toMatchObject({
       deltaQtyKg: '100.000',
       deltaValue: '1200.000000',
+    });
+  });
+
+  it('excludes corrected consumption from the WAC snapshot while retaining ordinary consumption', async () => {
+    consumptionWacHistory = [
+      { id: 'ordinary', correction_of_id: null, wac_value: '500', wac_qty_kg: '100' },
+      { id: 'corrected', correction_of_id: null, wac_value: '250', wac_qty_kg: '50' },
+      { id: 'correction', correction_of_id: 'corrected', wac_value: '-250', wac_qty_kg: '-50' },
+    ];
+    coProducts = [
+      { co_product_item_id: ITEM_A, allocation_pct: '100.000', is_byproduct: false },
+    ];
+
+    const result = await registerDisassemblyOutput(makeCtx(), {
+      woId: WO_ID,
+      inputLpId: INPUT_LP_ID,
+      outputs: [{ coProductItemId: ITEM_A, qtyKg: '100.000' }],
+    });
+
+    expect(result.ok).toBe(true);
+    expect(upsertWacMock.mock.calls[0]?.[1]).toMatchObject({
+      deltaQtyKg: '100.000',
+      deltaValue: '500.000000',
     });
   });
 

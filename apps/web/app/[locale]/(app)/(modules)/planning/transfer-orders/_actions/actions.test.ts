@@ -447,6 +447,62 @@ describe('planning transfer order actions', () => {
     expect(result.data.lines).toEqual([expect.objectContaining({ itemCode: 'RM-BEEF-50', qty: '12.000' })]);
   });
 
+  it('ignores corrected consumption as a reversal blocker but retains ordinary consumption', async () => {
+    const loadDetail = async (
+      history: Array<{ id: string; correction_of_id: string | null }>,
+    ) => {
+      client = {
+        query: vi.fn(async (sql: string) => {
+          const n = sql.replace(/\s+/g, ' ').trim().toLowerCase();
+          if (n.includes('from public.user_roles')) {
+            return { rows: [{ ok: true }] as never[], rowCount: 1 };
+          }
+          if (n.startsWith('select id, to_number')) {
+            return { rows: [header({ status: 'received' })] as never[], rowCount: 1 };
+          }
+          if (n.includes('left join lateral') && n.includes('consumed_wo_inputs')) {
+            const excludesCorrectedOriginals = n.includes('correction.correction_of_id = wmc.id');
+            const blocked = history.some(
+              (row) =>
+                row.correction_of_id === null &&
+                (!excludesCorrectedOriginals ||
+                  !history.some((correction) => correction.correction_of_id === row.id)),
+            );
+            return {
+              rows: [{
+                ...line(),
+                received_dest_lp_id: DEST_LP_ID,
+                received_dest_lp_number: 'LP-DEST-1',
+                received_qty: '12.000',
+                can_reverse: !blocked,
+                reverse_block_reason: blocked ? 'Destination pallet has consumed_wo_inputs.' : null,
+              }] as never[],
+              rowCount: 1,
+            };
+          }
+          return { rows: [] as never[], rowCount: 0 };
+        }),
+      };
+      return getTransferOrder(TO_ID);
+    };
+
+    const corrected = await loadDetail([
+      { id: 'corrected', correction_of_id: null },
+      { id: 'correction', correction_of_id: 'corrected' },
+    ]);
+    expect(corrected.ok).toBe(true);
+    if (!corrected.ok) throw new Error(corrected.error);
+    expect(corrected.data.lines[0]?.canReverse).toBe(true);
+
+    const ordinary = await loadDetail([{ id: 'ordinary', correction_of_id: null }]);
+    expect(ordinary.ok).toBe(true);
+    if (!ordinary.ok) throw new Error(ordinary.error);
+    expect(ordinary.data.lines[0]).toMatchObject({
+      canReverse: false,
+      reverseBlockReason: expect.stringContaining('consumed_wo_inputs'),
+    });
+  });
+
   it('rejects self-transfer when from and to warehouse are the same (N-PLN-4)', async () => {
     const result = await createTransferOrder({
       fromWarehouseId: FROM_WAREHOUSE_ID,

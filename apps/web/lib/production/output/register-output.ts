@@ -414,6 +414,12 @@ async function allocateGenealogyContributionsForOutput(
         where o.org_id = app.current_org_id()
           and o.wo_id = $1::uuid
           and o.correction_of_id is null
+          and not exists (
+            select 1
+              from public.wo_outputs correction
+             where correction.org_id = o.org_id
+               and correction.correction_of_id = o.id
+          )
      ),
      already_attributed as (
        select lg.parent_lp_id,

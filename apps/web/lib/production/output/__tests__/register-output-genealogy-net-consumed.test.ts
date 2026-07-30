@@ -24,7 +24,7 @@ const TX_ID_2 = '55555555-5555-4555-8555-555555555556';
 const BY_PRODUCT_ID = '55555555-5555-4555-8555-555555555555';
 type ParentNet = { lp_id: string; net_qty: string; uom: string };
 type ConsumptionRow = { lp_id: string; qty: string; uom: string };
-type OutputRow = { qty_kg: string };
+type OutputRow = { id: string; qty_kg: string; correction_of_id: string | null };
 type GenealogyEdge = { parent_lp_id: string; child_lp_id: string; qty: string; uom: string };
 
 let client: QueryClient;
@@ -71,9 +71,21 @@ function makeCtx(): OrgContextLike {
   return { userId: USER_ID, orgId: ORG_ID, siteId: SITE_ID, client };
 }
 
-function allocateForOutput(outputQty: string, outputUom: string): Array<{ lp_id: string; alloc_qty: string; uom: string }> {
+function allocateForOutput(
+  sql: string,
+  outputQty: string,
+  outputUom: string,
+): Array<{ lp_id: string; alloc_qty: string; uom: string }> {
   const parentNetRows = parentNetRowsFromConsumption();
-  const totalOutput = outputRows.reduce((sum, row) => sum + Number(row.qty_kg), 0);
+  const excludesCorrectedOriginals = normalize(sql).includes('correction.correction_of_id = o.id');
+  const totalOutput = outputRows
+    .filter(
+      (row) =>
+        row.correction_of_id === null &&
+        (!excludesCorrectedOriginals ||
+          !outputRows.some((correction) => correction.correction_of_id === row.id)),
+    )
+    .reduce((sum, row) => sum + Number(row.qty_kg), 0);
   return parentNetRows
     .map((parent) => {
       const attributed = genealogyEdges
@@ -153,7 +165,7 @@ function makeClient(): QueryClient {
       if (n.includes('with parent_net as') && n.includes('already_attributed')) {
         const outputQty = String(params[1] ?? '0');
         const outputUom = String(params[2] ?? 'kg');
-        const rows = allocateForOutput(outputQty, outputUom).map((row) => ({
+        const rows = allocateForOutput(sql, outputQty, outputUom).map((row) => ({
           ...row,
           consumption_uom: row.uom,
         }));
@@ -161,7 +173,7 @@ function makeClient(): QueryClient {
       }
       if (n.startsWith('insert into public.wo_outputs')) {
         const qty = String(params[6] ?? '0');
-        outputRows.push({ qty_kg: qty });
+        outputRows.push({ id: `output-${outputRows.length + 1}`, qty_kg: qty, correction_of_id: null });
         return {
           rows: [{ id: '66666666-6666-4666-8666-666666666666', lp_id: null, expiry_date: null }],
           rowCount: 1,
@@ -280,6 +292,32 @@ describe('registerOutput — genealogy net consumed qty (Wave 9 Bug 2)', () => {
     const summed = parentEdges.reduce((sum, edge) => sum + Number(edge.qty), 0);
     expect(summed).toBe(100);
     expect(parentEdges.every((edge) => edge.uom === 'kg')).toBe(true);
+  });
+
+  it('excludes a corrected output from the denominator while retaining an ordinary output', async () => {
+    consumptionRows = [{ lp_id: PARENT_A, qty: '100.000', uom: 'kg' }];
+    outputRows = [
+      { id: 'corrected-output', qty_kg: '100.000', correction_of_id: null },
+      { id: 'void-output', qty_kg: '-100.000', correction_of_id: 'corrected-output' },
+    ];
+
+    await registerOutput(makeCtx(), WO_ID, {
+      transaction_id: TX_ID,
+      output_type: 'primary',
+      product_id: PRODUCT_ID,
+      qty_kg: '100.000',
+    });
+    expect(genealogyEdges.at(-1)?.qty).toBe('100.000');
+
+    outputRows = [{ id: 'ordinary-output', qty_kg: '100.000', correction_of_id: null }];
+    genealogyEdges = [];
+    await registerOutput(makeCtx(), WO_ID, {
+      transaction_id: TX_ID_2,
+      output_type: 'primary',
+      product_id: PRODUCT_ID,
+      qty_kg: '100.000',
+    });
+    expect(genealogyEdges.at(-1)?.qty).toBe('50.000');
   });
 
   it('acquires a WO-level genealogy advisory lock before allocation', async () => {
