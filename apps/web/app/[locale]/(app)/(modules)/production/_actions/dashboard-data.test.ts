@@ -83,7 +83,7 @@ beforeEach(() => {
 });
 
 describe('getProductionDashboard', () => {
-  it('uses explicit UTC day boundaries for output-today kg', async () => {
+  it('buckets output-today kg by the SITE-local day, not the UTC day', async () => {
     const result = await getProductionDashboard();
 
     expect(result.ok).toBe(true);
@@ -92,7 +92,12 @@ describe('getProductionDashboard', () => {
 
     const outputSql = executed.find((sql) => sql.includes('coalesce(sum(o.qty_kg), 0)::text as kg'));
     expect(outputSql).toBeTruthy();
-    expect(outputSql!).toContain("date_trunc('day', now() at time zone 'utc') at time zone 'utc'");
+    // The bucket now resolves sites.timezone -> organizations.timezone -> 'UTC'.
+    expect(outputSql!).toContain('app.current_site_id()');
+    expect(outputSql!).toContain('s.timezone');
+    // Anti-regression: the hardcoded UTC calendar day must not come back.
+    expect(outputSql!).not.toContain("date_trunc('day', now() at time zone 'utc') at time zone 'utc'");
+    // ...and the session-zone-dependent bare cast must not appear either.
     expect(outputSql!).not.toContain("date_trunc('day', now())");
     expect(outputSql!).toContain("interval '1 day'");
     expect(outputSql!).toContain(PRODUCTION_DASHBOARD_SITE_WO_PREDICATE.toLowerCase());

@@ -25,6 +25,7 @@
  * Component during render (like dashboard-summary.ts / production dashboard-data.ts).
  */
 import { withOrgContext } from "../../../../../../lib/auth/with-org-context";
+import { SITE_DAY_START_SQL, SITE_TODAY_SQL } from "../../../../../../lib/site/site-day";
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -186,13 +187,14 @@ export async function getPlanningDashboard(): Promise<PlanningDashboardResult> {
         [WO_ACTIVE_STATUSES],
       );
 
-      // KPI — WOs scheduled today (UTC day).
+      // KPI — WOs scheduled today, in the SITE-LOCAL day (lib/site/site-day.ts).
+      // A shift planned for 00:30 local belongs to today's plan, not yesterday's.
       const wosToday = await countOf(
         `select count(*)::int as n
            from public.work_orders
           where org_id = app.current_org_id()
-            and scheduled_start_time >= (date_trunc('day', now() at time zone 'UTC') at time zone 'UTC')
-            and scheduled_start_time < (date_trunc('day', now() at time zone 'UTC') at time zone 'UTC') + interval '1 day'`,
+            and scheduled_start_time >= ${SITE_DAY_START_SQL}
+            and scheduled_start_time < ${SITE_DAY_START_SQL} + interval '1 day'`,
       );
 
       // 7-day schedule window (today .. +7d), real WOs with a scheduled start.
@@ -208,8 +210,8 @@ export async function getPlanningDashboard(): Promise<PlanningDashboardResult> {
                 scheduled_start_time
            from public.work_orders
           where org_id = app.current_org_id()
-            and scheduled_start_time >= (date_trunc('day', now() at time zone 'UTC') at time zone 'UTC')
-            and scheduled_start_time < (date_trunc('day', now() at time zone 'UTC') at time zone 'UTC') + interval '7 day'
+            and scheduled_start_time >= ${SITE_DAY_START_SQL}
+            and scheduled_start_time < ${SITE_DAY_START_SQL} + interval '7 day'
           order by scheduled_start_time asc
           limit 200`,
       );
@@ -262,14 +264,16 @@ export async function getPlanningDashboard(): Promise<PlanningDashboardResult> {
             and status in ('draft', 'in_transit')`,
       );
 
-      // Alerts — open POs whose expected delivery date has passed.
+      // Alerts — open POs whose expected delivery date has passed. "Passed" is
+      // measured against the SITE-local date so this screen has ONE notion of
+      // today (bare `current_date` is the DB session zone's date).
       const poAlertRes = await c.query<{ id: string; po_number: string; status: string }>(
         `select id::text as id, po_number, status
            from public.purchase_orders
           where org_id = app.current_org_id()
             and status in ('draft', 'sent', 'confirmed', 'partially_received')
             and expected_delivery is not null
-            and expected_delivery < current_date
+            and expected_delivery < ${SITE_TODAY_SQL}
           order by expected_delivery asc
           limit 25`,
       );
@@ -288,7 +292,7 @@ export async function getPlanningDashboard(): Promise<PlanningDashboardResult> {
           where org_id = app.current_org_id()
             and status in ('draft', 'in_transit')
             and scheduled_date is not null
-            and scheduled_date < current_date
+            and scheduled_date < ${SITE_TODAY_SQL}
           order by scheduled_date asc
           limit 25`,
       );

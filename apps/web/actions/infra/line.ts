@@ -7,6 +7,7 @@ import { findProductionLineByCodeAndSite } from './line-resolve';
 import { hasPermission } from '../../lib/auth/has-permission';
 import { withOrgContext } from '../../lib/auth/with-org-context';
 import { revalidateLocalized } from '../../lib/i18n/revalidate-localized';
+import { assertSiteInOrg } from '../../lib/site/assert-site-in-org';
 
 type QueryClient = {
   query<T = unknown>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[]; rowCount?: number | null }>;
@@ -78,6 +79,14 @@ export async function upsertLine(rawInput: unknown): Promise<UpsertLineResult> {
   try {
     return await withOrgContext(async ({ userId, orgId, client }: OrgActionContext): Promise<UpsertLineResult> => {
       if (!(await hasPermission({ client, userId, orgId }, EDIT_PERMISSION))) return { ok: false, error: 'forbidden' };
+
+      // A supplied site must be THIS org's (RLS scopes org_id, the FK only proves
+      // the site exists — a crafted payload used to attach a line to another org's
+      // site). `siteId` stays nullable: an org-wide line with no site is a legal,
+      // pre-existing shape and must remain creatable/editable.
+      if (input.siteId && !(await assertSiteInOrg(client, input.siteId))) {
+        return { ok: false, error: 'invalid_input' };
+      }
 
       if (input.warehouseId) {
         const warehouse = await getWarehouse(client, input.warehouseId);

@@ -6,6 +6,7 @@ import { fetchEligibleFactorySpecUnderBindLock } from '../../../../../../../lib/
 import { assertFgReleasedToFactoryForWo } from '../../../../../../../lib/planning/factory-release-wo-gate';
 import { fetchActiveProductionLineSite, productionLineMatchesWoSite } from '../../../../../../../lib/planning/production-line-site';
 import { computeWoMaterialScalar, WoMaterialScalarError } from '../../../../../../../lib/production/wo-material-scalar';
+import { assertSiteInOrg } from '../../../../../../../lib/site/assert-site-in-org';
 import { resolveWriteSiteId } from '../../../../../../../lib/site/site-context';
 import { snapshotFromItemRow, toBaseQtyFromDecimal, TypedError } from '../../../../../../../lib/uom/convert';
 import {
@@ -67,17 +68,10 @@ export async function createWorkOrderCore(
   const input = parsed.data;
   let siteId: string;
   if (input.siteId) {
-    const explicitSite = await ctx.client.query<{ id: string }>(
-      `select id::text as id
-         from public.sites
-        where org_id = app.current_org_id()
-          and id = $1::uuid
-          and is_active = true
-        limit 1`,
-      [input.siteId],
-    );
-    if (!explicitSite.rows[0]) return { ok: false, error: 'no_active_site' };
-    siteId = explicitSite.rows[0].id;
+    // Shared with createWarehouse/upsertLine — see lib/site/assert-site-in-org.ts.
+    const ownSite = await assertSiteInOrg(ctx.client, input.siteId);
+    if (!ownSite) return { ok: false, error: 'no_active_site' };
+    siteId = ownSite;
   } else {
     const siteResolution = await resolveWriteSiteId(ctx.client);
     if (!siteResolution.ok) return { ok: false, error: siteResolution.reason };

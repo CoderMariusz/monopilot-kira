@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { writeSettingsInfraOutbox } from './_shared/outbox';
 import { hasPermission } from '../../lib/auth/has-permission';
 import { withOrgContext } from '../../lib/auth/with-org-context';
+import { assertSiteInOrg } from '../../lib/site/assert-site-in-org';
 
 type QueryClient = {
   query<T = unknown>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[]; rowCount?: number | null }>;
@@ -112,6 +113,11 @@ export async function createWarehouse(rawInput: unknown): Promise<CreateWarehous
   try {
     return await withOrgContext(async ({ userId, orgId, client }: OrgActionContext): Promise<CreateWarehouseResult> => {
       if (!(await hasPermission({ client, userId, orgId }, EDIT_PERMISSION))) return { ok: false, error: 'forbidden' };
+      // The Zod schema only proves `site_id` is a uuid. RLS scopes `org_id` and the
+      // FK only proves the site EXISTS, so a crafted payload carrying ANOTHER org's
+      // site id used to insert a cross-org warehouse. Same guard the WO path has
+      // always had (create-work-order-core.ts).
+      if (!(await assertSiteInOrg(client, input.site_id))) return { ok: false, error: 'invalid_input' };
       const { rows } = await client.query<WarehouseRow>(
         `insert into public.warehouses (org_id, site_id, code, name, warehouse_type, address)
          values (app.current_org_id(), $1::uuid, $2, $3, 'storage', $4::jsonb)

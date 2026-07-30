@@ -147,6 +147,12 @@ function makeClient(options: FakeClientOptions = {}): FakeClient {
         return { rows: [] as never[], rowCount: 0 };
       }
 
+      // site-ownership guard (lib/site/assert-site-in-org.ts) — SITE_ID is this org's.
+      if (normalized.includes('from public.sites')) {
+        const own = String(params[0]) === SITE_ID;
+        return { rows: own ? [{ id: SITE_ID }] as never[] : [], rowCount: own ? 1 : 0 };
+      }
+
       if (normalized.startsWith('insert into public.production_lines') || normalized.startsWith('update public.production_lines')) {
         const id = params.map(String).find((value) => client.lines.has(value)) ?? LINE_ID;
         const status = paramsText.includes('active') ? 'active' : 'draft';

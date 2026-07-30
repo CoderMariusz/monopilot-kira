@@ -46,8 +46,12 @@ describe('C010 line warehouse site invariant', () => {
 
   it('rejects a cross-site warehouse assignment before insert', async () => {
     const calls: string[] = [];
-    mockOrgContext((sql) => {
+    mockOrgContext((sql, params) => {
       calls.push(sql);
+      // site-ownership guard (lib/site/assert-site-in-org.ts) — the line's site is this org's.
+      if (/from public\.sites/i.test(sql)) {
+        return { rows: [{ id: String(params?.[0]) }], rowCount: 1 };
+      }
       if (/from public\.warehouses/i.test(sql)) {
         return { rows: [{ id: WAREHOUSE_ID, site_id: OTHER_SITE_ID }], rowCount: 1 };
       }
@@ -68,8 +72,12 @@ describe('C010 line warehouse site invariant', () => {
 
   it('rejects a site-bound line paired with an org-wide warehouse (site A / NULL)', async () => {
     const calls: string[] = [];
-    mockOrgContext((sql) => {
+    mockOrgContext((sql, params) => {
       calls.push(sql);
+      // site-ownership guard (lib/site/assert-site-in-org.ts) — the line's site is this org's.
+      if (/from public\.sites/i.test(sql)) {
+        return { rows: [{ id: String(params?.[0]) }], rowCount: 1 };
+      }
       if (/from public\.warehouses/i.test(sql)) {
         return { rows: [{ id: WAREHOUSE_ID, site_id: null }], rowCount: 1 };
       }
@@ -90,8 +98,12 @@ describe('C010 line warehouse site invariant', () => {
 
   it('rejects a site-less line paired with a site-bound warehouse (NULL / site A)', async () => {
     const calls: string[] = [];
-    mockOrgContext((sql) => {
+    mockOrgContext((sql, params) => {
       calls.push(sql);
+      // site-ownership guard (lib/site/assert-site-in-org.ts) — the line's site is this org's.
+      if (/from public\.sites/i.test(sql)) {
+        return { rows: [{ id: String(params?.[0]) }], rowCount: 1 };
+      }
       if (/from public\.warehouses/i.test(sql)) {
         return { rows: [{ id: WAREHOUSE_ID, site_id: LINE_SITE_ID }], rowCount: 1 };
       }
@@ -112,8 +124,12 @@ describe('C010 line warehouse site invariant', () => {
 
   it('allows a site-less line paired with an org-wide warehouse (NULL / NULL)', async () => {
     const calls: string[] = [];
-    mockOrgContext((sql) => {
+    mockOrgContext((sql, params) => {
       calls.push(sql);
+      // site-ownership guard (lib/site/assert-site-in-org.ts) — the line's site is this org's.
+      if (/from public\.sites/i.test(sql)) {
+        return { rows: [{ id: String(params?.[0]) }], rowCount: 1 };
+      }
       if (/from public\.warehouses/i.test(sql)) {
         return { rows: [{ id: WAREHOUSE_ID, site_id: null }], rowCount: 1 };
       }

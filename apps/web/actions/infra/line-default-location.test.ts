@@ -82,6 +82,12 @@ function mockDb(storedLine?: { id: string; default_location_id: string | null })
             return { rows: row ? [{ default_location_id: row.default_location_id }] : [], rowCount: row ? 1 : 0 };
           }
 
+          // site-ownership guard (lib/site/assert-site-in-org.ts) — SITE_ID is this org's.
+          if (normalized.includes('from public.sites')) {
+            const own = String(params[0]) === SITE_ID;
+            return { rows: own ? [{ id: SITE_ID }] : [], rowCount: own ? 1 : 0 };
+          }
+
           if (normalized.includes('from public.warehouses')) {
             return { rows: [{ id: WAREHOUSE_ID, site_id: SITE_ID }], rowCount: 1 };
           }

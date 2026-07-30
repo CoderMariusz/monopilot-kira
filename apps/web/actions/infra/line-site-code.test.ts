@@ -121,8 +121,12 @@ describe('C036 production line code scoped by site', () => {
 
   it('rejects a duplicate code in the same site before insert', async () => {
     const calls: string[] = [];
-    mockUpsertContext((sql) => {
+    mockUpsertContext((sql, params) => {
       calls.push(sql);
+      // site-ownership guard (lib/site/assert-site-in-org.ts): both fixture sites are this org's.
+      if (/from public\.sites/i.test(sql)) {
+        return { rows: [{ id: String(params?.[0]) }], rowCount: 1 };
+      }
       if (/from public\.production_lines/i.test(sql) && /upper\(code\)/i.test(sql)) {
         return { rows: [{ id: EXISTING_LINE_ID, code: 'LINE01', name: 'Existing', site_id: SITE_A, status: 'active' }], rowCount: 1 };
       }
@@ -144,6 +148,9 @@ describe('C036 production line code scoped by site', () => {
     const calls: string[] = [];
     mockUpsertContext((sql, params) => {
       calls.push(sql);
+      if (/from public\.sites/i.test(sql)) {
+        return { rows: [{ id: String(params?.[0]) }], rowCount: 1 };
+      }
       if (/from public\.production_lines/i.test(sql) && /upper\(code\)/i.test(sql)) {
         const siteId = String(params?.[0] ?? '');
         if (siteId === SITE_B) return { rows: [], rowCount: 0 };

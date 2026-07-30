@@ -25,6 +25,7 @@
  * Component during render.
  */
 import { withSiteContext } from '../../../../../../lib/auth/with-site-context';
+import { SITE_DAY_START_SQL } from '../../../../../../lib/site/site-day';
 import {
   PRODUCTION_DASHBOARD_WO_LIST_SQL,
   PRODUCTION_DASHBOARD_SITE_WO_PREDICATE,
@@ -73,7 +74,7 @@ export type ProductionDashboardKpis = {
   woActiveTotal: number;
   /** count(work_orders WHERE over_production_flagged = true) */
   overProducedCount: number;
-  /** sum(wo_outputs.qty_kg registered on the current UTC calendar day), exact numeric string. */
+  /** sum(wo_outputs.qty_kg registered on the current SITE-LOCAL calendar day), exact numeric string. */
   outputTodayKg: string;
   /** Latest oee_snapshots.oee_pct (most recent snapshot_minute); null = no snapshot yet. */
   oeeCurrentPct: number | null;
@@ -181,7 +182,11 @@ export async function getProductionDashboard(): Promise<ProductionDashboardResul
       );
 
       // KPI 2 — Output today (kg): sum of canonical wo_outputs registered on the
-      // UTC calendar day (matches reporting throughput MV + planning dashboard).
+      // SITE-LOCAL calendar day (lib/site/site-day.ts). It used to be the UTC day,
+      // which put 1-2h of a Warsaw night shift under the wrong date while expiry +
+      // scheduler already counted the site-local day. `mv_reporting_production_throughput`
+      // deliberately KEEPS its UTC `output_date` bucket — it is a cross-site
+      // historical aggregate whose key must not move when a site's timezone is edited.
       const outputRes = await c.query<{ kg: string | null }>(
         `select coalesce(sum(o.qty_kg), 0)::text as kg
            from public.wo_outputs o
@@ -191,8 +196,8 @@ export async function getProductionDashboard(): Promise<ProductionDashboardResul
              on pl.org_id = w.org_id and pl.id = w.production_line_id
           where o.org_id = app.current_org_id()
             and ${PRODUCTION_DASHBOARD_SITE_WO_PREDICATE}
-            and o.registered_at >= (date_trunc('day', now() at time zone 'UTC') at time zone 'UTC')
-            and o.registered_at < (date_trunc('day', now() at time zone 'UTC') at time zone 'UTC') + interval '1 day'`,
+            and o.registered_at >= ${SITE_DAY_START_SQL}
+            and o.registered_at < ${SITE_DAY_START_SQL} + interval '1 day'`,
       );
       const outputTodayKg = String(outputRes.rows[0]?.kg ?? '0');
 

@@ -18,6 +18,7 @@
  * during render (the withOrgContext import keeps it server-only in practice).
  */
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { siteDayWindowPredicate } from '../../../../../../../lib/site/site-day';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -137,14 +138,8 @@ function normalizeWindowDays(windowDays: number): number {
   return [1, 7, 30, 90].includes(windowDays) ? windowDays : 1;
 }
 
-function downtimeDatePredicate(column: string, windowDays: number): string {
-  const start =
-    windowDays === 1
-      ? `${column} >= date_trunc('day', now() AT TIME ZONE 'UTC')`
-      : `${column} >= date_trunc('day', now() AT TIME ZONE 'UTC') - make_interval(days => ${windowDays - 1})`;
-  return `${start}
-            and ${column} < date_trunc('day', now() AT TIME ZONE 'UTC') + interval '1 day'`;
-}
+/** Site-local day window — see lib/site/site-day.ts (was a UTC bucket cast in the session zone). */
+const downtimeDatePredicate = siteDayWindowPredicate;
 
 /**
  * Aggregates the downtime KPI strip + Pareto + event log in a SINGLE org-context

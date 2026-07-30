@@ -46,7 +46,7 @@ beforeEach(() => {
 });
 
 describe('getPlanningDashboard', () => {
-  it('uses explicit UTC day boundaries for WOs-today and the 7-day schedule window', async () => {
+  it('uses SITE-local day boundaries for WOs-today and the 7-day schedule window', async () => {
     const result = await getPlanningDashboard();
 
     expect(result.ok).toBe(true);
@@ -59,7 +59,12 @@ describe('getPlanningDashboard', () => {
 
     for (const sql of [woTodaySql, scheduleSql]) {
       expect(sql).toBeTruthy();
-      expect(sql!).toContain("date_trunc('day', now() at time zone 'utc') at time zone 'utc'");
+      // Day boundary resolves sites.timezone -> organizations.timezone -> 'UTC'.
+      expect(sql!).toContain('app.current_site_id()');
+      expect(sql!).toContain('s.timezone');
+      // Anti-regression: neither the hardcoded UTC day nor the session-zone-dependent
+      // bare `date_trunc('day', now())` may come back.
+      expect(sql!).not.toContain("date_trunc('day', now() at time zone 'utc') at time zone 'utc'");
       expect(sql!).not.toContain("date_trunc('day', now())");
     }
     expect(woTodaySql!).toContain("interval '1 day'");
