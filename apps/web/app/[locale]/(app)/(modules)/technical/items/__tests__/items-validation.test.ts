@@ -196,6 +196,40 @@ describe('Item master cross-field invariants (FALA 5 / T1)', () => {
     expect(CreateItemInput.safeParse({ ...base, uomBase: 'pcs', uomSecondary: 'szt' }).success).toBe(false);
   });
 
+  it('TEC-017 requires a positive netQtyPerEach for outputUom each', () => {
+    for (const netQtyPerEach of [undefined, '0']) {
+      const result = CreateItemInput.safeParse({ ...base, outputUom: 'each', netQtyPerEach });
+      expect(result.success).toBe(false);
+      expect(pathsOf(result)).toContain('netQtyPerEach');
+    }
+    expect(
+      CreateItemInput.safeParse({ ...base, outputUom: 'each', netQtyPerEach: '0.500000' }).success,
+    ).toBe(true);
+  });
+
+  it('TEC-018 requires netQtyPerEach and a positive integer eachPerBox for outputUom box', () => {
+    const missingNet = CreateItemInput.safeParse({ ...base, outputUom: 'box', eachPerBox: 12 });
+    expect(missingNet.success).toBe(false);
+    expect(pathsOf(missingNet)).toContain('netQtyPerEach');
+
+    const missingEaches = CreateItemInput.safeParse({
+      ...base,
+      outputUom: 'box',
+      netQtyPerEach: '0.500000',
+    });
+    expect(missingEaches.success).toBe(false);
+    expect(pathsOf(missingEaches)).toContain('eachPerBox');
+
+    expect(
+      CreateItemInput.safeParse({
+        ...base,
+        outputUom: 'box',
+        netQtyPerEach: '0.500000',
+        eachPerBox: 12,
+      }).success,
+    ).toBe(true);
+  });
+
   // ── R03-02 — catch weight must be measurable ───────────────────────────────
   const catchComplete = {
     weightMode: 'catch' as const,

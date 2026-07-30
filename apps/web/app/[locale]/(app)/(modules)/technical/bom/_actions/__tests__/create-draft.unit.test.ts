@@ -13,6 +13,7 @@ type QueryCall = { sql: string; params: readonly unknown[] };
 
 type FakeClient = {
   calls: QueryCall[];
+  canCreate: boolean;
   fgItem: { id: string; item_code: string; name: string | null; status: string; item_type: string } | null;
   fgFreeFromAllergens: string[];
   rmAllergens: { allergen_code: string; intensity: string }[];
@@ -40,6 +41,7 @@ function normalizeSql(sql: string): string {
 function makeClient(fgItem: FakeClient['fgItem']): FakeClient {
   const client: FakeClient = {
     calls: [],
+    canCreate: true,
     fgItem,
     fgFreeFromAllergens: [],
     rmAllergens: [],
@@ -48,7 +50,7 @@ function makeClient(fgItem: FakeClient['fgItem']): FakeClient {
       const normalized = normalizeSql(sql);
 
       if (normalized.includes('from public.user_roles')) {
-        return { rows: [{ ok: true }] as never[], rowCount: 1 };
+        return { rows: [{ ok: client.canCreate }] as never[], rowCount: 1 };
       }
       if (normalized.includes("h.bom_type = 'disassembly'")) {
         return {
@@ -189,6 +191,132 @@ beforeEach(() => {
 });
 
 describe('createBomDraft product reference self-heal', () => {
+  it('TEC-103 rejects an empty lines array before DB access and accepts one valid line', async () => {
+    const { createBomDraft } = await import('../create-draft');
+
+    await expect(
+      createBomDraft({ productId: 'FG-WIZ-001', parentAllocationPct: 100, lines: [] }),
+    ).resolves.toMatchObject({ ok: false, error: 'invalid_input' });
+    expect(client.calls).toHaveLength(0);
+
+    await expect(
+      createBomDraft({
+        productId: 'FG-WIZ-001',
+        parentAllocationPct: 100,
+        lines: [{ itemId: RM_ID, componentCode: 'RM-001', quantity: 1, uom: 'kg' }],
+      }),
+    ).resolves.toMatchObject({ ok: true, data: { version: 1 } });
+  });
+
+  it('TEC-109 rejects a non-byproduct allocation total below 100 with V-TEC-12', async () => {
+    const { createBomDraft } = await import('../create-draft');
+
+    await expect(
+      createBomDraft({
+        productId: 'FG-WIZ-001',
+        parentAllocationPct: 70,
+        lines: [{ itemId: RM_ID, componentCode: 'RM-001', quantity: 1, uom: 'kg' }],
+        coProducts: [
+          {
+            coProductItemId: CO_PRODUCT_A_ID,
+            quantity: 1,
+            uom: 'kg',
+            allocationPct: 20,
+            isByproduct: false,
+          },
+        ],
+      }),
+    ).resolves.toEqual({
+      ok: false,
+      error: 'validation_failed',
+      code: 'V-TEC-12',
+      message: 'non-byproduct allocation sums to 90, must equal 100',
+    });
+    expect(client.calls.some((call) => normalizeSql(call.sql).startsWith('insert into public.bom_headers'))).toBe(
+      false,
+    );
+  });
+
+  it('TEC-109 accepts a non-byproduct allocation total equal to 100', async () => {
+    const { createBomDraft } = await import('../create-draft');
+
+    await expect(
+      createBomDraft({
+        productId: 'FG-WIZ-001',
+        parentAllocationPct: 70,
+        lines: [{ itemId: RM_ID, componentCode: 'RM-001', quantity: 1, uom: 'kg' }],
+        coProducts: [
+          {
+            coProductItemId: CO_PRODUCT_A_ID,
+            quantity: 1,
+            uom: 'kg',
+            allocationPct: 30,
+            isByproduct: false,
+          },
+        ],
+      }),
+    ).resolves.toMatchObject({ ok: true });
+    expect(client.calls.some((call) => normalizeSql(call.sql).startsWith('insert into public.bom_headers'))).toBe(
+      true,
+    );
+  });
+
+  it('TEC-109 applies the V-TEC-12 comparison after rounding the total to 3 decimal places', async () => {
+    const { createBomDraft } = await import('../create-draft');
+    const payload = (allocationPct: number) => ({
+      productId: 'FG-WIZ-001',
+      parentAllocationPct: 70,
+      lines: [{ itemId: RM_ID, componentCode: 'RM-001', quantity: 1, uom: 'kg' }],
+      coProducts: [
+        {
+          coProductItemId: CO_PRODUCT_A_ID,
+          quantity: 1,
+          uom: 'kg',
+          allocationPct,
+          isByproduct: false,
+        },
+      ],
+    });
+
+    await expect(createBomDraft(payload(29.9994))).resolves.toMatchObject({
+      ok: false,
+      code: 'V-TEC-12',
+    });
+    client.calls = [];
+    await expect(createBomDraft(payload(29.9995))).resolves.toMatchObject({ ok: true });
+  });
+
+  it('TEC-118 returns forbidden before BOM reads without technical.bom.create', async () => {
+    client.canCreate = false;
+    const { createBomDraft } = await import('../create-draft');
+
+    await expect(
+      createBomDraft({
+        productId: 'FG-WIZ-001',
+        parentAllocationPct: 100,
+        lines: [{ itemId: RM_ID, componentCode: 'RM-001', quantity: 1, uom: 'kg' }],
+      }),
+    ).resolves.toEqual({ ok: false, error: 'forbidden' });
+    expect(client.calls).toHaveLength(1);
+    expect(normalizeSql(client.calls[0]!.sql)).toContain('from public.user_roles');
+    expect(client.calls[0]!.params[2]).toBe('technical.bom.create');
+  });
+
+  it('TEC-118 permits technical.bom.create to reach draft creation', async () => {
+    const { createBomDraft } = await import('../create-draft');
+
+    await expect(
+      createBomDraft({
+        productId: 'FG-WIZ-001',
+        parentAllocationPct: 100,
+        lines: [{ itemId: RM_ID, componentCode: 'RM-001', quantity: 1, uom: 'kg' }],
+      }),
+    ).resolves.toMatchObject({ ok: true });
+    expect(client.calls.some((call) => normalizeSql(call.sql).startsWith('insert into public.bom_headers'))).toBe(
+      true,
+    );
+  });
+
   it('inserts a minimal product row for an existing active FG item before inserting the BOM header', async () => {
     const { createBomDraft } = await import('../create-draft');
 

@@ -12,6 +12,8 @@ type FakeClient = {
   itemTypeBlock?: boolean;
   beforeItemType?: string;
   linkedFg?: boolean;
+  hasEditPermission?: boolean;
+  itemExists?: boolean;
   query<T = Record<string, unknown>>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[]; rowCount?: number | null }>;
 };
 
@@ -30,7 +32,7 @@ function normalizeSql(sql: string): string {
   return sql.replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
-function makeClient(overrides: Partial<FakeClient> & { itemTypeBlock?: boolean; beforeItemType?: string; linkedFg?: boolean } = {}): FakeClient {
+function makeClient(overrides: Partial<FakeClient> = {}): FakeClient {
   const client: FakeClient = {
     calls: [],
     beforeStatus: 'active',
@@ -39,12 +41,13 @@ function makeClient(overrides: Partial<FakeClient> & { itemTypeBlock?: boolean; 
       const n = normalizeSql(sql);
 
       if (n.includes('from public.user_roles')) {
-        return { rows: [{ ok: true }] as never[], rowCount: 1 };
+        return { rows: [{ ok: overrides.hasEditPermission ?? true }] as never[], rowCount: 1 };
       }
       if (n.includes(') as blocked')) {
         return { rows: [{ blocked: overrides.itemTypeBlock ?? false }] as never[], rowCount: 1 };
       }
       if (n.startsWith('select name, item_type, status, uom_base')) {
+        if (overrides.itemExists === false) return { rows: [] as never[], rowCount: 0 };
         return {
           rows: [
             {
@@ -114,6 +117,40 @@ beforeEach(() => {
 });
 
 describe('updateItem status transitions', () => {
+  it('TEC-034 returns not_found for an item outside the current org scope', async () => {
+    install(makeClient({ itemExists: false }));
+    const { updateItem } = await import('./update-item');
+
+    await expect(updateItem(updatePayload('active'))).resolves.toEqual({ ok: false, error: 'not_found' });
+    const scopedRead = client.calls.find((c) => normalizeSql(c.sql).startsWith('select name, item_type, status'));
+    expect(normalizeSql(scopedRead!.sql)).toContain('where org_id = app.current_org_id() and id = $1::uuid');
+    expect(client.calls.some((c) => normalizeSql(c.sql).startsWith('update public.items'))).toBe(false);
+  });
+
+  it('TEC-034 allows a visible item to reach the scoped update', async () => {
+    const { updateItem } = await import('./update-item');
+
+    await expect(updateItem(updatePayload('active'))).resolves.toEqual({ ok: true, data: { id: ITEM_ID } });
+    expect(client.calls.some((c) => normalizeSql(c.sql).startsWith('update public.items'))).toBe(true);
+  });
+
+  it('TEC-042 returns forbidden before item access without technical.items.edit', async () => {
+    install(makeClient({ hasEditPermission: false }));
+    const { updateItem } = await import('./update-item');
+
+    await expect(updateItem(updatePayload('active'))).resolves.toEqual({ ok: false, error: 'forbidden' });
+    expect(client.calls[0]?.params[2]).toBe('technical.items.edit');
+    expect(client.calls.some((c) => normalizeSql(c.sql).includes('from public.items'))).toBe(false);
+  });
+
+  it('TEC-042 permits technical.items.edit to reach the scoped update', async () => {
+    install(makeClient({ hasEditPermission: true }));
+    const { updateItem } = await import('./update-item');
+
+    await expect(updateItem(updatePayload('active'))).resolves.toEqual({ ok: true, data: { id: ITEM_ID } });
+    expect(client.calls.some((c) => normalizeSql(c.sql).startsWith('update public.items'))).toBe(true);
+  });
+
   it('rejects active -> draft as invalid_transition', async () => {
     install(makeClient({ beforeStatus: 'active' }));
     const { updateItem } = await import('./update-item');

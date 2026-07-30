@@ -114,6 +114,23 @@ beforeEach(() => {
 });
 
 describe('createItem supplier spec bootstrap', () => {
+  it('TEC-012 returns already_exists with itemCode when the same-org unique constraint rejects a duplicate', async () => {
+    const { createItem } = await import('./create-item');
+    const payload = createPayload({ itemCode: 'RM-001' });
+
+    await expect(createItem(payload)).resolves.toEqual({
+      ok: true,
+      data: { id: ITEM_ID, itemCode: 'RM-001' },
+    });
+    runWithOrgContext.mockRejectedValueOnce(Object.assign(new Error('duplicate item_code'), { code: '23505' }));
+
+    await expect(createItem(payload)).resolves.toEqual({
+      ok: false,
+      error: 'already_exists',
+      itemCode: 'RM-001',
+    });
+  });
+
   it('creates an item without supplierCode without inserting a supplier_specs row', async () => {
     const { createItem } = await import('./create-item');
 
