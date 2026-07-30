@@ -63,6 +63,9 @@ let woSegregationRequired: boolean;
 /** changeover_matrix rows surfaced by the mock (active version pre-joined). */
 let matrixRows: Array<{ allergen_from: string; allergen_to: string; line_id: string | null; risk_level: string }>;
 let listTotal = 1;
+let bindingBomExists = true;
+let bindingSpecExists = true;
+let bindingSpecBomHeaderId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 
 /** The single known production_lines row the mock resolves uuid/code keys against. */
 function resolveLineKey(key: unknown): { id: string; code: string; site_id: string } | null {
@@ -296,10 +299,10 @@ function makeClient(): QueryClient {
         return {
           rows: [
             {
-              bom_exists: true,
-              spec_exists: true,
+              bom_exists: bindingBomExists,
+              spec_exists: bindingSpecExists,
               spec_site_id: SITE_ID,
-              spec_bom_header_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+              spec_bom_header_id: bindingSpecBomHeaderId,
             },
           ],
           rowCount: 1,
@@ -334,6 +337,9 @@ beforeEach(() => {
   changeovers = [row()];
   matrixRows = [];
   listTotal = 1;
+  bindingBomExists = true;
+  bindingSpecExists = true;
+  bindingSpecBomHeaderId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
   currentUserId = USER_ID;
   woSegregationRequired = false;
   client = makeClient();
@@ -462,6 +468,13 @@ describe('changeover-actions', () => {
     expect(result.ok).toBe(true);
     expect(changeovers[0]?.dual_sign_off_status).toBe('first_signed');
     expect(changeovers[0]?.first_signer).toBe(USER_ID);
+    expect(
+      queries.some(
+        (query) =>
+          normalize(query.sql).includes('from public.changeover_events') &&
+          normalize(query.sql).includes('for update'),
+      ),
+    ).toBe(true);
     expect(signEventMock).toHaveBeenCalledWith(
       expect.objectContaining({ intent: 'production.changeover.signoff', signerUserId: USER_ID }),
       expect.any(Object),
@@ -577,6 +590,62 @@ describe('changeover-actions', () => {
 });
 
 describe('startWo allergen changeover gate', () => {
+  it('rejects an orphaned BOM or factory-spec snapshot before any start mutation (PRD-003)', async () => {
+    changeovers = [];
+    const { startWo } = await import('../../../../../../lib/production/start-wo');
+
+    bindingBomExists = false;
+    const missingBom = await startWo(
+      { userId: USER_ID, orgId: ORG_ID, client },
+      { woId: WO_ID, transactionId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', lineId: LINE_ID },
+    );
+    expect(missingBom).toMatchObject({
+      ok: false,
+      error: 'factory_release_incomplete',
+      status: 409,
+      details: { code: 'release_snapshot_orphan', bomExists: false },
+    });
+
+    bindingBomExists = true;
+    bindingSpecExists = false;
+    const missingSpec = await startWo(
+      { userId: USER_ID, orgId: ORG_ID, client },
+      { woId: WO_ID, transactionId: 'ffffffff-ffff-4fff-8fff-ffffffffffff', lineId: LINE_ID },
+    );
+    expect(missingSpec).toMatchObject({
+      ok: false,
+      error: 'factory_release_incomplete',
+      status: 409,
+      details: { code: 'release_snapshot_orphan', bomExists: true, specExists: false },
+    });
+    expect(createBomSnapshotMock).not.toHaveBeenCalled();
+    expect(applyTransitionMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects a factory-spec snapshot bound to a different BOM (PRD-003)', async () => {
+    changeovers = [];
+    bindingSpecBomHeaderId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const { startWo } = await import('../../../../../../lib/production/start-wo');
+
+    const result = await startWo(
+      { userId: USER_ID, orgId: ORG_ID, client },
+      { woId: WO_ID, transactionId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', lineId: LINE_ID },
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: 'factory_release_incomplete',
+      status: 409,
+      details: {
+        code: 'bom_spec_bundle_mismatch',
+        activeBomHeaderId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        specBomHeaderId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      },
+    });
+    expect(createBomSnapshotMock).not.toHaveBeenCalled();
+    expect(applyTransitionMock).not.toHaveBeenCalled();
+  });
+
   it('blocks start when an incomplete allergen-relevant changeover exists', async () => {
     const { startWo } = await import('../../../../../../lib/production/start-wo');
     const result = await startWo({ userId: USER_ID, orgId: ORG_ID, client }, { woId: WO_ID, transactionId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', lineId: LINE_ID });

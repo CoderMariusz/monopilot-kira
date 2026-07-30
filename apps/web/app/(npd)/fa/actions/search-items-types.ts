@@ -12,6 +12,8 @@ export type ItemPickerOption = {
   supplierCode?: string | null;
   unitPrice?: string | null;
   uomBase: string;
+  uomSecondary?: string | null;
+  outputUom?: 'base' | 'each' | 'box' | null;
 };
 
 export type SearchItemsInput = {

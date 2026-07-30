@@ -34,6 +34,7 @@ let matrixVersionInsertConflict = false;
 let simulateNoActiveMatrixVersion = false;
 let shiftCalendarRows: Array<Record<string, unknown>> = [];
 let routingVersions: Array<{ status: 'active' | 'approved'; durationMs: number }> | null = null;
+let dependencyRows: Array<{ parent_wo_id: string; child_wo_id: string }> = [];
 const ACTIVE_MATRIX_VERSION_ID = '77777777-7777-4777-8777-777777777777';
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
@@ -196,6 +197,10 @@ function makeClient(): QueryClient {
 
       if (q.includes('from public.shift_patterns sp')) {
         return { rows: shiftCalendarRows, rowCount: shiftCalendarRows.length };
+      }
+
+      if (q.includes('from public.wo_dependencies')) {
+        return { rows: dependencyRows, rowCount: dependencyRows.length };
       }
 
       if (q.includes('from public.work_orders wo') && q.includes('item_allergen_profiles')) {
@@ -382,6 +387,7 @@ beforeEach(() => {
   includeSchedulerConfig = true;
   shiftCalendarRows = [];
   routingVersions = null;
+  dependencyRows = [];
   schedulerConfigRows = [
     {
       id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
@@ -444,6 +450,7 @@ describe('runScheduler', () => {
     if (!result.ok) throw new Error(result.error);
     expect(result.run.run_id).toBe(RUN_ID);
     expect(result.assignments).toHaveLength(2);
+    expect(result.assignments.every((assignment) => assignment.status === 'draft')).toBe(true);
     expect(calls.some((call) => normalize(call.sql).startsWith('insert into public.scheduler_runs'))).toBe(true);
     expect(calls.some((call) => normalize(call.sql).startsWith('insert into public.scheduler_assignments'))).toBe(true);
     expect(insertedAssignmentPayload).toHaveLength(2);
@@ -460,6 +467,49 @@ describe('runScheduler', () => {
           call.params[0] === 'scheduler.run.completed',
       ),
     ).toBe(true);
+  });
+
+  it('PRD-086 persists cycle omissions and completed-event counts when no WO is assignable', async () => {
+    dependencyRows = [
+      { parent_wo_id: WO_A, child_wo_id: WO_B },
+      { parent_wo_id: WO_B, child_wo_id: WO_A },
+    ];
+
+    const result = await runScheduler({ lineId: LINE_ID, horizonDays: 7 });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.run.status).toBe('completed');
+    expect(result.assignments).toEqual([]);
+
+    const runInsert = calls.find((call) =>
+      normalize(call.sql).startsWith('insert into public.scheduler_runs'),
+    );
+    expect(JSON.parse(String(runInsert?.params[5]))).toEqual({
+      assignment_count: 0,
+      total_changeover_cost: 0,
+      omitted_work_orders: [
+        { wo_id: WO_A, reason: 'dependency_cycle' },
+        { wo_id: WO_B, reason: 'dependency_cycle' },
+      ],
+      omitted_count: 2,
+    });
+
+    const completedEvent = calls.find(
+      (call) =>
+        normalize(call.sql).startsWith('insert into public.outbox_events') &&
+        call.params[0] === 'scheduler.run.completed',
+    );
+    expect(JSON.parse(String(completedEvent?.params[2]))).toEqual({
+      run_id: RUN_ID,
+      actor_user_id: REQUESTER_USER_ID,
+      counts: {
+        work_orders: 2,
+        assignments: 0,
+        total_changeover_cost: 0,
+        omitted_count: 2,
+      },
+    });
   });
 
   it('keeps org-wide null-line runs on org-default matrix rows only', async () => {

@@ -75,6 +75,8 @@ describe('searchItems item-type fan-out', () => {
           effective_currency: 'GBP',
           list_price_gbp: '1.4500',
           uom_base: 'kg',
+          uom_secondary: 'g',
+          output_uom: 'base',
         },
       ],
     });
@@ -87,6 +89,11 @@ describe('searchItems item-type fan-out', () => {
     expect(sql).toContain("ss.review_status = 'approved'");
     expect(params).toContain('SUP-001');
     expect(result[0]?.listPriceGbp).toBe('1.4500');
+    expect(result[0]).toMatchObject({
+      uomBase: 'kg',
+      uomSecondary: 'g',
+      outputUom: 'base',
+    });
   });
 
   it('reads cost + currency from v_item_effective_cost (same SSOT as save-draft)', async () => {

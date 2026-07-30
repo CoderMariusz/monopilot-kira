@@ -62,6 +62,8 @@ type ItemRow = {
   supplier_code: string | null;
   unit_price: string | null;
   uom_base: string;
+  uom_secondary: string | null;
+  output_uom: 'base' | 'each' | 'box' | null;
 };
 
 /**
@@ -123,7 +125,9 @@ export async function searchItems(input: SearchItemsInput = {}): Promise<ItemPic
               i.list_price_gbp::text as list_price_gbp,
               sp.supplier_code,
               coalesce(sp.unit_price, i.list_price_gbp::text) as unit_price,
-              i.uom_base
+              i.uom_base,
+              i.uom_secondary,
+              i.output_uom
          from public.items i
          left join public.v_item_effective_cost vec
            on vec.item_id = i.id
@@ -175,6 +179,8 @@ export async function searchItems(input: SearchItemsInput = {}): Promise<ItemPic
       supplierCode: r.supplier_code,
       unitPrice: r.unit_price,
       uomBase: r.uom_base,
+      uomSecondary: r.uom_secondary,
+      outputUom: r.output_uom,
     }));
   });
 }
