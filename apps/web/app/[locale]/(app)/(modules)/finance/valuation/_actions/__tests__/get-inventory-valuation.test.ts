@@ -121,7 +121,7 @@ describe('getInventoryValuation', () => {
     expect(valuationCalls.some((call) => call.sql.includes('count(*)::int as lp_count'))).toBe(true);
     expect(valuationCalls.some((call) => call.sql.includes('left join public.item_wac_state wac'))).toBe(true);
     expect(valuationCalls.some((call) => call.sql.includes('where lp.org_id = app.current_org_id()'))).toBe(true);
-    expect(valuationCalls.some((call) => call.sql.includes("when lower(lp.uom) = 'each'"))).toBe(true);
+    expect(valuationCalls.some((call) => call.sql.includes("lower(lp.uom) = 'each'"))).toBe(true);
     expect(valuationCalls.some((call) => call.sql.includes('sum(base_qty_kg * wac)'))).toBe(true);
     expect(valuationCalls.some((call) => call.sql.includes('sum(base_qty_kg)::text as qty_on_hand'))).toBe(true);
   });
@@ -161,6 +161,36 @@ describe('getInventoryValuation', () => {
     const valuedCall = calls.find((call) => call.sql.includes('group by item_id'));
     expect(valuedCall?.sql).toContain("when lower(lp.uom) = 'box'");
     expect(valuedCall?.sql).toContain('lp.quantity * i.each_per_box::numeric * i.net_qty_per_each');
+  });
+
+  it('uses the WAC write-side conversion for grams and catalog UoM factors', async () => {
+    valuedRows = [
+      {
+        item_id: ITEM_ID,
+        item_code: 'RM-SUGAR',
+        item_name: 'Sugar',
+        wac: '1.5',
+        currency: 'GBP',
+        qty_on_hand: '5',
+        total_value: '7.5',
+      },
+    ];
+
+    const result = await getInventoryValuation();
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.rows[0]?.qtyOnHand).toBe('5.000000');
+
+    const valuedCall = calls.find((call) => call.sql.includes('group by item_id'));
+    expect(valuedCall?.sql).toContain(
+      "when lower(lp.uom) = 'g' then round(lp.quantity / 1000, 6)",
+    );
+    expect(valuedCall?.sql).toContain('left join public.unit_of_measure input_uom');
+    expect(valuedCall?.sql).toContain('lower(input_uom.code) = lower(lp.uom)');
+    expect(valuedCall?.sql).toContain('lp.quantity * input_uom.factor_to_base');
+    expect(valuedCall?.sql).toContain('lp.quantity * base_uom.factor_to_base');
+    expect(valuedCall?.sql).toContain('else null');
   });
 
   it('excludes unconvertible UoM and missing-cost LPs into the unvalued bucket', async () => {

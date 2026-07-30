@@ -228,6 +228,7 @@ export async function executeReceivePoLineCore(
   // LP stays status='received' until QA releases it — no premature available transition.
 
   const grnItem = await insertGrnItem(client, ctx, {
+    siteId: lpSiteId,
     grnId: grn.id,
     productId: line.item_id,
     poLineId: line.id,
@@ -619,6 +620,7 @@ async function insertGrnItem(
   client: QueryClient,
   ctx: ReceivePoLineCoreContext,
   input: {
+    siteId: string;
     grnId: string;
     productId: string;
     poLineId: string;
@@ -634,18 +636,19 @@ async function insertGrnItem(
   const lineNumber = await nextGrnItemLineNumber(client, ctx.orgId, input.grnId);
   const { rows } = await client.query<{ id: string }>(
     `insert into public.grn_items (
-       org_id, grn_id, line_number, product_id, po_line_id,
+       org_id, site_id, grn_id, line_number, product_id, po_line_id,
        ordered_qty, received_qty, uom, batch_number, best_before_date,
        location_id, qa_status_initial, lp_id, created_by, updated_by
      )
      values (
-       $1::uuid, $2::uuid, $3::int, $4::uuid, $5::uuid,
-       $6::numeric, $7::numeric, $8, $9, $10::timestamptz,
-       $11::uuid, 'pending', $12::uuid, $13::uuid, $13::uuid
+       $1::uuid, $2::uuid, $3::uuid, $4::int, $5::uuid, $6::uuid,
+       $7::numeric, $8::numeric, $9, $10, $11::timestamptz,
+       $12::uuid, 'pending', $13::uuid, $14::uuid, $14::uuid
      )
      returning id`,
     [
       ctx.orgId,
+      input.siteId,
       input.grnId,
       lineNumber,
       input.productId,

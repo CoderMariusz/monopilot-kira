@@ -1,4 +1,5 @@
 import { microToFixed, toMicro } from '../../../../../../../lib/shared/decimal';
+import { wacQtyKgSql } from '../../../../../../../lib/finance/wac-qty-kg-sql';
 import { withSiteContext } from '../../../../../../../lib/auth/with-site-context';
 import { hasAnyPermission } from '../../../../../../../lib/auth/has-permission';
 import {
@@ -36,6 +37,8 @@ type UnvaluedAggregateRow = {
   qty: string;
 };
 
+const lpQtySql = wacQtyKgSql({ qtySql: 'lp.quantity', uomSql: 'lp.uom', itemAlias: 'i' });
+
 const LP_VALUATION_CTE = `
 with lp_valuation as (
   select lp.id as lp_id,
@@ -46,25 +49,12 @@ with lp_valuation as (
          lp.uom,
          wac.avg_cost as wac,
          c.code as currency,
-         case
-           when lower(lp.uom) = 'kg' then lp.quantity
-           when lower(lp.uom) = 'base'
-             and lower(coalesce(i.uom_base, '')) = 'kg' then lp.quantity
-           when lower(lp.uom) = lower(coalesce(i.uom_base, ''))
-             and lower(coalesce(i.uom_base, '')) = 'kg' then lp.quantity
-           when lower(lp.uom) = 'each'
-             and i.net_qty_per_each is not null
-             then lp.quantity * i.net_qty_per_each
-           when lower(lp.uom) = 'box'
-             and i.net_qty_per_each is not null
-             and i.each_per_box is not null
-             then lp.quantity * i.each_per_box::numeric * i.net_qty_per_each
-           else null
-         end as base_qty_kg
+         ${lpQtySql.caseSql} as base_qty_kg
     from public.license_plates lp
     left join public.items i
       on i.org_id = app.current_org_id()
      and i.id = lp.product_id
+    ${lpQtySql.catalogJoinsSql}
     left join public.item_wac_state wac
       on wac.org_id = app.current_org_id()
      and wac.item_id = lp.product_id

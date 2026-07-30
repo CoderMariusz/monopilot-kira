@@ -3,6 +3,10 @@ import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { getAppConnection, getOwnerConnection } from '../../../../../packages/db/src/clients.js';
+import {
+  createPgTestFixture,
+  type PgTestFixture,
+} from '../../../tests/helpers/owner-org-context.js';
 
 import { cancelWo } from '../../production/complete-cancel-wo';
 import { debitWac, resolveWacDeltaQtyKg, upsertWac } from '../upsert-wac';
@@ -10,63 +14,21 @@ import { debitWac, resolveWacDeltaQtyKg, upsertWac } from '../upsert-wac';
 const databaseUrl = process.env.DATABASE_URL;
 const runIntegrationSuite = databaseUrl ? describe : describe.skip;
 
-const tenantId = randomUUID();
-const orgId = randomUUID();
-const siteId = randomUUID();
-const userId = randomUUID();
+let orgId: string;
+let siteId: string;
+let userId: string;
 const itemId = randomUUID();
-const roleId = randomUUID();
 
 runIntegrationSuite('upsertWac real Postgres behavior', () => {
   let ownerPool: pg.Pool;
   let appPool: pg.Pool;
+  let fixture: PgTestFixture;
 
   beforeAll(async () => {
     ownerPool = getOwnerConnection();
     appPool = getAppConnection();
-    await ownerPool.query(
-      `insert into public.tenants (id, name, region_cluster, data_plane_url)
-       values ($1, 'WAC Upsert Test Tenant', 'eu', 'https://wac-upsert.example.test')
-       on conflict (id) do nothing`,
-      [tenantId],
-    );
-    await ownerPool.query(
-      `insert into public.organizations (id, tenant_id, name, slug, industry_code)
-       values ($1, $2, 'WAC Upsert Test Org', $3, 'fmcg')
-       on conflict (id) do nothing`,
-      [orgId, tenantId, `wac-${orgId.slice(0, 8)}`],
-    );
-    await ownerPool.query(
-      `insert into public.sites
-         (id, org_id, site_code, name, is_default, is_active, timezone)
-       values ($1, $2, 'WAC', 'WAC Upsert Test Site', true, true, 'Europe/London')
-       on conflict (id) do nothing`,
-      [siteId, orgId],
-    );
-    await ownerPool.query(
-      `insert into public.roles (id, org_id, slug, code, name, permissions)
-       values ($1, $2, $3, $3, 'WAC Upsert Test Role', $4::jsonb)
-       on conflict (id) do nothing`,
-      [roleId, orgId, `wac-cancel-${roleId.slice(0, 8)}`, JSON.stringify(['production.wo.cancel'])],
-    );
-    await ownerPool.query(
-      `insert into public.users (id, org_id, email, name, role_id)
-       values ($1, $2, $3, 'WAC Upsert Test User', $4)
-       on conflict (id) do nothing`,
-      [userId, orgId, `wac-${userId}@example.test`, roleId],
-    );
-    await ownerPool.query(
-      `insert into public.role_permissions (role_id, permission)
-       values ($1, 'production.wo.cancel')
-       on conflict do nothing`,
-      [roleId],
-    );
-    await ownerPool.query(
-      `insert into public.user_roles (user_id, role_id, org_id)
-       values ($1, $2, $3)
-       on conflict do nothing`,
-      [userId, roleId, orgId],
-    );
+    fixture = await createPgTestFixture(ownerPool, { permissions: ['production.wo.cancel'] });
+    ({ orgId, siteId, userId } = fixture);
     await ownerPool.query(
       `insert into public.currencies (code, name)
        values
@@ -78,16 +40,20 @@ runIntegrationSuite('upsertWac real Postgres behavior', () => {
   });
 
   afterAll(async () => {
-    await ownerPool
-      ?.query('delete from public.item_wac_state where org_id = $1', [orgId])
-      .catch(() => undefined);
-    await ownerPool?.query('delete from public.user_roles where user_id = $1', [userId]).catch(() => undefined);
-    await ownerPool?.query('delete from public.role_permissions where role_id = $1', [roleId]).catch(() => undefined);
-    await ownerPool?.query('delete from public.roles where id = $1', [roleId]).catch(() => undefined);
-    await ownerPool?.query('delete from public.users where id = $1', [userId]).catch(() => undefined);
-    await ownerPool?.query('delete from public.sites where id = $1', [siteId]).catch(() => undefined);
-    await ownerPool?.query('delete from public.organizations where id = $1', [orgId]).catch(() => undefined);
-    await ownerPool?.query('delete from public.tenants where id = $1', [tenantId]).catch(() => undefined);
+    for (const table of [
+      'stock_moves',
+      'lp_state_history',
+      'outbox_events',
+      'wo_outputs',
+      'wo_executions',
+      'work_orders',
+      'license_plates',
+      'item_wac_state',
+      'items',
+    ]) {
+      await ownerPool?.query(`delete from public.${table} where org_id = $1::uuid`, [orgId]).catch(() => undefined);
+    }
+    await fixture?.cleanup();
     await appPool?.end();
     await ownerPool?.end();
   });
@@ -236,7 +202,6 @@ runIntegrationSuite('upsertWac real Postgres behavior', () => {
     const executionId = randomUUID();
     const outputId = randomUUID();
     const lpId = randomUUID();
-    const warehouseId = randomUUID();
     const outputTxnId = randomUUID();
     const cancelTxnId = randomUUID();
 
@@ -265,7 +230,7 @@ runIntegrationSuite('upsertWac real Postgres behavior', () => {
          origin, wo_id, created_by, updated_by
        )
        values ($1, $2, $3, $4, $5, 10.000000, 0, 'kg', 'available', 'pending', 'production', $6, $7, $7)`,
-      [lpId, orgId, warehouseId, `LP-WAC-${lpId.slice(0, 8)}`, cancelItemId, woId, userId],
+      [lpId, orgId, fixture.warehouseId, `LP-WAC-${lpId.slice(0, 8)}`, cancelItemId, woId, userId],
     );
     await ownerPool.query(
       `insert into public.wo_outputs (

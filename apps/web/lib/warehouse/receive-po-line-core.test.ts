@@ -62,9 +62,12 @@ describe('receive-po-line-core', () => {
       expect.arrayContaining([ORG_A, SITE_ID, WAREHOUSE_ID, ITEM_ID, '10', 'kg', 'SUP-BATCH-1']),
     );
     expect(findCall(client, 'insert into public.license_plates')?.sql).toContain("'received', 'pending'");
-    expect(findCall(client, 'insert into public.grn_items')?.params).toEqual(
+    const grnItemInsert = findCall(client, 'insert into public.grn_items');
+    expect(grnItemInsert?.sql).toContain('org_id, site_id, grn_id');
+    expect(grnItemInsert?.params).toEqual(
       expect.arrayContaining([ORG_A, 'grn-1', ITEM_ID, LINE_ID, '10.000000', '10', 'kg', 'SUP-BATCH-1']),
     );
+    expect(grnItemInsert?.params[1]).toBe(SITE_ID);
   });
 
   it('creates received LPs as status received with qa pending (S14)', async () => {
@@ -359,7 +362,7 @@ describe('receive-po-line-core', () => {
     expect(lpInsert?.[11]).toBe(BIN_LOCATION_ID);
 
     const grnItemInsert = findCall(client, 'insert into public.grn_items')?.params;
-    expect(grnItemInsert?.[10]).toBe(BIN_LOCATION_ID);
+    expect(grnItemInsert?.[11]).toBe(BIN_LOCATION_ID);
   });
 
   it('rejects receive when resolved warehouse site does not match the PO site', async () => {

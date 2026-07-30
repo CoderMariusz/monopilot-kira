@@ -8,6 +8,10 @@ import {
   makeAppUserConnectionString,
   withAppOrg,
 } from '../../../app/(npd)/brief/actions/__tests__/brief-integration-helpers';
+import {
+  createPgTestFixture,
+  type PgTestFixture,
+} from '../../../tests/helpers/owner-org-context.js';
 import { resolveOutputWacContribution } from '../resolve-output-wac';
 import {
   applyConsumptionWacReversal,
@@ -16,16 +20,15 @@ import {
 } from '../upsert-wac';
 
 const run = databaseUrl ? describe : describe.skip;
-const tenantId = randomUUID();
-const orgId = randomUUID();
-const siteId = randomUUID();
-const userId = randomUUID();
-const roleId = randomUUID();
+let orgId: string;
+let siteId: string;
+let userId: string;
 const rawMaterialId = randomUUID();
 const finishedGoodId = randomUUID();
 
 let owner: pg.Pool;
 let app: pg.Pool;
+let fixture: PgTestFixture;
 
 async function makeWorkOrder(): Promise<string> {
   const woId = randomUUID();
@@ -111,37 +114,8 @@ run('resolveOutputWacContribution correction history — real Postgres', () => {
     owner = new pg.Pool({ connectionString: databaseUrl });
     app = new pg.Pool({ connectionString: makeAppUserConnectionString() });
     await ensureAppUser(owner);
-    await owner.query(
-      `insert into public.tenants (id, name, region_cluster, data_plane_url)
-       values ($1, 'Output WAC Resolve Tenant', 'eu', 'https://output-wac.example.test')`,
-      [tenantId],
-    );
-    await owner.query(
-      `insert into public.organizations (id, tenant_id, slug, name, industry_code)
-       values ($1, $2, $3, 'Output WAC Resolve Org', 'fmcg')`,
-      [orgId, tenantId, `output-wac-${orgId.slice(0, 8)}`],
-    );
-    await owner.query(
-      `insert into public.sites
-         (id, org_id, site_code, name, is_default, is_active, timezone)
-       values ($1, $2, 'WACR', 'Output WAC Resolve Site', true, true, 'Europe/London')`,
-      [siteId, orgId],
-    );
-    await owner.query(
-      `insert into public.roles (id, org_id, slug, code, name, permissions)
-       values ($1, $2, $3, $3, 'Output WAC Role', $4::jsonb)`,
-      [roleId, orgId, `output-wac-${roleId.slice(0, 8)}`, JSON.stringify(['production.wo.cancel'])],
-    );
-    await owner.query(
-      `insert into public.role_permissions (role_id, permission)
-       values ($1, 'production.wo.cancel')`,
-      [roleId],
-    );
-    await owner.query(
-      `insert into public.users (id, org_id, email, display_name, name, role_id)
-       values ($1, $2, $3, 'Output WAC User', 'Output WAC User', $4)`,
-      [userId, orgId, `output-wac-${userId}@example.test`, roleId],
-    );
+    fixture = await createPgTestFixture(owner, { permissions: ['production.wo.cancel'] });
+    ({ orgId, siteId, userId } = fixture);
     await owner.query(
       `insert into public.items
          (id, org_id, item_code, item_type, name, uom_base, cost_per_kg, weight_mode, created_by)
@@ -173,12 +147,7 @@ run('resolveOutputWacContribution correction history — real Postgres', () => {
 
   afterAll(async () => {
     await owner?.query(`delete from public.items where org_id = $1`, [orgId]).catch(() => undefined);
-    await owner?.query(`delete from public.users where org_id = $1`, [orgId]).catch(() => undefined);
-    await owner?.query(`delete from public.role_permissions where role_id = $1`, [roleId]).catch(() => undefined);
-    await owner?.query(`delete from public.roles where id = $1`, [roleId]).catch(() => undefined);
-    await owner?.query(`delete from public.sites where id = $1`, [siteId]).catch(() => undefined);
-    await owner?.query(`delete from public.organizations where id = $1`, [orgId]).catch(() => undefined);
-    await owner?.query(`delete from public.tenants where id = $1`, [tenantId]).catch(() => undefined);
+    await fixture?.cleanup();
     await app?.end();
     await owner?.end();
   });
