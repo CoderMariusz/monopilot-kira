@@ -637,3 +637,45 @@ jako „bramka bezpieczeństwa żywności nie działa".**
 2. **`return` = commit w `withOrgContext`** — 3 niezależne wystąpienia
 3. **Fail-open przy braku danych** — 4× w bramkach, 1× w walidacji importu
 4. **Grep/narzędzia liczące kłamią** — 5 komend w tabeli na górze pliku
+
+---
+
+# ZAMKNIĘCIE DNIA — 19:48, 74 commity
+
+**WSZYSTKIE LOKALNE.** Klasyfikator blokuje mi push od 13:08. Owner wpisuje u siebie:
+`! git push origin main`. Ryzyko: Vercel migruje w buildzie; jeśli prod ma wiersze bez zakładu,
+**mig 551 odmówi i deploy stanie** — awaria bezpieczna, sprawdzona lokalnie dwoma sposobami.
+
+## Roadmapa na jutro
+`_meta/plans/2026-07-30-dzien-12h/ROADMAPA.md` — fale 0-E, **10-14 dni**, z czego **6 dni
+ZABLOKOWANE decyzjami ownera**. Osobno 7 pozycji „do potwierdzenia" (bez dowodu
+uruchomieniowego), każda z konkretem, co ją rozstrzygnie.
+
+**Roadmapa stawia naprawę WZORCÓW przed pojedynczymi błędami** i to jest trafne: dopóki
+„zielony przez pominięcie" żyje, każda kolejna naprawa zostanie zaraportowana jako działająca
+i nikt nie będzie wiedział, czy to prawda.
+
+**GOTCHA przy odbiorze roadmapy:** tor napisał 50 commitów, jest **74**. Pięćdziesiąt to
+commity z dzisiejszej DATY kalendarzowej; reszta powstała wczoraj wieczorem i też jest
+niewypchnięta. Poprawione — ale to kolejny raz, gdy liczba z toru wymagała sprawdzenia.
+
+## Cztery wzorce, które wróciły wielokrotnie (naprawa klasy > naprawa przypadku)
+| wzorzec | ile razy | co znaczy |
+|---|---|---|
+| **zielony przez pominięcie** | 3× | 18 testów bezpieczeństwa · test uprawnień · P0 wysyłki. **Ostatni był GORSZY**: test nie był bramkowany, tylko PADAŁ w `beforeAll`, a vitest raportował „skipped" — czyli wyglądał na świadome pominięcie |
+| **`return` = commit w `withOrgContext`** | 3× | rewalidacja (11 miejsc) · import kartotek · zapisy. Systematyczna pułapka, nie wpadka |
+| **bramka przepuszcza przy braku danych** | 4× | najgorsza wersja: bramka QC **MELDUJE ZIELEŃ** nie odpytując tabeli |
+| **zielony test obok żywego defektu** | 12× | w tym mutacyjnie udowodnione: usunięcie filtru organizacji nie rusza 32 testów w 3 plikach |
+
+## Ostatnie trzy naprawy — każda dołożyła coś spoza zlecenia
+- **termin przydatności**: DWA błędy w jednej linii (rzutowanie na datę też czytało strefę
+  sesji). Dowód: ta sama paleta w 3 strefach dawała PRZED różne wyniki, PO identyczny.
+  **Ostrzeżenie tora: aplikacja ma teraz DWIE granice przeterminowania** — 4 bramki wysyłki
+  liczą po staremu, a komentarz w kodzie twierdzi, że są lustrzane
+- **skaner**: guard odpala się TYLKO gdy obie strony mają znany zakład → palety zastane jeżdżą
+  jak dotąd. Tor świadomie NIE przeniósł drugiej reguły biurka, bo zamroziłaby legalny ruch
+- **P0 wysyłki**: naprawionych 5 akcji zamiast 2 — wspólny zapis audytowy obsługuje trzy operacje
+
+## Czego dzień NIE objął
+Zwroty i reklamacje, wycena MRP, import kosztów z systemu zewnętrznego, ~150 plików testowych
+w `packages/db`, 110 ze 116 tabel przy izolacji zakładów (inferencja, nie pomiar).
