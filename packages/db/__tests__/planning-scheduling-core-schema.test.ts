@@ -17,6 +17,8 @@ const runIntegrationSuite = process.env.DATABASE_URL ? describe : describe.skip;
 const tenantId = '04050000-0000-4000-8000-000000000001';
 const orgAId = '04050000-0000-4000-8000-0000000000a0';
 const orgBId = '04050000-0000-4000-8000-0000000000b0';
+const orgASiteId = '04050000-0000-4000-8000-0000000000a5';
+const orgBSiteId = '04050000-0000-4000-8000-0000000000b5';
 
 const PLANNING_TABLES = [
   'work_orders',
@@ -34,15 +36,22 @@ async function seedOrgs(adminPool: pg.Pool) {
      on conflict (id) do nothing`,
     [tenantId],
   );
-  for (const [id, slug] of [
-    [orgAId, 't-004-005-a'],
-    [orgBId, 't-004-005-b'],
+  for (const [id, slug, siteId, siteCode] of [
+    [orgAId, 't-004-005-a', orgASiteId, 'T004A'],
+    [orgBId, 't-004-005-b', orgBSiteId, 'T004B'],
   ]) {
     await adminPool.query(
       `insert into public.organizations (id, tenant_id, name, industry_code, external_id)
        values ($1, $2, 'Planning Sched Org', 'fmcg', $3)
        on conflict (id) do nothing`,
       [id, tenantId, slug],
+    );
+    await adminPool.query(
+      `insert into public.sites
+         (id, org_id, site_code, name, is_default, is_active, timezone)
+       values ($1, $2, $3, 'Planning Scheduling Site', true, true, 'Europe/London')
+       on conflict (id) do nothing`,
+      [siteId, id, siteCode],
     );
   }
 }
@@ -83,6 +92,9 @@ runIntegrationSuite('04-planning scheduling-core schema (migrations 176 + 177)',
 
   afterAll(async () => {
     await cleanup(adminPool);
+    await adminPool
+      .query(`delete from public.sites where id = any($1::uuid[])`, [[orgASiteId, orgBSiteId]])
+      .catch(() => undefined);
     await adminPool
       .query(`delete from public.organizations where id = any($1::uuid[])`, [[orgAId, orgBId]])
       .catch(() => undefined);
@@ -200,9 +212,10 @@ runIntegrationSuite('04-planning scheduling-core schema (migrations 176 + 177)',
       await clientA.query('begin');
       await bindOrg(adminPool, clientA, orgAId);
       await clientA.query(
-        `insert into public.work_orders (id, org_id, wo_number, product_id, item_type_at_creation, planned_quantity, uom)
-         values ($1, $2, 'WO-A-0001', $3, 'fg', 100.000, 'kg')`,
-        [woAId, orgAId, randomUUID()],
+        `insert into public.work_orders
+           (id, org_id, site_id, wo_number, product_id, item_type_at_creation, planned_quantity, uom)
+         values ($1, $2, $3, 'WO-A-0001', $4, 'fg', 100.000, 'kg')`,
+        [woAId, orgAId, orgASiteId, randomUUID()],
       );
       // First primary schedule_output — OK.
       await clientA.query(
@@ -240,9 +253,10 @@ runIntegrationSuite('04-planning scheduling-core schema (migrations 176 + 177)',
       await clientB.query('begin');
       await bindOrg(adminPool, clientB, orgBId);
       await clientB.query(
-        `insert into public.work_orders (id, org_id, wo_number, product_id, item_type_at_creation, planned_quantity, uom)
-         values ($1, $2, 'WO-B-0001', $3, 'fg', 50.000, 'kg')`,
-        [woBId, orgBId, randomUUID()],
+        `insert into public.work_orders
+           (id, org_id, site_id, wo_number, product_id, item_type_at_creation, planned_quantity, uom)
+         values ($1, $2, $3, 'WO-B-0001', $4, 'fg', 50.000, 'kg')`,
+        [woBId, orgBId, orgBSiteId, randomUUID()],
       );
       // org B sees only its own WO, never org A's.
       const { rows } = await clientB.query<{ id: string }>(`select id from public.work_orders`);
@@ -264,10 +278,11 @@ runIntegrationSuite('04-planning scheduling-core schema (migrations 176 + 177)',
 
     // Use owner pool for the delete-survival assertion (cascade behaviour is owner-visible).
     await adminPool.query(
-      `insert into public.work_orders (id, org_id, wo_number, product_id, item_type_at_creation, planned_quantity, uom)
-       values ($1, $2, 'WO-DEP-PARENT', $3, 'intermediate', 100.000, 'kg'),
-              ($4, $2, 'WO-DEP-CHILD', $5, 'fg', 100.000, 'kg')`,
-      [ownerWoParent, orgAId, randomUUID(), ownerWoChild, randomUUID()],
+      `insert into public.work_orders
+         (id, org_id, site_id, wo_number, product_id, item_type_at_creation, planned_quantity, uom)
+       values ($1, $2, $6, 'WO-DEP-PARENT', $3, 'intermediate', 100.000, 'kg'),
+              ($4, $2, $6, 'WO-DEP-CHILD', $5, 'fg', 100.000, 'kg')`,
+      [ownerWoParent, orgAId, randomUUID(), ownerWoChild, randomUUID(), orgASiteId],
     );
 
     // self-loop rejected

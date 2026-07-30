@@ -11,6 +11,7 @@ const runIntegrationSuite = process.env.DATABASE_URL ? describe : describe.skip;
 
 const tenantId = '08040000-0000-4000-8000-000000000001';
 const orgId = '08040000-0000-4000-8000-0000000000a0';
+const siteId = '08040000-0000-4000-8000-0000000000a5';
 
 async function seed(admin: pg.Pool) {
   await admin.query(
@@ -42,12 +43,20 @@ runIntegrationSuite('08-production wo_waste_log schema (migration 183)', () => {
     admin = getOwnerConnection();
     await seed(admin);
     await cleanup(admin);
+    await admin.query(
+      `insert into public.sites
+         (id, org_id, site_code, name, is_default, is_active, timezone)
+       values ($1, $2, 'T004', 'Waste Site', true, true, 'Europe/London')
+       on conflict (id) do nothing`,
+      [siteId, orgId],
+    );
     woId = randomUUID();
     categoryId = randomUUID();
     await admin.query(
-      `insert into public.work_orders (id, org_id, wo_number, product_id, item_type_at_creation, planned_quantity, uom)
-       values ($1, $2, 'WO-WASTE-1', $3, 'fg', 100.000, 'kg')`,
-      [woId, orgId, randomUUID()],
+      `insert into public.work_orders
+         (id, org_id, site_id, wo_number, product_id, item_type_at_creation, planned_quantity, uom)
+       values ($1, $2, $3, 'WO-WASTE-1', $4, 'fg', 100.000, 'kg')`,
+      [woId, orgId, siteId, randomUUID()],
     );
     await admin.query(
       `insert into public.waste_categories (id, org_id, code, name) values ($1, $2, 'TRIM', 'Trimmings')`,
@@ -57,6 +66,7 @@ runIntegrationSuite('08-production wo_waste_log schema (migration 183)', () => {
 
   afterAll(async () => {
     await cleanup(admin);
+    await admin.query(`delete from public.sites where id = $1`, [siteId]).catch(() => undefined);
     await admin.query(`delete from public.organizations where id = $1`, [orgId]).catch(() => undefined);
     await admin.query(`delete from public.tenants where id = $1`, [tenantId]).catch(() => undefined);
     await admin.end();

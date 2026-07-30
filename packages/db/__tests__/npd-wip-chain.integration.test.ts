@@ -7,6 +7,7 @@ const runIntegrationSuite = process.env.DATABASE_URL ? describe : describe.skip;
 
 const tenantId = '43090000-0000-4000-8000-000000000001';
 const orgId = '43090000-0000-4000-8000-000000000009';
+const siteId = '43090000-0000-4000-8000-000000000095';
 const userId = '43090000-0000-4000-8000-0000000000aa';
 
 runIntegrationSuite('NPD WIP chain regulatory invariants (migrations 430+)', () => {
@@ -45,6 +46,13 @@ runIntegrationSuite('NPD WIP chain regulatory invariants (migrations 430+)', () 
        on conflict (id) do update set name = excluded.name`,
       [orgId, tenantId],
     );
+    await pool.query(
+      `insert into public.sites
+         (id, org_id, site_code, name, is_default, is_active, timezone)
+       values ($1, $2, 'W3L9', 'W3 L9 Site', true, true, 'Europe/London')
+       on conflict (id) do nothing`,
+      [siteId, orgId],
+    );
     const roleId = '43090000-0000-4000-8000-0000000000bb';
     await pool.query(
       `insert into public.roles (id, org_id, slug, code, name, permissions, is_system, display_order)
@@ -71,6 +79,7 @@ runIntegrationSuite('NPD WIP chain regulatory invariants (migrations 430+)', () 
       await pool.query(`delete from public.wip_definition_ingredients where org_id = $1`, [orgId]).catch(() => undefined);
       await pool.query(`delete from public.wip_definitions where org_id = $1`, [orgId]).catch(() => undefined);
       await pool.query(`delete from public.items where org_id = $1 and item_code like 'W3L9-%'`, [orgId]).catch(() => undefined);
+      await pool.query(`delete from public.sites where id = $1`, [siteId]).catch(() => undefined);
       await pool.query(`delete from public.organizations where id = $1`, [orgId]).catch(() => undefined);
       await pool.query(`delete from public.tenants where id = $1`, [tenantId]).catch(() => undefined);
     }
@@ -164,11 +173,13 @@ runIntegrationSuite('NPD WIP chain regulatory invariants (migrations 430+)', () 
     expect(bomRows.rows[0]).toEqual({ wip_lines: '2', fg_lines: '3', fg_wip_qty: '2.000000' });
 
     await pool.query(
-      `insert into public.work_orders (id, org_id, wo_number, product_id, item_type_at_creation, active_bom_header_id, planned_quantity, uom)
+      `insert into public.work_orders
+         (id, org_id, site_id, wo_number, product_id, item_type_at_creation,
+          active_bom_header_id, planned_quantity, uom)
        values
-         ($1, $3, 'W3L9-WIP-WO', $4, 'intermediate', $6, 20.000, 'kg'),
-         ($2, $3, 'W3L9-FG-WO', $5, 'fg', $7, 10.000, 'kg')`,
-      [wipWo, fgWo, orgId, wip, fg, wipBom, fgBom],
+         ($1, $3, $8, 'W3L9-WIP-WO', $4, 'intermediate', $6, 20.000, 'kg'),
+         ($2, $3, $8, 'W3L9-FG-WO', $5, 'fg', $7, 10.000, 'kg')`,
+      [wipWo, fgWo, orgId, wip, fg, wipBom, fgBom, siteId],
     );
     await pool.query(
       `insert into public.wo_materials (id, org_id, wo_id, product_id, material_name, required_qty, uom, sequence, material_source)

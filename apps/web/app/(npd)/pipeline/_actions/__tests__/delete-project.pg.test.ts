@@ -17,6 +17,7 @@ if (!databaseUrl) {
 
 const tenantId = randomUUID();
 const orgId = randomUUID();
+const siteId = randomUUID();
 const userId = randomUUID();
 const roleId = randomUUID();
 const projectId = randomUUID();
@@ -69,6 +70,13 @@ describe('deleteProject gate approval preservation (real Postgres)', () => {
        values ($1, $2, 'Wave17 Delete Org', $3, 'fmcg')
        on conflict (id) do nothing`,
       [orgId, tenantId, `w17-del-${orgId.slice(0, 8)}`],
+    );
+    await ownerPool.query(
+      `insert into public.sites
+         (id, org_id, site_code, name, is_default, is_active, timezone)
+       values ($1, $2, 'W17-DEL', 'Wave17 Delete Site', true, true, 'Europe/London')
+       on conflict (id) do nothing`,
+      [siteId, orgId],
     );
     await ownerPool.query(
       `insert into public.roles (id, org_id, slug, code, name, permissions)
@@ -163,10 +171,11 @@ describe('deleteProject gate approval preservation (real Postgres)', () => {
     }
     await ownerPool.query(
       `insert into public.work_orders
-         (id, org_id, wo_number, product_id, item_type_at_creation, planned_quantity, uom, status, created_by, updated_by)
-       values ($1, $2, $3, $4, 'fg', 1.000, 'pcs', 'DRAFT', $5, $5)
+         (id, org_id, site_id, wo_number, product_id, item_type_at_creation,
+          planned_quantity, uom, status, created_by, updated_by)
+       values ($1, $2, $3, $4, $5, 'fg', 1.000, 'pcs', 'DRAFT', $6, $6)
        on conflict (id) do nothing`,
-      [linkedFgWoId, orgId, `W17-WO-${orgId.slice(0, 8)}`, linkedFgWoItemId, userId],
+      [linkedFgWoId, orgId, siteId, `W17-WO-${orgId.slice(0, 8)}`, linkedFgWoItemId, userId],
     );
     await ownerPool.query(
       `insert into public.gate_approvals
@@ -247,6 +256,7 @@ describe('deleteProject gate approval preservation (real Postgres)', () => {
     await ownerPool?.query('delete from public.role_permissions where role_id = $1', [roleId]).catch(() => undefined);
     await ownerPool?.query('delete from public.users where org_id = $1', [orgId]).catch(() => undefined);
     await ownerPool?.query('delete from public.roles where id = $1', [roleId]).catch(() => undefined);
+    await ownerPool?.query('delete from public.sites where id = $1', [siteId]).catch(() => undefined);
     await ownerPool?.query('delete from public.organizations where id = $1', [orgId]).catch(() => undefined);
     await ownerPool?.query('delete from public.tenants where id = $1', [tenantId]).catch(() => undefined);
     await appPool?.end();

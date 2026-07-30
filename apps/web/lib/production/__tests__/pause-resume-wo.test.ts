@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ProductionContext } from '../shared';
-import { resumeWo } from '../pause-resume-wo';
+import { pauseWo, resumeWo } from '../pause-resume-wo';
 
 vi.mock('../wo-state-machine', () => ({
   applyTransition: vi.fn(async () => ({
@@ -23,6 +23,8 @@ import { applyTransition } from '../wo-state-machine';
 
 const WO_ID = '33333333-3333-4333-8333-333333333333';
 const TX_ID = '55555555-5555-4555-8555-555555555555';
+const CATEGORY_ID = '66666666-6666-4666-8666-666666666666';
+const LINE_ID = '77777777-7777-4777-8777-777777777777';
 
 function makeCtx(clientQuery = vi.fn()): ProductionContext {
   return {
@@ -138,5 +140,33 @@ describe('resumeWo actualDurationMin validation (N-PRD-4)', () => {
     expect(result.data.downtimeEventId).toBe('dt-1');
     expect(result.data.durationMin).toBe(6);
     expect(clientQuery).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('pauseWo downtime site stamping', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('derives downtime_events.site_id from the source WO before insert', async () => {
+    const clientQuery = vi.fn(async (sql: string) => {
+      if (sql.toLowerCase().includes('insert into public.downtime_events')) {
+        return { rows: [{ id: 'dt-1' }], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+
+    const result = await pauseWo(makeCtx(clientQuery), {
+      woId: WO_ID,
+      transactionId: TX_ID,
+      reasonCategoryId: CATEGORY_ID,
+      lineId: LINE_ID,
+    });
+
+    expect(result.ok).toBe(true);
+    const insertSql = String(clientQuery.mock.calls[0]?.[0]).replace(/\s+/g, ' ').toLowerCase();
+    expect(insertSql).toContain('(org_id, site_id, line_id');
+    expect(insertSql).toContain('from public.work_orders wo');
+    expect(insertSql).toContain('coalesce(wo.site_id');
   });
 });

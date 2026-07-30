@@ -18,6 +18,7 @@ import {
 const run = databaseUrl ? describe : describe.skip;
 const tenantId = randomUUID();
 const orgId = randomUUID();
+const siteId = randomUUID();
 const userId = randomUUID();
 const roleId = randomUUID();
 const rawMaterialId = randomUUID();
@@ -30,9 +31,9 @@ async function makeWorkOrder(): Promise<string> {
   const woId = randomUUID();
   await owner.query(
     `insert into public.work_orders
-       (id, org_id, wo_number, product_id, item_type_at_creation, planned_quantity, uom, status)
-     values ($1, $2, $3, $4, 'fg', 100, 'kg', 'IN_PROGRESS')`,
-    [woId, orgId, `WAC-RESOLVE-${woId.slice(0, 8)}`, finishedGoodId],
+       (id, org_id, site_id, wo_number, product_id, item_type_at_creation, planned_quantity, uom, status)
+     values ($1, $2, $3, $4, $5, 'fg', 100, 'kg', 'IN_PROGRESS')`,
+    [woId, orgId, siteId, `WAC-RESOLVE-${woId.slice(0, 8)}`, finishedGoodId],
   );
   return woId;
 }
@@ -63,12 +64,13 @@ async function addOutput(woId: string, correctionOfId: string | null = null): Pr
   const id = randomUUID();
   await owner.query(
     `insert into public.wo_outputs
-       (id, org_id, transaction_id, wo_id, output_type, product_id, batch_number, qty_kg,
+       (id, org_id, site_id, transaction_id, wo_id, output_type, product_id, batch_number, qty_kg,
         uom, qa_status, correction_of_id, ext_jsonb, registered_by, created_by, updated_by)
-     values ($1, $2, $3, $4, 'primary', $5, $6, $7, 'kg', $8, $9, $10::jsonb, $11, $11, $11)`,
+     values ($1, $2, $3, $4, $5, 'primary', $6, $7, $8, 'kg', $9, $10, $11::jsonb, $12, $12, $12)`,
     [
       id,
       orgId,
+      siteId,
       randomUUID(),
       woId,
       finishedGoodId,
@@ -120,6 +122,12 @@ run('resolveOutputWacContribution correction history — real Postgres', () => {
       [orgId, tenantId, `output-wac-${orgId.slice(0, 8)}`],
     );
     await owner.query(
+      `insert into public.sites
+         (id, org_id, site_code, name, is_default, is_active, timezone)
+       values ($1, $2, 'WACR', 'Output WAC Resolve Site', true, true, 'Europe/London')`,
+      [siteId, orgId],
+    );
+    await owner.query(
       `insert into public.roles (id, org_id, slug, code, name, permissions)
        values ($1, $2, $3, $3, 'Output WAC Role', $4::jsonb)`,
       [roleId, orgId, `output-wac-${roleId.slice(0, 8)}`, JSON.stringify(['production.wo.cancel'])],
@@ -168,6 +176,7 @@ run('resolveOutputWacContribution correction history — real Postgres', () => {
     await owner?.query(`delete from public.users where org_id = $1`, [orgId]).catch(() => undefined);
     await owner?.query(`delete from public.role_permissions where role_id = $1`, [roleId]).catch(() => undefined);
     await owner?.query(`delete from public.roles where id = $1`, [roleId]).catch(() => undefined);
+    await owner?.query(`delete from public.sites where id = $1`, [siteId]).catch(() => undefined);
     await owner?.query(`delete from public.organizations where id = $1`, [orgId]).catch(() => undefined);
     await owner?.query(`delete from public.tenants where id = $1`, [tenantId]).catch(() => undefined);
     await app?.end();

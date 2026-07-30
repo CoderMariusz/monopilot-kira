@@ -23,11 +23,12 @@
  *                  — DEPENDENT demand (BOM-driven)
  *   - forecast:    demand_forecasts.qty (mig 302, base UoM) for iso_week >= the current
  *                  ISO week (the run horizon) — INDEPENDENT demand entered on
- *                  /planning/forecasts. Folded into the item's gross requirement; when an
+ *                  /planning/forecasts. Open SO demand consumes forecast in the same
+ *                  ISO-week bucket; only the unconsumed forecast is added. When an
  *                  item receives any forecast the persisted requirement is tagged
  *                  source_type='independent' and the run demand_source flips to 'forecast'.
- *   - sales orders: sales_order_lines remainder (canonical quantity_ordered − Σ shipped
- *                  box qty on non-cancelled shipments in shipped/delivered status) on
+ *   - sales orders: sales_order_lines unallocated remainder (canonical quantity_ordered
+ *                  − Σ shipped box qty − quantity_allocated) on
  *                  post-confirm SOs whose need-by date falls within the planning horizon
  *                  — INDEPENDENT demand (NN-PLAN-4). Wave-8: both quantity_ordered and
  *                  shipped box qty are canonical inventory/base units (no conversion into
@@ -39,8 +40,9 @@
  *   - PO supply:   purchase_order_lines remainder (qty − Σ grn_items.received_qty,
  *                  non-cancelled GRNs — same join shape as purchase-orders/_actions
  *                  fetchLines) on open POs (sent/confirmed/partially_received)
- *   - production:  schedule_outputs.expected_qty (mig 177, planning-owned) of RELEASED/IN_PROGRESS
- *                  WOs with disposition='to_stock' — schedulable WIP supply only (S11)
+ *   - production:  schedule_outputs.expected_qty (mig 177, planning-owned) of
+ *                  DRAFT/RELEASED/IN_PROGRESS WOs with disposition='to_stock'. Draft
+ *                  supply is included because draft WO materials already count as demand.
  *   - thresholds:  reorder_thresholds (mig 178) + suppliers.lead_time_days (mig 261)
  *
  * RBAC: reads gate on `scheduler.run.read` (the planning READ gate the dashboard
@@ -112,8 +114,8 @@ const PLANNING_READ_PERMISSION = 'scheduler.run.read';
 
 /** WO statuses whose unconsumed materials count as open dependent demand. */
 const OPEN_WO_DEMAND_STATUSES = ['DRAFT', 'RELEASED', 'IN_PROGRESS'];
-/** WO statuses whose schedule_outputs count as schedulable incoming supply (released WIP only). */
-const SCHEDULABLE_WO_SUPPLY_STATUSES = ['RELEASED', 'IN_PROGRESS'];
+/** WO statuses whose materials and schedule_outputs both participate in MRP. */
+const SCHEDULABLE_WO_SUPPLY_STATUSES = ['DRAFT', 'RELEASED', 'IN_PROGRESS'];
 /** PO statuses that represent committed open supply (draft POs are not yet committed). */
 const OPEN_PO_STATUSES = ['sent', 'confirmed', 'partially_received'];
 /**
@@ -323,7 +325,12 @@ export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
                    then $3::date
                    else coalesce(so.promised_ship_date, so.required_delivery_date, so.order_date)
                  end)::text as need_date,
-                sum(greatest(sol.quantity_ordered - coalesce(shipped.shipped_qty, 0), 0))::text as qty
+                sum(greatest(
+                  sol.quantity_ordered
+                  - coalesce(shipped.shipped_qty, 0)
+                  - coalesce(sol.quantity_allocated, 0),
+                  0
+                ))::text as qty
            from public.sales_order_lines sol
            join public.sales_orders so
              on so.id = sol.sales_order_id
@@ -419,6 +426,7 @@ export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
       );
 
       // 5) Planned production supply — schedule_outputs dated by WO start (in-horizon only).
+      // DRAFT is included symmetrically with the material-demand query above.
       const productionSupply = await c.query<MrpTimedQtyBucket>(
         `select so.product_id, so.uom,
                 coalesce(w.scheduled_start_time, w.planned_start_date, $2::timestamptz)::date::text as need_date,

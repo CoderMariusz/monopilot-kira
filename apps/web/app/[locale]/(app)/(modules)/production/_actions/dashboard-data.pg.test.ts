@@ -22,6 +22,7 @@ if (!databaseUrl) {
 
 const tenantId = randomUUID();
 const orgId = randomUUID();
+const siteId = randomUUID();
 const userId = randomUUID();
 const productId = randomUUID();
 const bomHeaderId = randomUUID();
@@ -48,6 +49,13 @@ describe('production dashboard WO list SQL (real Postgres)', () => {
       [orgId, tenantId, `fix3-dash-${orgId.slice(0, 8)}`],
     );
     await ownerPool.query(
+      `insert into public.sites
+         (id, org_id, site_code, name, is_default, is_active, timezone)
+       values ($1, $2, 'FIX3', 'FIX3 Dashboard Site', true, true, 'Europe/London')
+       on conflict (id) do nothing`,
+      [siteId, orgId],
+    );
+    await ownerPool.query(
       `insert into public.users (id, org_id, email, name)
        values ($1, $2, $3, 'FIX3 Dashboard User')
        on conflict (id) do nothing`,
@@ -67,16 +75,17 @@ describe('production dashboard WO list SQL (real Postgres)', () => {
     );
     await ownerPool.query(
       `insert into public.work_orders
-         (id, org_id, wo_number, product_id, item_type_at_creation, planned_quantity, uom, status, active_bom_header_id)
-       values ($1, $2, 'WO-FIX3-001', $3, 'fg', 50.000, 'kg', 'IN_PROGRESS', $4)
+         (id, org_id, site_id, wo_number, product_id, item_type_at_creation,
+          planned_quantity, uom, status, active_bom_header_id)
+       values ($1, $2, $3, 'WO-FIX3-001', $4, 'fg', 50.000, 'kg', 'IN_PROGRESS', $5)
        on conflict (id) do nothing`,
-      [woId, orgId, productId, bomHeaderId],
+      [woId, orgId, siteId, productId, bomHeaderId],
     );
     await ownerPool.query(
       `insert into public.wo_outputs
-         (org_id, wo_id, output_type, product_id, batch_number, qty_kg, uom)
-       values ($1, $2, 'primary', $3, 'WO-FIX3-001-OUT-001', 0.960, 'kg')`,
-      [orgId, woId, productId],
+         (org_id, site_id, wo_id, output_type, product_id, batch_number, qty_kg, uom)
+       values ($1, $2, $3, 'primary', $4, 'WO-FIX3-001-OUT-001', 0.960, 'kg')`,
+      [orgId, siteId, woId, productId],
     );
   });
 
@@ -86,6 +95,7 @@ describe('production dashboard WO list SQL (real Postgres)', () => {
     await ownerPool?.query('delete from public.bom_headers where org_id = $1', [orgId]).catch(() => undefined);
     await ownerPool?.query('delete from public.items where org_id = $1', [orgId]).catch(() => undefined);
     await ownerPool?.query('delete from public.users where id = $1', [userId]).catch(() => undefined);
+    await ownerPool?.query('delete from public.sites where id = $1', [siteId]).catch(() => undefined);
     await ownerPool?.query('delete from public.organizations where id = $1', [orgId]).catch(() => undefined);
     await ownerPool?.query('delete from public.tenants where id = $1', [tenantId]).catch(() => undefined);
     await appPool?.end();

@@ -86,11 +86,21 @@ export async function pauseWo(
        ),
        inserted as (
          insert into public.downtime_events
-           (org_id, line_id, wo_id, category_id, source, started_at, shift_id,
+           (org_id, site_id, line_id, wo_id, category_id, source, started_at, shift_id,
             operator_id, reason_notes, recorded_by, ext_jsonb)
-         select app.current_org_id(), $1, $2::uuid, $3::uuid, 'wo_pause', pg_catalog.now(),
+         select app.current_org_id(), coalesce(wo.site_id, wo_line.site_id, input_line.site_id),
+                $1, $2::uuid, $3::uuid, 'wo_pause', pg_catalog.now(),
                 $4, $5::uuid, $6, $5::uuid, jsonb_build_object('pauseTransactionId', $7)
-          where not exists (select 1 from existing)
+           from public.work_orders wo
+           left join public.production_lines wo_line
+             on wo_line.id = wo.production_line_id
+            and wo_line.org_id = wo.org_id
+           left join public.production_lines input_line
+             on input_line.id::text = $1::text
+            and input_line.org_id = wo.org_id
+          where wo.org_id = app.current_org_id()
+            and wo.id = $2::uuid
+            and not exists (select 1 from existing)
          returning id
        )
        select id from inserted

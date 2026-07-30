@@ -11,6 +11,7 @@ const runIntegrationSuite = process.env.DATABASE_URL ? describe : describe.skip;
 
 const tenantId = '08050000-0000-4000-8000-000000000001';
 const orgId = '08050000-0000-4000-8000-0000000000a0';
+const siteId = '08050000-0000-4000-8000-0000000000a5';
 
 async function seed(admin: pg.Pool) {
   await admin.query(
@@ -38,6 +39,13 @@ runIntegrationSuite('08-production downtime_events schema (migration 183)', () =
     admin = getOwnerConnection();
     await seed(admin);
     await cleanup(admin);
+    await admin.query(
+      `insert into public.sites
+         (id, org_id, site_code, name, is_default, is_active, timezone)
+       values ($1, $2, 'T005', 'Downtime Site', true, true, 'Europe/London')
+       on conflict (id) do nothing`,
+      [siteId, orgId],
+    );
     categoryId = randomUUID();
     await admin.query(
       `insert into public.downtime_categories (id, org_id, code, name, kind) values ($1, $2, 'BRK', 'Breakdown', 'unplanned')`,
@@ -47,6 +55,7 @@ runIntegrationSuite('08-production downtime_events schema (migration 183)', () =
 
   afterAll(async () => {
     await cleanup(admin);
+    await admin.query(`delete from public.sites where id = $1`, [siteId]).catch(() => undefined);
     await admin.query(`delete from public.organizations where id = $1`, [orgId]).catch(() => undefined);
     await admin.query(`delete from public.tenants where id = $1`, [tenantId]).catch(() => undefined);
     await admin.end();
@@ -63,9 +72,10 @@ runIntegrationSuite('08-production downtime_events schema (migration 183)', () =
   it('AC1 — duration_min computed by GENERATED column matches minute diff (V-PROD-06)', async () => {
     const id = randomUUID();
     await admin.query(
-      `insert into public.downtime_events (id, org_id, line_id, category_id, source, started_at, ended_at)
-       values ($1, $2, 'LINE-1', $3, 'manual', '2026-01-01T10:00:00Z', '2026-01-01T10:45:00Z')`,
-      [id, orgId, categoryId],
+      `insert into public.downtime_events
+         (id, org_id, site_id, line_id, category_id, source, started_at, ended_at)
+       values ($1, $2, $3, 'LINE-1', $4, 'manual', '2026-01-01T10:00:00Z', '2026-01-01T10:45:00Z')`,
+      [id, orgId, siteId, categoryId],
     );
     const { rows } = await admin.query<{ duration_min: number | null }>(
       `select duration_min from public.downtime_events where id = $1`,
@@ -77,9 +87,10 @@ runIntegrationSuite('08-production downtime_events schema (migration 183)', () =
   it('AC2 — attempting to SET duration_min is rejected (generated column)', async () => {
     await expect(
       admin.query(
-        `insert into public.downtime_events (org_id, line_id, category_id, source, started_at, ended_at, duration_min)
-         values ($1, 'LINE-2', $2, 'manual', now(), now(), 99)`,
-        [orgId, categoryId],
+        `insert into public.downtime_events
+           (org_id, site_id, line_id, category_id, source, started_at, ended_at, duration_min)
+         values ($1, $2, 'LINE-2', $3, 'manual', now(), now(), 99)`,
+        [orgId, siteId, categoryId],
       ),
     ).rejects.toThrow(/generated|cannot insert/i);
   });

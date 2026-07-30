@@ -15,6 +15,7 @@ const runPg = databaseUrl ? describe : describe.skip;
 
 const tenantId = randomUUID();
 const orgId = randomUUID();
+const siteId = randomUUID();
 const userId = randomUUID();
 const productId = randomUUID();
 const componentId = randomUUID();
@@ -42,6 +43,13 @@ runPg('evaluateClosedProductionStrict non-kg consumption (real Postgres)', () =>
       [orgId, tenantId, `prd-b-${orgId.slice(0, 8)}`],
     );
     await ownerPool.query(
+      `insert into public.sites
+         (id, org_id, site_code, name, is_default, is_active, timezone)
+       values ($1, $2, 'PRDB', 'PRD-B Strict Site', true, true, 'Europe/London')
+       on conflict (id) do nothing`,
+      [siteId, orgId],
+    );
+    await ownerPool.query(
       `insert into public.users (id, org_id, email, name)
        values ($1, $2, $3, 'PRD-B User')
        on conflict (id) do nothing`,
@@ -63,16 +71,17 @@ runPg('evaluateClosedProductionStrict non-kg consumption (real Postgres)', () =>
     );
     await ownerPool.query(
       `insert into public.work_orders
-         (id, org_id, wo_number, product_id, item_type_at_creation, planned_quantity, uom, status, active_bom_header_id)
-       values ($1, $2, 'WO-PRDB-001', $3, 'fg', 1, 'kg', 'in_progress', $4)
+         (id, org_id, site_id, wo_number, product_id, item_type_at_creation,
+          planned_quantity, uom, status, active_bom_header_id)
+       values ($1, $2, $3, 'WO-PRDB-001', $4, 'fg', 1, 'kg', 'in_progress', $5)
        on conflict (id) do nothing`,
-      [woId, orgId, productId, bomHeaderId],
+      [woId, orgId, siteId, productId, bomHeaderId],
     );
     await ownerPool.query(
       `insert into public.wo_outputs
-         (org_id, wo_id, output_type, product_id, batch_number, qty_kg, uom)
-       values ($1, $2, 'primary', $3, 'WO-PRDB-001-OUT-001', 1.000, 'kg')`,
-      [orgId, woId, productId],
+         (org_id, site_id, wo_id, output_type, product_id, batch_number, qty_kg, uom)
+       values ($1, $2, $3, 'primary', $4, 'WO-PRDB-001-OUT-001', 1.000, 'kg')`,
+      [orgId, siteId, woId, productId],
     );
     await ownerPool.query(
       `insert into public.wo_material_consumption
@@ -89,6 +98,7 @@ runPg('evaluateClosedProductionStrict non-kg consumption (real Postgres)', () =>
     await ownerPool?.query('delete from public.bom_headers where org_id = $1', [orgId]).catch(() => undefined);
     await ownerPool?.query('delete from public.items where org_id = $1', [orgId]).catch(() => undefined);
     await ownerPool?.query('delete from public.users where id = $1', [userId]).catch(() => undefined);
+    await ownerPool?.query('delete from public.sites where id = $1', [siteId]).catch(() => undefined);
     await ownerPool?.query('delete from public.organizations where id = $1', [orgId]).catch(() => undefined);
     await ownerPool?.query('delete from public.tenants where id = $1', [tenantId]).catch(() => undefined);
     await appPool?.end();

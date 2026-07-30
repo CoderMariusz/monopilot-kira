@@ -126,13 +126,14 @@ runPg('quality hold disposition safety — persistent monopilot_t3 state', () =>
     );
     await ownerPool.query(
       `insert into public.wo_outputs
-         (id, org_id, wo_id, transaction_id, output_type, product_id, lp_id,
+         (id, org_id, site_id, wo_id, transaction_id, output_type, product_id, lp_id,
           batch_number, qty_kg, uom, qa_status, created_by, updated_by)
-       values ($1, $2, $3, $4, 'primary', $5, $6, $7, $8::numeric, 'kg',
-               'PENDING', $9, $9)`,
+       values ($1, $2, $3, $4, $5, 'primary', $6, $7, $8, $9::numeric, 'kg',
+               'PENDING', $10, $10)`,
       [
         carrier.outputId,
         orgId,
+        siteId,
         carrier.woId,
         randomUUID(),
         itemId,

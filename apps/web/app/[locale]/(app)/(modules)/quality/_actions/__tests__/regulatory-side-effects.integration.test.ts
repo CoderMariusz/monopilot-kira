@@ -40,6 +40,7 @@ runIntegration('CCP auto-hold window — behavioral integration', () => {
   // Fixture IDs — all random so concurrent runs never collide.
   const tenantId = randomUUID();
   const orgId = randomUUID();
+  const siteId = randomUUID();
   const userId = randomUUID();
   const itemId = randomUUID();
   const warehouseId = randomUUID();
@@ -62,6 +63,13 @@ runIntegration('CCP auto-hold window — behavioral integration', () => {
        values ($1, $2, 'RegSideEffects Org A', $3, 'fmcg')
        on conflict (id) do nothing`,
       [orgId, tenantId, `reg-se-a-${orgId.slice(0, 8)}`],
+    );
+    await ownerPool.query(
+      `insert into public.sites
+         (id, org_id, site_code, name, is_default, is_active, timezone)
+       values ($1, $2, 'RSE-A', 'RegSideEffects Site A', true, true, 'Europe/London')
+       on conflict (id) do nothing`,
+      [siteId, orgId],
     );
     await ownerPool.query(
       `insert into public.users (id, org_id, email, name)
@@ -90,11 +98,11 @@ runIntegration('CCP auto-hold window — behavioral integration', () => {
     // Work order (minimal required columns)
     await ownerPool.query(
       `insert into public.work_orders
-         (id, org_id, wo_number, product_id, item_type_at_creation,
+         (id, org_id, site_id, wo_number, product_id, item_type_at_creation,
           planned_quantity, uom, status, created_by, updated_by)
-       values ($1, $2, $3, $4, 'fg', 100, 'kg', 'IN_PROGRESS', $5, $5)
+       values ($1, $2, $3, $4, $5, 'fg', 100, 'kg', 'IN_PROGRESS', $6, $6)
        on conflict (id) do nothing`,
-      [woId, orgId, `WO-RSE-${woId.slice(0, 8)}`, itemId, userId],
+      [woId, orgId, siteId, `WO-RSE-${woId.slice(0, 8)}`, itemId, userId],
     );
   });
 
@@ -110,6 +118,7 @@ runIntegration('CCP auto-hold window — behavioral integration', () => {
     await ownerPool?.query('delete from public.haccp_ccps where id = $1', [ccpId]).catch(() => undefined);
     await ownerPool?.query('delete from public.items where id = $1', [itemId]).catch(() => undefined);
     await ownerPool?.query('delete from public.users where id = $1', [userId]).catch(() => undefined);
+    await ownerPool?.query('delete from public.sites where id = $1', [siteId]).catch(() => undefined);
     await ownerPool?.query('delete from public.organizations where id = $1', [orgId]).catch(() => undefined);
     await ownerPool?.query('delete from public.tenants where id = $1', [tenantId]).catch(() => undefined);
     await appPool?.end();
@@ -157,11 +166,11 @@ runIntegration('CCP auto-hold window — behavioral integration', () => {
     );
     await ownerPool.query(
       `insert into public.wo_outputs
-         (id, org_id, wo_id, transaction_id, output_type, product_id, lp_id,
+         (id, org_id, site_id, wo_id, transaction_id, output_type, product_id, lp_id,
           batch_number, qty_kg, uom, registered_at, created_by, updated_by)
-       values ($1, $2, $3, $4, 'primary', $5, $6,
-               $7, 50, 'kg', (pg_catalog.now() + $8::interval), $9, $9)`,
-      [wooId, orgId, woId, randomUUID(), itemId, lpId,
+       values ($1, $2, $3, $4, $5, 'primary', $6, $7,
+               $8, 50, 'kg', (pg_catalog.now() + $9::interval), $10, $10)`,
+      [wooId, orgId, siteId, woId, randomUUID(), itemId, lpId,
        `BATCH-${wooId.slice(0, 8)}`, registeredAtOffset, userId],
     );
     return { lpId, wooId };

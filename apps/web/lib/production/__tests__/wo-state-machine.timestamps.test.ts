@@ -98,6 +98,20 @@ describe('wo_state_machine work_orders timestamps (S8)', () => {
     expect(woUpdate!.params).toContain('IN_PROGRESS');
   });
 
+  it('stamps appended wo_events with the source work order site', async () => {
+    const result = await applyTransition(makeCtx(), {
+      woId: WO_ID,
+      verb: 'start',
+      transactionId: TXN_ID,
+    });
+
+    expect(result.ok).toBe(true);
+    const eventInsert = queries.find((q) => normalize(q.sql).startsWith('insert into public.wo_events'));
+    expect(eventInsert).toBeDefined();
+    expect(normalize(eventInsert!.sql)).toContain('(org_id, site_id, wo_id');
+    expect(normalize(eventInsert!.sql)).toContain('select wo.site_id from public.work_orders wo');
+  });
+
   it('sets work_orders.completed_at in the same transaction as the complete transition', async () => {
     const client = makeClient();
     const originalQuery = client.query.bind(client);

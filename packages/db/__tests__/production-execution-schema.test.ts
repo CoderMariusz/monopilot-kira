@@ -19,6 +19,8 @@ const runIntegrationSuite = process.env.DATABASE_URL ? describe : describe.skip;
 const tenantId = '08010000-0000-4000-8000-000000000001';
 const orgAId = '08010000-0000-4000-8000-0000000000a0';
 const orgBId = '08010000-0000-4000-8000-0000000000b0';
+const orgASiteId = '08010000-0000-4000-8000-0000000000a5';
+const orgBSiteId = '08010000-0000-4000-8000-0000000000b5';
 
 const PRODUCTION_TABLES = [
   'wo_outputs',
@@ -34,15 +36,22 @@ async function seedOrgs(adminPool: pg.Pool) {
      on conflict (id) do nothing`,
     [tenantId],
   );
-  for (const [id, slug] of [
-    [orgAId, 't-prod-exec-a'],
-    [orgBId, 't-prod-exec-b'],
+  for (const [id, slug, siteId, siteCode] of [
+    [orgAId, 't-prod-exec-a', orgASiteId, 'TPEA'],
+    [orgBId, 't-prod-exec-b', orgBSiteId, 'TPEB'],
   ]) {
     await adminPool.query(
       `insert into public.organizations (id, tenant_id, name, industry_code, external_id)
        values ($1, $2, 'Prod Exec Org', 'fmcg', $3)
        on conflict (id) do nothing`,
       [id, tenantId, slug],
+    );
+    await adminPool.query(
+      `insert into public.sites
+         (id, org_id, site_code, name, is_default, is_active, timezone)
+       values ($1, $2, $3, 'Production Execution Site', true, true, 'Europe/London')
+       on conflict (id) do nothing`,
+      [siteId, id, siteCode],
     );
   }
 }
@@ -74,10 +83,12 @@ function bindOrg(adminPool: pg.Pool, appClient: pg.PoolClient, orgId: string): P
 
 async function makeWorkOrder(adminPool: pg.Pool, orgId: string, woNumber: string): Promise<string> {
   const id = randomUUID();
+  const siteId = orgId === orgAId ? orgASiteId : orgBSiteId;
   await adminPool.query(
-    `insert into public.work_orders (id, org_id, wo_number, product_id, item_type_at_creation, planned_quantity, uom)
-     values ($1, $2, $3, $4, 'fg', 100.000, 'kg')`,
-    [id, orgId, woNumber, randomUUID()],
+    `insert into public.work_orders
+       (id, org_id, site_id, wo_number, product_id, item_type_at_creation, planned_quantity, uom)
+     values ($1, $2, $3, $4, $5, 'fg', 100.000, 'kg')`,
+    [id, orgId, siteId, woNumber, randomUUID()],
   );
   return id;
 }
@@ -95,6 +106,9 @@ runIntegrationSuite('08-production execution-core schema (migrations 181 + 182)'
 
   afterAll(async () => {
     await cleanup(adminPool);
+    await adminPool
+      .query(`delete from public.sites where id = any($1::uuid[])`, [[orgASiteId, orgBSiteId]])
+      .catch(() => undefined);
     await adminPool
       .query(`delete from public.organizations where id = any($1::uuid[])`, [[orgAId, orgBId]])
       .catch(() => undefined);
@@ -142,6 +156,7 @@ runIntegrationSuite('08-production execution-core schema (migrations 181 + 182)'
     const insertOutput = (overrides: Record<string, unknown>) => {
       const base: Record<string, unknown> = {
         org_id: orgAId,
+        site_id: orgASiteId,
         transaction_id: randomUUID(),
         wo_id: woId,
         output_type: 'primary',
@@ -153,10 +168,11 @@ runIntegrationSuite('08-production execution-core schema (migrations 181 + 182)'
       const row = { ...base, ...overrides };
       return adminPool.query(
         `insert into public.wo_outputs
-           (org_id, transaction_id, wo_id, output_type, product_id, batch_number, qty_kg, registered_at)
-         values ($1, $2, $3, $4, $5, $6, $7, $8)`,
+           (org_id, site_id, transaction_id, wo_id, output_type, product_id, batch_number, qty_kg, registered_at)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
         [
           row.org_id,
+          row.site_id,
           row.transaction_id,
           row.wo_id,
           row.output_type,
@@ -280,9 +296,9 @@ runIntegrationSuite('08-production execution-core schema (migrations 181 + 182)'
       await bindOrg(adminPool, clientA, orgAId);
       await clientA.query(
         `insert into public.wo_outputs
-           (id, org_id, transaction_id, wo_id, output_type, product_id, batch_number, qty_kg)
-         values ($1, $2, $3, $4, 'primary', $5, 'ISO-A-BATCH', 12.000)`,
-        [outputAId, orgAId, randomUUID(), woAId, randomUUID()],
+           (id, org_id, site_id, transaction_id, wo_id, output_type, product_id, batch_number, qty_kg)
+         values ($1, $2, $3, $4, $5, 'primary', $6, 'ISO-A-BATCH', 12.000)`,
+        [outputAId, orgAId, orgASiteId, randomUUID(), woAId, randomUUID()],
       );
       await clientA.query('commit');
     } catch (e) {
@@ -353,16 +369,17 @@ runIntegrationSuite('08-production execution-core schema (migrations 181 + 182)'
     // append a lifecycle event
     await adminPool.query(
       `insert into public.wo_events
-         (org_id, wo_id, execution_id, transaction_id, event_type, from_status, to_status, version_at_event)
-       values ($1, $2, $3, $4, 'start', 'planned', 'in_progress', 0)`,
-      [orgAId, woId, execId, randomUUID()],
+         (org_id, site_id, wo_id, execution_id, transaction_id, event_type, from_status, to_status, version_at_event)
+       values ($1, $2, $3, $4, $5, 'start', 'planned', 'in_progress', 0)`,
+      [orgAId, orgASiteId, woId, execId, randomUUID()],
     );
     // illegal event_type rejected
     await expect(
       adminPool.query(
-        `insert into public.wo_events (org_id, wo_id, transaction_id, event_type, to_status)
-         values ($1, $2, $3, 'frobnicate', 'in_progress')`,
-        [orgAId, woId, randomUUID()],
+        `insert into public.wo_events
+           (org_id, site_id, wo_id, transaction_id, event_type, to_status)
+         values ($1, $2, $3, $4, 'frobnicate', 'in_progress')`,
+        [orgAId, orgASiteId, woId, randomUUID()],
       ),
     ).rejects.toThrow();
 

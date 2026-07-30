@@ -17,6 +17,7 @@ const migrationPath = resolve(packageRoot, 'migrations/489-items-item-code-immut
 const appUserPassword = process.env.APP_USER_PASSWORD ?? 'app-user-test-password';
 const tenantId = '48900000-0000-4000-8000-000000000001';
 const orgA = '48900000-0000-4000-8000-0000000000aa';
+const orgASite = '48900000-0000-4000-8000-0000000000a5';
 const orgARole = '48900000-0000-4000-8000-00000000a111';
 const orgAUser = '48900000-0000-4000-8000-00000000aaaa';
 const referencedItemId = '48900000-0000-4000-8000-00000000f001';
@@ -53,6 +54,13 @@ async function seedOrgData(adminPool: pg.Pool) {
     [orgA, tenantId],
   );
   await adminPool.query(
+    `insert into public.sites
+       (id, org_id, site_code, name, is_default, is_active, timezone)
+     values ($1, $2, 'T489', 'Item Code Immutable Site A', true, true, 'Europe/London')
+     on conflict (id) do nothing`,
+    [orgASite, orgA],
+  );
+  await adminPool.query(
     `insert into public.roles (id, org_id, code, name, permissions, is_system)
      values ($1, $2, 'item_code_immutable_user', 'Item Code Immutable Role A', '[]'::jsonb, true)
      on conflict (org_id, code) do nothing`,
@@ -79,10 +87,11 @@ async function seedOrgData(adminPool: pg.Pool) {
     [linkedDraftFgItemId, orgA],
   );
   await adminPool.query(
-    `insert into public.work_orders (id, org_id, wo_number, product_id, item_type_at_creation, planned_quantity, uom)
-     values ($1, $2, 'WO-T489-REF', $3, 'fg', 1, 'kg')
+    `insert into public.work_orders
+       (id, org_id, site_id, wo_number, product_id, item_type_at_creation, planned_quantity, uom)
+     values ($1, $2, $3, 'WO-T489-REF', $4, 'fg', 1, 'kg')
      on conflict (id) do nothing`,
-    [randomUUID(), orgA, woProductId],
+    [randomUUID(), orgA, orgASite, woProductId],
   );
 }
 
@@ -97,6 +106,7 @@ async function seedTrustedOrgContext(adminPool: pg.Pool, sessionToken: string, o
 
 async function cleanupRows(adminPool: pg.Pool) {
   await adminPool.query(`delete from public.work_orders where org_id = $1 and wo_number = 'WO-T489-REF'`, [orgA]);
+  await adminPool.query(`delete from public.sites where id = $1`, [orgASite]);
   await adminPool.query(`delete from public.fg_npd_ext where item_id = $1`, [linkedDraftFgItemId]);
   await adminPool.query(`delete from public.items where id in ($1, $2, $3)`, [referencedItemId, unreferencedItemId, linkedDraftFgItemId]);
   await adminPool.query(`delete from app.session_org_contexts where org_id = $1`, [orgA]);

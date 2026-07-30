@@ -235,9 +235,14 @@ export async function applyTransition(
     // (2) APPEND the immutable lifecycle event (append-only ledger).
     await client.query(
       `insert into public.wo_events
-         (org_id, wo_id, execution_id, transaction_id, event_type, from_status, to_status,
+         (org_id, site_id, wo_id, execution_id, transaction_id, event_type, from_status, to_status,
           version_at_event, reason, context_jsonb, actor_user_id)
-       values (app.current_org_id(), $1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, $8, $9::jsonb, $10::uuid)`,
+       values (
+         app.current_org_id(),
+         (select wo.site_id from public.work_orders wo
+           where wo.org_id = app.current_org_id() and wo.id = $1::uuid),
+         $1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, $8, $9::jsonb, $10::uuid
+       )`,
       [
         input.woId,
         exec.id,

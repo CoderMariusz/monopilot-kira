@@ -34,6 +34,7 @@ const run = databaseUrl ? describe : describe.skip;
 const appUserPassword = process.env.APP_USER_PASSWORD ?? 'app-user-test-password';
 const tenantId = randomUUID();
 const orgId = randomUUID();
+const siteId = randomUUID();
 const userId = randomUUID();
 // let: the seed_system_roles_on_org_insert trigger (post-185) auto-creates the
 // org's 'admin'-slug role on org insert — baseSeed adopts that row's id instead
@@ -89,6 +90,13 @@ async function baseSeed(): Promise<void> {
     `insert into public.organizations (id, tenant_id, name, industry_code)
      values ($1, $2, 'E1 IT Org', 'bakery') on conflict (id) do nothing`,
     [orgId, tenantId],
+  );
+  await owner.query(
+    `insert into public.sites
+       (id, org_id, site_code, name, is_default, is_active, timezone)
+     values ($1, $2, 'E1-IT', 'E1 Integration Site', true, true, 'Europe/London')
+     on conflict (id) do nothing`,
+    [siteId, orgId],
   );
   // org-admin role: the migration-185 backfill ran at migrate-time BEFORE this org
   // existed, so seed the production.* grants explicitly on this role.
@@ -189,10 +197,10 @@ async function seedWorkOrder(opts?: { withSegregation?: boolean }): Promise<{ wo
   const allergen = opts?.withSegregation ? `'{"segregation_required": true}'::jsonb` : 'null';
   await owner.query(
     `insert into public.work_orders
-       (id, org_id, wo_number, product_id, item_type_at_creation, planned_quantity, uom,
+       (id, org_id, site_id, wo_number, product_id, item_type_at_creation, planned_quantity, uom,
         status, active_bom_header_id, active_factory_spec_id, allergen_profile_snapshot)
-     values ($1, $2, $3, $4, 'fg', 100.000, 'kg', 'RELEASED', $5, $6, ${allergen})`,
-    [woId, orgId, `WO-${woId.slice(0, 8)}`, productId, bomHeaderId, factorySpecId],
+     values ($1, $2, $3, $4, $5, 'fg', 100.000, 'kg', 'RELEASED', $6, $7, ${allergen})`,
+    [woId, orgId, siteId, `WO-${woId.slice(0, 8)}`, productId, bomHeaderId, factorySpecId],
   );
   // One primary + one byproduct schedule_output (planning projection → wo_outputs).
   await owner.query(

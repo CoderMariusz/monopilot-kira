@@ -22,6 +22,8 @@ import {
 const run = databaseUrl ? describe : describe.skip;
 
 const seed = makeIdentitySeed();
+const siteAId = randomUUID();
+const siteBId = randomUUID();
 const projectAId = randomUUID();
 const projectBId = randomUUID();
 const missingPilotProjectId = randomUUID();
@@ -51,6 +53,15 @@ type ReadyFixture = {
 async function seedT100Fixtures(): Promise<void> {
   await seedIdentities(owner, seed);
   await owner.query(
+    `insert into public.sites
+       (id, org_id, site_code, name, is_default, is_active, timezone)
+     values
+       ($1, $2, 'T100-A', 'T-100 Site A', true, true, 'Europe/London'),
+       ($3, $4, 'T100-B', 'T-100 Site B', true, true, 'Europe/London')
+     on conflict (id) do nothing`,
+    [siteAId, seed.orgAId, siteBId, seed.orgBId],
+  );
+  await owner.query(
     `insert into public.role_permissions (role_id, permission)
      values
        ($1, 'npd.gate.advance'),
@@ -63,6 +74,7 @@ async function seedT100Fixtures(): Promise<void> {
 
   await seedLaunchReadyProject({
     orgId: seed.orgAId,
+    siteId: siteAId,
     userId: seed.userAId,
     projectId: projectAId,
     code: 'NPD-T100-A',
@@ -71,6 +83,7 @@ async function seedT100Fixtures(): Promise<void> {
   });
   await seedLaunchReadyProject({
     orgId: seed.orgBId,
+    siteId: siteBId,
     userId: seed.userBId,
     projectId: projectBId,
     code: 'NPD-T100-B',
@@ -79,6 +92,7 @@ async function seedT100Fixtures(): Promise<void> {
   });
   await seedLaunchReadyProject({
     orgId: seed.orgAId,
+    siteId: siteAId,
     userId: seed.userAId,
     projectId: missingPilotProjectId,
     code: 'NPD-T100-MP',
@@ -88,6 +102,7 @@ async function seedT100Fixtures(): Promise<void> {
   });
   await seedLaunchReadyProject({
     orgId: seed.orgAId,
+    siteId: siteAId,
     userId: seed.userAId,
     projectId: raceProjectId,
     code: 'NPD-T100-RACE',
@@ -98,6 +113,7 @@ async function seedT100Fixtures(): Promise<void> {
 
 async function seedLaunchReadyProject(input: {
   orgId: string;
+  siteId: string;
   userId: string;
   projectId: string;
   code: string;
@@ -157,9 +173,9 @@ async function seedLaunchReadyProject(input: {
   );
   if (!input.omitPilot) {
     await owner.query(
-      `insert into public.work_orders (id, org_id, created_by_user, app_version)
-       values ($1::uuid, $2::uuid, $3::uuid, 't-100-it')`,
-      [pilotWoId, input.orgId, input.userId],
+      `insert into public.work_orders (id, org_id, site_id, created_by_user, app_version)
+       values ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 't-100-it')`,
+      [pilotWoId, input.orgId, input.siteId, input.userId],
     );
   }
   await owner.query(
@@ -228,6 +244,7 @@ async function cleanup(): Promise<void> {
   ).catch(() => undefined);
   await owner.query(`delete from public.users where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]).catch(() => undefined);
   await owner.query(`delete from public.roles where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]).catch(() => undefined);
+  await owner.query(`delete from public.sites where id in ($1, $2)`, [siteAId, siteBId]).catch(() => undefined);
   await owner.query(`delete from public.organizations where id in ($1, $2)`, [seed.orgAId, seed.orgBId]).catch(() => undefined);
   await owner.query(`delete from public.tenants where id = $1`, [seed.tenantId]).catch(() => undefined);
 }

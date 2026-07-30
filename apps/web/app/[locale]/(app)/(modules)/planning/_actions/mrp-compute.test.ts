@@ -725,6 +725,117 @@ describe('computeMrpPhased — weekly buckets (C3b)', () => {
     expect(spike.severity).toBe('covered');
   });
 
+  it('consumes sales orders from forecast in the same ISO week', () => {
+    const week1 = buckets[0]!;
+    const { rows, bucketRows } = computeMrpPhased({
+      items: [FG_BREAD],
+      onHand: [{ product_id: FG_BREAD.id, uom: 'kg', on_hand: '1000', reserved: '0' }],
+      demand: [],
+      forecastDemand: [
+        { product_id: FG_BREAD.id, uom: 'kg', qty: '1000', iso_week: '2026-W24' },
+      ],
+      soDemand: [
+        { product_id: FG_BREAD.id, uom: 'kg', qty: '800', need_date: '2026-06-11' },
+      ],
+      poSupply: [],
+      productionSupply: [],
+      today,
+      horizonWeeks: 4,
+    });
+
+    expect(rows[0]).toMatchObject({
+      demand: '1000.000',
+      forecastDemand: '200.000',
+      soDemand: '800.000',
+      net: '0.000',
+      severity: 'covered',
+      suggestedAction: null,
+    });
+    expect(bucketRows.find((row) => row.bucketDate === week1)).toMatchObject({
+      grossRequirement: '1000.000',
+      forecastDemand: '200.000',
+      soDemand: '800.000',
+    });
+  });
+
+  it('leaves sales-order demand unchanged when the period has no forecast', () => {
+    const { rows } = computeMrpPhased({
+      items: [FG_BREAD],
+      onHand: [{ product_id: FG_BREAD.id, uom: 'kg', on_hand: '1000', reserved: '0' }],
+      demand: [],
+      soDemand: [
+        { product_id: FG_BREAD.id, uom: 'kg', qty: '800', need_date: '2026-06-11' },
+      ],
+      poSupply: [],
+      productionSupply: [],
+      today,
+      horizonWeeks: 4,
+    });
+
+    expect(rows[0]).toMatchObject({
+      demand: '800.000',
+      forecastDemand: '0.000',
+      soDemand: '800.000',
+      net: '200.000',
+      severity: 'covered',
+    });
+  });
+
+  it('counts draft WO materials and matching output on both sides', () => {
+    const { rows } = computeMrpPhased({
+      items: [FG_BREAD, RM_FLOUR],
+      onHand: [{ product_id: RM_FLOUR.id, uom: 'kg', on_hand: '200', reserved: '0' }],
+      demand: [
+        { product_id: RM_FLOUR.id, uom: 'kg', qty: '200', need_date: '2026-06-11' },
+      ],
+      soDemand: [
+        { product_id: FG_BREAD.id, uom: 'kg', qty: '100', need_date: '2026-06-11' },
+      ],
+      poSupply: [],
+      productionSupply: [
+        { product_id: FG_BREAD.id, uom: 'kg', qty: '100', need_date: '2026-06-11' },
+      ],
+      today,
+      horizonWeeks: 4,
+    });
+
+    expect(rows.find((row) => row.itemId === FG_BREAD.id)).toMatchObject({
+      demand: '100.000',
+      openSupply: '100.000',
+      net: '0.000',
+      severity: 'at_risk',
+      suggestedAction: null,
+    });
+    expect(rows.find((row) => row.itemId === RM_FLOUR.id)).toMatchObject({
+      demand: '200.000',
+      net: '0.000',
+      suggestedAction: null,
+    });
+  });
+
+  it('keeps the no-draft case unchanged and suggests the missing FG output', () => {
+    const { rows } = computeMrpPhased({
+      items: [FG_BREAD],
+      onHand: [],
+      demand: [],
+      soDemand: [
+        { product_id: FG_BREAD.id, uom: 'kg', qty: '100', need_date: '2026-06-11' },
+      ],
+      poSupply: [],
+      productionSupply: [],
+      today,
+      horizonWeeks: 4,
+    });
+
+    expect(rows[0]).toMatchObject({
+      demand: '100.000',
+      openSupply: '0.000',
+      net: '-100.000',
+      severity: 'shortage',
+    });
+    expect(rows[0]?.suggestedAction).toMatchObject({ type: 'make', qty: '100' });
+  });
+
   it('releases a planned order in week 3 minus supplier lead time', () => {
     const { bucketRows } = computeMrpPhased({
       items: [RM_FLOUR],

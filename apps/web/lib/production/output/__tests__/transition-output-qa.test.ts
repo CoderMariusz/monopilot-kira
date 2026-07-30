@@ -187,4 +187,28 @@ describe('production-owned WO hold QA transitions', () => {
     expect(calls.filter((sql) => sql.includes('and id = $1::uuid')).length).toBe(2);
     expect(calls.some((sql) => sql.includes("set qa_status = 'pending'"))).toBe(true);
   });
+
+  it.each([
+    ['scrap', 'FAILED'],
+    ['rework', 'PENDING'],
+  ] as const)('resolves every ON_HOLD output to %s disposition status %s', async (disposition, qaStatus) => {
+    const resolveClient: QueryClient = {
+      query: vi.fn(async () => ({ rows: [], rowCount: 2 })),
+    };
+
+    await restoreWoOutputsAfterWoHoldReleaseForContext(
+      { userId: USER_ID, orgId: ORG_ID, client: resolveClient },
+      {
+        woId: WO_ID,
+        snapshots: { [OUTPUT_ID]: 'PASSED' },
+        disposition,
+      },
+    );
+
+    expect(vi.mocked(resolveClient.query)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(resolveClient.query).mock.calls[0]?.[1]).toEqual([WO_ID, qaStatus, USER_ID]);
+    expect(normalize(String(vi.mocked(resolveClient.query).mock.calls[0]?.[0]))).toContain(
+      "and qa_status = 'on_hold'",
+    );
+  });
 });

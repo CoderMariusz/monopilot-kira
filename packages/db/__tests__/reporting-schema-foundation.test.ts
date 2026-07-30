@@ -20,6 +20,8 @@ const runIntegrationSuite = process.env.DATABASE_URL ? describe : describe.skip;
 const tenantId = '12010000-0000-4000-8000-000000000001';
 const orgAId = '12010000-0000-4000-8000-0000000000a0';
 const orgBId = '12010000-0000-4000-8000-0000000000b0';
+const orgASiteId = '12010000-0000-4000-8000-0000000000a5';
+const orgBSiteId = '12010000-0000-4000-8000-0000000000b5';
 
 const REPORTING_CONFIG_TABLES = [
   'report_definitions',
@@ -94,15 +96,22 @@ async function seedOrgs(adminPool: pg.Pool): Promise<void> {
      on conflict (id) do nothing`,
     [tenantId],
   );
-  for (const [id, slug] of [
-    [orgAId, 't-reporting-a'],
-    [orgBId, 't-reporting-b'],
+  for (const [id, slug, siteId, siteCode] of [
+    [orgAId, 't-reporting-a', orgASiteId, 'TRPTA'],
+    [orgBId, 't-reporting-b', orgBSiteId, 'TRPTB'],
   ]) {
     await adminPool.query(
       `insert into public.organizations (id, tenant_id, name, slug, industry_code)
        values ($1, $2, 'Reporting Org', $3, 'fmcg')
        on conflict (id) do nothing`,
       [id, tenantId, slug],
+    );
+    await adminPool.query(
+      `insert into public.sites
+         (id, org_id, site_code, name, is_default, is_active, timezone)
+       values ($1, $2, $3, 'Reporting Site', true, true, 'Europe/London')
+       on conflict (id) do nothing`,
+      [siteId, id, siteCode],
     );
   }
 }
@@ -161,6 +170,7 @@ function bindOrg(adminPool: pg.Pool, appClient: pg.PoolClient, orgId: string): P
 async function seedWoOutput(
   adminPool: pg.Pool,
   orgId: string,
+  siteId: string,
   userId: string,
   qtyKg: number,
 ): Promise<void> {
@@ -168,15 +178,17 @@ async function seedWoOutput(
   const woId = randomUUID();
   await adminPool.query(
     `insert into public.work_orders
-       (id, org_id, wo_number, product_id, item_type_at_creation, planned_quantity, uom, status, created_by)
-     values ($1, $2, $3, $4, 'fg', 1000, 'kg', 'DRAFT', $5)`,
-    [woId, orgId, `WO-${woId.slice(0, 8)}`, randomUUID(), userId],
+       (id, org_id, site_id, wo_number, product_id, item_type_at_creation,
+        planned_quantity, uom, status, created_by)
+     values ($1, $2, $3, $4, $5, 'fg', 1000, 'kg', 'DRAFT', $6)`,
+    [woId, orgId, siteId, `WO-${woId.slice(0, 8)}`, randomUUID(), userId],
   );
   await adminPool.query(
     `insert into public.wo_outputs
-       (org_id, transaction_id, wo_id, output_type, product_id, batch_number, qty_kg, registered_by, created_by)
-     values ($1, $2, $3, 'primary', $4, $5, $6, $7, $7)`,
-    [orgId, randomUUID(), woId, randomUUID(), `B-${randomUUID().slice(0, 8)}`, qtyKg, userId],
+       (org_id, site_id, transaction_id, wo_id, output_type, product_id,
+        batch_number, qty_kg, registered_by, created_by)
+     values ($1, $2, $3, $4, 'primary', $5, $6, $7, $8, $8)`,
+    [orgId, siteId, randomUUID(), woId, randomUUID(), `B-${randomUUID().slice(0, 8)}`, qtyKg, userId],
   );
 }
 
@@ -200,6 +212,9 @@ runIntegrationSuite('12-reporting schema foundation (migrations 213 + 214)', () 
       .query(`delete from public.role_permissions rp using public.roles r where rp.role_id = r.id and r.org_id = any($1::uuid[])`, [[orgAId, orgBId]])
       .catch(() => undefined);
     await adminPool.query(`delete from public.roles where org_id = any($1::uuid[])`, [[orgAId, orgBId]]).catch(() => undefined);
+    await adminPool
+      .query(`delete from public.sites where id = any($1::uuid[])`, [[orgASiteId, orgBSiteId]])
+      .catch(() => undefined);
     await adminPool.query(`delete from public.organizations where id = any($1::uuid[])`, [[orgAId, orgBId]]).catch(() => undefined);
     await adminPool.query(`delete from public.tenants where id = $1`, [tenantId]).catch(() => undefined);
     await appPool?.end();
@@ -369,8 +384,8 @@ runIntegrationSuite('12-reporting schema foundation (migrations 213 + 214)', () 
   });
 
   it('AC9 — fact MV builds FROM the canonical 08-production wo_outputs; REFRESH CONCURRENTLY works', async () => {
-    await seedWoOutput(adminPool, orgAId, userA, 950);
-    await seedWoOutput(adminPool, orgAId, userA, 50);
+    await seedWoOutput(adminPool, orgAId, orgASiteId, userA, 950);
+    await seedWoOutput(adminPool, orgAId, orgASiteId, userA, 50);
 
     // CONCURRENTLY requires a prior non-concurrent populate (clean DB MV starts unpopulated-but-scannable
     // after creation; refresh concurrently is the worker path under test).

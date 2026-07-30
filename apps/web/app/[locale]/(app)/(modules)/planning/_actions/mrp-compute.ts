@@ -8,19 +8,21 @@
  *   onHand     = Σ v_inventory_available.quantity        (status=available, qa released)
  *   reserved   = Σ v_inventory_available.reserved_qty    (same view; see caveat below)
  *   openSupply = Σ open-PO line remainder (qty − received via grn_items, non-cancelled GRNs)
- *              + Σ schedule_outputs.expected_qty of RELEASED/IN_PROGRESS WOs (disposition='to_stock')
+ *              + Σ schedule_outputs.expected_qty of DRAFT/RELEASED/IN_PROGRESS WOs
+ *                (disposition='to_stock')
  *   demand     = Σ greatest(wo_materials.required_qty − consumed_qty, 0)   (DEPENDENT)
  *                across WOs in DRAFT / RELEASED / IN_PROGRESS
- *              + Σ demand_forecasts.qty (mig 302, base UoM) for the run horizon  (INDEPENDENT)
- *                — independent/forecast demand entered on /planning/forecasts
- *              + Σ open sales_order_lines remainder (ordered − shipped box aggregate) on
+ *              + Σ demand_forecasts.qty remaining after same-week sales-order consumption
+ *                (mig 302, base UoM) for the run horizon (INDEPENDENT)
+ *              + Σ open sales_order_lines UNALLOCATED remainder
+ *                (ordered − shipped box aggregate − quantity_allocated) on
  *                post-confirm SOs whose need-by date falls within the planning horizon
  *                (INDEPENDENT — confirmed sales-order demand, NN-PLAN-4)
  *
  * Caveats (documented, read-first slice — nothing is persisted):
- *   - v_inventory_available filters available_qty > 0, so a fully-reserved LP is
- *     invisible: onHand and reserved are understated by the SAME amount — the net
- *     position is unaffected (onHand − reserved ≡ Σ available_qty).
+ *   - v_inventory_available filters available_qty > 0. SO demand is therefore
+ *     net of quantity_allocated: the allocated portion is represented by the
+ *     stock reservation, while only the unallocated remainder enters demand.
  *   - An IN_PROGRESS WO that already registered output counts its full
  *     expected_qty as open supply while the registered output is also on-hand as
  *     an LP — a transient over-statement until the WO completes (wo_outputs is
@@ -190,8 +192,9 @@ export type MrpRow = {
   supplyFromProduction: string;
   demand: string;
   /**
-   * Portion of `demand` coming from demand_forecasts (independent demand, mig 302).
-   * 3-dp base-UoM string; '0.000' when no forecast contributed. When > 0 the
+   * Unconsumed portion of `demand` coming from demand_forecasts (independent demand,
+   * mig 302). Sales orders consume forecast in the same weekly bucket. 3-dp
+   * base-UoM string; '0.000' when no forecast contributed. When > 0 the
    * persisted requirement row is tagged source_type='independent' (mig 178).
    */
   forecastDemand: string;
@@ -275,6 +278,17 @@ type Acc = {
   excludedUoms: Set<string>;
   touched: boolean;
 };
+
+/** Same-period forecast consumption: orders replace forecast instead of adding to it. */
+function consumeForecastWithSalesOrders(acc: {
+  demand: bigint;
+  forecastDemand: bigint;
+  soDemand: bigint;
+}): void {
+  const consumed = acc.forecastDemand < acc.soDemand ? acc.forecastDemand : acc.soDemand;
+  acc.demand -= consumed;
+  acc.forecastDemand -= consumed;
+}
 
 /** Pack factor as positive micro-units, or null when unusable (→ excluded). */
 function packFactorMicro(value: string | number | null): bigint | null {
@@ -423,6 +437,7 @@ export function computeMrp(input: {
     acc.demand += q;
     acc.soDemand += q;
   });
+  for (const acc of accById.values()) consumeForecastWithSalesOrders(acc);
   apply(input.poSupply, (acc, q) => {
     acc.openSupply += q;
     acc.poSupply += q;
@@ -747,16 +762,20 @@ export function computeMrpPhased(input: {
   const applyTimed = (
     buckets: MrpTimedQtyBucket[],
     assign: (acc: BucketAcc, baseQtyMicro: bigint) => void,
+    keepZero = false,
   ): void => {
     for (const bucket of buckets) {
       const item = itemById.get(bucket.product_id);
       if (!item) continue;
       const qty = toMicro(bucket.qty);
-      if (qty === 0n) continue;
-      const base = normalizeToBaseMicro(item, bucket.uom, qty);
       const idx = dateToBucketIndex(bucket.need_date, bucketDates);
       if (idx === OUT_OF_HORIZON_BUCKET_INDEX) continue;
       const acc = accFor(item.id, idx);
+      if (qty === 0n) {
+        if (keepZero) acc.touched = true;
+        continue;
+      }
+      const base = normalizeToBaseMicro(item, bucket.uom, qty);
       if (base === null) {
         acc.excludedUoms.add(bucket.uom);
         acc.touched = true;
@@ -795,7 +814,10 @@ export function computeMrpPhased(input: {
   applyTimed(input.soDemand ?? [], (acc, q) => {
     acc.demand += q;
     acc.soDemand += q;
-  });
+  }, true);
+  for (const perBucket of bucketAcc.values()) {
+    for (const acc of perBucket) consumeForecastWithSalesOrders(acc);
+  }
   applyTimed(input.poSupply, (acc, q) => {
     acc.scheduledReceipts += q;
     acc.poReceipts += q;
@@ -857,7 +879,7 @@ export function computeMrpPhased(input: {
         ? 'shortage'
         : isBelowMin
           ? 'below_min'
-          : acc.demand > 0n && rawPab < acc.demand
+          : acc.demand > 0n && pab < acc.demand
             ? 'at_risk'
             : 'covered';
       worst = worstSeverity(worst, severity);

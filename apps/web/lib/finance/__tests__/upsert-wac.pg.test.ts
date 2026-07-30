@@ -12,6 +12,7 @@ const runIntegrationSuite = databaseUrl ? describe : describe.skip;
 
 const tenantId = randomUUID();
 const orgId = randomUUID();
+const siteId = randomUUID();
 const userId = randomUUID();
 const itemId = randomUUID();
 const roleId = randomUUID();
@@ -34,6 +35,13 @@ runIntegrationSuite('upsertWac real Postgres behavior', () => {
        values ($1, $2, 'WAC Upsert Test Org', $3, 'fmcg')
        on conflict (id) do nothing`,
       [orgId, tenantId, `wac-${orgId.slice(0, 8)}`],
+    );
+    await ownerPool.query(
+      `insert into public.sites
+         (id, org_id, site_code, name, is_default, is_active, timezone)
+       values ($1, $2, 'WAC', 'WAC Upsert Test Site', true, true, 'Europe/London')
+       on conflict (id) do nothing`,
+      [siteId, orgId],
     );
     await ownerPool.query(
       `insert into public.roles (id, org_id, slug, code, name, permissions)
@@ -77,6 +85,7 @@ runIntegrationSuite('upsertWac real Postgres behavior', () => {
     await ownerPool?.query('delete from public.role_permissions where role_id = $1', [roleId]).catch(() => undefined);
     await ownerPool?.query('delete from public.roles where id = $1', [roleId]).catch(() => undefined);
     await ownerPool?.query('delete from public.users where id = $1', [userId]).catch(() => undefined);
+    await ownerPool?.query('delete from public.sites where id = $1', [siteId]).catch(() => undefined);
     await ownerPool?.query('delete from public.organizations where id = $1', [orgId]).catch(() => undefined);
     await ownerPool?.query('delete from public.tenants where id = $1', [tenantId]).catch(() => undefined);
     await appPool?.end();
@@ -239,10 +248,11 @@ runIntegrationSuite('upsertWac real Postgres behavior', () => {
     );
     await ownerPool.query(
       `insert into public.work_orders (
-         id, org_id, wo_number, product_id, item_type_at_creation, planned_quantity, uom, status, created_by, updated_by
+         id, org_id, site_id, wo_number, product_id, item_type_at_creation,
+         planned_quantity, uom, status, created_by, updated_by
        )
-       values ($1, $2, $3, $4, 'fg', 10.000, 'kg', 'COMPLETED', $5, $5)`,
-      [woId, orgId, `WO-WAC-${woId.slice(0, 8)}`, cancelItemId, userId],
+       values ($1, $2, $3, $4, $5, 'fg', 10.000, 'kg', 'COMPLETED', $6, $6)`,
+      [woId, orgId, siteId, `WO-WAC-${woId.slice(0, 8)}`, cancelItemId, userId],
     );
     await ownerPool.query(
       `insert into public.wo_executions (id, org_id, wo_id, status, version, completed_at, created_by, updated_by)
@@ -259,14 +269,15 @@ runIntegrationSuite('upsertWac real Postgres behavior', () => {
     );
     await ownerPool.query(
       `insert into public.wo_outputs (
-         id, org_id, transaction_id, wo_id, output_type, product_id, lp_id, batch_number, qty_kg, uom,
-         qa_status, ext_jsonb, registered_by, created_by, updated_by
+         id, org_id, site_id, transaction_id, wo_id, output_type, product_id, lp_id,
+         batch_number, qty_kg, uom, qa_status, ext_jsonb, registered_by, created_by, updated_by
        )
-       values ($1, $2, $3, $4, 'primary', $5, $6, $7, 10.000, 'kg',
-               'PENDING', $8::jsonb, $9, $9, $9)`,
+       values ($1, $2, $3, $4, $5, 'primary', $6, $7, $8, 10.000, 'kg',
+               'PENDING', $9::jsonb, $10, $10, $10)`,
       [
         outputId,
         orgId,
+        siteId,
         outputTxnId,
         woId,
         cancelItemId,
