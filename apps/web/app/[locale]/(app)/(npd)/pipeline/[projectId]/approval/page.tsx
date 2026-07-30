@@ -80,6 +80,16 @@ import {
 } from '../../../../../../(npd)/pipeline/_actions/shared';
 import { hasPermission as hasAuthPermission } from '../../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+// Stage department sections — the ONLY screen that exposes the `approval`-stage
+// required fields (Commercial: Article Number / Bar Codes / Cases Per Week W1-W3 /
+// Department Number / Launch Date) that the approval→handoff gate demands.
+// Same mount as brief/packaging/pilot.
+import { loadStageDeptSections } from '../../../../../../(npd)/pipeline/_actions/load-stage-dept-sections';
+import {
+  getCloseSectionLabel,
+  getStageDeptSectionLabels,
+} from '../../../../../../(npd)/pipeline/_lib/get-stage-dept-section-labels';
+import { StageDeptSections } from '../../../../../../(npd)/pipeline/_components/StageDeptSections';
 
 export const dynamic = 'force-dynamic';
 
@@ -751,6 +761,16 @@ async function readPageData(projectId: string, locale: string): Promise<LoaderRe
   }
 }
 
+async function readStageSections(projectId: string) {
+  if (!projectId) return null;
+  try {
+    return await loadStageDeptSections({ projectId, stage: 'approval' });
+  } catch (error) {
+    console.error('[approval] stage department sections read failed:', error);
+    return null;
+  }
+}
+
 /** Server Action adapter passed to the client (T-061 owns approveProjectGate). */
 async function approveAction(call: ApproveGateCall): Promise<ApproveGateOutcome> {
   'use server';
@@ -804,6 +824,12 @@ export default async function ApprovalPage(propsInput: unknown = {}) {
       ? createApprovalMountActions(locale, projectId)
       : null;
 
+  const [stageSections, closeSectionLabel, stageDeptLabels] = await Promise.all([
+    readStageSections(projectId),
+    getCloseSectionLabel(locale),
+    getStageDeptSectionLabels(locale),
+  ]);
+
   return (
     <>
       <ApprovalScreen
@@ -813,6 +839,17 @@ export default async function ApprovalPage(propsInput: unknown = {}) {
         canApprove={props.canApprove ?? loaded.canApprove}
         onApprove={approveAction}
       />
+      {stageSections ? (
+        <div className="mx-auto w-full max-w-4xl px-6">
+          <StageDeptSections
+            projectId={projectId}
+            stage="approval"
+            data={stageSections}
+            closeSectionLabel={closeSectionLabel}
+            labels={stageDeptLabels}
+          />
+        </div>
+      ) : null}
       {showMountSections && productCode && mountActions && complianceLabels && riskLabels && allergenLabels && complianceLoaded && riskLoaded && allergenLoaded ? (
         <div className="mx-auto w-full max-w-4xl space-y-8 px-6 pb-8">
           {validationLoaded?.visible ? (

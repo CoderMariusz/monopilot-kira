@@ -9,10 +9,11 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { getFaBomMock, getFormulationMock, withOrgContextMock } = vi.hoisted(() => ({
+const { getFaBomMock, getFormulationMock, withOrgContextMock, loadStageDeptSectionsMock } = vi.hoisted(() => ({
   getFaBomMock: vi.fn(),
   getFormulationMock: vi.fn(),
   withOrgContextMock: vi.fn(),
+  loadStageDeptSectionsMock: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({
@@ -70,6 +71,10 @@ vi.mock('../_components/stale-wip-definition-banner', () => ({
 
 vi.mock('../../../../../../(npd)/fa/[productCode]/_actions/get-fa-bom', () => ({
   getFaBom: (...args: unknown[]) => getFaBomMock(...args),
+}));
+
+vi.mock('../../../../../../(npd)/pipeline/_actions/load-stage-dept-sections', () => ({
+  loadStageDeptSections: (...args: unknown[]) => loadStageDeptSectionsMock(...args),
 }));
 
 import FormulationPage from './page';
@@ -168,6 +173,9 @@ async function renderPage(args: {
 beforeEach(() => {
   wireOrgContext();
   getFormulationMock.mockResolvedValue(READY_FORMULATION);
+  // Default: no stage catalog wired (the loader would throw against a live DB) —
+  // the page degrades to no sections, exactly like every other stage page.
+  loadStageDeptSectionsMock.mockRejectedValue(new Error('stage catalog not wired'));
 });
 
 afterEach(() => {
@@ -175,6 +183,7 @@ afterEach(() => {
   getFaBomMock.mockReset();
   getFormulationMock.mockReset();
   withOrgContextMock.mockReset();
+  loadStageDeptSectionsMock.mockReset();
 });
 
 describe('Formulation page — C2 read-only BOM preview', () => {
@@ -219,6 +228,52 @@ describe('Formulation page — C2 read-only BOM preview', () => {
     expect(getFaBomMock).toHaveBeenCalledWith('FG-NPD-001');
     expect(screen.getByTestId('fa-bom-table')).toBeInTheDocument();
     expect(screen.getByText('Salt')).toBeInTheDocument();
+  });
+
+  it('renders an editable input for every recipe-stage field the gate requires', async () => {
+    // The recipe→packaging gate blocks on these three; before this mount NO route
+    // in the whole project rendered them, so the blocker could never be cleared.
+    loadStageDeptSectionsMock.mockResolvedValue({
+      ok: true,
+      projectId: 'p1',
+      stage: 'recipe',
+      productCode: 'FG-NPD-001',
+      sections: [
+        {
+          key: 'planning',
+          label: 'Planning',
+          deptCode: 'Planning',
+          closeDeptValue: 'Planning',
+          readOnly: false,
+          allRequiredFilled: false,
+          fields: [
+            { code: 'primary_ingredient_pct', label: 'Primary Ingredient Pct', dataType: 'number', required: true, deptCode: 'Planning', displayOrder: 10, value: null, readOnly: false },
+            { code: 'date_code_per_week', label: 'Date Code Per Week', dataType: 'text', required: true, deptCode: 'Planning', displayOrder: 20, value: null, readOnly: false },
+          ],
+        },
+        {
+          key: 'technical',
+          label: 'Technical',
+          deptCode: 'Technical',
+          closeDeptValue: 'Technical',
+          readOnly: false,
+          allRequiredFilled: false,
+          fields: [
+            { code: 'shelf_life', label: 'Shelf Life', dataType: 'text', required: true, deptCode: 'Technical', displayOrder: 10, value: null, readOnly: false },
+          ],
+        },
+      ],
+    });
+
+    await renderPage({ state: 'ready', data: READY_DATA });
+
+    expect(loadStageDeptSectionsMock).toHaveBeenCalledWith({ projectId: 'p1', stage: 'recipe' });
+    expect(screen.getByTestId('stage-dept-sections-recipe')).toBeInTheDocument();
+    for (const code of ['primary_ingredient_pct', 'date_code_per_week', 'shelf_life']) {
+      const input = document.querySelector(`[name="${code}"]`);
+      expect(input, `no editable control for ${code}`).not.toBeNull();
+      expect((input as HTMLInputElement).readOnly).toBe(false);
+    }
   });
 
   it('production path: maps AuthError from getFaBom to permission_denied', async () => {

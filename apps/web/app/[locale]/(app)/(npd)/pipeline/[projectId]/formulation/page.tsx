@@ -65,6 +65,16 @@ import { loadAllergensConfig } from '../../../../(modules)/technical/allergens-c
 import { updateProjectBrief } from '../brief/_actions/update-project-brief';
 import { hasPermission } from '../../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+// Stage department sections — the ONLY screen that exposes the `recipe`-stage
+// required fields (Planning: Primary Ingredient Pct / Date Code Per Week,
+// Technical: Shelf Life) that the recipe→packaging gate demands. Same mount as
+// brief/packaging/pilot; the route segment is `formulation`, the stage is `recipe`.
+import { loadStageDeptSections } from '../../../../../../(npd)/pipeline/_actions/load-stage-dept-sections';
+import {
+  getCloseSectionLabel,
+  getStageDeptSectionLabels,
+} from '../../../../../../(npd)/pipeline/_lib/get-stage-dept-section-labels';
+import { StageDeptSections } from '../../../../../../(npd)/pipeline/_components/StageDeptSections';
 import { getStaleWipRefs } from '../_lib/get-stale-wip-refs';
 import { buildStaleWipBannerLabels } from '../_lib/build-stale-wip-banner-labels';
 import { StaleWipDefinitionBanner } from '../_components/stale-wip-definition-banner';
@@ -966,6 +976,16 @@ async function buildBomLabels(locale: string): Promise<FaBomTabLabels> {
   }
 }
 
+async function readStageSections(projectId: string) {
+  if (!projectId) return null;
+  try {
+    return await loadStageDeptSections({ projectId, stage: 'recipe' });
+  } catch (error) {
+    console.error('[formulation] stage department sections read failed:', error);
+    return null;
+  }
+}
+
 export default async function FormulationPage(propsInput: unknown = {}) {
   const props = (propsInput ?? {}) as FormulationPageProps;
   const { locale, projectId } = props.params
@@ -1004,7 +1024,12 @@ export default async function FormulationPage(propsInput: unknown = {}) {
       }
     : await readPageData(projectId, requestedVersionId);
 
-  const bomLabels = await buildBomLabels(locale);
+  const [bomLabels, stageSections, closeSectionLabel, stageDeptLabels] = await Promise.all([
+    buildBomLabels(locale),
+    readStageSections(projectId),
+    getCloseSectionLabel(locale),
+    getStageDeptSectionLabels(locale),
+  ]);
   const productCode = loaded.state === 'ready' ? (loaded.data?.productCode ?? null) : null;
   let bomState: FaBomTabState = 'empty';
   let bomLoad: FaBomResult = { state: 'empty' };
@@ -1081,6 +1106,15 @@ export default async function FormulationPage(propsInput: unknown = {}) {
         state={bomState}
         technicalBomHref={`/${locale}/technical/bom`}
       />
+      {stageSections ? (
+        <StageDeptSections
+          projectId={projectId}
+          stage="recipe"
+          data={stageSections}
+          closeSectionLabel={closeSectionLabel}
+          labels={stageDeptLabels}
+        />
+      ) : null}
     </>
   );
 }

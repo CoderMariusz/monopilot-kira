@@ -46,6 +46,16 @@ import { releaseToFactory } from './_actions/release-to-factory';
 import { generateProductionBom } from './_actions/generate-production-bom';
 import { updateBomYield } from './_actions/update-bom-yield';
 import { revertToNpd } from './_actions/revert-to-npd';
+// Stage department sections — handoff carries no required fields in the default
+// seed, but /settings/npd-fields lets an admin move any department to ANY of the 9
+// stages, and the handoff→launched gate calls requiredFieldsMissing('handoff').
+// Mounting here closes the last stage that had no screen for its own gate fields.
+import { loadStageDeptSections } from '../../../../../../(npd)/pipeline/_actions/load-stage-dept-sections';
+import {
+  getCloseSectionLabel,
+  getStageDeptSectionLabels,
+} from '../../../../../../(npd)/pipeline/_lib/get-stage-dept-section-labels';
+import { StageDeptSections } from '../../../../../../(npd)/pipeline/_components/StageDeptSections';
 
 export const dynamic = 'force-dynamic';
 
@@ -202,6 +212,16 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
   }
 }
 
+async function readStageSections(projectId: string) {
+  if (!projectId) return null;
+  try {
+    return await loadStageDeptSections({ projectId, stage: 'handoff' });
+  } catch (error) {
+    console.error('[handoff] stage department sections read failed:', error);
+    return null;
+  }
+}
+
 export default async function HandoffPage(propsInput: unknown = {}) {
   const props = (propsInput ?? {}) as HandoffPageProps;
   const { locale, projectId } = props.params
@@ -305,18 +325,37 @@ export default async function HandoffPage(propsInput: unknown = {}) {
     gate: `/${locale}/pipeline/${projectId}/gate`,
   };
 
+  const [stageSections, closeSectionLabel, stageDeptLabels] = await Promise.all([
+    readStageSections(projectId),
+    getCloseSectionLabel(locale),
+    getStageDeptSectionLabels(locale),
+  ]);
+
   return (
-    <HandoffScreen
-      state={loaded.state}
-      data={loaded.data}
-      labels={labels}
-      hrefs={hrefs}
-      onPromote={promoteAction}
-      onReleaseToFactory={releaseToFactoryAction}
-      onGenerate={generateAction}
-      onToggleChecklistItem={toggleChecklistAction}
-      onUpdateBomYield={updateYieldAction}
-      onRevertToNpd={revertToNpdAction}
-    />
+    <>
+      <HandoffScreen
+        state={loaded.state}
+        data={loaded.data}
+        labels={labels}
+        hrefs={hrefs}
+        onPromote={promoteAction}
+        onReleaseToFactory={releaseToFactoryAction}
+        onGenerate={generateAction}
+        onToggleChecklistItem={toggleChecklistAction}
+        onUpdateBomYield={updateYieldAction}
+        onRevertToNpd={revertToNpdAction}
+      />
+      {stageSections ? (
+        <div className="mx-auto w-full max-w-4xl px-6">
+          <StageDeptSections
+            projectId={projectId}
+            stage="handoff"
+            data={stageSections}
+            closeSectionLabel={closeSectionLabel}
+            labels={stageDeptLabels}
+          />
+        </div>
+      ) : null}
+    </>
   );
 }

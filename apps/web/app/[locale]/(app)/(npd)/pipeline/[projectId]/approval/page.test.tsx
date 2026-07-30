@@ -24,6 +24,7 @@ const {
   softDeleteDocMock,
   createRiskMock,
   updateRiskMock,
+  loadStageDeptSectionsMock,
 } = vi.hoisted(() => ({
   listDocsMock: vi.fn(),
   listRisksMock: vi.fn(),
@@ -36,6 +37,7 @@ const {
   softDeleteDocMock: vi.fn(),
   createRiskMock: vi.fn(),
   updateRiskMock: vi.fn(),
+  loadStageDeptSectionsMock: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({
@@ -166,6 +168,10 @@ vi.mock('../../../../../../(npd)/fa/[productCode]/risks/_actions/list-risks', ()
 
 vi.mock('../../../../../../(npd)/fa/[productCode]/risks/_actions/create-risk', () => ({
   createRisk: (...args: unknown[]) => createRiskMock(...args),
+}));
+
+vi.mock('../../../../../../(npd)/pipeline/_actions/load-stage-dept-sections', () => ({
+  loadStageDeptSections: (...args: unknown[]) => loadStageDeptSectionsMock(...args),
 }));
 
 vi.mock('../../../../../../(npd)/fa/[productCode]/risks/_actions/update-risk', () => ({
@@ -310,6 +316,9 @@ beforeEach(() => {
   createRiskMock.mockResolvedValue({ ok: true, riskId: 'risk-1' });
   updateRiskMock.mockResolvedValue({ ok: true, riskId: 'risk-1' });
   evaluateNpdValidationMock.mockResolvedValue(SAMPLE_VALIDATION_RULES);
+  // Default: no stage catalog wired (the loader would throw against a live DB) —
+  // the page degrades to no sections, exactly like every other stage page.
+  loadStageDeptSectionsMock.mockRejectedValue(new Error('stage catalog not wired'));
 });
 
 afterEach(() => {
@@ -325,6 +334,60 @@ afterEach(() => {
   createRiskMock.mockReset();
   updateRiskMock.mockReset();
   evaluateNpdValidationMock.mockReset();
+  loadStageDeptSectionsMock.mockReset();
+});
+
+describe('Approval page — stage department fields (approval→handoff gate)', () => {
+  const COMMERCIAL_FIELDS = [
+    'article_number',
+    'bar_codes',
+    'cases_per_week_w1',
+    'cases_per_week_w2',
+    'cases_per_week_w3',
+    'department_number',
+    'launch_date',
+  ] as const;
+
+  it('renders an editable input for every approval-stage field the gate requires', async () => {
+    // Last stop before the factory: the approval→handoff gate blocks on these
+    // seven. Before this mount NO route in the whole project rendered them.
+    loadStageDeptSectionsMock.mockResolvedValue({
+      ok: true,
+      projectId: PROJECT_ID,
+      stage: 'approval',
+      productCode: PRODUCT_CODE,
+      sections: [
+        {
+          key: 'commercial',
+          label: 'Commercial',
+          deptCode: 'Commercial',
+          closeDeptValue: 'Commercial',
+          readOnly: false,
+          allRequiredFilled: false,
+          fields: COMMERCIAL_FIELDS.map((code, index) => ({
+            code,
+            label: code,
+            dataType: code === 'launch_date' ? 'date' : code.startsWith('cases_') ? 'number' : 'text',
+            required: true,
+            deptCode: 'Commercial',
+            displayOrder: (index + 1) * 10,
+            value: null,
+            readOnly: false,
+          })),
+        },
+      ],
+    });
+
+    await renderPage({ state: 'ready', data: READY_DATA, productCode: PRODUCT_CODE, injectMountData: true });
+
+    expect(loadStageDeptSectionsMock).toHaveBeenCalledWith({ projectId: PROJECT_ID, stage: 'approval' });
+    expect(screen.getByTestId('stage-dept-sections-approval')).toBeInTheDocument();
+    for (const code of COMMERCIAL_FIELDS) {
+      const input = document.querySelector(`[name="${code}"]`);
+      expect(input, `no editable control for ${code}`).not.toBeNull();
+      expect((input as HTMLInputElement).readOnly).toBe(false);
+    }
+  });
 });
 
 describe('Approval page — C4 in-page compliance / risks / allergens mounts', () => {
