@@ -1,6 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { signEvent } from '@monopilot/e-sign';
 
-import { approveSpec, createSpec, getSpecDetail, listSpecs, submitSpecForReview, supersedeSpec } from '../spec-actions';
+import {
+  approveSpec,
+  createSpec,
+  deleteSpecParameter,
+  getSpecDetail,
+  listSpecs,
+  submitSpecForReview,
+  supersedeSpec,
+  updateSpecParameter,
+} from '../spec-actions';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -14,6 +24,7 @@ const USER_ID = '22222222-2222-4222-8222-222222222222';
 const SPEC_ID = '33333333-3333-4333-8333-333333333333';
 const NEXT_SPEC_ID = '44444444-4444-4444-8444-444444444444';
 const PRODUCT_ID = '55555555-5555-4555-8555-555555555555';
+const PARAMETER_ID = '66666666-6666-4666-8666-666666666666';
 
 let client: QueryClient;
 let permissions: Set<string>;
@@ -108,6 +119,10 @@ function makeClient(): QueryClient {
         };
       }
 
+      if (q.startsWith('select id::text, status') && q.includes('from public.quality_specifications')) {
+        return { rows: [{ id: SPEC_ID, status: currentSpecStatus }], rowCount: 1 };
+      }
+
       if (q.startsWith('select coalesce(max(version)')) {
         return { rows: [{ next_version: 3 }], rowCount: 1 };
       }
@@ -120,7 +135,29 @@ function makeClient(): QueryClient {
         return { rows: [], rowCount: 1 };
       }
 
+      if (q.startsWith('update public.quality_spec_parameters')) {
+        return {
+          rows: [{
+            id: PARAMETER_ID,
+            parameter_name: params[2],
+            parameter_type: params[3],
+            target_value: params[4],
+            min_value: params[5],
+            max_value: params[6],
+            unit: params[7],
+            is_critical: params[8],
+            sort_order: 1,
+          }],
+          rowCount: 1,
+        };
+      }
+
+      if (q.startsWith('delete from public.quality_spec_parameters')) {
+        return { rows: [], rowCount: 1 };
+      }
+
       if (q.startsWith('update public.quality_specifications') && q.includes("set status = 'under_review'")) {
+        currentSpecStatus = 'under_review';
         return { rows: [{ id: SPEC_ID, status: 'under_review' }], rowCount: 1 };
       }
 
@@ -129,6 +166,7 @@ function makeClient(): QueryClient {
       }
 
       if (q.startsWith('update public.quality_specifications') && q.includes("set status = 'active'")) {
+        currentSpecStatus = 'active';
         return { rows: [{ id: SPEC_ID, status: 'active', approval_signature_hash: 'c'.repeat(64) }], rowCount: 1 };
       }
 
@@ -195,6 +233,43 @@ describe('quality specification server actions', () => {
     expect(normalize(String(paramQuery?.[0]))).toContain('order by sort_order asc');
   });
 
+  it('[SFQ-141] rejects parameter edits outside draft and resequences after draft deletion', async () => {
+    currentSpecStatus = 'active';
+    const update = await updateSpecParameter({
+      specId: SPEC_ID,
+      parameterId: PARAMETER_ID,
+      parameterName: 'Temperature',
+      parameterType: 'measurement',
+      minValue: '2.0',
+      maxValue: '6.0',
+      unit: 'C',
+      isCritical: true,
+    });
+    const removeActive = await deleteSpecParameter({ specId: SPEC_ID, parameterId: PARAMETER_ID });
+
+    expect(update).toEqual({ ok: false, reason: 'error', message: 'spec must be draft' });
+    expect(removeActive).toEqual({ ok: false, reason: 'error', message: 'spec must be draft' });
+    expect(
+      vi.mocked(client.query).mock.calls.some(([sql]) =>
+        normalize(String(sql)).startsWith('delete from public.quality_spec_parameters'),
+      ),
+    ).toBe(false);
+
+    currentSpecStatus = 'draft';
+    const removeDraft = await deleteSpecParameter({ specId: SPEC_ID, parameterId: PARAMETER_ID });
+    expect(removeDraft).toEqual({
+      ok: true,
+      data: { specId: SPEC_ID, parameterId: PARAMETER_ID },
+    });
+    const resequence = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      normalize(String(sql)).startsWith('with ranked as'),
+    );
+    expect(normalize(String(resequence?.[0]))).toContain(
+      'row_number() over (order by sort_order asc, id asc) as rn',
+    );
+    expect(resequence?.[1]).toEqual([SPEC_ID]);
+  });
+
   it('submits, approves with e-sign evidence columns, and supersedes specs', async () => {
     currentSpecStatus = 'draft';
     await expect(submitSpecForReview({ specId: SPEC_ID })).resolves.toEqual({
@@ -213,5 +288,29 @@ describe('quality specification server actions', () => {
 
     const superseded = await supersedeSpec({ specId: SPEC_ID, bySpecId: NEXT_SPEC_ID });
     expect(superseded).toEqual({ ok: true, data: { id: SPEC_ID, status: 'superseded', supersededBy: NEXT_SPEC_ID } });
+  });
+
+  it('[SFQ-142] rejects direct draft approval and signs only under_review approval', async () => {
+    currentSpecStatus = 'draft';
+    const direct = await approveSpec({ specId: SPEC_ID, signature: { password: 'pw' } });
+
+    expect(direct).toEqual({
+      ok: false,
+      reason: 'error',
+      message: 'spec must be under_review before approval',
+    });
+    expect(signEvent).not.toHaveBeenCalled();
+
+    await expect(submitSpecForReview({ specId: SPEC_ID })).resolves.toEqual({
+      ok: true,
+      data: { id: SPEC_ID, status: 'under_review' },
+    });
+    const reviewed = await approveSpec({ specId: SPEC_ID, signature: { password: 'pw' } });
+    expect(reviewed).toMatchObject({ ok: true, data: { status: 'active' } });
+    expect(signEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ intent: 'qa.spec.approve' }),
+      { client },
+    );
+    expect(signEvent).toHaveBeenCalledTimes(1);
   });
 });

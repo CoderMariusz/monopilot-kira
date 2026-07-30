@@ -21,6 +21,7 @@ const ITEM_ID = '55555555-5555-4555-8555-555555555555';
 const LP_ID = '66666666-6666-4666-8666-666666666666';
 const GRN_ITEM_ID = '77777777-7777-4777-8777-777777777777';
 const SITE_ID = '88888888-8888-4888-8888-888888888888';
+const RANGE_ID = '99999999-9999-4999-8999-999999999999';
 
 type QueryCall = { sql: string; params: readonly unknown[] };
 type FakeClient = {
@@ -51,6 +52,37 @@ beforeEach(() => {
       status: 'open',
       heldLpIds: [LP_ID],
     },
+  });
+});
+
+describe('upsertProductTempRange', () => {
+  it('[SFQ-127] rejects min > max and upserts one range per org/item', async () => {
+    const { upsertProductTempRange } = await import('../cold-chain-actions');
+
+    await expect(
+      upsertProductTempRange({ itemId: ITEM_ID, minTempC: 8, maxTempC: 2, requiresCheck: true }),
+    ).resolves.toEqual({ ok: false, error: 'invalid_input' });
+    expect(callsContaining('insert into public.product_temp_ranges')).toHaveLength(0);
+
+    const first = await upsertProductTempRange({
+      itemId: ITEM_ID,
+      minTempC: 0,
+      maxTempC: 5,
+      requiresCheck: true,
+    });
+    const second = await upsertProductTempRange({
+      itemId: ITEM_ID,
+      minTempC: 1,
+      maxTempC: 4,
+      requiresCheck: false,
+    });
+
+    expect(first).toEqual({ ok: true, id: RANGE_ID });
+    expect(second).toEqual({ ok: true, id: RANGE_ID });
+    const upserts = callsContaining('insert into public.product_temp_ranges');
+    expect(upserts).toHaveLength(2);
+    expect(normalize(upserts[0]!.sql)).toContain('on conflict (org_id, item_id) do update');
+    expect(upserts[1]!.params).toEqual([ITEM_ID, 1, 4, false]);
   });
 });
 
@@ -253,6 +285,30 @@ describe('submitConditionCheck', () => {
       USER_ID,
     ]);
   });
+
+  it('[SFQ-128] honors disabled/unbounded checks and inclusive configured boundaries', async () => {
+    const { submitConditionCheck } = await import('../cold-chain-actions');
+    const cases: Array<{ rangeRow: RangeRow | null; measuredTempC: number; inRange: boolean }> = [
+      { rangeRow: null, measuredTempC: 99, inRange: true },
+      { rangeRow: { min_temp_c: '0', max_temp_c: '5', requires_check: false }, measuredTempC: 99, inRange: true },
+      { rangeRow: { min_temp_c: null, max_temp_c: null, requires_check: true }, measuredTempC: 99, inRange: true },
+      { rangeRow: { min_temp_c: '0', max_temp_c: '5', requires_check: true }, measuredTempC: 0, inRange: true },
+      { rangeRow: { min_temp_c: '0', max_temp_c: '5', requires_check: true }, measuredTempC: 5, inRange: true },
+      { rangeRow: { min_temp_c: '0', max_temp_c: '5', requires_check: true }, measuredTempC: 5.1, inRange: false },
+    ];
+
+    for (const testCase of cases) {
+      client = makeClient({ rangeRow: testCase.rangeRow });
+      const result = await submitConditionCheck({
+        grnItemId: GRN_ITEM_ID,
+        lpId: LP_ID,
+        itemId: ITEM_ID,
+        measuredTempC: testCase.measuredTempC,
+      });
+      expect(result).toMatchObject({ ok: true, inRange: testCase.inRange });
+    }
+    expect(_createHold).toHaveBeenCalledTimes(1);
+  });
 });
 
 function makeClient(options: {
@@ -284,6 +340,15 @@ function makeClient(options: {
             : [],
           rowCount: options.rangeRow ? 1 : 0,
         };
+      }
+
+      if (q.startsWith('insert into public.product_temp_ranges')) {
+        client.rangeRow = {
+          min_temp_c: String(params[1]),
+          max_temp_c: String(params[2]),
+          requires_check: Boolean(params[3]),
+        };
+        return { rows: [{ id: RANGE_ID }], rowCount: 1 };
       }
 
       if (q.includes('from public.quality_holds')) {

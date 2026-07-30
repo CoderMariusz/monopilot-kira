@@ -22,6 +22,7 @@ const LINE_ID = '99999999-9999-4999-8999-999999999999';
 
 let client: QueryClient;
 let permissions: Set<string>;
+let planStatus: 'draft' | 'active' = 'draft';
 
 vi.mock('@monopilot/e-sign', () => ({
   signEvent: vi.fn(async () => ({
@@ -111,7 +112,7 @@ function makeClient(): QueryClient {
       }
 
       if (q.startsWith('select id::text, name, version, status')) {
-        return { rows: [{ id: PLAN_ID, name: 'Cook HACCP', version: 2, status: 'draft' }], rowCount: 1 };
+        return { rows: [{ id: PLAN_ID, name: 'Cook HACCP', version: 2, status: planStatus }], rowCount: 1 };
       }
 
       if (q.startsWith('update public.haccp_plans') && q.includes("set status = 'superseded'")) {
@@ -119,6 +120,7 @@ function makeClient(): QueryClient {
       }
 
       if (q.startsWith('update public.haccp_plans') && q.includes("set status = 'active'")) {
+        planStatus = 'active';
         return {
           rows: [planRow({ id: PLAN_ID, status: 'active', approved_by: USER_ID, approved_at: '2026-06-23T10:00:00.000Z' })],
           rowCount: 1,
@@ -164,6 +166,7 @@ function makeClient(): QueryClient {
 describe('HACCP plan server actions', () => {
   beforeEach(() => {
     permissions = new Set(['quality.haccp.plan_edit']);
+    planStatus = 'draft';
     client = makeClient();
     vi.clearAllMocks();
   });
@@ -209,6 +212,31 @@ describe('HACCP plan server actions', () => {
 
     const activate = vi.mocked(client.query).mock.calls.find(([sql]) => normalize(String(sql)).includes("set status = 'active'"));
     expect(activate?.[1]).toEqual([PLAN_ID, USER_ID]);
+  });
+
+  it('[SFQ-137] creates draft v1 and rejects repeat activation of an active plan', async () => {
+    const created = await upsertHaccpPlan({
+      name: 'Cook HACCP',
+      scopeType: 'line',
+      scopeRef: 'Cook line 1',
+      siteId: SITE_ID,
+    });
+    expect(created).toMatchObject({ ok: true, data: { status: 'draft', version: 1 } });
+
+    const first = await activateHaccpPlan(PLAN_ID, { password: 'pin-1234' });
+    const second = await activateHaccpPlan(PLAN_ID, { password: 'pin-1234' });
+
+    expect(first.ok).toBe(true);
+    expect(second).toEqual({
+      ok: false,
+      reason: 'error',
+      message: "HACCP plan cannot be activated from status 'active'",
+    });
+    expect(signEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ intent: 'qa.haccp.plan.activate' }),
+      { client },
+    );
+    expect(signEvent).toHaveBeenCalledTimes(1);
   });
 
   it('newPlanVersion clones the active plan and linked CCPs with version+1', async () => {

@@ -190,7 +190,17 @@ export function SignoffPoliciesScreen({
                                     { value: '2', label: '2' },
                                   ]
                                 : [{ value: '1', label: '1' }]}
-                              onValueChange={(v) => setDraft({ ...draft, requiredSignatures: Number(v) })}
+                              onValueChange={(v) => {
+                                const requiredSignatures = Number(v);
+                                setDraft({
+                                  ...draft,
+                                  requiredSignatures,
+                                  allowSameUser:
+                                    requiredSignatures === 2 && draft.requiresDistinctSigners
+                                      ? false
+                                      : draft.allowSameUser,
+                                });
+                              }}
                             />
                           </TableCell>
                           <TableCell>
@@ -206,15 +216,23 @@ export function SignoffPoliciesScreen({
                               aria-label={labels.colSecondSigner}
                               value={draft.secondSignerRoleId ?? ''}
                               options={roleOptions}
-                              disabled={!draft.supportsTwoSignatures}
+                              disabled={!draft.supportsTwoSignatures || draft.requiredSignatures !== 2}
                               onValueChange={(v) => setDraft({ ...draft, secondSignerRoleId: v || null })}
                             />
                           </TableCell>
                           <TableCell>
                             <Switch
                               aria-label={labels.colSameUser}
-                              checked={draft.allowSameUser}
-                              disabled={!draft.supportsTwoSignatures}
+                              checked={
+                                draft.requiredSignatures === 2 && draft.requiresDistinctSigners
+                                  ? false
+                                  : draft.allowSameUser
+                              }
+                              disabled={
+                                !draft.supportsTwoSignatures
+                                || draft.requiredSignatures !== 2
+                                || draft.requiresDistinctSigners
+                              }
                               onCheckedChange={(next) => setDraft({ ...draft, allowSameUser: next })}
                             />
                           </TableCell>
@@ -241,7 +259,13 @@ export function SignoffPoliciesScreen({
                           <TableCell>{policy.requiredSignatures}</TableCell>
                           <TableCell>{roleName(policy.firstSignerRoleId)}</TableCell>
                           <TableCell>{roleName(policy.secondSignerRoleId)}</TableCell>
-                          <TableCell>{policy.allowSameUser ? labels.allowSameUserOn : labels.allowSameUserOff}</TableCell>
+                          <TableCell>
+                            {policy.requiredSignatures === 2 && policy.requiresDistinctSigners
+                              ? labels.allowSameUserOff
+                              : policy.allowSameUser
+                                ? labels.allowSameUserOn
+                                : labels.allowSameUserOff}
+                          </TableCell>
                           <TableCell>{policy.isActive ? labels.activeOn : labels.activeOff}</TableCell>
                           <TableCell>
                             <Button

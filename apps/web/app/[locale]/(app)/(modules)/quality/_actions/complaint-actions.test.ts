@@ -27,6 +27,10 @@ const ESIGN_REF = 'a'.repeat(64);
 
 let client: QueryClient;
 let permissions: Set<string>;
+let complaintSeverity: 'low' | 'medium' | 'high' | 'critical';
+let complaintStatus: 'open' | 'investigating' | 'converted' | 'closed';
+let complaintNcrId: string | null;
+let capaStatus: 'open' | 'closed';
 
 vi.mock('../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -130,9 +134,9 @@ function makeClient(): QueryClient {
               id: COMPLAINT_ID,
               complaint_number: 'CMP-0001',
               description: 'Customer reported damaged seal',
-              severity: 'high',
-              status: 'open',
-              ncr_id: null,
+              severity: complaintSeverity,
+              status: complaintStatus,
+              ncr_id: complaintNcrId,
               batch_ref: 'BATCH-1',
               lp_code: 'LP-0001',
               product_id: PRODUCT_ID,
@@ -161,6 +165,8 @@ function makeClient(): QueryClient {
       }
 
       if (q.startsWith('update public.complaints')) {
+        complaintNcrId = String(params[1]);
+        complaintStatus = 'converted';
         return { rows: [{ id: COMPLAINT_ID, ncr_id: params[1] }], rowCount: 1 };
       }
 
@@ -190,7 +196,7 @@ function makeClient(): QueryClient {
               source_id: COMPLAINT_ID,
               action_type: 'corrective',
               description: 'Retrain packing operators',
-              status: 'open',
+              status: capaStatus,
             },
           ],
           rowCount: 1,
@@ -198,6 +204,7 @@ function makeClient(): QueryClient {
       }
 
       if (q.startsWith('update public.capa_actions') && q.includes("set status = 'closed'")) {
+        capaStatus = 'closed';
         return {
           rows: [
             capaDbRow({
@@ -219,6 +226,10 @@ function makeClient(): QueryClient {
 describe('quality complaint and CAPA actions', () => {
   beforeEach(() => {
     permissions = new Set(['quality.dashboard.view', 'quality.ncr.create']);
+    complaintSeverity = 'high';
+    complaintStatus = 'open';
+    complaintNcrId = null;
+    capaStatus = 'open';
     client = makeClient();
     vi.clearAllMocks();
     vi.mocked(signEvent).mockResolvedValue({
@@ -291,6 +302,41 @@ describe('quality complaint and CAPA actions', () => {
     expect(normalize(String(update?.[0]))).toContain('ncr_id = $2::uuid');
   });
 
+  it('[SFQ-134] maps every complaint severity and reuses the linked NCR on retry', async () => {
+    const mappings = [
+      ['critical', 'critical'],
+      ['high', 'major'],
+      ['medium', 'minor'],
+      ['low', 'minor'],
+    ] as const;
+
+    for (const [source, expected] of mappings) {
+      complaintSeverity = source;
+      complaintStatus = 'open';
+      complaintNcrId = null;
+      client = makeClient();
+
+      const first = await convertComplaintToNcr(COMPLAINT_ID);
+      const retry = await convertComplaintToNcr(COMPLAINT_ID);
+
+      expect(first).toEqual({ ok: true, data: { complaintId: COMPLAINT_ID, ncrId: NCR_ID } });
+      expect(retry).toEqual(first);
+      const inserts = vi.mocked(client.query).mock.calls.filter(([sql]) =>
+        normalize(String(sql)).startsWith('insert into public.ncr_reports'),
+      );
+      expect(inserts).toHaveLength(1);
+      expect(inserts[0]?.[1]?.[0]).toBe(expected);
+    }
+
+    complaintStatus = 'converted';
+    complaintNcrId = null;
+    client = makeClient();
+    await expect(convertComplaintToNcr(COMPLAINT_ID)).resolves.toEqual({
+      ok: false,
+      error: 'already_converted',
+    });
+  });
+
   it('createCapaAction inserts an open capa_actions row', async () => {
     const result = await createCapaAction({
       sourceType: 'complaint',
@@ -318,7 +364,7 @@ describe('quality complaint and CAPA actions', () => {
     expect(normalize(String(insert?.[0]))).toContain("'open'");
   });
 
-  it('resolveCapaAction signs, closes the action, and rejects missing or invalid signatures', async () => {
+  it('[SFQ-136] signs CAPA closure and rejects missing or invalid signatures', async () => {
     const closed = await resolveCapaAction(CAPA_ID, { signature: { password: 'pw' } });
 
     expect(closed.ok).toBe(true);
@@ -348,12 +394,28 @@ describe('quality complaint and CAPA actions', () => {
     expect(normalize(String(update?.[0]))).toContain("status = 'closed'");
 
     vi.clearAllMocks();
+    capaStatus = 'open';
     const missing = await resolveCapaAction(CAPA_ID, { signature: { password: '' } });
     expect(missing).toEqual({ ok: false, error: 'esign_failed' });
     expect(signEvent).not.toHaveBeenCalled();
 
     vi.mocked(signEvent).mockRejectedValueOnce(new Error('bad pin'));
+    capaStatus = 'open';
     const invalid = await resolveCapaAction(CAPA_ID, { signature: { password: 'bad' } });
     expect(invalid).toEqual({ ok: false, error: 'esign_failed' });
+  });
+
+  it('[SFQ-136] rejects a second close without collecting a second signature', async () => {
+    const first = await resolveCapaAction(CAPA_ID, { signature: { password: 'pw' } });
+    const second = await resolveCapaAction(CAPA_ID, { signature: { password: 'pw' } });
+
+    expect(first.ok).toBe(true);
+    expect(second).toEqual({ ok: false, error: 'already_closed' });
+    expect(signEvent).toHaveBeenCalledTimes(1);
+    expect(
+      vi.mocked(client.query).mock.calls.filter(([sql]) =>
+        normalize(String(sql)).startsWith('update public.capa_actions'),
+      ),
+    ).toHaveLength(1);
   });
 });

@@ -41,6 +41,7 @@ const POLICY = {
   signoffType: 'production.changeover.allergen',
   requiredSignatures: 2,
   supportsTwoSignatures: true,
+  requiresDistinctSigners: false,
   firstSignerRoleId: null,
   secondSignerRoleId: null,
   allowSameUser: false,
@@ -48,6 +49,14 @@ const POLICY = {
 };
 
 const ROLES = [{ id: 'r1', label: 'QA Manager' }];
+
+const QUALITY_POLICY = {
+  ...POLICY,
+  id: 'p2',
+  signoffType: 'qa.ncr.close',
+  requiredSignatures: 1,
+  requiresDistinctSigners: true,
+};
 
 describe('SignoffPoliciesScreen', () => {
   it('parity: renders the policy table with the translated sign-off type label and threshold card', () => {
@@ -100,6 +109,30 @@ describe('SignoffPoliciesScreen', () => {
       />,
     );
     expect(screen.getByTestId('signoff-empty')).toHaveTextContent('No policies.');
+  });
+
+  it('enables two signatures for quality policies and locks same-user signing off', () => {
+    render(
+      <SignoffPoliciesScreen
+        policies={[QUALITY_POLICY]}
+        roles={ROLES}
+        canEdit
+        initialThresholdPct={0}
+        initialWarnPct={0}
+        labels={LABELS}
+        upsertSignoffPolicy={vi.fn()}
+        setOverconsumeThresholds={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('signoff-edit-qa.ncr.close'));
+    fireEvent.click(screen.getByRole('combobox', { name: 'Required signatures' }));
+    fireEvent.click(screen.getByRole('option', { name: '2' }));
+
+    expect(screen.getByRole('combobox', { name: 'Second signer role' })).toBeEnabled();
+    const sameUser = screen.getByRole('switch', { name: 'Allow same user' });
+    expect(sameUser).toBeDisabled();
+    expect(sameUser).toHaveAttribute('aria-checked', 'false');
   });
 
   it('saves BOTH over-consumption thresholds (warn + approve) through the action', async () => {

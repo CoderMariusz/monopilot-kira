@@ -181,6 +181,12 @@ function makeClient(): QueryClient {
         };
       }
       if (q.startsWith('update public.quality_inspections') && q.includes("set status = 'in_progress'")) {
+        if (
+          !['pending', 'in_progress'].includes(inspectionStatus) &&
+          q.includes("and status in ('pending', 'in_progress')")
+        ) {
+          return { rows: [], rowCount: 0 };
+        }
         return {
           rows: [
             {
@@ -916,6 +922,26 @@ describe('recordInspectionResult — PF-R16-01 spec bounds', () => {
     expect(JSON.parse(String(updateCall?.[1]?.[1]))).toEqual([
       { name: 'NIGHT-R16 pH', actual: '5.5000', pass: true },
     ]);
+  });
+
+  it('[SFQ-110] records against pending inspections and rejects terminal passed inspections', async () => {
+    inspectionStatus = 'pending';
+    const pending = await recordInspectionResult({
+      inspectionId: INSP_ID,
+      parameters: [{ name: 'NIGHT-R16 pH', actual: '5.0000', pass: true }],
+    });
+    expect(pending.ok).toBe(true);
+
+    inspectionStatus = 'passed';
+    const terminal = await recordInspectionResult({
+      inspectionId: INSP_ID,
+      parameters: [{ name: 'NIGHT-R16 pH', actual: '5.0000', pass: true }],
+    });
+    expect(terminal).toEqual({
+      ok: false,
+      reason: 'error',
+      message: 'quality inspection not found or not editable',
+    });
   });
 
   it('rejects save when a parameter name is not defined in the active spec (Z-02)', async () => {

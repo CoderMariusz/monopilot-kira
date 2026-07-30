@@ -17,27 +17,65 @@ const CCP_ID = '33333333-3333-4333-8333-333333333333';
 const LOG_ID = '44444444-4444-4444-8444-444444444444';
 const HOLD_ID = '55555555-5555-4555-8555-555555555555';
 const DEVIATION_ID = '77777777-7777-4777-8777-777777777777';
+const SECOND_ROLE_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+
+const eSignState = vi.hoisted(() => ({
+  requiredSignatures: 1,
+  currentUserId: '22222222-2222-4222-8222-222222222222',
+  storedSignature: null as null | {
+    signature_id: string;
+    signer_user_id: string;
+    signer_display_name: string;
+    subject_hash: string;
+    created_at: string;
+  },
+}));
 
 let client: QueryClient;
 let permissions: Set<string>;
 let deviationStatus: 'open' | 'resolved' = 'open';
 let lastResolvedDisposition: string | null = null;
 
-vi.mock('@monopilot/e-sign', () => ({
-  signEvent: vi.fn(async (input: { intent: string }) => ({
-    signatureId: '88888888-8888-4888-8888-888888888888',
-    signerUserId: USER_ID,
-    intent: input.intent,
-    subjectHash: 'd'.repeat(64),
-    signedAt: '2026-06-23T10:00:00.000Z',
-    auditEventId: 306,
-    nonce: 'nonce-ccp-deviation',
-  })),
-}));
+vi.mock('@monopilot/e-sign', () => {
+  class ESignPolicyError extends Error {
+    code: string;
+    constructor(code: string, message?: string) {
+      super(message ?? code);
+      this.code = code;
+    }
+  }
+
+  return {
+    ESignPolicyError,
+    ESignSoDError: class ESignSoDError extends Error {},
+    hashESignSubject: vi.fn(() => 'd'.repeat(64)),
+    readSignoffPolicy: vi.fn(async () => ({
+      signoffType: 'qa.haccp.ccp.deviation',
+      requiredSignatures: eSignState.requiredSignatures,
+      firstSignerRoleId: null,
+      secondSignerRoleId: eSignState.requiredSignatures === 2 ? SECOND_ROLE_ID : null,
+      allowSameUser: false,
+    })),
+    signEvent: vi.fn(async (input: { intent: string; signerUserId: string }, options?: { policyMode?: string }) => {
+      if (eSignState.requiredSignatures === 2 && (options?.policyMode ?? 'single') === 'single') {
+        throw new ESignPolicyError('second_signature_required');
+      }
+      return {
+        signatureId: '88888888-8888-4888-8888-888888888888',
+        signerUserId: input.signerUserId,
+        intent: input.intent,
+        subjectHash: 'd'.repeat(64),
+        signedAt: '2026-06-23T10:00:00.000Z',
+        auditEventId: 306,
+        nonce: 'nonce-ccp-deviation',
+      };
+    }),
+  };
+});
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
-    action({ userId: USER_ID, orgId: ORG_ID, client }),
+    action({ userId: eSignState.currentUserId, orgId: ORG_ID, client }),
   ),
 }));
 
@@ -56,6 +94,21 @@ function makeClient(): QueryClient {
         return { rows: allowed ? [{ ok: true }] : [], rowCount: allowed ? 1 : 0 };
       }
 
+      if (q.includes('from public.e_sign_log es')) {
+        return {
+          rows: eSignState.storedSignature ? [eSignState.storedSignature] : [],
+          rowCount: eSignState.storedSignature ? 1 : 0,
+        };
+      }
+
+      if (q.includes('from public.users') && q.includes('as display_name')) {
+        return { rows: [{ display_name: 'Quality Lead Anna' }], rowCount: 1 };
+      }
+
+      if (q.includes('from public.roles')) {
+        return { rows: [{ display_name: 'Production Manager' }], rowCount: 1 };
+      }
+
       if (q.includes('from public.ccp_deviations d') && q.includes('for update')) {
         if (deviationStatus === 'resolved') {
           return {
@@ -68,6 +121,10 @@ function makeClient(): QueryClient {
                 monitoring_log_id: LOG_ID,
                 measured_value: '69.9999',
                 hold_id: HOLD_ID,
+                opened_by: USER_ID,
+                action_taken: eSignState.storedSignature ? 'Recooked batch to target temperature' : null,
+                disposition: eSignState.storedSignature ? 'corrected' : null,
+                esign_ref: eSignState.storedSignature?.signature_id ?? null,
               },
             ],
             rowCount: 1,
@@ -83,6 +140,10 @@ function makeClient(): QueryClient {
               monitoring_log_id: LOG_ID,
               measured_value: '69.9999',
               hold_id: HOLD_ID,
+              opened_by: USER_ID,
+              action_taken: eSignState.storedSignature ? 'Recooked batch to target temperature' : null,
+              disposition: eSignState.storedSignature ? 'corrected' : null,
+              esign_ref: eSignState.storedSignature?.signature_id ?? null,
             },
           ],
           rowCount: 1,
@@ -93,6 +154,10 @@ function makeClient(): QueryClient {
         deviationStatus = 'resolved';
         lastResolvedDisposition = String(params[2] ?? null);
         return { rows: [], rowCount: 1 };
+      }
+
+      if (q.startsWith('update public.ccp_deviations') && q.includes('and esign_ref is null')) {
+        return { rows: [{ id: DEVIATION_ID }], rowCount: 1 };
       }
 
       if (q.startsWith('select d.id::text') && q.includes('from public.ccp_deviations d')) {
@@ -136,6 +201,9 @@ describe('resolveCcpDeviation', () => {
     permissions = new Set(['quality.ccp.deviation_override']);
     deviationStatus = 'open';
     lastResolvedDisposition = null;
+    eSignState.requiredSignatures = 1;
+    eSignState.currentUserId = USER_ID;
+    eSignState.storedSignature = null;
     vi.clearAllMocks();
   });
 
@@ -157,7 +225,7 @@ describe('resolveCcpDeviation', () => {
         intent: 'qa.haccp.ccp.deviation',
         subject: expect.objectContaining({ disposition: 'corrected' }),
       }),
-      { client },
+      expect.objectContaining({ client }),
     );
 
     const calls = vi.mocked(client.query).mock.calls;
@@ -178,6 +246,64 @@ describe('resolveCcpDeviation', () => {
         normalize(String(sql)).startsWith('insert into public.quality_holds'),
     );
     expect(holdUpdate).toBeUndefined();
+  });
+
+  it('keeps the deviation open after the first signature when policy requires two', async () => {
+    eSignState.requiredSignatures = 2;
+
+    const result = await resolveCcpDeviation(DEVIATION_ID, {
+      actionTaken: 'Recooked batch to target temperature',
+      disposition: 'corrected',
+      signature: { password: 'pin-1234' },
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        id: DEVIATION_ID,
+        status: 'open',
+        pendingSignoff: {
+          state: 'pending_second_signature',
+        },
+      },
+    });
+    expect(deviationStatus).toBe('open');
+  });
+
+  it('rejects the first signer in the second slot and resolves for a different signer', async () => {
+    eSignState.requiredSignatures = 2;
+    eSignState.storedSignature = {
+      signature_id: '99999999-9999-4999-8999-999999999999',
+      signer_user_id: USER_ID,
+      signer_display_name: 'Quality Lead Anna',
+      subject_hash: 'd'.repeat(64),
+      created_at: '2026-07-30T10:00:00.000Z',
+    };
+    const input = {
+      actionTaken: 'Recooked batch to target temperature',
+      disposition: 'corrected' as const,
+      signature: { password: 'secret' },
+    };
+
+    const sameSigner = await resolveCcpDeviation(DEVIATION_ID, input);
+    expect(sameSigner).toEqual({
+      ok: false,
+      reason: 'error',
+      message: 'Second signature must be provided by a different user',
+    });
+    expect(signEvent).not.toHaveBeenCalled();
+
+    vi.clearAllMocks();
+    eSignState.currentUserId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const otherSigner = await resolveCcpDeviation(DEVIATION_ID, input);
+    expect(otherSigner).toMatchObject({
+      ok: true,
+      data: { id: DEVIATION_ID, status: 'resolved' },
+    });
+    expect(signEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ signerUserId: eSignState.currentUserId }),
+      expect.objectContaining({ policyMode: 'dual-secondary' }),
+    );
   });
 
   it('rejects double-resolve on an already resolved deviation', async () => {

@@ -153,7 +153,7 @@ describe('signoff-actions Server Action', () => {
     'qa.hold.release',
     'qa.ncr.close',
     'qa.haccp.ccp.deviation',
-  ])('rejects an unsatisfiable two-signature policy for %s without writing', async (signoffType) => {
+  ])('persists a two-signature policy for %s with distinct signers', async (signoffType) => {
     const { upsertSignoffPolicy } = await loadActions();
 
     const result = await upsertSignoffPolicy({
@@ -165,30 +165,30 @@ describe('signoff-actions Server Action', () => {
       isActive: true,
     });
 
-    expect(result).toEqual({
-      ok: false,
-      error: 'invalid_input',
-      message: 'This sign-off flow supports exactly one signature.',
-    });
-    expect(indexOfCall('insert into public.signoff_policies')).toBe(-1);
-    expect(indexOfCall('insert into public.audit_log')).toBe(-1);
+    expect(result.ok).toBe(true);
+    const upsert = callContaining('insert into public.signoff_policies');
+    expect(upsert.params).toEqual([ORG_ID, signoffType, 2, null, null, false, true]);
+    expect(indexOfCall('insert into public.audit_log')).toBeGreaterThan(indexOfCall('insert into public.signoff_policies'));
   });
 
-  it('normalizes unused second-signer settings for a supported one-signature quality policy', async () => {
+  it('rejects allowSameUser for a two-signature quality policy before writing', async () => {
     const { upsertSignoffPolicy } = await loadActions();
 
     const result = await upsertSignoffPolicy({
       signoffType: 'qa.ncr.close',
-      requiredSignatures: 1,
+      requiredSignatures: 2,
       firstSignerRoleId: null,
       secondSignerRoleId: ROLE_ID,
-      allowSameUser: false,
+      allowSameUser: true,
       isActive: true,
     });
 
-    expect(result.ok).toBe(true);
-    const upsert = callContaining('insert into public.signoff_policies');
-    expect(upsert.params).toEqual([ORG_ID, 'qa.ncr.close', 1, null, null, true, true]);
+    expect(result).toEqual({
+      ok: false,
+      error: 'invalid_input',
+      message: 'This sign-off flow requires two distinct signers.',
+    });
+    expect(indexOfCall('insert into public.signoff_policies')).toBe(-1);
   });
 
   it('listSignoffPolicies returns policies + roles when ready', async () => {

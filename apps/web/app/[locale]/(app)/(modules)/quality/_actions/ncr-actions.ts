@@ -200,11 +200,16 @@ async function resolveNcrLinkedProductId(
         and woo.org_id = app.current_org_id()
         and woo.id = $2::uuid
      union all
-     select g.product_id::text as product_id
-       from public.grns g
+     -- A GRN is a receipt *header*; products live on its lines (grn_items) and one
+     -- receipt may cover several. Only auto-derive when the receipt is unambiguous:
+     -- the caller throws ncr_product_reference_mismatch against this value, so an
+     -- arbitrary pick from a multi-product GRN would reject valid NCRs.
+     select min(gi.product_id::text) as product_id
+       from public.grn_items gi
       where $1::text = 'grn'
-        and g.org_id = app.current_org_id()
-        and g.id = $2::uuid
+        and gi.org_id = app.current_org_id()
+        and gi.grn_id = $2::uuid
+     having count(distinct gi.product_id) = 1
       limit 1`,
     [referenceType, referenceId],
   );

@@ -1,13 +1,17 @@
 'use server';
 
-import type pg from 'pg';
-import { signEvent } from '@monopilot/e-sign';
+import {
+  ESignPolicyError,
+  type ESignPolicyErrorCode,
+} from '@monopilot/e-sign';
 import { z } from 'zod';
 
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 
 import type { CcpDeviationDisposition } from './ccp-deviation-types';
+import { collectQualitySignoff, readPendingQualitySignoff } from './quality-signoff';
+import type { PendingQualitySignoff } from './quality-signoff-types';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -17,7 +21,9 @@ type QueryClient = {
 };
 
 type QualityContext = { userId: string; orgId: string; client: QueryClient };
-type ActionFailure = { ok: false; reason: 'forbidden' | 'error'; message?: string };
+type ActionFailure =
+  | { ok: false; reason: 'forbidden' | 'error'; message?: string }
+  | { ok: false; reason: 'policy'; code: ESignPolicyErrorCode; message?: string };
 type ActionResult<T> = { ok: true; data: T } | ActionFailure;
 
 type DeviationStatus = 'open' | 'resolved';
@@ -46,6 +52,7 @@ type CcpDeviationRow = {
   closedAt: string | null;
   closedBy: string | null;
   eSignRef: string | null;
+  pendingSignoff: PendingQualitySignoff | null;
 };
 
 const uuidSchema = z.string().uuid();
@@ -126,6 +133,7 @@ function mapDeviationRow(row: CcpDeviationDbRow): CcpDeviationRow {
     closedAt: toIso(row.closed_at),
     closedBy: row.closed_by_display,
     eSignRef: row.esign_ref,
+    pendingSignoff: null,
   };
 }
 
@@ -172,7 +180,19 @@ async function selectDeviationRows(ctx: QualityContext, status?: DeviationStatus
     order by d.opened_at desc`,
     [status ?? null, id ?? null],
   );
-  return rows.map(mapDeviationRow);
+  return Promise.all(
+    rows.map(async (row) => {
+      const mapped = mapDeviationRow(row);
+      if (row.status === 'open' && row.esign_ref) {
+        mapped.pendingSignoff = await readPendingQualitySignoff(
+          ctx.client,
+          'qa.haccp.ccp.deviation',
+          { signatureId: row.esign_ref },
+        );
+      }
+      return mapped;
+    }),
+  );
 }
 
 export async function listCcpDeviations(input: { status?: DeviationStatus } = {}): Promise<ActionResult<CcpDeviationRow[]>> {
@@ -217,6 +237,10 @@ export async function resolveCcpDeviation(
         monitoring_log_id: string | null;
         measured_value: string | null;
         hold_id: string | null;
+        opened_by: string;
+        action_taken: string | null;
+        disposition: CcpDeviationDisposition | null;
+        esign_ref: string | null;
       }>(
         `select
            d.id::text,
@@ -225,7 +249,11 @@ export async function resolveCcpDeviation(
            c.ccp_code,
            d.monitoring_log_id::text,
            d.measured_value::text,
-           d.hold_id::text
+           d.hold_id::text,
+           d.opened_by::text,
+           d.action_taken,
+           d.disposition,
+           d.esign_ref
          from public.ccp_deviations d
          join public.haccp_ccps c on c.id = d.ccp_id and c.org_id = d.org_id
         where d.org_id = app.current_org_id()
@@ -237,23 +265,62 @@ export async function resolveCcpDeviation(
       if (!deviation) throw new Error('CCP deviation not found');
       if (deviation.status === 'resolved') throw new Error('CCP deviation is already resolved');
 
-      const receipt = await signEvent(
-        {
-          signerUserId: ctx.userId,
-          pin: parsed.signature.password,
-          intent: 'qa.haccp.ccp.deviation',
-          subject: {
-            deviationId: parsed.id,
-            ccpId: deviation.ccp_id,
-            ccpCode: deviation.ccp_code,
-            monitoringLogId: deviation.monitoring_log_id,
-            measuredValue: deviation.measured_value,
-            disposition: parsed.disposition,
-          },
-          reason: 'CCP deviation resolution',
+      if (
+        deviation.esign_ref
+        && (!deviation.action_taken || !deviation.disposition)
+      ) {
+        throw new Error('CCP deviation has an incomplete pending resolution-signature state');
+      }
+      if (
+        deviation.esign_ref
+        && (
+          deviation.action_taken !== parsed.actionTaken
+          || deviation.disposition !== parsed.disposition
+        )
+      ) {
+        throw new Error('The pending CCP deviation decision cannot be changed');
+      }
+      const actionTaken = deviation.action_taken ?? parsed.actionTaken;
+      const disposition = deviation.disposition ?? parsed.disposition;
+      const signoff = await collectQualitySignoff({
+        client: ctx.client,
+        signerUserId: ctx.userId,
+        pin: parsed.signature.password,
+        intent: 'qa.haccp.ccp.deviation',
+        subject: {
+          deviationId: parsed.id,
+          ccpId: deviation.ccp_id,
+          ccpCode: deviation.ccp_code,
+          monitoringLogId: deviation.monitoring_log_id,
+          measuredValue: deviation.measured_value,
+          disposition,
         },
-        { client: ctx.client as unknown as pg.PoolClient },
-      );
+        reason: 'CCP deviation resolution',
+        pending: deviation.esign_ref
+          ? { signatureId: deviation.esign_ref }
+          : undefined,
+      });
+
+      if (!signoff.complete) {
+        const pending = await ctx.client.query<{ id: string }>(
+          `update public.ccp_deviations
+              set action_taken = $2,
+                  disposition = $3,
+                  esign_ref = $4
+            where org_id = app.current_org_id()
+              and id = $1::uuid
+              and status = 'open'
+              and esign_ref is null
+            returning id::text`,
+          [parsed.id, actionTaken, disposition, signoff.receipt.signatureId],
+        );
+        if (!pending.rows[0]) throw new Error('CCP deviation pending resolution update did not return a row');
+        const rows = await selectDeviationRows(ctx, undefined, parsed.id);
+        const row = rows[0];
+        if (!row) throw new Error('CCP deviation pending resolution update did not return a row');
+        return { ok: true, data: { ...row, pendingSignoff: signoff.pendingSignoff } };
+      }
+      const receipt = signoff.receipt;
 
       await ctx.client.query(
         `update public.ccp_deviations
@@ -266,7 +333,7 @@ export async function resolveCcpDeviation(
           where org_id = app.current_org_id()
             and id = $1::uuid
             and status = 'open'`,
-        [parsed.id, parsed.actionTaken, parsed.disposition, ctx.userId, receipt.signatureId],
+        [parsed.id, actionTaken, disposition, ctx.userId, receipt.signatureId],
       );
 
       // Linked holds are NOT auto-released or dispositioned here — operators manage
@@ -278,6 +345,9 @@ export async function resolveCcpDeviation(
       return { ok: true, data: row };
     });
   } catch (err) {
+    if (err instanceof ESignPolicyError) {
+      return { ok: false, reason: 'policy', code: err.code, message: err.message };
+    }
     return { ok: false, reason: 'error', message: err instanceof Error ? err.message : String(err) };
   }
 }

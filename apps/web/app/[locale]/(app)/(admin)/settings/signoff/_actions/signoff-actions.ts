@@ -54,6 +54,7 @@ export type SignoffPolicy = {
   signoffType: string;
   requiredSignatures: number;
   supportsTwoSignatures: boolean;
+  requiresDistinctSigners: boolean;
   firstSignerRoleId: string | null;
   secondSignerRoleId: string | null;
   allowSameUser: boolean;
@@ -86,7 +87,7 @@ const upsertSchema = z
   })
   .strict();
 
-const SINGLE_SIGNATURE_ONLY_TYPES = new Set([
+const DISTINCT_SIGNER_TYPES = new Set([
   'qa.hold.release',
   'qa.ncr.close',
   'qa.haccp.ccp.deviation',
@@ -130,7 +131,8 @@ function toPolicy(row: PolicyRow): SignoffPolicy {
     id: row.id,
     signoffType: row.signoff_type,
     requiredSignatures: Number(row.required_signatures),
-    supportsTwoSignatures: !SINGLE_SIGNATURE_ONLY_TYPES.has(row.signoff_type),
+    supportsTwoSignatures: true,
+    requiresDistinctSigners: DISTINCT_SIGNER_TYPES.has(row.signoff_type),
     firstSignerRoleId: row.first_signer_role_id,
     secondSignerRoleId: row.second_signer_role_id,
     allowSameUser: Boolean(row.allow_same_user),
@@ -183,17 +185,19 @@ export async function upsertSignoffPolicy(rawInput: UpsertSignoffPolicyInput): P
   if (!parsed.success) {
     return { ok: false, error: 'invalid_input' };
   }
-  const singleSignatureOnly = SINGLE_SIGNATURE_ONLY_TYPES.has(parsed.data.signoffType);
-  if (singleSignatureOnly && parsed.data.requiredSignatures !== 1) {
+  const requiresDistinctSigners = DISTINCT_SIGNER_TYPES.has(parsed.data.signoffType);
+  if (
+    requiresDistinctSigners
+    && parsed.data.requiredSignatures === 2
+    && parsed.data.allowSameUser
+  ) {
     return {
       ok: false,
       error: 'invalid_input',
-      message: 'This sign-off flow supports exactly one signature.',
+      message: 'This sign-off flow requires two distinct signers.',
     };
   }
-  const input = singleSignatureOnly
-    ? { ...parsed.data, secondSignerRoleId: null, allowSameUser: true }
-    : parsed.data;
+  const input = parsed.data;
 
   try {
     return await withOrgContext<UpsertSignoffPolicyResult>(async (ctx): Promise<UpsertSignoffPolicyResult> => {
