@@ -54,14 +54,16 @@ export async function startUpgrade(rawInput: StartUpgradeInput): Promise<StartUp
       await requirePermission({ client, userId, orgId, permission: 'settings.org.update' });
 
       const org = await client.query<OrganizationRow>(
-        `select id, region, region_cluster, onboarding_completed_at
+        `select id, region, onboarding_completed_at
            from public.organizations
           where id = app.current_org_id()
           limit 1`,
       );
       const orgRow = org.rows[0];
       if (input.targetRegion && orgRow?.onboarding_completed_at) {
-        const currentRegion = orgRow.region ?? orgRow.region_cluster;
+        // organizations has `region`; `region_cluster` never existed, so the
+        // old `?? orgRow.region_cluster` fallback could never have run anyway.
+        const currentRegion = orgRow.region;
         if (currentRegion && currentRegion.toLowerCase() !== input.targetRegion.toLowerCase()) {
           return {
             ok: false,

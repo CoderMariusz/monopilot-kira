@@ -160,10 +160,18 @@ export async function addColumn(rawInput: AddColumnInput): Promise<AddColumnResu
         // superadmin approval is captured in a separate approver UI/flow that
         // updates the queued row. We never run DDL from this action.
         await client.query(
+          // filename + checksum are NOT NULL with no default: the table doubles
+          // as the migration-runner journal, and the runner's columns apply to
+          // queue rows too. Synthesise them here (filename is UNIQUE, so the
+          // uuid suffix keeps repeat promotions from colliding) rather than
+          // relaxing constraints the runner relies on.
           `insert into public.schema_migrations
              (org_id, table_code, column_code, action, tier_before, tier_after,
-              migration_script, approved_by, approved_at, status, result_notes)
-           values ($1::uuid, $2, $3, $4, null, $5, $6, $7::uuid, $8::timestamptz, $9, $10)`,
+              migration_script, approved_by, approved_at, status, result_notes,
+              filename, checksum)
+           values ($1::uuid, $2, $3, $4, null, $5, $6, $7::uuid, $8::timestamptz, $9, $10,
+                   'queue/' || $2 || '.' || $3 || '.' || gen_random_uuid()::text || '.json',
+                   encode(sha256(convert_to($6, 'UTF8')), 'hex'))`,
           [
             orgId,
             input.tableCode,
@@ -250,9 +258,15 @@ export async function addColumn(rawInput: AddColumnInput): Promise<AddColumnResu
       );
 
       await client.query(
+        // Same NOT NULL pair as the L1 queue above — this journal row is on the
+        // L2/L3/L4 path, i.e. EVERY non-L1 column add, so it broke the wizard
+        // just as completely.
         `insert into public.schema_migrations
-           (org_id, table_code, column_code, action, tier_before, tier_after, status, executed_at, result_notes)
-         values ($1::uuid, $2, $3, $4, null, $5, $6, now(), $7)`,
+           (org_id, table_code, column_code, action, tier_before, tier_after, status, executed_at, result_notes,
+            filename, checksum)
+         values ($1::uuid, $2, $3, $4, null, $5, $6, now(), $7,
+                 'journal/' || $2 || '.' || $3 || '.' || gen_random_uuid()::text || '.json',
+                 encode(sha256(convert_to($2 || '.' || $3, 'UTF8')), 'hex'))`,
         [orgId, input.tableCode, input.columnCode, 'schema_column_added', plan.tier, 'completed', 'Runtime JSON schema metadata update; no DDL executed.'],
       );
 

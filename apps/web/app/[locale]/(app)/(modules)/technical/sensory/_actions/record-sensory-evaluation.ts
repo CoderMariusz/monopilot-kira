@@ -229,8 +229,11 @@ export async function recordSensoryEvaluation(
                   status = $5,
                   status_reason = $6,
                   policy_required = $7,
-                  evaluated_at = ${isVerdict ? 'now()' : 'null'},
-                  evaluated_by = ${isVerdict ? '$8::uuid' : 'null'},
+                  -- Branching the SQL text left $8 unreferenced on the
+                  -- non-verdict path while the array still bound 12 params
+                  -- (42P18). $13 keeps every parameter in play.
+                  evaluated_at = case when $13::boolean then now() else null end,
+                  evaluated_by = case when $13::boolean then $8::uuid else null end,
                   panel_date = $9::date,
                   panelist_count = $10,
                   benchmark_product_code = $11,
@@ -253,6 +256,7 @@ export async function recordSensoryEvaluation(
             panelistCount,
             benchmarkProductCode,
             overallScore,
+            isVerdict,
           ],
         );
         const updated = update.rows[0];

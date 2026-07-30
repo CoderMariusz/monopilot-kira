@@ -392,7 +392,10 @@ export async function publishDeptColumnDraft(
                    'retention_class', 'operational',
                    'action',          'dept_column.published',
                    'actor_user_id',   $3::uuid,
-                   'dept_column_id',  $2::uuid,
+                   -- ::text, not ::uuid: $2 is also aggregate_id, a TEXT column.
+                   -- (Dropping the cast entirely is not enough — jsonb_build_object
+                   -- takes "any", so the parameter is left undecidable.)
+                   'dept_column_id',  $2::text,
                    'prev_version',    $4::int,
                    'new_version',     $5::int,
                    'draft_id',        $6::uuid

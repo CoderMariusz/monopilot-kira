@@ -36,12 +36,21 @@ vi.mock('@monopilot/e-sign', () => ({
   readSignoffPolicy: vi.fn(async () => null),
   signEvent: vi.fn(async () => ({ subjectHash: 'pg-test-hash' })),
 }));
+vi.mock(
+  '../../app/[locale]/(app)/(admin)/settings/npd-checklist/_actions/checklist-template-auth',
+  () => ({ hasNpdSchemaEdit: vi.fn(async () => true) }),
+);
 
 import { createNcr } from '../../app/[locale]/(app)/(modules)/quality/_actions/ncr-actions';
 import { voidShipmentBoxesInContext } from '../../app/[locale]/(app)/(modules)/shipping/_actions/so-shipment-release';
 import { setCoreFlag } from '../../actions/flags/set-core';
 import { readActiveGateRule } from '../../actions/authorization/preflight';
 import { readLastChangedByCode } from '../../app/[locale]/(app)/(admin)/settings/tenant/rules/last-changed';
+import { upsertEmailConfig } from '../../actions/email/upsert-config';
+import { triggerPayloadSchema } from '../../actions/email/variable-registry';
+import { getChangeoverScreen } from '../../app/[locale]/(app)/(modules)/production/changeover/_actions/changeover-data';
+import { addColumn } from '../../actions/schema/add-column';
+import { reorderChecklistTemplateItem } from '../../app/[locale]/(app)/(admin)/settings/npd-checklist/_actions/checklist-template-mutations';
 
 const connectionString = process.env.DATABASE_URL ?? '';
 // Gate on "is there a database", like the rest of the repo. The previous gate
@@ -58,7 +67,12 @@ runPg('schema drift — real SQL against a real database', () => {
   beforeAll(async () => {
     pool = new pg.Pool({ connectionString });
     fixture = await createPgTestFixture(pool, {
-      permissions: ['org.access.admin', 'quality.ncr.create'],
+      permissions: [
+        'org.access.admin',
+        'quality.ncr.create',
+        'settings.schema.edit',
+        'production.oee.read',
+      ],
     });
   }, 120000);
 
@@ -399,6 +413,226 @@ runPg('schema drift — real SQL against a real database', () => {
         { message: 'boom' },
       );
       errors.mockRestore();
+    });
+  });
+
+  // ---------------------------------------------------------------- defect 5
+  // upsert-config called assertGeneratedSchemaLoaded, which selected
+  // reference_schemas.enum_values — a column that does not exist. Every save
+  // returned PERSISTENCE_FAILED, and the unit suite never noticed.
+  describe('upsertEmailConfig', () => {
+    const triggerCode = Object.keys(triggerPayloadSchema())[0]!;
+
+    it('persists a config and bumps the version on the second save', async () => {
+      await inOrg(async (client) => {
+        const first = await upsertEmailConfig({
+          triggerCode,
+          recipientsTo: 'ops@example.test',
+          subjectTemplate: 'S9 subject',
+          bodyTemplate: 'S9 body',
+          isActive: true,
+        });
+        expect(first).toMatchObject({ status: 'ok', data: { triggerCode, version: 1 } });
+
+        const stored = await client.query<{ row_data: Record<string, unknown> }>(
+          `select row_data from public.reference_tables
+            where org_id = app.current_org_id() and table_code = 'email_config' and row_key = $1`,
+          [triggerCode],
+        );
+        expect(stored.rows[0]?.row_data).toMatchObject({ subject_template: 'S9 subject' });
+
+        const second = await upsertEmailConfig({
+          triggerCode,
+          recipientsTo: 'ops@example.test',
+          subjectTemplate: 'S9 subject 2',
+          bodyTemplate: 'S9 body',
+          isActive: true,
+          expectedVersion: 1,
+        });
+        expect(second).toMatchObject({ status: 'ok', data: { version: 2 } });
+      });
+    });
+
+    it('still rejects a stale expectedVersion and an unknown trigger code', async () => {
+      await inOrg(async () => {
+        await upsertEmailConfig({
+          triggerCode,
+          recipientsTo: 'ops@example.test',
+          subjectTemplate: 'S9 subject',
+          bodyTemplate: 'S9 body',
+          isActive: true,
+        });
+
+        await expect(
+          upsertEmailConfig({
+            triggerCode,
+            recipientsTo: 'ops@example.test',
+            subjectTemplate: 'S9 stale',
+            bodyTemplate: 'S9 body',
+            isActive: true,
+            expectedVersion: 99,
+          }),
+        ).resolves.toMatchObject({ status: 'error', code: 'VERSION_CONFLICT' });
+
+        await expect(
+          upsertEmailConfig({
+            triggerCode: 'no_such_trigger',
+            recipientsTo: 'ops@example.test',
+            subjectTemplate: 'x',
+            bodyTemplate: 'y',
+            isActive: true,
+          }),
+        ).resolves.toMatchObject({ status: 'error', code: 'UNKNOWN_TRIGGER_CODE' });
+      });
+    });
+  });
+
+  // ---------------------------------------------------------------- defect 6
+  // changeover_events.line_id is TEXT; the join compared it to a uuid, so the
+  // whole screen sat in { ok:false, reason:'error' } forever.
+  describe('getChangeoverScreen', () => {
+    async function seedLine(client: pg.PoolClient, code: string): Promise<string> {
+      const id = randomUUID();
+      await client.query(
+        `insert into public.production_lines (id, org_id, code, name)
+         values ($1::uuid, app.current_org_id(), $2, $3)`,
+        [id, code, `S9 line ${code}`],
+      );
+      return id;
+    }
+    async function seedEvent(client: pg.PoolClient, lineKey: string, startedAt: string): Promise<void> {
+      await client.query(
+        `insert into public.changeover_events (id, org_id, line_id, risk_level, started_at)
+         values ($1::uuid, app.current_org_id(), $2, 'low', $3::timestamptz)`,
+        [randomUUID(), lineKey, startedAt],
+      );
+    }
+
+    it('resolves both uuid-keyed and code-keyed line_id values', async () => {
+      await inOrg(async (client) => {
+        const lineId = await seedLine(client, 'S9L1');
+        await seedLine(client, 'S9L2');
+        // Legacy writers stored production_lines.code here; current ones store
+        // id::text. Both shapes are live in the table, so both must resolve.
+        await seedEvent(client, lineId, '2026-05-01T10:00:00Z');
+        await seedEvent(client, 'S9L2', '2026-05-02T10:00:00Z');
+        await seedEvent(client, 'not-a-line', '2026-05-03T10:00:00Z');
+
+        const result = await getChangeoverScreen();
+        expect(result).toMatchObject({ ok: true });
+        const data = (result as { data: { eventCount: number; events: { lineLabel: string }[] } }).data;
+        expect(data.eventCount).toBe(3);
+        const labels = data.events.map((e) => e.lineLabel);
+        // "code — name" only comes out of a join that actually matched.
+        expect(labels).toContain('S9L1 — S9 line S9L1');
+        expect(labels).toContain('S9L2 — S9 line S9L2');
+        // An unmatched key must degrade to the raw value, not drop the row.
+        expect(labels).toContain('not-a-line');
+      });
+    });
+  });
+
+  // ---------------------------------------------------------------- defect 7
+  // The L1 promotion queue wrote schema_migrations without filename/checksum,
+  // both NOT NULL — the wizard could never queue a promotion.
+  describe('addColumn (L1 promotion queue)', () => {
+    it('queues two promotions of the same column without a filename collision', async () => {
+      await inOrg(async (client) => {
+        for (const attempt of [1, 2]) {
+          const result = await addColumn({
+            tableCode: 'reference.processes',
+            columnCode: 's9_queue_col',
+            scope: 'universal',
+            dataType: 'text',
+          });
+          expect(result, `attempt ${attempt}`).toMatchObject({ ok: true, data: { tier: 'L1' } });
+        }
+
+        const queued = await client.query<{ filename: string; checksum: string; status: string }>(
+          `select filename, checksum, status from public.schema_migrations
+            where org_id = app.current_org_id() and column_code = 's9_queue_col'`,
+        );
+        expect(queued.rows).toHaveLength(2);
+        expect(new Set(queued.rows.map((r) => r.filename)).size).toBe(2);
+        // Same script on both attempts, so the checksum must be stable.
+        expect(new Set(queued.rows.map((r) => r.checksum)).size).toBe(1);
+        expect(queued.rows.every((r) => r.status === 'pending')).toBe(true);
+      });
+    });
+
+    it('journals a non-L1 add instead of queueing it (same NOT NULL pair)', async () => {
+      await inOrg(async (client) => {
+        const result = await addColumn({
+          tableCode: 'reference.processes',
+          columnCode: 's9_l3_col',
+          scope: 'org-specific',
+          dataType: 'text',
+        });
+        expect(result).toMatchObject({ ok: true, data: { tier: 'L3' } });
+
+        const journal = await client.query<{ action: string; status: string; filename: string }>(
+          `select action, status, filename from public.schema_migrations
+            where org_id = app.current_org_id() and column_code = 's9_l3_col'`,
+        );
+        expect(journal.rows).toHaveLength(1);
+        expect(journal.rows[0]).toMatchObject({ action: 'schema_column_added', status: 'completed' });
+        // Not the L1 queue: that path writes 'promote_l2_to_l1' + status 'pending'.
+        expect(journal.rows[0]?.filename.startsWith('journal/')).toBe(true);
+      });
+    });
+  });
+
+  // ---------------------------------------------------------------- defect 8
+  // Branching the UPDATE text left $8 unreferenced while 12 params were bound,
+  // so only the non-verdict edit blew up (42P18) — masked by the data.
+  describe('reorderChecklistTemplateItem', () => {
+    const templateId = 's9-template';
+    const gateCode = 'G1';
+
+    async function seedItems(client: pg.PoolClient, count: number): Promise<void> {
+      for (let i = 1; i <= count; i += 1) {
+        await client.query(
+          `insert into "Reference"."GateChecklistTemplates"
+             (org_id, template_id, gate_code, category_code, item_text, required, sequence)
+           values (app.current_org_id(), $1, $2, 'technical', $3, false, $4)`,
+          [templateId, gateCode, `item ${i}`, i],
+        );
+      }
+    }
+    async function readOrder(client: pg.PoolClient): Promise<string[]> {
+      const { rows } = await client.query<{ item_text: string }>(
+        `select item_text from "Reference"."GateChecklistTemplates"
+          where org_id = app.current_org_id() and template_id = $1 and gate_code = $2
+          order by sequence`,
+        [templateId, gateCode],
+      );
+      return rows.map((r) => r.item_text);
+    }
+
+    it('swaps two neighbours and leaves the rest of the list alone', async () => {
+      await inOrg(async (client) => {
+        await seedItems(client, 3);
+
+        const result = await reorderChecklistTemplateItem({
+          templateId,
+          gateCode,
+          sequence: 2,
+          direction: 'down',
+        });
+        expect(result).toEqual({ ok: true });
+        expect(await readOrder(client)).toEqual(['item 1', 'item 3', 'item 2']);
+      });
+    });
+
+    it('still refuses to move the first item up', async () => {
+      await inOrg(async (client) => {
+        await seedItems(client, 3);
+
+        await expect(
+          reorderChecklistTemplateItem({ templateId, gateCode, sequence: 1, direction: 'up' }),
+        ).resolves.toEqual({ ok: false, code: 'boundary' });
+        expect(await readOrder(client)).toEqual(['item 1', 'item 2', 'item 3']);
+      });
     });
   });
 });

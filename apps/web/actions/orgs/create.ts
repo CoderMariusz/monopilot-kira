@@ -82,12 +82,29 @@ export async function createOrganization(rawInput: unknown): Promise<CreateOrgan
   try {
     await client.query('BEGIN');
 
+    // organizations.tenant_id + industry_code are NOT NULL since 001-baseline,
+    // so an org cannot exist without a tenant. Create one in the same tx (the
+    // shape migration 115/544 use); data_plane_url = '' matches 001-baseline's
+    // own backfill for tenants that have no data plane yet.
+    const tenant = await client.query(
+      // tenants.id is NOT NULL with no default (unlike organizations.id) — it
+      // has to be generated here.
+      `insert into public.tenants (id, name, region_cluster, data_plane_url)
+       values (gen_random_uuid(), $1, $2, '')
+       returning id`,
+      [input.name, input.region],
+    );
+    const tenantId = (tenant.rows[0] as { id?: string } | undefined)?.id;
+    if (!tenantId) {
+      throw new Error('createOrganization did not return a tenant row');
+    }
+
     const inserted = await client.query(
       `insert into public.organizations
-         (slug, name, timezone, locale, currency, region, tier, onboarding_state, created_at, updated_at)
-       values ($1, $2, $3, $4, $5, $6, $7, '{}'::jsonb, now(), now())
+         (tenant_id, industry_code, slug, name, timezone, locale, currency, region, tier, onboarding_state, created_at, updated_at)
+       values ($8::uuid, 'generic', $1, $2, $3, $4, $5, $6, $7, '{}'::jsonb, now(), now())
        returning id, slug`,
-      [input.slug, input.name, input.timezone, input.locale, input.currency, input.region, input.tier],
+      [input.slug, input.name, input.timezone, input.locale, input.currency, input.region, input.tier, tenantId],
     );
     const organization = inserted.rows[0] as InsertedOrganizationRow | undefined;
     if (!organization?.id || !organization.slug) {

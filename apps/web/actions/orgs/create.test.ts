@@ -8,6 +8,7 @@ const roleSeedModulePath = resolve(repoRoot, 'packages/rbac/src/role-seed.ts');
 const permissionsModulePath = resolve(repoRoot, 'packages/rbac/src/permissions.enum.ts');
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
+const TENANT_ID = '22222222-2222-4222-8222-222222222222';
 
 const EXPECTED_SYSTEM_ROLE_CODES = [
   'owner',
@@ -79,7 +80,15 @@ describe('createOrganization Server Action (T-016 RED)', () => {
 
     expect(result).toEqual({ ok: true, data: { orgId: ORG_ID, slug: validInput.slug } });
     expect(statementIndex('begin')).toBe(0);
-    expect(statementIndex('insert into public.organizations')).toBeGreaterThan(statementIndex('begin'));
+    expect(statementIndex('insert into public.tenants')).toBeGreaterThan(statementIndex('begin'));
+    expect(statementIndex('insert into public.organizations')).toBeGreaterThan(
+      statementIndex('insert into public.tenants'),
+    );
+    // tenant_id + industry_code are NOT NULL — the insert must carry both.
+    const orgBlob = callBlob(currentClient.calls[statementIndex('insert into public.organizations')]);
+    expect(orgBlob).toContain('tenant_id');
+    expect(orgBlob).toContain('industry_code');
+    expect(orgBlob).toContain(TENANT_ID);
     expect(statementIndex('insert into public.roles')).toBeGreaterThan(
       statementIndex('insert into public.organizations'),
     );
@@ -181,6 +190,13 @@ function makeClient(): FakeClient {
     calls,
     async query(sql: string, params: unknown[] = []) {
       calls.push({ sql: normalizeSql(sql), params });
+
+      // organizations.tenant_id is NOT NULL since 001-baseline, so the action
+      // now creates the tenant first. (This mock is why the missing column
+      // went unnoticed for so long — see tests/pg/schema-drift.pg.test.ts.)
+      if (sqlMatches(sql, 'insert into public.tenants')) {
+        return { rows: [{ id: TENANT_ID }], rowCount: 1 };
+      }
 
       if (sqlMatches(sql, 'insert into public.organizations')) {
         if (failureMode === 'duplicate_slug') {

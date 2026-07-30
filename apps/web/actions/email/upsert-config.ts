@@ -87,8 +87,6 @@ export async function upsertEmailConfig(rawInput: UpsertEmailConfigInput): Promi
         return { status: 'error', code: 'FORBIDDEN' };
       }
 
-      await assertGeneratedSchemaLoaded(client);
-
       const existing = await getExistingConfig(client, parsed.triggerCode);
       if (
         existing &&
@@ -222,17 +220,12 @@ function findUnknownTemplateVars(template: string, allowedVars: Set<string>): st
   return Array.from(unknown).sort();
 }
 
-async function assertGeneratedSchemaLoaded(client: QueryClient): Promise<void> {
-  await client.query(
-    `select column_code, enum_values
-       from public.reference_schemas
-      where org_id = app.current_org_id()
-        and table_code = $1
-        and deprecated_at is null
-      order by column_code`,
-    [EMAIL_CONFIG_TABLE],
-  );
-}
+// ponytail: `assertGeneratedSchemaLoaded` was deleted, not renamed. It selected
+// `reference_schemas.enum_values` (a column that never existed — enum values live
+// inside validation_json) and then DISCARDED every row, so its only possible
+// effect was a 42703 that turned every save into PERSISTENCE_FAILED. Making the
+// assertion real is not an option either: no migration seeds an `email_config`
+// row into reference_schemas, so a strict check would block all saves instead.
 
 async function getExistingConfig(client: QueryClient, triggerCode: string): Promise<StoredEmailConfig | null> {
   const { rows } = await client.query<StoredEmailConfig>(

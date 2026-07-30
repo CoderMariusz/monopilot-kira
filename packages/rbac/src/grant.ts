@@ -349,7 +349,11 @@ export async function grantRole(input: GrantRoleInput): Promise<GrantRoleResult>
     let roleId: string;
     if (roleRows.length === 0) {
       const { rows: newRoleRows } = await client.query<{ id: string }>(
-        `INSERT INTO public.roles (org_id, slug, system) VALUES ($1, $2, false)
+        // code/name/permissions are NOT NULL with no default. The slug is the
+        // only identity this fallback has, so it seeds all three; an
+        // auto-created role starts with zero permissions on purpose.
+        `INSERT INTO public.roles (org_id, slug, code, name, permissions, system)
+         VALUES ($1, $2, $2, $2, '[]'::jsonb, false)
          ON CONFLICT (org_id, slug) DO UPDATE SET slug = EXCLUDED.slug
          RETURNING id`,
         [orgId, roleSlug],

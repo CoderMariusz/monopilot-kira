@@ -135,6 +135,18 @@ export async function POST(request: Request): Promise<Response> {
       }
     }
 
+    // users.name and users.role_id are NOT NULL with no default, and SCIM
+    // carries neither. Provision at the least privilege the org actually has —
+    // same shape as the password/invite path (create-user-with-password.ts).
+    // Pinned to 'viewer' on purpose — no "closest match" fallback, because a
+    // wrong guess here provisions an IdP user straight into an admin role.
+    const { rows: roleRows } = await client.query<{ id: string }>(
+      `select id from public.roles where org_id = $1::uuid and code = 'viewer' limit 1`,
+      [ctx.orgId],
+    );
+    const roleId = roleRows[0]?.id;
+    if (!roleId) return { error: 'no_role' as const };
+
     const { rows } = await client.query<{
       id: string;
       email: string;
@@ -142,15 +154,24 @@ export async function POST(request: Request): Promise<Response> {
       external_id: string | null;
       deleted_at: Date | null;
     }>(
-      `insert into public.users (id, org_id, email, display_name, external_id)
-       values ($1, $2, $3, $4, $5)
+      `insert into public.users (id, org_id, email, name, role_id, display_name, external_id)
+       values ($1, $2, $3, $4, $5::uuid, $6, $7)
        returning id, email, display_name, external_id, deleted_at`,
-      [userId, ctx.orgId, body.userName, displayName, body.externalId ?? null],
+      [userId, ctx.orgId, body.userName, displayName, roleId, displayName, body.externalId ?? null],
+    );
+    await client.query(
+      `insert into public.user_roles (user_id, role_id, org_id)
+       values ($1::uuid, $2::uuid, $3::uuid)
+       on conflict (user_id, role_id) do update set org_id = excluded.org_id`,
+      [userId, roleId, ctx.orgId],
     );
     return { row: rows[0] };
   });
 
   if ('error' in inserted) {
+    if (inserted.error === 'no_role') {
+      return scimError(500, 'Organization has no assignable role', 'invalidValue');
+    }
     return scimError(409, 'Organization seat limit reached', 'tooMany');
   }
   const created = inserted.row;
