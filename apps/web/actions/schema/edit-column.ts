@@ -2,6 +2,7 @@
 
 import { withOrgContext } from '../../lib/auth/with-org-context';
 import { revalidateLocalized } from '../../lib/i18n/revalidate-localized';
+import { invalidPatternKey } from '../../lib/schema/validation-rules';
 
 type QueryClient = {
   query<T = unknown>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[]; rowCount?: number | null }>;
@@ -52,6 +53,7 @@ export type EditColumnResult =
       ok: false;
       error: 'INVALID_INPUT' | 'DROPDOWN_SOURCE_FK_VIOLATION' | 'FORBIDDEN' | 'NOT_FOUND' | 'CONCURRENT_EDIT' | 'PERSISTENCE_FAILED';
       data?: { currentSchemaVersion: number; diff: Record<string, unknown> };
+      message?: string;
     };
 
 const FORBIDDEN = 'forbidden' as const;
@@ -59,8 +61,10 @@ const ALLOWED_DATA_TYPES = new Set(['text', 'number', 'date', 'enum', 'formula',
 const CODE_PATTERN = /^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)?$/;
 
 export async function editColumn(rawInput: EditColumnInput): Promise<EditColumnResult> {
-  const input = parseEditColumnInput(rawInput);
-  if (!input) return { ok: false, error: 'INVALID_INPUT' };
+  const parsed = parseEditColumnInput(rawInput);
+  if (!parsed) return { ok: false, error: 'INVALID_INPUT' };
+  if (typeof parsed === 'string') return { ok: false, error: 'INVALID_INPUT', message: parsed };
+  const input = parsed;
 
   return withOrgContext(async ({ userId, orgId, client }: OrgActionContext) => {
     try {
@@ -140,7 +144,8 @@ export async function editColumn(rawInput: EditColumnInput): Promise<EditColumnR
   });
 }
 
-function parseEditColumnInput(input: EditColumnInput | null | undefined): ParsedEditColumnInput | null {
+/** Returns the parsed input, `null` for a generic rejection, or a reason string. */
+function parseEditColumnInput(input: EditColumnInput | null | undefined): ParsedEditColumnInput | string | null {
   if (!input || typeof input !== 'object') return null;
   const tableCode = normalizeCode(input.tableCode);
   const columnCode = normalizeCode(input.columnCode);
@@ -160,6 +165,10 @@ function parseEditColumnInput(input: EditColumnInput | null | undefined): Parsed
   if (patchInput.validationJson !== undefined) {
     const validationJson = plainObject(patchInput.validationJson);
     if (!validationJson) return null;
+    // Same producer-side guard as addColumn: an uncompilable pattern must never
+    // reach storage, or every write to the table it guards fails afterwards.
+    const badPattern = invalidPatternKey(validationJson);
+    if (badPattern) return `validationJson.${badPattern} is not a valid regular expression`;
     patch.validationJson = validationJson;
   }
   if (patchInput.presentationJson !== undefined) {

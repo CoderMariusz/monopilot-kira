@@ -1,5 +1,7 @@
 import { z, ZodType, ZodTypeAny } from 'zod';
 
+import { lengthBounds, numericBounds, patternOf } from './validation-rules';
+
 const CACHE_TTL_MS = 60_000;
 const CACHE_MAX_ENTRIES = 128;
 
@@ -102,19 +104,16 @@ function columnSchema(column: RuntimeColumn): ZodTypeAny {
     case 'formula':
     case 'relation': {
       let s = z.string({ message: `${column.column_code} must be a string` });
-      const regex = safeRegex(validation.regex);
+      const regex = patternOf(validation);
       if (regex) s = s.regex(regex, { message: `${column.column_code} does not match required pattern` });
-      const minLen = numberOrNull((validation.length as Record<string, unknown> | undefined)?.min);
-      const maxLen = numberOrNull((validation.length as Record<string, unknown> | undefined)?.max);
+      const { min: minLen, max: maxLen } = lengthBounds(validation);
       if (minLen !== null) s = s.min(minLen);
       if (maxLen !== null) s = s.max(maxLen);
       return s;
     }
     case 'number': {
       let n = z.number({ message: `${column.column_code} must be a number` });
-      const range = (validation.range ?? {}) as Record<string, unknown>;
-      const min = numberOrNull(range.min);
-      const max = numberOrNull(range.max);
+      const { min, max } = numericBounds(validation);
       if (min !== null) n = n.min(min);
       if (max !== null) n = n.max(max);
       return n;
@@ -144,20 +143,6 @@ function enumOptions(validation: Record<string, unknown>): string[] {
   const direct = validation.options ?? validation.enum;
   if (!Array.isArray(direct)) return [];
   return direct.filter((value): value is string => typeof value === 'string');
-}
-
-function safeRegex(pattern: unknown): RegExp | null {
-  if (typeof pattern !== 'string' || pattern.length === 0 || pattern.length > 512) return null;
-  try {
-    return new RegExp(pattern);
-  } catch {
-    return null;
-  }
-}
-
-function numberOrNull(value: unknown): number | null {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
-  return value;
 }
 
 function cacheKey(scope: SchemaScope): string {

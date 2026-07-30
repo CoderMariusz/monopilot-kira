@@ -254,7 +254,8 @@ describe('upsertReferenceRow — universal /settings/reference tables (W9-L5 FIX
       rowData: { allergen_code: 'MUSTARD', display_name: 'Mustard', risk_level: 'catastrophic' },
     });
     expect(badEnum).toMatchObject({ ok: false, error: 'invalid_input' });
-    expect(badEnum.message).toBe('risk_level has invalid enum value');
+    // S11: the message now lists the allowed values instead of just "invalid".
+    expect(badEnum.message).toBe('risk_level must be one of major, moderate, low');
 
     // top-level parse failure → names the input field
     const missingRowKey = await upsertReferenceRow({

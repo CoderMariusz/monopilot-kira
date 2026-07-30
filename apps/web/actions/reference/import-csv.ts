@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 
 import { hasPermission } from '../../lib/auth/has-permission';
 import { withOrgContext } from '../../lib/auth/with-org-context';
+import { describeInvalidValue, isRequiredColumn } from './_shared/row-validation';
 
 const IMPORT_PERMISSION = 'settings.reference.import';
 const REPORT_TTL_MS = 60 * 60 * 1000;
@@ -360,38 +361,14 @@ function validateRecordAgainstSchema(record: CsvRecord, schemaColumns: Reference
   for (const column of schemaColumns) {
     const normalized = normalizeHeader(column.column_code);
     const value = record.rowData[normalized] ?? '';
-    const required = Boolean(column.required_for_done ?? column.is_required ?? column.required);
-    if (required && value === '') return `${column.column_code} is required`;
+    if (isRequiredColumn(column) && value === '') return `${column.column_code} is required`;
     if (value === '') continue;
-    switch (column.data_type) {
-      case 'number': {
-        if (!Number.isFinite(Number(value))) return `${column.column_code} must be a number`;
-        break;
-      }
-      case 'date': {
-        if (Number.isNaN(Date.parse(value))) return `${column.column_code} must be a date`;
-        break;
-      }
-      case 'enum': {
-        const values = enumValues(column);
-        if (values.length > 0 && !values.includes(value)) return `${column.column_code} must be one of ${values.join(', ')}`;
-        break;
-      }
-      default:
-        break;
-    }
+    // Same rules as the single-row writer — importing a row used to bypass
+    // min/max/pattern entirely (`max` was enforced on neither path).
+    const problem = describeInvalidValue(value, column);
+    if (problem) return problem;
   }
   return null;
-}
-
-function enumValues(column: ReferenceSchemaColumn): string[] {
-  const validation = column.validation_json;
-  if (validation && typeof validation === 'object' && !Array.isArray(validation)) {
-    const validationRecord = validation as Record<string, unknown>;
-    if (Array.isArray(validationRecord.enum_values)) return validationRecord.enum_values.map(String);
-    if (Array.isArray(validationRecord.values)) return validationRecord.values.map(String);
-  }
-  return [];
 }
 
 function toIntegerOrNull(value: unknown): number | null {

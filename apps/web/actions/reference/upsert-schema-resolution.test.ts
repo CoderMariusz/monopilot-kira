@@ -228,18 +228,19 @@ describe('upsertReferenceRow schema resolution (W5 P2 fix)', () => {
       tableCode: 'processes',
       rowKey: 'BADMODE',
       rowData: { process_code: 'BADMODE', name: 'Bad mode', category: 'preparation', cost_mode: 'hourly', cost_rate: '1.00', currency: 'EUR' },
-    })).resolves.toMatchObject({ ok: false, error: 'invalid_input', message: 'cost_mode has invalid enum value' });
+      // S11: the message now names WHY, not just "invalid" — same column, more signal.
+    })).resolves.toMatchObject({ ok: false, error: 'invalid_input', message: 'cost_mode must be one of per_hour, per_run' });
 
     await expect(upsertReferenceRow({
       tableCode: 'processes',
       rowKey: 'BADRATE',
       rowData: { process_code: 'BADRATE', name: 'Bad rate', category: 'preparation', cost_mode: 'per_hour', cost_rate: '1.999', currency: 'EUR' },
-    })).resolves.toMatchObject({ ok: false, error: 'invalid_input', message: 'cost_rate has invalid number value' });
+    })).resolves.toMatchObject({ ok: false, error: 'invalid_input', message: 'cost_rate allows at most 2 decimal places' });
 
     await expect(upsertReferenceRow({
       tableCode: 'processes',
       rowKey: 'BADCURRENCY',
       rowData: { process_code: 'BADCURRENCY', name: 'Bad currency', category: 'preparation', cost_mode: 'per_run', cost_rate: '30.00', currency: 'EURO' },
-    })).resolves.toMatchObject({ ok: false, error: 'invalid_input', message: 'currency has invalid text value' });
+    })).resolves.toMatchObject({ ok: false, error: 'invalid_input', message: 'currency does not match the required pattern' });
   });
 });

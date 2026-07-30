@@ -2,6 +2,7 @@
 
 import { withOrgContext } from '../../lib/auth/with-org-context';
 import { revalidateLocalized } from '../../lib/i18n/revalidate-localized';
+import { invalidPatternKey } from '../../lib/schema/validation-rules';
 
 type QueryClient = {
   query<T = unknown>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[]; rowCount?: number | null }>;
@@ -73,6 +74,7 @@ export type AddColumnResult =
       ok: false;
       error: 'INVALID_INPUT' | 'INVALID_DATA_TYPE' | 'DROPDOWN_SOURCE_FK_VIOLATION' | 'FORBIDDEN' | 'CONCURRENT_EDIT' | 'PERSISTENCE_FAILED';
       data?: Record<string, unknown>;
+      message?: string;
     };
 
 const FORBIDDEN = 'forbidden' as const;
@@ -87,6 +89,14 @@ export async function addColumn(rawInput: AddColumnInput): Promise<AddColumnResu
       ok: false,
       error: 'INVALID_DATA_TYPE',
       data: { received: parsed.received, allowed: [...ALLOWED_DATA_TYPES] },
+    };
+  }
+  if (parsed.kind === 'invalid_pattern') {
+    return {
+      ok: false,
+      error: 'INVALID_INPUT',
+      message: `validationJson.${parsed.key} is not a valid regular expression`,
+      data: { field: `validationJson.${parsed.key}` },
     };
   }
   if (parsed.kind === 'invalid') {
@@ -267,6 +277,7 @@ export async function addColumn(rawInput: AddColumnInput): Promise<AddColumnResu
 type ParseResult =
   | { kind: 'ok'; value: ParsedAddColumnInput }
   | { kind: 'invalid' }
+  | { kind: 'invalid_pattern'; key: string }
   | { kind: 'invalid_data_type'; received: string };
 
 function parseAddColumnInput(input: AddColumnInput | null | undefined): ParseResult {
@@ -282,6 +293,11 @@ function parseAddColumnInput(input: AddColumnInput | null | undefined): ParseRes
 
   const dropdownSource = normalizeCode(input.dropdownSource);
   const validationJson = plainObject(input.validationJson) ?? {};
+  // Refuse a pattern that does not compile HERE, where the admin can still fix
+  // it — storing one used to make every later write to that table fail with a
+  // misleading `persistence_failed`.
+  const badPattern = invalidPatternKey(validationJson);
+  if (badPattern) return { kind: 'invalid_pattern', key: badPattern };
   const presentationJson = plainObject(input.presentationJson) ?? {};
   const expectedSchemaVersion = integerOrNull(input.expectedSchemaVersion);
   if (input.expectedSchemaVersion !== undefined && expectedSchemaVersion === null) return { kind: 'invalid' };

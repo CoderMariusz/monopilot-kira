@@ -3,6 +3,11 @@
 import { hasPermission } from '../../lib/auth/has-permission';
 import { withOrgContext } from '../../lib/auth/with-org-context';
 import { writeSettingsReferenceOutbox } from './_shared/outbox';
+import {
+  describeInvalidValue,
+  isRequiredColumn,
+  type ReferenceSchemaColumn,
+} from './_shared/row-validation';
 import { revalidateLocalized } from '../../lib/i18n/revalidate-localized';
 
 const EDIT_PERMISSION = 'settings.reference.edit';
@@ -25,16 +30,6 @@ type ReferenceRow = {
   version: number;
   is_active: boolean;
   display_order: number | null;
-};
-
-type ReferenceSchemaColumn = {
-  column_code: string;
-  data_type: string;
-  required_for_done?: boolean | null;
-  is_required?: boolean | null;
-  required?: boolean | null;
-  enum_values?: unknown;
-  validation_json?: unknown;
 };
 
 type ReferenceRowView = {
@@ -235,69 +230,14 @@ function validateAgainstGeneratedSchema(rowData: Record<string, unknown>, schema
     return `reference schema is not configured for ${tableCode ?? 'this table'} (seed reference_schemas — see migration 286)`;
   }
   for (const column of schemaColumns) {
-    const required = Boolean(column.required_for_done ?? column.is_required ?? column.required);
     const value = rowData[column.column_code];
-    if (required && (value === undefined || value === null || value === '')) return `${column.column_code} is required`;
-    if (value === undefined || value === null || value === '') continue;
-    if (!isValidGeneratedColumnValue(value, column)) return `${column.column_code} has invalid ${column.data_type} value`;
+    const missing = value === undefined || value === null || value === '';
+    if (isRequiredColumn(column) && missing) return `${column.column_code} is required`;
+    if (missing) continue;
+    const problem = describeInvalidValue(value, column);
+    if (problem) return problem;
   }
   return null;
-}
-
-function isValidGeneratedColumnValue(value: unknown, column: ReferenceSchemaColumn): boolean {
-  switch (column.data_type) {
-    case 'text':
-    case 'formula':
-    case 'relation':
-      return isValidTextValue(value, column);
-    case 'number':
-      return isValidNumberValue(value, column);
-    case 'date':
-      return typeof value === 'string' && !Number.isNaN(Date.parse(value));
-    case 'enum': {
-      const values = enumValues(column);
-      return values.length === 0 || values.includes(String(value));
-    }
-    default:
-      return false;
-  }
-}
-
-function isValidTextValue(value: unknown, column: ReferenceSchemaColumn): boolean {
-  if (!(typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean')) return false;
-  if (isPlainObject(column.validation_json) && typeof column.validation_json.pattern === 'string') {
-    return new RegExp(column.validation_json.pattern).test(String(value));
-  }
-  return true;
-}
-
-function isValidNumberValue(value: unknown, column: ReferenceSchemaColumn): boolean {
-  if (!(typeof value === 'number' || (typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value))))) {
-    return false;
-  }
-  const n = Number(value);
-  if (!Number.isFinite(n)) return false;
-  if (isPlainObject(column.validation_json)) {
-    const min = column.validation_json.min;
-    if (typeof min === 'number' && n < min) return false;
-    const scale = column.validation_json.scale;
-    if (typeof scale === 'number') {
-      const [, decimals = ''] = String(value).split('.');
-      if (decimals.length > scale) return false;
-    }
-  }
-  return true;
-}
-
-function enumValues(column: ReferenceSchemaColumn): string[] {
-  if (Array.isArray(column.enum_values)) return column.enum_values.map(String);
-  if (isPlainObject(column.validation_json) && Array.isArray(column.validation_json.enum_values)) {
-    return column.validation_json.enum_values.map(String);
-  }
-  if (isPlainObject(column.validation_json) && Array.isArray(column.validation_json.values)) {
-    return column.validation_json.values.map(String);
-  }
-  return [];
 }
 
 async function getExistingRow(client: QueryClient, tableCode: string, rowKey: string): Promise<ReferenceRow | null> {

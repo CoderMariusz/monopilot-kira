@@ -1,6 +1,7 @@
 import { z, type ZodTypeAny } from 'zod';
 
 import { ValidationError } from '../errors';
+import { lengthBounds, numericBounds } from '../../../../../lib/schema/validation-rules';
 
 export const FA_EDIT_EVENT = 'fa.edit';
 export const APP_VERSION = 'update-fa-cell-v1';
@@ -32,6 +33,13 @@ export type DeptColumnRow = {
   field_type: string | null;
   dropdown_source: string | null;
   required_for_done: boolean;
+  /**
+   * The rules the NPD field catalog already stores (`{"minimum":0,"maximum":100}`
+   * on the yields, `{"minimum":0}` on cases/shelf life). They used to be loaded
+   * by nobody, so `Infinity` / `1e309` / `-50` all persisted into master data and
+   * one poisoned cell made `avg(yield_p1)` return Infinity for the whole org.
+   */
+  validation_json: unknown;
 };
 
 export type UpdateFaCellResult = {
@@ -47,7 +55,8 @@ export async function loadDeptColumn(ctx: OrgContextLike, columnName: string): P
             f.data_type,
             null::text as field_type,
             f.dropdown_source,
-            df.required as required_for_done
+            df.required as required_for_done,
+            f.validation_json
        from public.npd_departments d
        join public.npd_department_field df on df.department_id = d.id and df.org_id = d.org_id and df.visible = true
        join public.npd_field_catalog f on f.id = df.field_id and f.org_id = df.org_id and f.active = true
@@ -148,20 +157,59 @@ function normalizeDataType(column: DeptColumnRow): string {
   );
 }
 
+// Checkboxes send a real boolean; server-action callers send whatever they like.
+// Anything not on this list is rejected rather than truthiness-coerced.
+const BOOLEAN_STRINGS: Record<string, boolean> = {
+  true: true,
+  't': true,
+  'yes': true,
+  'y': true,
+  '1': true,
+  false: false,
+  'f': false,
+  'no': false,
+  'n': false,
+  '0': false,
+};
+
+function normalizeBoolean(value: unknown): unknown {
+  if (typeof value === 'string') return BOOLEAN_STRINGS[value.trim().toLowerCase()];
+  if (value === 1) return true;
+  if (value === 0) return false;
+  return value;
+}
+
 async function baseSchemaForColumn(
   ctx: OrgContextLike,
   column: DeptColumnRow,
   dataType: string,
 ): Promise<ZodTypeAny> {
+  const key = column.column_key;
   switch (dataType) {
-    case 'text':
-      return z.coerce.string();
+    case 'text': {
+      const { min, max } = lengthBounds(column.validation_json);
+      let schema = z.coerce.string();
+      if (min !== null) schema = schema.min(min, { message: `${key} must be at least ${min} characters` });
+      if (max !== null) schema = schema.max(max, { message: `${key} must be at most ${max} characters` });
+      return schema;
+    }
     case 'number':
-      return z.coerce.number();
+    case 'integer': {
+      const { min, max } = numericBounds(column.validation_json);
+      // `.finite()` is NOT optional: `z.coerce.number()` turns '1e309' and the
+      // literal 'Infinity' into Infinity, PG16 stores it in a numeric column, and
+      // every aggregate over that column returns Infinity from then on.
+      let schema = z.coerce.number().finite({ message: `${key} must be a finite number` });
+      if (dataType === 'integer') schema = schema.int({ message: `${key} must be a whole number` });
+      if (min !== null) schema = schema.min(min, { message: `${key} must be >= ${min}` });
+      if (max !== null) schema = schema.max(max, { message: `${key} must be <= ${max}` });
+      return schema;
+    }
     case 'date':
       return z.coerce.date();
     case 'boolean':
-      return z.coerce.boolean();
+      // z.coerce.boolean() is Boolean(value), so the string 'false' saved as TRUE.
+      return z.preprocess(normalizeBoolean, z.boolean({ message: `${key} must be true or false` }));
     case 'dropdown':
       return dropdownSchema(ctx, column);
     case 'formula':
