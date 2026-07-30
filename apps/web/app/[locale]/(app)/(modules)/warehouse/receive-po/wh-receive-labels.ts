@@ -56,7 +56,8 @@ const BUNDLE = {
         invalid_qty: "That quantity isn't valid.",
         over_receive_cap: 'Cannot exceed 110% of the ordered quantity.',
         over_receive_confirm_required: 'Confirm over-receipt before submitting.',
-        no_warehouse: 'No warehouse is configured — set one up in Settings before receiving.',
+        no_warehouse:
+          'No site-enabled warehouse is available. Assign a site to the warehouse in Settings → Sites, then try again.',
         invalid_location: 'That destination location is invalid.',
         location_inactive: 'That location has been deactivated and cannot receive stock.',
         invalid_state: "This purchase order is closed and can't be received.",
@@ -130,7 +131,8 @@ const BUNDLE = {
         invalid_qty: 'Ta ilość jest nieprawidłowa.',
         over_receive_cap: 'Nie można przekroczyć 110% zamówionej ilości.',
         over_receive_confirm_required: 'Potwierdź nadprzyjęcie przed wysłaniem.',
-        no_warehouse: 'Brak skonfigurowanego magazynu — skonfiguruj go w Ustawieniach.',
+        no_warehouse:
+          'Brak magazynu z przypisanym zakładem. Przypisz zakład do magazynu w Ustawienia → Zakłady, a następnie spróbuj ponownie.',
         invalid_location: 'Ta lokalizacja docelowa jest nieprawidłowa.',
         location_inactive: 'Ta lokalizacja została dezaktywowana i nie może przyjmować towaru.',
         invalid_state: 'To zamówienie zakupu jest zamknięte i nie można go przyjąć.',

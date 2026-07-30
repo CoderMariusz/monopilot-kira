@@ -142,7 +142,11 @@ describe('receivePoLineDesktop', () => {
     const warehouseLookup = findCall('from public.warehouses w');
     expect(warehouseLookup?.sql).toContain('order by w.is_default desc');
     expect(warehouseLookup?.sql).not.toContain('and w.is_default = true');
-    expect(findCall('insert into public.license_plates')?.params[1]).toBeNull();
+    // ANTY-TEST — poprzednia wersja asertowała `toBeNull()`, czyli PRZYPINAŁA defekt:
+    // nośnik zapasu powstawał bez zakładu, niewidoczny dla polityk zakładowych, a jednocześnie
+    // liczony w stanach. Resolver zapisu wyprowadza teraz zakład także wtedy, gdy magazyn
+    // domyślny nie istnieje — i to jest sprawdzany kontrakt.
+    expect(findCall('insert into public.license_plates')?.params[1]).not.toBeNull();
     expect(findCall('insert into public.license_plates')?.params[2]).toBe(WAREHOUSE_ID);
   });
 
@@ -193,7 +197,12 @@ describe('receivePoLineDesktop', () => {
     const result = await receivePoLineDesktop({ ...baseInput, warehouseId: WAREHOUSE_ID });
 
     expect(result).toMatchObject({ ok: true, grnId: 'grn-1', lpId: 'lp-1' });
-    expect(findCall('insert into public.license_plates')?.params[1]).toBeNull();
+    // ANTY-TEST — poprzednia wersja asertowała `toBeNull()`. Magazyn jest ogólnoorganizacyjny
+    // (`site_id: null`), ale ZAMÓWIENIE jest przypisane do zakładu: towar przyjmowany na to
+    // zamówienie należy do jego zakładu, nawet jeśli fizycznie leży w magazynie bez przypisania.
+    // Alternatywa — nośnik bez zakładu — jest niewidoczna dla polityk zakładowych, a jednocześnie
+    // liczona w stanach magazynowych.
+    expect(findCall('insert into public.license_plates')?.params[1]).toBe(SITE_ID);
     expect(findCall('insert into public.license_plates')?.params[2]).toBe(WAREHOUSE_ID);
   });
 

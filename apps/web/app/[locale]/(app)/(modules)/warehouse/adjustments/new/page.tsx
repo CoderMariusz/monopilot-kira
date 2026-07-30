@@ -157,6 +157,7 @@ function buildLabels(t: ReturnType<typeof getAdjustmentsTranslator>): DirectAdju
       supervisor_forbidden: t('errors.supervisor_forbidden'),
       insufficient_unreserved: t('errors.insufficient_unreserved'),
       insufficient_stock: t('errors.insufficient_stock'),
+      site_required: t('errors.site_required'),
       use_count_session: t('errors.use_count_session'),
       invalid_quantity: t('errors.invalid_quantity'),
       invalid_expiry_date: t('errors.invalid_expiry_date'),

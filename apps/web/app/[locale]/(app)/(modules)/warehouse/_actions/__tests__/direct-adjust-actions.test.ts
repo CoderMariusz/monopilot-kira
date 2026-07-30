@@ -10,6 +10,7 @@ const ITEM_ID = '55555555-5555-4555-8555-555555555555';
 const LP_ID = '66666666-6666-4666-8666-666666666666';
 const CLIENT_OP_ID = '77777777-7777-4777-8777-777777777777';
 const SUPERVISOR_ID = '99999999-9999-4999-8999-999999999999';
+const SITE_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
 type Captured = { sql: string; params: readonly unknown[] };
 
@@ -89,6 +90,8 @@ type Behavior = {
   wacAvgCost?: string;
   /** Active hold returned by the canonical guard. */
   activeHold?: boolean;
+  /** Site resolved from the selected LP / warehouse / location. */
+  resolvedSiteId?: string | null;
 };
 
 function makeClient(behavior: Behavior = {}): QueryClient {
@@ -99,6 +102,7 @@ function makeClient(behavior: Behavior = {}): QueryClient {
     supervisorEnrolled = true,
     wacAvgCost = '4.25',
     activeHold = false,
+    resolvedSiteId = SITE_ID,
   } = behavior;
 
   // `from public.user_roles` is queried both for the initiator and supervisor
@@ -127,7 +131,7 @@ function makeClient(behavior: Behavior = {}): QueryClient {
         return { rows: decreaseLps, rowCount: decreaseLps.length };
       }
       if (n.startsWith('select coalesce') && n.includes('site_id')) {
-        return { rows: [{ site_id: null }], rowCount: 1 };
+        return { rows: [{ site_id: resolvedSiteId }], rowCount: 1 };
       }
       if (n.startsWith('insert into public.license_plates')) {
         return { rows: [{ id: LP_ID }], rowCount: 1 };
@@ -182,6 +186,22 @@ beforeEach(() => {
 });
 
 describe('applyDirectAdjustment — guards', () => {
+  it('rejects an increase when no site resolves before minting an LP', async () => {
+    client = makeClient({ resolvedSiteId: null });
+
+    const result = await applyDirectAdjustment(input({ direction: 'increase' }));
+
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        code: 'site_required',
+        message: 'No site is assigned to this warehouse. Assign it in Settings → Sites, then try again.',
+      },
+    });
+    expect(findCall('insert into public.license_plates')).toBeUndefined();
+    expect(findCall('insert into public.stock_adjustments')).toBeUndefined();
+  });
+
   it("rejects increase with lpId as 'use_count_session'", async () => {
     const result = await applyDirectAdjustment(input({ lpId: LP_ID }));
     expect(result).toEqual({ ok: false, error: { code: 'use_count_session', message: 'use_count_session' } });
@@ -217,6 +237,7 @@ describe('applyDirectAdjustment — write paths', () => {
 
     const mint = findCall('insert into public.license_plates', "'pending'");
     expect(mint).toBeDefined();
+    expect(mint?.params[0]).toBe(SITE_ID);
     const mintSql = normalize(mint!.sql);
     expect(mintSql).toContain("'available', 'pending'");
     expect(mintSql).toContain("'adjustment'");
@@ -237,7 +258,7 @@ describe('applyDirectAdjustment — write paths', () => {
     const wacRead = findCall('with existing as materialized', 'delta_value');
     const wacWrite = findCall('insert into public.item_wac_state');
     expect(wacRead?.params).toEqual([ORG_ID, ITEM_ID, '3', 'GBP']);
-    expect(wacWrite?.params).toEqual([ORG_ID, ITEM_ID, '3', '12.75', USER_ID, null, 'GBP']);
+    expect(wacWrite?.params).toEqual([ORG_ID, ITEM_ID, '3', '12.75', USER_ID, SITE_ID, 'GBP']);
     expect(calls.indexOf(wacWrite!)).toBeGreaterThan(calls.indexOf(findCall('insert into public.lp_state_history')!));
   });
 

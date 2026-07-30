@@ -7,6 +7,7 @@ import { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
+import { resolveWriteSiteId } from '../../../../../../../lib/site/site-context';
 import {
   DEFAULT_TO_LIST_PAGE_SIZE,
   normalizePage,
@@ -1089,7 +1090,19 @@ async function receiveTransferOrder(
       limit 1`,
     [to.to_warehouse_id],
   );
-  const destSiteId = destWarehouse.rows[0]?.site_id ?? null;
+  const siteResolution = await resolveWriteSiteId(
+    ctx.client,
+    destWarehouse.rows[0]?.site_id ?? null,
+  );
+  if (!siteResolution.ok) {
+    return {
+      ok: false,
+      error: 'invalid_state',
+      message:
+        'No site could be resolved for the destination warehouse. Assign it in Settings -> Sites or select an active site in the top bar, then try again.',
+    };
+  }
+  const destSiteId = siteResolution.siteId;
 
   const pending = await ctx.client.query<{
     id: string;

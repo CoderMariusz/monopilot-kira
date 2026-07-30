@@ -5,6 +5,7 @@ import { writeItemCostLedger } from '../../../app/[locale]/(app)/(modules)/techn
 import { upsertWac } from '../../finance/upsert-wac';
 import { holdsGuard } from '../holds-guard';
 import { makeLpNumber } from '../../warehouse/lp-create';
+import { resolveWriteSiteId } from '../../site/site-context';
 import {
   emitOutbox,
   hasPermission,
@@ -97,6 +98,8 @@ const ALLOCATION_TOLERANCE = 10_000n; // 0.01 percent points
 const DISASSEMBLY_MASS_BALANCE_WARN_PCT = 0.02;
 const NO_WAREHOUSE_FOR_SITE_MESSAGE =
   'No warehouse is configured for your site — set one in Settings -> Sites';
+const NO_SITE_FOR_WRITE_MESSAGE =
+  'No site could be resolved. Select an active site in the top bar or configure a default site in Settings -> Sites, then try again.';
 
 export type DisassemblyMassBalanceWarning = {
   input_kg: string;
@@ -399,7 +402,7 @@ async function createDisassemblyOutputLp(
   ctx: OrgContextLike,
   warehouse: SiteWarehouseTarget,
   input: {
-    siteId: string | null;
+    siteId: string;
     woId: string;
     inputLpId: string;
     coProductItemId: string;
@@ -471,6 +474,7 @@ async function insertWoOutput(
   ctx: OrgContextLike,
   input: {
     wo: WoBomRow;
+    siteId: string;
     transactionId: string;
     outputType: 'co_product' | 'by_product';
     coProductItemId: string;
@@ -506,7 +510,7 @@ async function insertWoOutput(
         end)
      returning id`,
     [
-      input.wo.site_id,
+      input.siteId,
       input.transactionId,
       input.wo.id,
       input.outputType,
@@ -606,9 +610,21 @@ export async function registerDisassemblyOutput(
     };
   }
 
+  const siteResolution = await resolveWriteSiteId(ctx.client, wo.site_id ?? ctx.siteId);
+  if (!siteResolution.ok) {
+    return {
+      ok: false,
+      reason: 'no_warehouse_for_site',
+      message: NO_SITE_FOR_WRITE_MESSAGE,
+    };
+  }
+  const outputSiteId = siteResolution.siteId;
+
   // The line's CONFIGURED output location wins; the warehouse scan is only the
   // fallback for a WO with no line / a line with no configured output.
-  const warehouse = (await resolveLineOutputTarget(ctx, wo.id)) ?? (await resolveWarehouseForSite(ctx, wo.site_id));
+  const warehouse =
+    (await resolveLineOutputTarget(ctx, wo.id)) ??
+    (await resolveWarehouseForSite(ctx, outputSiteId));
   if (!warehouse) {
     return {
       ok: false,
@@ -645,7 +661,7 @@ export async function registerDisassemblyOutput(
 
     const batchNumber = `${wo.wo_number}-OUT-${String(firstSequence + index).padStart(3, '0')}`;
     const createdLp = await createDisassemblyOutputLp(ctx, warehouse, {
-      siteId: wo.site_id,
+      siteId: outputSiteId,
       woId: input.woId,
       inputLpId: input.inputLpId,
       coProductItemId: output.coProductItemId,
@@ -662,6 +678,7 @@ export async function registerDisassemblyOutput(
     const outputType = coProduct.is_byproduct ? 'by_product' : 'co_product';
     const outputId = await insertWoOutput(ctx, {
       wo,
+      siteId: outputSiteId,
       transactionId,
       outputType,
       coProductItemId: output.coProductItemId,
@@ -678,7 +695,7 @@ export async function registerDisassemblyOutput(
 
     await upsertWac(ctx.client, {
       orgId: ctx.orgId,
-      siteId: wo.site_id,
+      siteId: outputSiteId,
       itemId: output.coProductItemId,
       deltaQtyKg: output.qtyKg,
       deltaValue: wacValue,

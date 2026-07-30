@@ -83,6 +83,8 @@ let canSeeSite: boolean;
 let supervisorHasOrgGrant: boolean;
 /** Stock LP rows available when seeding a new count session. */
 let warehouseStockLineCount: number;
+/** Site candidate returned for legacy/null-site count sessions. */
+let adjustmentSiteId: string | null;
 
 vi.mock('../../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -277,6 +279,10 @@ function makeClient(): QueryClient {
         return { rows: [{ uom: 'kg' }], rowCount: 1 };
       }
 
+      if (n.startsWith('select coalesce( (select lp.site_id')) {
+        return { rows: [{ site_id: adjustmentSiteId }], rowCount: 1 };
+      }
+
       if (n.startsWith("select after_state ->> 'batch_number'")) {
         return { rows: [], rowCount: 0 };
       }
@@ -379,6 +385,7 @@ beforeEach(async () => {
   canSeeSite = true;
   supervisorHasOrgGrant = true;
   warehouseStockLineCount = 2;
+  adjustmentSiteId = SITE_ID;
   client = makeClient();
 
   const { signEvent } = await import('@monopilot/e-sign');
@@ -588,6 +595,28 @@ describe('stock count actions', () => {
 
     const wacWrite = queries.find((q) => normalize(q.sql).includes('insert into public.item_wac_state'));
     expect(wacWrite?.params).toEqual([ORG_ID, ITEM_ID, '4', '20', USER_ID, SITE_ID, 'GBP']);
+  });
+
+  it('refuses positive variance before signing or writing when no site can be resolved', async () => {
+    applyLine = makeApplyLine({
+      variance_qty: '4',
+      counted_qty: '9',
+      lp_id: null,
+      session_site_id: null,
+    });
+    adjustmentSiteId = null;
+
+    await expect(
+      approveAndApplyVariance({
+        countLineId: COUNT_LINE_ID,
+        signature: { password: '123456' },
+      }),
+    ).rejects.toThrow('Assign a site');
+
+    const { signEvent } = await import('@monopilot/e-sign');
+    expect(signEvent).not.toHaveBeenCalled();
+    expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.license_plates'))).toBe(false);
+    expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.stock_adjustments'))).toBe(false);
   });
 
   it("stale-system rejection: live on-hand drift triggers 'stock_changed_recount_required'", async () => {

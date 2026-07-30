@@ -457,7 +457,7 @@ async function resolveAdjustmentUom(
 async function createAdjustmentLicensePlate(
   ctx: WarehouseContext,
   input: {
-    siteId: string | null;
+    siteId: string;
     warehouseId: string;
     locationId: string;
     itemId: string;
@@ -1226,6 +1226,21 @@ export async function approveAndApplyVariance(input: ApproveAndApplyVarianceInpu
       }
     }
 
+    let increaseSiteId: string | null = null;
+    if (varianceMicro > 0n) {
+      increaseSiteId = await resolveAdjustmentSiteId(ctx.client, {
+        sessionSiteId: countLineForApply.session_site_id,
+        warehouseId: countLineForApply.warehouse_id,
+        locationId: countLineForApply.location_id,
+        lpId: countLineForApply.lp_id,
+      });
+      if (!increaseSiteId) {
+        throw new Error(
+          'No site could be resolved for this stock count. Assign a site to the warehouse in Settings -> Sites, then try again.',
+        );
+      }
+    }
+
     const signatureReceipt = await signEvent(
       {
         signerUserId: userId,
@@ -1269,14 +1284,8 @@ export async function approveAndApplyVariance(input: ApproveAndApplyVarianceInpu
         lpId: countLineForApply.lp_id,
       });
       const metadata = await readCountLineAdjustmentMetadata(ctx.client, countLineForApply.id);
-      const siteId = await resolveAdjustmentSiteId(ctx.client, {
-        sessionSiteId: countLineForApply.session_site_id,
-        warehouseId: countLineForApply.warehouse_id,
-        locationId: countLineForApply.location_id,
-        lpId: countLineForApply.lp_id,
-      });
       adjustedLpId = await createAdjustmentLicensePlate(ctx, {
-        siteId,
+        siteId: increaseSiteId!,
         warehouseId: countLineForApply.warehouse_id,
         locationId: countLineForApply.location_id,
         itemId: countLineForApply.item_id,
@@ -1286,7 +1295,7 @@ export async function approveAndApplyVariance(input: ApproveAndApplyVarianceInpu
         batchNumber: metadata.batchNumber,
         expiryDate: metadata.expiryDate,
       });
-      adjustmentLegs.push({ lpId: adjustedLpId, siteId, quantity: adjustmentQty, uom });
+      adjustmentLegs.push({ lpId: adjustedLpId, siteId: increaseSiteId, quantity: adjustmentQty, uom });
     } else if (varianceMicro < 0n) {
       for (const leg of shrinkageLegs ?? []) {
         await reduceLicensePlateForShrinkage(ctx, {

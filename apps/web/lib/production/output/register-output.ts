@@ -51,6 +51,7 @@ import {
 } from '../../finance/upsert-wac';
 import { woSnapshotWacQtyFields } from '../../uom/convert';
 import { makeLpNumber, makeStockMoveNumber } from '../../warehouse/lp-create';
+import { resolveWriteSiteId } from '../../site/site-context';
 import { woPostedConsumptionKgSubquery } from '../consumption-qty-to-kg';
 import {
   PRODUCTION_OUTPUT_RECORDED_EVENT,
@@ -178,6 +179,8 @@ const TERMINAL_OUTPUT_LP_STATUSES = ['consumed', 'merged', 'shipped', 'returned'
 
 const NO_WAREHOUSE_FOR_SITE_MESSAGE =
   'No warehouse is configured for your site — set one in Settings -> Sites';
+const NO_SITE_FOR_WRITE_MESSAGE =
+  'No site could be resolved. Select an active site in the top bar or configure a default site in Settings -> Sites, then try again.';
 
 type MassBalanceGateRow = {
   expected_input_kg: string | null;
@@ -695,7 +698,12 @@ async function evaluateMassBalanceGate(
  * location (see resolveLineOutputTarget). The `default_location_id` alias below
  * is the warehouse's alphabetically first location, NOT a line setting.
  */
-async function resolveWarehouseForSessionSite(ctx: OrgContextLike): Promise<SiteWarehouseTarget | null> {
+async function resolveWarehouseForSessionSite(
+  ctx: OrgContextLike,
+  // `ctx.siteId` bywa `undefined` (kontekst bez wybranego zakładu) — normalizujemy do `null`,
+  // bo dalej rozróżniamy tylko „jest zakład" / „nie ma".
+  preferredSiteId: string | null = ctx.siteId ?? null,
+): Promise<SiteWarehouseTarget | null> {
   // Resilient resolution for the output LP's warehouse: prefer a warehouse
   // linked to the active site, then the org default, then the org's first
   // warehouse. The previous version filtered strictly on `w.site_id = ctx.siteId`
@@ -718,7 +726,7 @@ async function resolveWarehouseForSessionSite(ctx: OrgContextLike): Promise<Site
                w.name asc,
                w.id asc
       limit 1`,
-    [ctx.siteId ?? null],
+    [preferredSiteId],
   );
   return rows[0] ?? null;
 }
@@ -749,7 +757,7 @@ async function createOutputLp(
     expiryDate: string | null; // 'YYYY-MM-DD' from the wo_outputs insert
     transactionId: string;
     actorUserId: string;
-    siteId: string | null;
+    siteId: string;
     /** Dual-UoM actual weight for catch-weight items; persisted on license_plates.catch_weight_kg. */
     catchWeightKg?: string | null;
   },
@@ -759,7 +767,9 @@ async function createOutputLp(
   // configured output, or a location outside any warehouse. See
   // resolveLineOutputTarget — registration must never be blocked by an
   // unconfigured line.
-  const warehouse = (await resolveLineOutputTarget(ctx, input.woId)) ?? (await resolveWarehouseForSessionSite(ctx));
+  const warehouse =
+    (await resolveLineOutputTarget(ctx, input.woId)) ??
+    (await resolveWarehouseForSessionSite(ctx, input.siteId));
   if (!warehouse) {
     throw new ProductionActionError('no_warehouse_for_site', 409, {
       reason: 'no_warehouse_for_site',
@@ -864,6 +874,14 @@ export async function registerOutput(
 
   // 3. load WO + item (catch-weight qty must be derived before persistence — S17).
   const wo = await loadWo(ctx, woId);
+  const siteResolution = await resolveWriteSiteId(ctx.client, wo.site_id ?? ctx.siteId);
+  if (!siteResolution.ok) {
+    throw new ProductionActionError('no_warehouse_for_site', 409, {
+      reason: siteResolution.reason,
+      message: NO_SITE_FOR_WRITE_MESSAGE,
+    });
+  }
+  const outputSiteId = siteResolution.siteId;
   await assertOutputProductAllowed(ctx, woId, input.product_id, input.output_type);
   const item = await loadItem(ctx, input.product_id);
 
@@ -961,7 +979,7 @@ export async function registerOutput(
   const outputUom = input.uom ?? wo.uom;
   let suppliedLp: SuppliedOutputLpRow | null = null;
   if (input.lp_id) {
-    const destinationWarehouse = await resolveWarehouseForSessionSite(ctx);
+    const destinationWarehouse = await resolveWarehouseForSessionSite(ctx, outputSiteId);
     if (!destinationWarehouse) {
       throw new ProductionActionError('no_warehouse_for_site', 409, {
         reason: 'no_warehouse_for_site',
@@ -974,7 +992,7 @@ export async function registerOutput(
       qtyKg: resolvedQtyKg,
       uom: outputUom,
       woId,
-      woSiteId: wo.site_id,
+      woSiteId: outputSiteId,
       destinationWarehouseId: destinationWarehouse.id,
     });
   }
@@ -1020,7 +1038,7 @@ export async function registerOutput(
         persistedQtyUnits,
         input.unitsUom ?? null,
         persistedActualWeightKg,
-        wo.site_id,
+        outputSiteId,
       ],
     );
     const row = rows[0];
@@ -1071,7 +1089,7 @@ export async function registerOutput(
       expiryDate,
       transactionId: input.transaction_id,
       actorUserId: input.operator_id ?? ctx.userId,
-      siteId: wo.site_id,
+      siteId: outputSiteId,
       catchWeightKg: item.weight_mode === 'catch' ? persistedActualWeightKg : null,
     });
     lpId = createdLp.id;
@@ -1141,7 +1159,7 @@ export async function registerOutput(
   if (wacContribution.applied) {
     await upsertWac(ctx.client, {
       orgId: ctx.orgId,
-      siteId: wo.site_id,
+      siteId: outputSiteId,
       itemId: input.product_id,
       deltaQtyKg: wacContribution.deltaQtyKg,
       deltaValue: wacContribution.deltaValue,

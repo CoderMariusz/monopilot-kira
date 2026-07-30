@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import { resolveWriteSiteId } from '../site/site-context';
 import { DECIMAL_QTY_RE, microToDecimal, toMicro } from '../shared/decimal';
 
 import type { QueryClient } from '../scanner/db';
@@ -99,7 +100,7 @@ type LineForReceive = {
   id: string;
   org_id: string;
   po_id: string;
-  po_site_id: string;
+  po_site_id: string | null;
   item_id: string;
   supplier_id: string;
   supplier_status: string;
@@ -185,7 +186,14 @@ export async function executeReceivePoLineCore(
 
   const destWarehouseId = warehouse.id;
   const destLocationId = requestedLocation?.id ?? warehouse.default_location_id;
-  const lpSiteId = warehouse.site_id;
+  const siteResolution = await resolveWriteSiteId(
+    client,
+    warehouse.site_id ?? line.po_site_id ?? ctx.siteId,
+  );
+  if (!siteResolution.ok) {
+    return { ok: false, code: 'no_warehouse', poId: line.po_id };
+  }
+  const lpSiteId = siteResolution.siteId;
 
   await options.preflightBeforeReceiptWrites?.({
     itemId: line.item_id,
@@ -545,7 +553,7 @@ async function insertLicensePlate(
   ctx: ReceivePoLineCoreContext,
   input: {
     lpNumber: string;
-    siteId: string | null;
+    siteId: string;
     warehouseId: string;
     locationId: string | null;
     productId: string;
@@ -867,7 +875,7 @@ function isUuid(value: string): boolean {
 }
 
 /** Org-wide warehouses (site_id null) may receive any PO site. */
-function warehouseMatchesPoSite(warehouseSiteId: string | null, poSiteId: string): boolean {
-  if (warehouseSiteId == null) return true;
+function warehouseMatchesPoSite(warehouseSiteId: string | null, poSiteId: string | null): boolean {
+  if (warehouseSiteId == null || poSiteId == null) return true;
   return warehouseSiteId === poSiteId;
 }

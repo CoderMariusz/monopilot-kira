@@ -8,6 +8,7 @@ import { verifyPin } from '../../../../../../../../packages/auth/src/verify-pin.
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { creditWacAtAvgCost, debitWac } from '../../../../../../lib/finance/upsert-wac';
 import { microToDecimal, toMicro } from '../../../../../../lib/shared/decimal';
+import { resolveWriteSiteId } from '../../../../../../lib/site/site-context';
 import { makeLpNumber, makeStockMoveNumber } from '../../../../../../lib/warehouse/lp-create';
 import {
   hasWarehousePermission,
@@ -223,13 +224,15 @@ async function resolveSiteId(
             )::text as site_id`,
     [input.warehouseId, input.locationId, input.lpId],
   );
-  return rows[0]?.site_id ?? null;
+  if (rows[0]?.site_id) return rows[0].site_id;
+  const resolved = await resolveWriteSiteId(client);
+  return resolved.ok ? resolved.siteId : null;
 }
 
 async function mintAdjustmentLicensePlate(
   ctx: WarehouseContext,
   input: {
-    siteId: string | null;
+    siteId: string;
     warehouseId: string;
     locationId: string;
     itemId: string;
@@ -524,6 +527,21 @@ export async function applyDirectAdjustment(input: DirectAdjustInput): Promise<D
         if (decreaseLegs.length === 0) throw new DirectAdjustAbort(failure('insufficient_stock'));
       }
 
+      let increaseSiteId: string | null = null;
+      if (parsed.data.direction === 'increase') {
+        increaseSiteId = await resolveSiteId(ctx.client, {
+          warehouseId: parsed.data.warehouseId,
+          locationId: parsed.data.locationId,
+          lpId,
+        });
+        if (!increaseSiteId) {
+          return failure(
+            'site_required',
+            'No site is assigned to this warehouse. Assign it in Settings → Sites, then try again.',
+          );
+        }
+      }
+
       const signatureReceipt = await signEvent(
         {
           signerUserId: userId,
@@ -580,11 +598,7 @@ export async function applyDirectAdjustment(input: DirectAdjustInput): Promise<D
       }
 
       if (parsed.data.direction === 'increase') {
-        const siteId = await resolveSiteId(ctx.client, {
-          warehouseId: parsed.data.warehouseId,
-          locationId: parsed.data.locationId,
-          lpId,
-        });
+        const siteId = increaseSiteId!;
         const newLpId = await mintAdjustmentLicensePlate(ctx, {
           siteId,
           warehouseId: parsed.data.warehouseId,

@@ -388,7 +388,7 @@ describe('receive-po-line-core', () => {
     expect(client.calls.some((c) => c.sql.includes('insert into public.grn_items'))).toBe(false);
   });
 
-  it('allows receive into an org-wide warehouse for a site-scoped PO', async () => {
+  it('uses the purchase-order site when the resolved warehouse has no site', async () => {
     const client = makeClient({
       orderedQty: '10.000000',
       receivedQty: '0.000000',
@@ -409,7 +409,33 @@ describe('receive-po-line-core', () => {
     );
 
     expect(result).toMatchObject({ ok: true, grnId: 'grn-1', lpId: 'lp-1' });
-    expect(findCall(client, 'insert into public.license_plates')?.params[1]).toBeNull();
+    expect(findCall(client, 'insert into public.license_plates')?.params[1]).toBe(SITE_ID);
+  });
+
+  it('rejects receive when warehouse, PO, and active context resolve no site', async () => {
+    const client = makeClient({
+      orderedQty: '10.000000',
+      receivedQty: '0.000000',
+      poSiteId: null,
+      warehouseSiteId: null,
+    });
+
+    const result = await executeReceivePoLineCore(
+      client,
+      { orgId: ORG_A, userId: USER_A, siteId: null },
+      baseInput,
+      {
+        mode: 'desktop',
+        genesisReasonCode: 'desktop_receive_po',
+        genesisReasonText: 'Desktop PO receipt',
+        requireOverReceiveConfirm: true,
+      },
+    );
+
+    expect(result).toEqual({ ok: false, code: 'no_warehouse', poId: PO_ID });
+    expect(client.calls.some((c) => c.sql.includes('insert into public.grns'))).toBe(false);
+    expect(client.calls.some((c) => c.sql.includes('insert into public.license_plates'))).toBe(false);
+    expect(client.calls.some((c) => c.sql.includes('insert into public.grn_items'))).toBe(false);
   });
 
   it('runs WAC preflight before any GRN/LP/grn_item writes for unresolvable UoM', async () => {
@@ -458,7 +484,7 @@ function makeClient(options: {
   throwOnGrnItemsWriteAfterCompleted?: boolean;
   supplierStatus?: string;
   mode?: 'scanner' | 'desktop';
-  poSiteId?: string;
+  poSiteId?: string | null;
   warehouseSiteId?: string | null;
   locationVisible?: boolean;
   requestedLocationId?: string;
@@ -493,7 +519,7 @@ function makeClient(options: {
                   id: LINE_ID,
                   org_id: ORG_A,
                   po_id: PO_ID,
-                  po_site_id: options.poSiteId ?? SITE_ID,
+                  po_site_id: options.poSiteId === undefined ? SITE_ID : options.poSiteId,
                   item_id: ITEM_ID,
                   supplier_id: SUPPLIER_ID,
                   supplier_status: options.supplierStatus ?? 'active',

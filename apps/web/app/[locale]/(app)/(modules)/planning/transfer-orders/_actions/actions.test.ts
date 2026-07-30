@@ -44,6 +44,7 @@ let linePendingQty = '12.000000';
 let receiveMaterialized = false;
 let remainderCancelled = false;
 let listTotal = 1;
+let destinationSiteId: string | null = TO_SITE_ID;
 
 function mockMatterOnHand(): string {
   const sourceRemaining = remainderCancelled ? 8 + Number.parseFloat(linePendingQty) : 8;
@@ -138,7 +139,7 @@ function makeClient(): QueryClient {
         return { rows: [{ archived_count: 1 }], rowCount: 1 };
       }
       if (normalized.startsWith('select w.site_id::text as site_id')) {
-        return { rows: [{ site_id: TO_SITE_ID }], rowCount: 1 };
+        return { rows: [{ site_id: destinationSiteId }], rowCount: 1 };
       }
       if (normalized.includes('from public.warehouses')) {
         return { rows: warehouseInOrg ? [{ id: String(params[0]) }] : [], rowCount: warehouseInOrg ? 1 : 0 };
@@ -378,6 +379,7 @@ describe('planning transfer order actions', () => {
     receiveMaterialized = false;
     remainderCancelled = false;
     listTotal = 1;
+    destinationSiteId = TO_SITE_ID;
     client = makeClient();
     vi.mocked(revalidateLocalized).mockClear();
   });
@@ -755,6 +757,22 @@ describe('planning transfer order actions', () => {
     expect(lpInsert?.sql).toContain('org_id, site_id, warehouse_id');
     expect(lpInsert?.params?.[0]).toBe(TO_SITE_ID);
     expect(calls.some((call) => call.sql.startsWith('insert into public.lp_genealogy'))).toBe(true);
+  });
+
+  it('refuses receipt before creating destination LPs when the destination warehouse has no site', async () => {
+    currentStatus = 'in_transit';
+    destinationSiteId = null;
+
+    const result = await transitionTransferOrderStatus(TO_ID, 'received');
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'invalid_state',
+      message: expect.stringContaining('Settings'),
+    });
+    const calls = vi.mocked(client.query).mock.calls.map(([sql]) => String(sql).replace(/\s+/g, ' ').toLowerCase());
+    expect(calls.some((sql) => sql.startsWith('insert into public.license_plates'))).toBe(false);
+    expect(calls.some((sql) => sql.startsWith('update public.transfer_orders'))).toBe(false);
   });
 
   it('refuses an illegal transition (draft -> received) server-side', async () => {

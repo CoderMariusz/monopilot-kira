@@ -19,6 +19,7 @@ export type DirectAdjustErrorCode =
   | 'supervisor_forbidden'
   | 'insufficient_unreserved'
   | 'insufficient_stock'
+  | 'site_required'
   | 'use_count_session'
   | 'invalid_quantity'
   | 'invalid_expiry_date'
@@ -37,6 +38,7 @@ export const DIRECT_ADJUST_ERROR_CODES: readonly DirectAdjustErrorCode[] = [
   'supervisor_forbidden',
   'insufficient_unreserved',
   'insufficient_stock',
+  'site_required',
   'use_count_session',
   'invalid_quantity',
   'invalid_expiry_date',

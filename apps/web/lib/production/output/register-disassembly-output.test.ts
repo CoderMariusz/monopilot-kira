@@ -50,7 +50,8 @@ let consumedQtyHasUnsupported: boolean;
 let consumptionWacValue: string | null;
 let consumptionWacQtyKg: string | null;
 let consumptionWacHistory: ConsumptionWacFixture[] | null;
-let woSiteId: string;
+let woSiteId: string | null;
+let contextSiteId: string | null;
 let warehouseSiteParam: string | null | undefined;
 let existingDisassemblyOutputs: Array<{ lp_id: string; lp_number: string }>;
 
@@ -225,7 +226,7 @@ function normalizeSql(sql: string): string {
 }
 
 function makeCtx(): OrgContextLike {
-  return { userId: USER_ID, orgId: ORG_ID, siteId: SITE_ID, client };
+  return { userId: USER_ID, orgId: ORG_ID, siteId: contextSiteId, client };
 }
 
 function callsStartingWith(prefix: string): QueryCall[] {
@@ -266,6 +267,7 @@ describe('registerDisassemblyOutput', () => {
     consumptionWacQtyKg = '100';
     consumptionWacHistory = null;
     woSiteId = SITE_ID;
+    contextSiteId = SITE_ID;
     warehouseSiteParam = undefined;
     existingDisassemblyOutputs = [];
     coProducts = [
@@ -794,6 +796,29 @@ describe('registerDisassemblyOutput', () => {
     expect(warehouseSiteParam).toBe(OTHER_SITE_ID);
     const lpInserts = callsStartingWith('insert into public.license_plates');
     expect(lpInserts[0]?.params[0]).toBe(OTHER_SITE_ID);
+  });
+
+  it('refuses to create disassembly LPs when neither the WO nor write context resolves a site', async () => {
+    woSiteId = null;
+    contextSiteId = null;
+
+    const result = await registerDisassemblyOutput(makeCtx(), {
+      woId: WO_ID,
+      inputLpId: INPUT_LP_ID,
+      outputs: [
+        { coProductItemId: ITEM_A, qtyKg: '10.000' },
+        { coProductItemId: ITEM_B, qtyKg: '20.000' },
+        { coProductItemId: ITEM_C, qtyKg: '20.000' },
+      ],
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'no_warehouse_for_site',
+      message: expect.stringContaining('Settings'),
+    });
+    expect(callsStartingWith('insert into public.wo_outputs')).toHaveLength(0);
+    expect(callsStartingWith('insert into public.license_plates')).toHaveLength(0);
   });
 
   it('assigns allocation remainder to the last output so totals are exact', async () => {
