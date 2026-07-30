@@ -1,5 +1,5 @@
 /**
- * T-028 — POST /api/internal/cron/d365-pull
+ * T-028 — GET /api/internal/cron/d365-pull
  *
  * Nightly D365 pull cron (PRD §13.3, default 02:00 org-local). Walks every org
  * with `integration.d365.enabled=true`, asserts the gate, then enqueues +
@@ -149,4 +149,9 @@ export async function POST(req: Request): Promise<Response> {
   } finally {
     await pool.end();
   }
+}
+
+/** Vercel Cron entry point (vercel.json schedules HTTP GET). */
+export async function GET(req: Request): Promise<Response> {
+  return POST(req);
 }

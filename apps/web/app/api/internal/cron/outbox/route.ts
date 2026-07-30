@@ -56,18 +56,22 @@ import {
   type MessageHandler,
 } from '../../../../../../../packages/outbox/src/dispatch-queue';
 import { normalizeEventType } from '../../../../../../../packages/outbox/src/events.enum';
-import { dispatchCascade } from '../../../../../../../packages/rule-engine/src/dispatch';
+import {
+  dispatchCascade,
+  isCascadeEvent,
+} from '../../../../../../../packages/rule-engine/src/dispatch';
 
 /**
- * Mirror of `runOnce()` from `packages/outbox/src/worker.ts`. Inlined here
- * because the worker module declares `import type pg from 'pg'`, and the
- * outbox package does not list @types/pg in its devDependencies — when web's
- * tsc traverses worker.ts via the route import it cannot resolve the type
- * declaration. The semantics MUST stay byte-identical to the worker:
- *   - poll up to 100 unconsumed rows ordered by (org_id, created_at)
+ * Vercel-hosted outbox dispatcher. Inlined here because the worker module
+ * declares `import type pg from 'pg'`, and the outbox package does not list
+ * @types/pg in its devDependencies — when web's tsc traverses worker.ts via
+ * the route import it cannot resolve the type declaration.
+ *
+ * Unlike the currently undeployed apps/worker loop, this live path:
+ *   - poll up to 1000 unconsumed rows ordered by (org_id, created_at)
+ *   - select only event types with a registered in-process handler
  *   - validate event_type against the canonical enum
  *   - publish first (at-least-once), THEN stamp consumed_at
- * If the worker's contract changes, update this mirror in lockstep.
  */
 interface OutboxRow {
   id: string | number;
@@ -78,33 +82,38 @@ interface OutboxRow {
   payload: Record<string, unknown>;
   created_at: Date;
   app_version: string;
+  attempts: number;
 }
+
+const MAX_ATTEMPTS = 5;
 
 /**
  * Mirror of `deadLetterRow()` from `packages/outbox/src/worker.ts`. Moves a row
- * that cannot be processed (unknown event type, or a repeatedly-throwing
- * handler) into the dead-letter queue (migration 056) and stamps it consumed so
- * the poll loop never sees it again. Best-effort fallback: if the DLQ write
- * fails, stamp `consumed_at` directly so the batch is never blocked.
+ * that cannot be processed (unknown event type, or a handler that exhausted
+ * its retries) into the dead-letter queue (migration 056). If that write fails,
+ * the source row remains unconsumed.
  */
 async function deadLetterRow(
   client: pg.PoolClient,
   row: OutboxRow,
   err: unknown,
+  attemptsOverride?: number,
 ): Promise<void> {
   const errorText = err instanceof Error ? err.message : String(err);
 
   try {
-    let attempts = 0;
-    try {
-      const a = await client.query<{ attempts: number }>(
-        `SELECT coalesce(attempts, 0) AS attempts
-           FROM public.outbox_events WHERE id = $1`,
-        [row.id],
-      );
-      attempts = (a.rows[0]?.attempts ?? 0) + 1;
-    } catch {
-      attempts = 1;
+    let attempts = attemptsOverride;
+    if (attempts == null) {
+      try {
+        const a = await client.query<{ attempts: number }>(
+          `SELECT coalesce(attempts, 0) AS attempts
+             FROM public.outbox_events WHERE id = $1`,
+          [row.id],
+        );
+        attempts = (a.rows[0]?.attempts ?? 0) + 1;
+      } catch {
+        attempts = 1;
+      }
     }
 
     await client.query(
@@ -137,61 +146,128 @@ async function deadLetterRow(
       [row.id, attempts, errorText],
     );
   } catch (dlqErr) {
-    console.error('[cron/outbox] dead-letter failed; skipping row', {
+    console.error('[cron/outbox] dead-letter failed; retaining row', {
       id: row.id,
       event_type: row.event_type,
       dlqError: dlqErr instanceof Error ? dlqErr.message : String(dlqErr),
     });
+    throw dlqErr;
+  }
+}
+
+async function retryOrDeadLetterRow(
+  client: pg.PoolClient,
+  row: OutboxRow,
+  err: unknown,
+): Promise<void> {
+  const errorText = err instanceof Error ? err.message : String(err);
+  const current = await client.query<{ attempts: number }>(
+    `SELECT coalesce(attempts, 0) AS attempts
+       FROM public.outbox_events
+      WHERE id = $1`,
+    [row.id],
+  );
+  const attempts = (current.rows[0]?.attempts ?? 0) + 1;
+
+  if (attempts >= MAX_ATTEMPTS) {
+    await deadLetterRow(client, row, err, attempts);
+    return;
+  }
+
+  try {
+    await client.query(
+      `UPDATE public.outbox_events
+          SET attempts = $2,
+              last_error_text = $3
+        WHERE id = $1
+          AND consumed_at IS NULL
+          AND dead_lettered_at IS NULL`,
+      [row.id, attempts, errorText],
+    );
+  } catch (retryErr) {
+    // Even if retry metadata cannot be written, consumed_at remains NULL.
+    console.error('[cron/outbox] retry metadata failed; row retained', {
+      id: row.id,
+      event_type: row.event_type,
+      retryError: retryErr instanceof Error ? retryErr.message : String(retryErr),
+    });
+  }
+}
+
+async function runOnce(client: pg.PoolClient, queue: Queue): Promise<void> {
+  const pollResult = await client.query<OutboxRow>(
+    `SELECT id, org_id, event_type, aggregate_type, aggregate_id, payload, created_at, app_version, attempts
+      FROM public.outbox_events
+      WHERE consumed_at IS NULL
+        AND (
+          event_type = 'fg.intermediate_code_changed'
+          OR event_type LIKE '%manufacturing_operation%'
+          OR event_type LIKE '%cascade%'
+        )
+      ORDER BY org_id, created_at
+      LIMIT 1000`,
+  );
+
+  for (const row of pollResult.rows) {
+    if (row.attempts >= MAX_ATTEMPTS) {
+      await deadLetterRow(
+        client,
+        row,
+        new Error(`max attempts reached (${row.attempts})`),
+        row.attempts,
+      );
+      continue;
+    }
+
+    let eventType: OutboxMessage['eventType'];
+    try {
+      eventType = normalizeEventType(row.event_type);
+    } catch (err) {
+      console.error('[cron/outbox] invalid event type; dead-lettering', {
+        id: row.id,
+        event_type: row.event_type,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      await deadLetterRow(client, row, err);
+      continue;
+    }
+
+    // The SQL predicate prevents unsupported rows from consuming the batch
+    // budget. Keep this second guard so a query regression cannot turn a
+    // recognized-but-unhandled event into a silent successful no-op.
+    if (!isCascadeEvent(eventType)) {
+      continue;
+    }
+
+    const message: OutboxMessage = {
+      id: row.id,
+      orgId: row.org_id,
+      eventType,
+      aggregateType: row.aggregate_type,
+      aggregateId: row.aggregate_id,
+      payload: row.payload,
+      createdAt: row.created_at,
+      appVersion: row.app_version,
+    };
+
+    try {
+      await queue.publish(message);
+    } catch (err) {
+      console.error('[cron/outbox] handler failed; retaining for retry', {
+        id: row.id,
+        event_type: row.event_type,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      await retryOrDeadLetterRow(client, row, err);
+      continue;
+    }
+
     await client.query(
       `UPDATE public.outbox_events
           SET consumed_at = pg_catalog.now()
         WHERE id = $1`,
       [row.id],
     );
-  }
-}
-
-async function runOnce(client: pg.PoolClient, queue: Queue): Promise<void> {
-  const pollResult = await client.query<OutboxRow>(
-    `SELECT id, org_id, event_type, aggregate_type, aggregate_id, payload, created_at, app_version
-       FROM public.outbox_events
-      WHERE consumed_at IS NULL
-      ORDER BY org_id, created_at
-      LIMIT 100`,
-  );
-
-  for (const row of pollResult.rows) {
-    try {
-      const eventType = normalizeEventType(row.event_type);
-      const message: OutboxMessage = {
-        id: row.id,
-        orgId: row.org_id,
-        eventType,
-        aggregateType: row.aggregate_type,
-        aggregateId: row.aggregate_id,
-        payload: row.payload,
-        createdAt: row.created_at,
-        appVersion: row.app_version,
-      };
-
-      await queue.publish(message);
-
-      await client.query(
-        `UPDATE public.outbox_events
-            SET consumed_at = pg_catalog.now()
-          WHERE id = $1`,
-        [row.id],
-      );
-    } catch (err) {
-      // Per-row isolation: a single unknown/failed event is logged + dead-lettered
-      // and SKIPPED, never aborting the batch (the cron poison-pill class).
-      console.error('[cron/outbox] row failed; dead-lettering', {
-        id: row.id,
-        event_type: row.event_type,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      await deadLetterRow(client, row, err);
-    }
   }
 }
 
@@ -262,8 +338,8 @@ async function handleOutbox(req: Request): Promise<Response> {
   const client = await pool.connect();
   try {
     // Count unconsumed BEFORE so we can report `processed`. runOnce is
-    // bounded to LIMIT 100 per call, so this gives an upper-bound report;
-    // the real processed count is `min(before, 100) - after`.
+    // bounded to LIMIT 1000 per call, so this gives an upper-bound report;
+    // the real processed count is `min(before, 1000) - after`.
     let before = 0;
     try {
       const r = await client.query<{ c: string }>(
