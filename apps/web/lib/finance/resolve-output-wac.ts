@@ -1,5 +1,3 @@
-import { materialUnitCostSql } from './material-cost-source';
-
 type QueryClient = {
   query<T = Record<string, unknown>>(
     sql: string,
@@ -30,32 +28,10 @@ type WoOutputCostBasisRow = {
   output_baseline_kg: string;
 };
 
-const MATERIAL_COSTED_QTY_KG_CASE = `
-  case
-    when lower(c.uom) = 'kg' then c.qty_consumed
-    when lower(c.uom) = lower(coalesce(i.uom_base, ''))
-      and lower(coalesce(i.uom_base, '')) = 'kg'
-      then c.qty_consumed
-    when lower(c.uom) in ('each', 'pcs', 'szt', 'ea') and i.net_qty_per_each is not null
-      then c.qty_consumed * i.net_qty_per_each
-    when lower(c.uom) = 'box'
-      and i.net_qty_per_each is not null
-      and i.each_per_box is not null
-      then c.qty_consumed * i.each_per_box::numeric * i.net_qty_per_each
-    else null
-  end
-`;
-
-const CONSUMPTION_MATERIAL_UNIT_COST_SQL = materialUnitCostSql({
-  wacSnapshot: "nullif(trim(c.ext_jsonb->>'wac_avg_cost'), '')",
-  costHistory: 'ch.cost_per_kg',
-  itemMaster: 'i.cost_per_kg',
-});
-
 /**
  * Resolves the WAC credit for a forward FG output registration.
- * Prefers WO actual material cost (consumption wac_value snapshots, then costed kg rows);
- * falls back to item standard cost_per_kg. Skips when no cost basis exists (never books 0).
+ * Uses only persisted positive consumption wac_value snapshots. A missing/zero
+ * snapshot is unknown historical cost and must be corrected explicitly.
  */
 export async function resolveOutputWacContribution(
   client: QueryClient,
@@ -77,43 +53,6 @@ export async function resolveOutputWacContribution(
                 0
               ) as material_cost
          from public.wo_material_consumption c
-        where c.org_id = app.current_org_id()
-          and c.wo_id = $1::uuid
-          and c.correction_of_id is null
-          and not exists (
-            select 1
-              from public.wo_material_consumption correction
-             where correction.org_id = c.org_id
-               and correction.correction_of_id = c.id
-          )
-     ),
-     material_costed as (
-       select coalesce(
-                sum(
-                  coalesce(
-                    nullif(nullif(c.ext_jsonb->>'wac_value', '')::numeric, 0),
-                    (${MATERIAL_COSTED_QTY_KG_CASE}) * (${CONSUMPTION_MATERIAL_UNIT_COST_SQL})
-                  )
-                ),
-                0
-              ) as material_cost
-         from public.wo_material_consumption c
-         left join public.items i
-           on i.org_id = c.org_id
-          and i.id = c.component_id
-         left join lateral (
-           select cost_per_kg
-             from public.item_cost_history
-            where org_id = app.current_org_id()
-              and item_id = c.component_id
-              and effective_from <= coalesce(c.consumed_at::date, c.created_at::date, current_date)
-              and (
-                effective_to is null
-                or effective_to >= coalesce(c.consumed_at::date, c.created_at::date, current_date)
-              )
-            order by effective_from desc, created_at desc
-            limit 1
-         ) ch on true
         where c.org_id = app.current_org_id()
           and c.wo_id = $1::uuid
           and c.correction_of_id is null
@@ -150,11 +89,7 @@ export async function resolveOutputWacContribution(
         where wo.org_id = app.current_org_id()
           and wo.id = $1::uuid
      )
-     select case
-              when (select material_cost from material_wac) > 0
-                then (select material_cost from material_wac)
-              else (select material_cost from material_costed)
-            end::text as material_cost,
+     select (select material_cost from material_wac)::text as material_cost,
             (select prior_wac_booked from prior_outputs)::text as prior_wac_booked,
             greatest(
               coalesce((select planned_output_kg from wo_baseline), 0),
@@ -228,22 +163,6 @@ async function loadUnCostedConsumptionLines(
             c.qty_consumed::text as qty,
             c.uom
        from public.wo_material_consumption c
-       left join public.items i
-         on i.org_id = c.org_id
-        and i.id = c.component_id
-       left join lateral (
-         select cost_per_kg
-           from public.item_cost_history
-          where org_id = app.current_org_id()
-            and item_id = c.component_id
-            and effective_from <= coalesce(c.consumed_at::date, c.created_at::date, current_date)
-            and (
-              effective_to is null
-              or effective_to >= coalesce(c.consumed_at::date, c.created_at::date, current_date)
-            )
-          order by effective_from desc, created_at desc
-          limit 1
-       ) ch on true
       where c.org_id = app.current_org_id()
         and c.wo_id = $1::uuid
         and c.correction_of_id is null
@@ -253,11 +172,7 @@ async function loadUnCostedConsumptionLines(
            where correction.org_id = c.org_id
              and correction.correction_of_id = c.id
         )
-        and nullif(nullif(c.ext_jsonb->>'wac_value', '')::numeric, 0) is null
-        and (
-          (${MATERIAL_COSTED_QTY_KG_CASE}) is null
-          or (${CONSUMPTION_MATERIAL_UNIT_COST_SQL}) is null
-        )`,
+        and coalesce(nullif(trim(c.ext_jsonb->>'wac_value'), '')::numeric, 0) <= 0`,
     [woId],
   );
 

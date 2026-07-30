@@ -146,7 +146,7 @@ describe('computeWoActualCost material prices (real Postgres)', () => {
           qty_consumed, uom, operator_id, fefo_adherence_flag, ext_jsonb)
        values
          ($1, $2, $3, $4, $5, $6, $7, 360.000, 'kg', $8, true, $9::jsonb),
-         ($10, $2, $3, $11, $12, $13, $14, 360.000, 'kg', $8, true, $9::jsonb)`,
+         ($10, $2, $3, $11, $12, $13, $14, 360.000, 'kg', $8, true, $15::jsonb)`,
       [
         randomUUID(),
         orgId,
@@ -156,12 +156,13 @@ describe('computeWoActualCost material prices (real Postgres)', () => {
         pricedMaterialId,
         randomUUID(),
         userId,
-        JSON.stringify({ wac_avg_cost: '0' }),
+        JSON.stringify({ wac_avg_cost: '0', wac_value: '0' }),
         randomUUID(),
         randomUUID(),
         freeWoId,
         freeMaterialId,
         randomUUID(),
+        JSON.stringify({}),
       ],
     );
 
@@ -190,7 +191,7 @@ describe('computeWoActualCost material prices (real Postgres)', () => {
     await ownerPool?.end();
   });
 
-  it('uses active history when the 360 kg consumption WAC snapshot is textual zero', async () => {
+  it('keeps a textual-zero consumption stamp aligned with the zero ledger value', async () => {
     const result = await computeWoActualCost(pricedWoId);
 
     expect(result.ok).toBe(true);
@@ -199,14 +200,16 @@ describe('computeWoActualCost material prices (real Postgres)', () => {
       {
         itemCode: `PG-WO-COST-RM-${pricedMaterialId.slice(0, 8)}`,
         qtyKg: '360.000',
-        costPerKg: '2.500000',
-        cost: '900.0000',
+        costPerKg: null,
+        cost: '0.0000',
+        costUnknown: true,
       },
     ]);
-    expect(result.data.materialsTotal).toBe('900.0000');
+    expect(result.data.materialsTotal).toBe('0.0000');
+    expect(result.data.hasUnknownMaterialCost).toBe(true);
   });
 
-  it('keeps an explicit zero history price free instead of falling through to item master cost', async () => {
+  it('keeps a missing consumption stamp unknown instead of using catalog prices', async () => {
     const result = await computeWoActualCost(freeWoId);
 
     expect(result.ok).toBe(true);
@@ -215,11 +218,13 @@ describe('computeWoActualCost material prices (real Postgres)', () => {
       {
         itemCode: `PG-WO-COST-FREE-${freeMaterialId.slice(0, 8)}`,
         qtyKg: '360.000',
-        costPerKg: '0.000000',
+        costPerKg: null,
         cost: '0.0000',
+        costUnknown: true,
       },
     ]);
     expect(result.data.materialsTotal).toBe('0.0000');
+    expect(result.data.hasUnknownMaterialCost).toBe(true);
     expect(result.data.totalCost).toBe('0.0000');
     expect(result.data.zeroCost).toBe(true);
   });

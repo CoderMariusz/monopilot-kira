@@ -168,7 +168,9 @@ const client = {
               uom: null,
               raw_qty: '4',
               qty_kg: '4.000',
-              cost_per_kg: '3.000000',
+              cost_per_kg: null,
+              cost: '0',
+              cost_unknown: true,
               has_non_gbp_currency: false,
               unresolved_uom: false,
             },
@@ -185,6 +187,8 @@ const client = {
               raw_qty: '2',
               qty_kg: '2.000',
               cost_per_kg: null,
+              cost: '0',
+              cost_unknown: true,
               has_non_gbp_currency: false,
               unresolved_uom: false,
             },
@@ -200,7 +204,9 @@ const client = {
               uom: null,
               raw_qty: '360',
               qty_kg: '360.000',
-              cost_per_kg: '2.5000',
+              cost_per_kg: null,
+              cost: '0',
+              cost_unknown: true,
               has_non_gbp_currency: false,
               unresolved_uom: false,
             },
@@ -511,36 +517,37 @@ describe('listCompletedWoCosts', () => {
     const materialsQuery = calls.find(
       (call) => call.sql.includes('from public.wo_material_consumption') && call.params[0] === COSTED_WO_ID,
     );
-    expect(materialsQuery?.sql).toContain(
-      "nullif((nullif(trim(c.ext_jsonb->>'wac_avg_cost'), ''))::numeric, 0)",
-    );
-    expect(materialsQuery?.sql).toContain('coalesce(c.consumed_at::date, $2::date)');
-    expect(materialsQuery?.sql).toContain('and (effective_to is null or effective_to >=');
-    expect(materialsQuery?.sql).not.toContain('and effective_to is null');
-    expect(materialsQuery?.params).toEqual([COSTED_WO_ID, '2026-06-11', 'GBP']);
+    expect(materialsQuery?.sql).toContain("nullif(trim(c.ext_jsonb->>'wac_value'), '')");
+    expect(materialsQuery?.sql).not.toContain('item_cost_history');
+    expect(materialsQuery?.params).toEqual([COSTED_WO_ID]);
     expect(materialsQuery?.sql).toContain('when lower(c.uom) = \'each\' and i.net_qty_per_each is not null');
-    expect(materialsQuery?.sql).toContain('bool_or(cost_currency is distinct from $3::text) as has_non_gbp_currency');
-    expect(materialsQuery?.sql).toContain('sum(coalesce(qty_kg, 0) * coalesce(cost_per_kg, 0))');
+    expect(materialsQuery?.sql).toContain('coalesce(sum(stamped_value), 0)::text as cost');
     expect(materialsQuery?.sql).not.toContain('max(cost_currency)');
     expect(materialsQuery?.sql).not.toContain('max(cost_per_kg)');
   });
 
-  it('accepts WO actual cost for master-data-costed material without item_cost_history or WAC snapshot', async () => {
+  it('marks material without a persisted WAC stamp unknown instead of using item master cost', async () => {
     const result = await computeWoActualCost(MASTER_COST_WO_ID);
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.data.materials).toEqual([
-      { itemCode: 'RM-MASTER', qtyKg: '4.000', costPerKg: '3.000000', cost: '12.0000' },
+      {
+        itemCode: 'RM-MASTER',
+        qtyKg: '4.000',
+        costPerKg: null,
+        cost: '0.0000',
+        costUnknown: true,
+      },
     ]);
-    expect(result.data.materialsTotal).toBe('12.0000');
+    expect(result.data.materialsTotal).toBe('0.0000');
+    expect(result.data.hasUnknownMaterialCost).toBe(true);
 
     const materialsQuery = calls.find(
       (call) => call.sql.includes('from public.wo_material_consumption') && call.params[0] === MASTER_COST_WO_ID,
     );
-    expect(materialsQuery?.sql).toContain('else coalesce(ch.currency, $3::text)');
-    expect(materialsQuery?.sql).not.toContain("coalesce(ch.currency, 'pln')");
-    expect(materialsQuery?.params?.[2]).toBe('GBP');
+    expect(materialsQuery?.sql).not.toContain('item_cost_history');
+    expect(materialsQuery?.sql).not.toContain('i.cost_per_kg');
   });
 
   it('accepts WO actual cost when resolved material has no cost basis (zero-cost, not unsupported_currency)', async () => {
@@ -549,13 +556,20 @@ describe('listCompletedWoCosts', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.data.materials).toEqual([
-      { itemCode: 'RM-ZERO', qtyKg: '2.000', costPerKg: '0.000000', cost: '0.0000' },
+      {
+        itemCode: 'RM-ZERO',
+        qtyKg: '2.000',
+        costPerKg: null,
+        cost: '0.0000',
+        costUnknown: true,
+      },
     ]);
     expect(result.data.materialsTotal).toBe('0.0000');
+    expect(result.data.hasUnknownMaterialCost).toBe(true);
     expect(result.data.zeroCost).toBe(true);
   });
 
-  it('falls back from a zero WAC stamp to the active catalog cost', async () => {
+  it('keeps a zero WAC stamp aligned with the ledger and marks the cost unknown', async () => {
     const result = await computeWoActualCost(ZERO_WAC_COSTED_WO_ID);
 
     expect(result.ok).toBe(true);
@@ -564,21 +578,21 @@ describe('listCompletedWoCosts', () => {
       {
         itemCode: 'DEMO-RM-FLOUR',
         qtyKg: '360.000',
-        costPerKg: '2.500000',
-        cost: '900.0000',
+        costPerKg: null,
+        cost: '0.0000',
+        costUnknown: true,
       },
     ]);
-    expect(result.data.materialsTotal).toBe('900.0000');
+    expect(result.data.materialsTotal).toBe('0.0000');
+    expect(result.data.hasUnknownMaterialCost).toBe(true);
 
     const materialsQuery = calls.find(
       (call) =>
         call.sql.includes('from public.wo_material_consumption') &&
         call.params[0] === ZERO_WAC_COSTED_WO_ID,
     );
-    expect(materialsQuery?.sql).toContain(
-      "nullif((nullif(trim(c.ext_jsonb->>'wac_avg_cost'), ''))::numeric, 0)",
-    );
-    expect(materialsQuery?.sql).toContain(') ch on true');
+    expect(materialsQuery?.sql).toContain("nullif(trim(c.ext_jsonb->>'wac_value'), '')");
+    expect(materialsQuery?.sql).not.toContain('item_cost_history');
   });
 
   it('rejects WO actual cost when a material row is costed in a non-GBP currency', async () => {
@@ -599,9 +613,6 @@ describe('listCompletedWoCosts', () => {
       reason: 'unsupported_currency',
       message: expect.stringContaining('RM-MIX'),
     });
-
-    const materialsQuery = calls.find((call) => call.sql.includes('from public.wo_material_consumption'));
-    expect(materialsQuery?.sql).toContain('bool_or(cost_currency is distinct from $3::text)');
   });
 
   it('sums same-item consumptions at different GBP costs via row-grain qty×cost, not qty×max(cost)', async () => {
@@ -626,10 +637,8 @@ describe('listCompletedWoCosts', () => {
     expect(result.data.materialsTotal).toBe('7.0000');
 
     const materialsQuery = calls.find((call) => call.sql.includes('from public.wo_material_consumption'));
-    expect(materialsQuery?.sql).toContain(
-      "nullif((nullif(trim(c.ext_jsonb->>'wac_avg_cost'), ''))::numeric, 0)",
-    );
-    expect(materialsQuery?.sql).toContain('coalesce(c.consumed_at::date, $2::date)');
+    expect(materialsQuery?.sql).toContain("nullif(trim(c.ext_jsonb->>'wac_value'), '')");
+    expect(materialsQuery?.sql).not.toContain('item_cost_history');
   });
 });
 

@@ -31,6 +31,7 @@ const labels: FinanceWoCostLabels = {
   error: 'Finance costs could not be loaded.',
   loading: 'Loading WO costs...',
   notAvailable: 'n/a',
+  unknownCost: 'Unknown cost',
   columns: {
     wo: 'WO',
     product: 'Product',
@@ -73,6 +74,7 @@ const readyResult = {
         outputKg: '25.000',
         materials: [{ itemCode: 'RM-A', qtyKg: '10.000', costPerKg: '1.250000', cost: '12.5000' }],
         materialsTotal: '12.5000',
+        hasUnknownMaterialCost: false,
         labor: { runtimeMin: '60.000', staffing: '2', ratePerHour: '15.0000', cost: '30.0000' },
         downtimeCost: '7.5000',
         machineCost: '0.0000',
@@ -137,6 +139,35 @@ describe('FinanceWoCostTable', () => {
     expect(within(expanded).getByText('5.0000')).toBeInTheDocument();
     expect(within(expanded).getByText('Downtime cost')).toBeInTheDocument();
     expect(within(expanded).getByText('7.5000')).toBeInTheDocument();
+  });
+
+  it('shows an explicit unknown-cost label while keeping the stamped ledger amount visible', () => {
+    const unknownResult = {
+      state: 'ready' as const,
+      summary: {
+        ...readyResult.summary,
+        rows: readyResult.summary.rows.map((row) => ({
+          ...row,
+          materials: [{
+            itemCode: 'RM-UNKNOWN',
+            qtyKg: '360.000',
+            costPerKg: null,
+            cost: '0.0000',
+            costUnknown: true,
+          }],
+          materialsTotal: '0.0000',
+          hasUnknownMaterialCost: true,
+        })),
+      },
+    };
+
+    render(<FinanceWoCostTable result={unknownResult} labels={labels} />);
+
+    expect(screen.getByTestId('finance-materials-total-wo-1')).toHaveTextContent('0.0000');
+    expect(screen.getByTestId('finance-materials-total-wo-1')).toHaveTextContent('Unknown cost');
+
+    fireEvent.click(screen.getByText('WO-1001'));
+    expect(screen.getByTestId('finance-breakdown-wo-1')).toHaveTextContent('Unknown cost');
   });
 
   it('shows pagination footer when more completed WOs exist than the page size', () => {

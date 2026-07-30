@@ -18,6 +18,7 @@ export type FinanceWoCostLabels = {
   error: string;
   loading: string;
   notAvailable: string;
+  unknownCost: string;
   columns: {
     wo: string;
     product: string;
@@ -267,7 +268,11 @@ export function FinanceWoCostTable({ result, labels }: FinanceWoCostTableProps) 
                                 <tr key={`${row.woId}-${material.itemCode}`}>
                                   <td className="py-1 font-mono">{material.itemCode}</td>
                                   <td className="py-1 text-right font-mono">{material.qtyKg}</td>
-                                  <td className="py-1 text-right font-mono">{material.costPerKg}</td>
+                                  <td className="py-1 text-right font-mono">
+                                    {material.costUnknown
+                                      ? labels.unknownCost
+                                      : money(material.costPerKg, labels.unknownCost)}
+                                  </td>
                                   <td className="py-1 text-right font-mono">{material.cost}</td>
                                 </tr>
                               ))}
@@ -300,7 +305,15 @@ export function FinanceWoCostTable({ result, labels }: FinanceWoCostTableProps) 
                   <td className="px-4 py-3 font-mono" data-testid={`finance-currency-${row.woId}`}>
                     {row.currency}
                   </td>
-                  <td className="px-4 py-3 text-right font-mono">{row.materialsTotal}</td>
+                  <td
+                    className="px-4 py-3 text-right font-mono"
+                    data-testid={`finance-materials-total-${row.woId}`}
+                  >
+                    <div>{row.materialsTotal}</div>
+                    {row.hasUnknownMaterialCost ? (
+                      <div className="font-sans text-xs text-amber-700">{labels.unknownCost}</div>
+                    ) : null}
+                  </td>
                   <td className="px-4 py-3 text-right font-mono">{row.labor?.cost ?? labels.breakdown.noLabor}</td>
                   <td className="px-4 py-3 text-right font-mono font-semibold">{row.totalCost}</td>
                   <td className="px-4 py-3 text-right font-mono">{money(row.costPerKgOutput, labels.notAvailable)}</td>

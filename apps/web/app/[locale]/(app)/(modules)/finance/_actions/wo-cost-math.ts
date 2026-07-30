@@ -4,6 +4,8 @@ export type MaterialCostInput = {
   itemCode: string;
   qtyKg: string;
   costPerKg: string | null;
+  cost?: string;
+  costUnknown?: boolean;
 };
 
 export type LaborCostInput = {
@@ -24,8 +26,9 @@ export type WoActualCostMathInput = {
 export type WoActualCostMaterial = {
   itemCode: string;
   qtyKg: string;
-  costPerKg: string;
+  costPerKg: string | null;
   cost: string;
+  costUnknown?: true;
 };
 
 export type WoActualCostLabor = {
@@ -61,16 +64,20 @@ export function computeWoActualCostTotals(input: WoActualCostMathInput): WoActua
 
   const materials = input.materials.map((material) => {
     const qty = toMicro(material.qtyKg);
-    const costPerKg = toMicro(material.costPerKg ?? '0');
-    const cost = mulMicro(qty, costPerKg);
+    const costPerKg = material.costPerKg == null ? null : toMicro(material.costPerKg);
+    const cost = material.cost == null
+      ? mulMicro(qty, costPerKg ?? 0n)
+      : toMicro(material.cost);
+    const costUnknown = material.costUnknown ?? costPerKg == null;
     materialQtyTotal += qty;
     materialsTotal += cost;
 
     return {
       itemCode: material.itemCode,
       qtyKg: microToFixed(qty, 3),
-      costPerKg: microToFixed(costPerKg, 6),
+      costPerKg: costPerKg == null ? null : microToFixed(costPerKg, 6),
       cost: microToFixed(cost, 4),
+      ...(costUnknown ? { costUnknown: true as const } : {}),
     };
   });
 

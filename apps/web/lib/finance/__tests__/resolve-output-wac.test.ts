@@ -26,26 +26,20 @@ function makeClient(handlers: {
   standardOutputValue?: string;
 }) {
   const calls: string[] = [];
+  const queries: Array<{ sql: string; params: readonly unknown[] }> = [];
   return {
     calls,
+    queries,
     query: async (sql: string, params: readonly unknown[] = []) => {
       const n = normalize(sql);
       calls.push(n);
+      queries.push({ sql: n, params });
       if (n.includes('select c.id::text as consumption_id')) {
         if (handlers.costGate) {
-          const zeroAware =
-            n.includes("wac_avg_cost") &&
-            n.includes("wac_value', '')::numeric, 0");
-          const snapshotValueKnown = Number(handlers.costGate.wacValue) !== 0;
-          const snapshotCostKnown = Number(handlers.costGate.wacAvgCost) > 0;
-          const catalogKnown =
-            handlers.costGate.historyCost !== null ||
-            handlers.costGate.itemCost !== null;
-          const unCosted =
-            zeroAware &&
-            !snapshotValueKnown &&
-            !snapshotCostKnown &&
-            !catalogKnown;
+          const stampOnly =
+            n.includes("nullif(trim(c.ext_jsonb->>'wac_value'), '')") &&
+            !n.includes('item_cost_history');
+          const unCosted = stampOnly && Number(handlers.costGate.wacValue) <= 0;
           const rows = unCosted
             ? [{
                 consumption_id: CONSUMPTION_ID,
@@ -238,13 +232,43 @@ describe('resolveOutputWacContribution', () => {
     });
   });
 
-  it('treats a zero WAC stamp with no catalog cost as un-costed', async () => {
+  it('keeps the positive 0.666653 consumption stamp as the exact 0.666653 output value', async () => {
+    const client = makeClient({
+      materialCost: '0.666653',
+      outputBaselineKg: '700',
+      computedCostPerKg: '0.00095236142857142857',
+      computedOutputValue: '0.666653',
+    });
+
+    const result = await resolveOutputWacContribution(client, {
+      woId: WO_ID,
+      qtyKg: '700',
+      standardCostPerKg: '2.50',
+    });
+
+    expect(result).toEqual({
+      applied: true,
+      deltaQtyKg: '700',
+      deltaValue: '0.666653',
+      costPerKg: '0.00095236142857142857',
+      source: 'wo_computed',
+    });
+    expect(client.calls.find((sql) => sql.includes('with material_wac as'))).not.toContain('material_costed');
+    expect(client.queries.find(({ sql }) => sql.includes('end as output_value'))?.params).toEqual([
+      '0.666653',
+      '700',
+      '700',
+      '0',
+    ]);
+  });
+
+  it('treats a zero WAC stamp as un-costed even when a catalog price exists', async () => {
     const client = makeClient({
       costGate: {
         wacValue: '0',
         wacAvgCost: '0',
-        historyCost: null,
-        itemCost: null,
+        historyCost: '2.5000',
+        itemCost: '7.0000',
       },
     });
 
@@ -266,16 +290,14 @@ describe('resolveOutputWacContribution', () => {
     });
   });
 
-  it('does not block a deliberately free material with an explicit zero catalog cost', async () => {
+  it('treats a missing WAC stamp as un-costed instead of silently pricing history', async () => {
     const client = makeClient({
       costGate: {
-        wacValue: '0',
-        wacAvgCost: '0',
-        historyCost: '0',
+        wacValue: '',
+        wacAvgCost: '',
+        historyCost: '2.5000',
         itemCost: '2.5000',
       },
-      materialCost: '0',
-      outputBaselineKg: '60',
     });
 
     const result = await resolveOutputWacContribution(client, {
@@ -285,12 +307,14 @@ describe('resolveOutputWacContribution', () => {
     });
 
     expect(result).toEqual({
-      applied: true,
-      deltaQtyKg: '60',
-      deltaValue: '60',
-      costPerKg: '1',
-      source: 'standard',
+      applied: false,
+      excluded: 'un_costed',
+      unCostedLines: [{
+        consumptionId: CONSUMPTION_ID,
+        componentId: COMPONENT_ID,
+        qty: '60',
+        uom: 'kg',
+      }],
     });
-    expect(client.calls[0]).toContain('from public.item_cost_history');
   });
 });

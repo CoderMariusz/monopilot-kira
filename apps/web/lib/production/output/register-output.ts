@@ -40,10 +40,7 @@
  */
 import { z } from 'zod';
 
-import {
-  resolveOutputWacContribution,
-  type UnCostedConsumptionLine,
-} from '../../finance/resolve-output-wac';
+import { resolveOutputWacContribution } from '../../finance/resolve-output-wac';
 import {
   resolveWacDeltaQtyKg,
   resolveWacDeltaQtyKgFromSnapshot,
@@ -53,6 +50,7 @@ import { woSnapshotWacQtyFields } from '../../uom/convert';
 import { makeLpNumber, makeStockMoveNumber } from '../../warehouse/lp-create';
 import { resolveWriteSiteId } from '../../site/site-context';
 import { woPostedConsumptionKgSubquery } from '../consumption-qty-to-kg';
+import { reconcileWoOutputGenealogy } from '../output-genealogy';
 import {
   PRODUCTION_OUTPUT_RECORDED_EVENT,
   PRODUCTION_OUTPUT_WRITE_PERMISSION,
@@ -172,8 +170,6 @@ type SuppliedOutputLpRow = {
   wo_id: string | null;
   location_id: string | null;
 };
-
-type GenealogyAllocation = { lp_id: string; alloc_qty: string; uom: string };
 
 const TERMINAL_OUTPUT_LP_STATUSES = ['consumed', 'merged', 'shipped', 'returned', 'destroyed'] as const;
 
@@ -364,128 +360,6 @@ async function nextBatchNumber(
   );
   const seq = Number(rows[0]?.seq ?? '0') + 1;
   return `${woNumber}-OUT-${String(seq).padStart(3, '0')}`;
-}
-
-/**
- * Genealogy source (F-B08): allocate each parent's net consumed qty across this WO's
- * output LPs proportionally to the registering output's share of total WO output,
- * capped by remaining unattributed parent qty and (for mass-compatible UoMs) this
- * output qty so summed child edges never exceed the parent's net consumption.
- */
-async function allocateGenealogyContributionsForOutput(
-  ctx: OrgContextLike,
-  woId: string,
-  outputQty: string,
-  outputUom: string,
-): Promise<GenealogyAllocation[]> {
-  // Serialize ALL genealogy allocation for this WO (not per output type) so
-  // concurrent registrations cannot collectively exceed each parent's net consumption.
-  await ctx.client.query(
-    `select pg_advisory_xact_lock(hashtext($1::text || '::genealogy'))`,
-    [woId],
-  );
-
-  const { rows: mixedUomParents } = await ctx.client.query<{ lp_id: string; uoms: string[] }>(
-    `select mc.lp_id::text as lp_id,
-            array_agg(distinct mc.uom order by mc.uom) as uoms
-       from public.wo_material_consumption mc
-      where mc.org_id = app.current_org_id()
-        and mc.wo_id = $1::uuid
-        and mc.lp_id <> '00000000-0000-0000-0000-000000000000'::uuid
-      group by mc.lp_id
-     having count(distinct mc.uom) > 1`,
-    [woId],
-  );
-  if (mixedUomParents.length > 0) {
-    const mixed = mixedUomParents[0]!;
-    throw new ProductionActionError('uom_mismatch', 409, {
-      lp_id: mixed.lp_id,
-      uoms: mixed.uoms,
-      message: 'Parent LP has consumption ledger rows in more than one UoM; cannot allocate genealogy.',
-    });
-  }
-
-  const { rows } = await ctx.client.query<GenealogyAllocation & { consumption_uom: string }>(
-    `with parent_net as (
-       select mc.lp_id,
-              sum(mc.qty_consumed) as net_qty,
-              min(mc.uom) as consumption_uom
-         from public.wo_material_consumption mc
-        where mc.org_id = app.current_org_id()
-          and mc.wo_id = $1::uuid
-          and mc.lp_id <> '00000000-0000-0000-0000-000000000000'::uuid
-        group by mc.lp_id
-       having sum(mc.qty_consumed) > 0::numeric
-          and count(distinct mc.uom) = 1
-     ),
-     wo_output_total as (
-       select coalesce(sum(o.qty_kg), 0::numeric) as total_output_qty
-         from public.wo_outputs o
-        where o.org_id = app.current_org_id()
-          and o.wo_id = $1::uuid
-          and o.correction_of_id is null
-          and not exists (
-            select 1
-              from public.wo_outputs correction
-             where correction.org_id = o.org_id
-               and correction.correction_of_id = o.id
-          )
-     ),
-     already_attributed as (
-       select lg.parent_lp_id,
-              sum(lg.qty) as attributed_qty
-         from public.lp_genealogy lg
-         join public.license_plates child_lp
-           on child_lp.org_id = lg.org_id
-          and child_lp.id = lg.child_lp_id
-         join public.wo_outputs o
-           on o.org_id = child_lp.org_id
-          and o.lp_id = child_lp.id
-          and o.wo_id = $1::uuid
-        where lg.org_id = app.current_org_id()
-          and lg.relation_type = 'consumed'
-        group by lg.parent_lp_id
-     )
-     select pn.lp_id::text as lp_id,
-            least(
-              pn.net_qty * $2::numeric / nullif(wot.total_output_qty, 0::numeric),
-              pn.net_qty - coalesce(aa.attributed_qty, 0::numeric),
-              case
-                when pn.consumption_uom = $3 and $3 in ('kg', 'g', 'lb')
-                  then $2::numeric
-                else pn.net_qty
-              end
-            )::text as alloc_qty,
-            pn.consumption_uom as uom,
-            pn.consumption_uom
-       from parent_net pn
-       cross join wo_output_total wot
-       left join already_attributed aa on aa.parent_lp_id = pn.lp_id
-      where wot.total_output_qty > 0::numeric
-        and least(
-              pn.net_qty * $2::numeric / wot.total_output_qty,
-              pn.net_qty - coalesce(aa.attributed_qty, 0::numeric),
-              case
-                when pn.consumption_uom = $3 and $3 in ('kg', 'g', 'lb')
-                  then $2::numeric
-                else pn.net_qty
-              end
-            ) > 0::numeric
-      order by pn.lp_id asc`,
-    [woId, outputQty, outputUom],
-  );
-
-  for (const row of rows) {
-    if (row.consumption_uom !== outputUom) {
-      throw new ProductionActionError('uom_mismatch', 409, {
-        uom: row.consumption_uom,
-        expected_uom: outputUom,
-        message: 'Parent consumption UoM does not match the output UoM for genealogy allocation.',
-      });
-    }
-  }
-
-  return rows.map(({ lp_id, alloc_qty, uom }) => ({ lp_id, alloc_qty, uom }));
 }
 
 /**
@@ -777,14 +651,6 @@ async function createOutputLp(
     });
   }
 
-  const consumedParents = await allocateGenealogyContributionsForOutput(
-    ctx,
-    input.woId,
-    input.quantity,
-    input.uom,
-  );
-  const consumedLpIds = consumedParents.map((parent) => parent.lp_id);
-  const parentLpId = consumedLpIds[0] ?? null;
   const lpNumber = makeLpNumber();
 
   const { rows } = await ctx.client.query<{ id: string }>(
@@ -796,8 +662,8 @@ async function createOutputLp(
      values (
        app.current_org_id(), $1::uuid, $2::uuid, $3::uuid, $4, $5::uuid, $6::numeric, $7,
        $8::numeric, 'received', 'pending', $9, $10::timestamptz, $10::timestamptz,
-       'production', $11::uuid, $12::uuid,
-       jsonb_build_object('consumed_lp_ids', $13::jsonb), $14::uuid, $14::uuid
+       'production', $11::uuid, null,
+       jsonb_build_object('consumed_lp_ids', '[]'::jsonb), $12::uuid, $12::uuid
      )
      returning id`,
     [
@@ -812,26 +678,11 @@ async function createOutputLp(
       input.batchNumber,
       input.expiryDate,
       input.woId,
-      parentLpId,
-      JSON.stringify(consumedLpIds),
       input.actorUserId,
     ],
   );
   const lp = rows[0];
   if (!lp) throw new ProductionActionError('persistence_failed', 500);
-
-  if (consumedParents.length > 0) {
-    for (const parent of consumedParents) {
-      await ctx.client.query(
-        `insert into public.lp_genealogy (
-           org_id, child_lp_id, parent_lp_id, relation_type, qty, uom
-         )
-         values (app.current_org_id(), $1::uuid, $2::uuid, 'consumed', $3::numeric, $4)
-         on conflict (org_id, child_lp_id, parent_lp_id, relation_type) do nothing`,
-        [lp.id, parent.lp_id, parent.alloc_qty, parent.uom],
-      );
-    }
-  }
 
   // Genesis row in the LP transition ledger (same contract as the GRN flow).
   await ctx.client.query(
@@ -1156,6 +1007,8 @@ export async function registerOutput(
     });
   }
 
+  await reconcileWoOutputGenealogy(ctx.client, woId);
+
   if (wacContribution.applied) {
     await upsertWac(ctx.client, {
       orgId: ctx.orgId,
@@ -1229,52 +1082,7 @@ async function resolveOutputWacContributionForRegistration(
     standardCostPerKg: string | null;
   },
 ) {
-  let contribution = await resolveOutputWacContribution(client, input);
-  if (contribution.applied || contribution.unCostedLines.length === 0) return contribution;
-
-  await snapshotLegacyConsumptionCosts(client, contribution.unCostedLines);
-  contribution = await resolveOutputWacContribution(client, input);
-  return contribution;
-}
-
-async function snapshotLegacyConsumptionCosts(
-  client: OrgContextLike['client'],
-  lines: UnCostedConsumptionLine[],
-): Promise<void> {
-  for (const line of lines) {
-    const resolution = await resolveWacDeltaQtyKg(client, {
-      itemId: line.componentId,
-      qty: line.qty,
-      uom: line.uom,
-    });
-    if (!resolution.resolved) continue;
-
-    await client.query(
-      `update public.wo_material_consumption c
-          set ext_jsonb = coalesce(c.ext_jsonb, '{}'::jsonb) || jsonb_build_object(
-                'wac_qty_kg', $2::text,
-                'wac_value', ($2::numeric * coalesce(ch.cost_per_kg, i.cost_per_kg))::text,
-                'wac_avg_cost', coalesce(ch.cost_per_kg, i.cost_per_kg)::text
-              )
-         from public.items i
-         left join lateral (
-           select cost_per_kg
-             from public.item_cost_history
-            where org_id = app.current_org_id()
-              and item_id = i.id
-              and effective_to is null
-            order by effective_from desc
-            limit 1
-         ) ch on true
-        where c.org_id = app.current_org_id()
-          and c.id = $1::uuid
-          and i.org_id = c.org_id
-          and i.id = c.component_id
-          and nullif(c.ext_jsonb->>'wac_value', '') is null
-          and coalesce(ch.cost_per_kg, i.cost_per_kg) is not null`,
-      [line.consumptionId, resolution.qtyKg],
-    );
-  }
+  return resolveOutputWacContribution(client, input);
 }
 
 async function resolveQtyKg(

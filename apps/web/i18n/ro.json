@@ -10539,6 +10539,7 @@
       "error": "Finance costs could not be loaded.",
       "loading": "Loading WO costs...",
       "notAvailable": "n/a",
+      "unknownCost": "Cost necunoscut",
       "columns": {
         "wo": "WO",
         "product": "Product",

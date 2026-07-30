@@ -10624,6 +10624,7 @@
       "error": "Nie udało się wczytać kosztów finansowych.",
       "loading": "Ładowanie kosztów WO...",
       "notAvailable": "b/d",
+      "unknownCost": "Koszt nieznany",
       "columns": {
         "wo": "WO",
         "product": "Produkt",

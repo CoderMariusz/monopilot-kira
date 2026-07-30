@@ -39,6 +39,7 @@ async function buildLabels(): Promise<FinanceWoCostLabels> {
     error: t('error'),
     loading: t('loading'),
     notAvailable: t('notAvailable'),
+    unknownCost: t('unknownCost'),
     columns: {
       wo: t('columns.wo'),
       product: t('columns.product'),
