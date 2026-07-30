@@ -10,7 +10,7 @@
  * (and renders the denied / error / loading panels there); these tests exercise
  * the presentational client islands directly. The recordMonitoring Server Action
  * is injected as a vi.fn() prop so we assert the EXACT payload wired against the
- * reviewed signature ({ ccpId, measuredValue, note? }).
+ * reviewed signature ({ ccpId, measuredValue, woId?, note? }).
  *
  * Covers: parity (codes/badges/limits/last reading — never a UUID), empty state
  * + CTA, optimistic record (in-limit closes; out-of-limit surfaces the auto-NCR
@@ -96,11 +96,21 @@ function makeItem(over: Partial<CcpBoardItem>): CcpBoardItem {
 function renderBoard(
   items: CcpBoardItem[],
   recordAction = vi.fn(async () => ({ ok: true as const, data: { withinLimits: true, ncrId: null, outboxEmitted: false } })),
-  opts: { canEdit?: boolean; upsertAction?: ReturnType<typeof vi.fn> } = {},
+  opts: {
+    canEdit?: boolean;
+    upsertAction?: ReturnType<typeof vi.fn>;
+    resolveWoAction?: ReturnType<typeof vi.fn>;
+  } = {},
 ) {
   const canEdit = opts.canEdit ?? true;
   const upsertAction =
     opts.upsertAction ?? vi.fn(async () => ({ ok: true as const, data: makeCcpRow() }));
+  const resolveWoAction =
+    opts.resolveWoAction ??
+    vi.fn(async () => ({
+      ok: true as const,
+      data: { id: 'wo-default', display: 'WO-DEFAULT' },
+    }));
   render(
     <CcpBoardClient
       items={items}
@@ -109,12 +119,13 @@ function renderBoard(
       createLabels={CREATE_LABELS}
       locale="en"
       recordMonitoringAction={recordAction as never}
+      resolveWoAction={resolveWoAction as never}
       upsertCcpAction={upsertAction as never}
       canEdit={canEdit}
       setupHref="/en/quality"
     />,
   );
-  return { recordAction, upsertAction };
+  return { recordAction, upsertAction, resolveWoAction };
 }
 
 describe('CcpBoardClient (E3 parity)', () => {
@@ -170,6 +181,7 @@ describe('CcpBoardClient (E3 parity)', () => {
         createLabels={CREATE_LABELS}
         locale="en"
         recordMonitoringAction={vi.fn() as never}
+        resolveWoAction={vi.fn() as never}
         upsertCcpAction={vi.fn() as never}
         canEdit
         setupHref="/en/quality"
@@ -304,7 +316,9 @@ describe('CcpBoardClient (E3 parity)', () => {
   });
 
   it('OPTIMISTIC in-limit: records via recordMonitoring with the EXACT payload, then closes the modal', async () => {
-    const { recordAction } = renderBoard([makeItem({ id: 'a', ccpCode: 'CCP-01', name: 'Cooking temperature' })]);
+    const { recordAction, resolveWoAction } = renderBoard([
+      makeItem({ id: 'a', ccpCode: 'CCP-01', name: 'Cooking temperature' }),
+    ]);
     fireEvent.click(screen.getByTestId('ccp-record-open'));
     expect(screen.getByTestId('ccp-record-form')).toBeInTheDocument();
 
@@ -317,6 +331,7 @@ describe('CcpBoardClient (E3 parity)', () => {
 
     await waitFor(() => expect(recordAction).toHaveBeenCalledTimes(1));
     expect(recordAction).toHaveBeenCalledWith({ ccpId: 'a', measuredValue: '75.2' });
+    expect(resolveWoAction).not.toHaveBeenCalled();
     // in-limit → modal closes.
     await waitFor(() => expect(screen.queryByTestId('ccp-record-form')).not.toBeInTheDocument());
   });
@@ -326,14 +341,29 @@ describe('CcpBoardClient (E3 parity)', () => {
       ok: true as const,
       data: { withinLimits: false, ncrId: 'ncr-77', outboxEmitted: true },
     }));
-    renderBoard([makeItem({ id: 'a', ccpCode: 'CCP-09', name: 'Metal detection' })], recordAction);
+    const resolveWoAction = vi.fn(async () => ({
+      ok: true as const,
+      data: { id: 'wo-77', display: 'WO-2026-0108' },
+    }));
+    renderBoard(
+      [makeItem({ id: 'a', ccpCode: 'CCP-09', name: 'Metal detection' })],
+      recordAction,
+      { resolveWoAction },
+    );
     fireEvent.click(screen.getByTestId('ccp-record-open'));
     fireEvent.click(within(screen.getByTestId('ccp-record-ccp-select')).getByRole('combobox'));
     fireEvent.click(await screen.findByRole('option', { name: 'CCP-09 — Metal detection' }));
+    fireEvent.change(screen.getByTestId('ccp-record-wo'), { target: { value: 'WO-2026-0108' } });
     fireEvent.change(screen.getByTestId('ccp-record-value'), { target: { value: '5' } });
     fireEvent.click(screen.getByTestId('ccp-record-submit'));
 
     await waitFor(() => expect(recordAction).toHaveBeenCalled());
+    expect(resolveWoAction).toHaveBeenCalledWith({ woNumber: 'WO-2026-0108' });
+    expect(recordAction).toHaveBeenCalledWith({
+      ccpId: 'a',
+      measuredValue: '5',
+      woId: 'wo-77',
+    });
     const breach = await screen.findByTestId('ccp-record-breach');
     expect(breach).toHaveTextContent('CCP-09');
     expect(screen.getByTestId('ccp-record-breach-ncr-link')).toHaveAttribute('href', '/en/quality/ncrs/ncr-77');

@@ -27,6 +27,7 @@ let client: QueryClient;
 let permissions: Set<string>;
 let ccpLimits: { min: string | null; max: string | null };
 let outputLpIds: string[];
+let workOrderSiteId: string | null;
 let openedDeviationLogIds: Set<string>;
 // S2 idempotency: maps referenceId -> exact reason_free_text for an existing hold.
 let existingHoldsForReference: Map<string, string>;
@@ -111,6 +112,10 @@ function makeClient(): QueryClient {
         };
       }
 
+      if (q.startsWith('select site_id::text as site_id') && q.includes('from public.work_orders')) {
+        return { rows: [{ site_id: workOrderSiteId }], rowCount: 1 };
+      }
+
       // listCcps board read (a SELECT over haccp_ccps that is NOT the
       // recordMonitoring single-row fetch handled above).
       if (q.includes('from public.haccp_ccps') && q.startsWith('select')) {
@@ -173,7 +178,7 @@ function makeClient(): QueryClient {
       if (q.includes('from public.ccp_deviations d') && q.includes('d.monitoring_log_id = $1::uuid')) {
         const hasDeviation = openedDeviationLogIds.has(String(params[0]));
         return {
-          rows: hasDeviation ? [{ id: DEVIATION_ID, breach_ncr_id: NCR_ID }] : [],
+          rows: hasDeviation ? [{ id: DEVIATION_ID, breach_ncr_id: NCR_ID, hold_id: HOLD_ID }] : [],
           rowCount: hasDeviation ? 1 : 0,
         };
       }
@@ -299,6 +304,7 @@ describe('quality HACCP server actions', () => {
     permissions = new Set(['quality.haccp.plan_edit', 'quality.ccp.deviation_override']);
     ccpLimits = { min: '70.0000', max: '75.0000' };
     outputLpIds = [LP_ID, LP_ID_2];
+    workOrderSiteId = SITE_ID;
     openedDeviationLogIds = new Set();
     existingHoldsForReference = new Map();
     client = makeClient();
@@ -332,7 +338,7 @@ describe('quality HACCP server actions', () => {
     expect(insert).toBeTruthy();
   });
 
-  it('recordMonitoring with value within bilateral limits returns within_limits=true and no NCR created', async () => {
+  it('recordMonitoring with value within bilateral limits creates neither NCR nor hold', async () => {
     ccpLimits = { min: '70.0000', max: '75.0000' };
 
     const result = await recordMonitoring({ ccpId: CCP_ID, measuredValue: '72.5000' });
@@ -340,6 +346,10 @@ describe('quality HACCP server actions', () => {
     expect(result).toEqual({ ok: true, data: { withinLimits: true, ncrId: null, outboxEmitted: false } });
     const ncrInsert = vi.mocked(client.query).mock.calls.find(([sql]) => normalize(String(sql)).startsWith('insert into public.ncr_reports'));
     expect(ncrInsert).toBeUndefined();
+    const holdInsert = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      normalize(String(sql)).startsWith('insert into public.quality_holds'),
+    );
+    expect(holdInsert).toBeUndefined();
     const logInsert = vi.mocked(client.query).mock.calls.find(([sql]) =>
       normalize(String(sql)).startsWith('insert into public.haccp_monitoring_log'),
     );
@@ -359,11 +369,12 @@ describe('quality HACCP server actions', () => {
   it('recordMonitoring with only critical_limit_min set and value below min returns within_limits=false, creates NCR, and links breach_ncr_id', async () => {
     ccpLimits = { min: '70.0000', max: null };
 
-    const result = await recordMonitoring({ ccpId: CCP_ID, measuredValue: '69.9999' });
+    const result = await recordMonitoring({ ccpId: CCP_ID, measuredValue: '69.9999', woId: WO_ID });
 
     expect(result).toEqual({ ok: true, data: { withinLimits: false, ncrId: NCR_ID, outboxEmitted: true } });
     const ncrInsert = vi.mocked(client.query).mock.calls.find(([sql]) => normalize(String(sql)).startsWith('insert into public.ncr_reports'));
     expect(ncrInsert?.[1]?.[0]).toBe('CCP Breach: CCP-COOK');
+    expect(ncrInsert?.[1]?.[4]).toBe(SITE_ID);
     const breachLink = vi.mocked(client.query).mock.calls.find(([sql]) => normalize(String(sql)).startsWith('update public.haccp_monitoring_log'));
     expect(breachLink?.[1]).toEqual([LOG_ID, NCR_ID]);
     const outbox = vi.mocked(client.query).mock.calls.find(([sql]) => normalize(String(sql)).startsWith('insert into public.outbox_events'));
@@ -375,7 +386,7 @@ describe('quality HACCP server actions', () => {
       LOG_ID,
       '69.9999',
       'C',
-      'Auto-hold not created: no work order target was provided.',
+      null,
       USER_ID,
     ]);
   });
@@ -383,7 +394,7 @@ describe('quality HACCP server actions', () => {
   it('recordMonitoring bilateral breach returns within_limits=false and creates NCR', async () => {
     ccpLimits = { min: '70.0000', max: '75.0000' };
 
-    const result = await recordMonitoring({ ccpId: CCP_ID, measuredValue: '75.0001' });
+    const result = await recordMonitoring({ ccpId: CCP_ID, measuredValue: '75.0001', woId: WO_ID });
 
     expect(result).toEqual({ ok: true, data: { withinLimits: false, ncrId: NCR_ID, outboxEmitted: true } });
     const ncrInsert = vi.mocked(client.query).mock.calls.find(([sql]) => normalize(String(sql)).startsWith('insert into public.ncr_reports'));
@@ -418,16 +429,48 @@ describe('quality HACCP server actions', () => {
     expect(holdOutbox?.[1]?.[0]).toBe('quality.hold.created');
   });
 
-  it('recordMonitoring breach without woId opens a deviation with hold_id null', async () => {
+  it('recordMonitoring breach without woId rejects before writing any monitoring, NCR, deviation, or hold row', async () => {
     ccpLimits = { min: '70.0000', max: null };
 
     const result = await recordMonitoring({ ccpId: CCP_ID, measuredValue: '69.9999' });
 
-    expect(result.ok).toBe(true);
-    const deviationInsert = vi.mocked(client.query).mock.calls.find(([sql]) => normalize(String(sql)).startsWith('insert into public.ccp_deviations'));
-    expect(deviationInsert?.[1]?.[4]).toBe('Auto-hold not created: no work order target was provided.');
-    const holdLink = vi.mocked(client.query).mock.calls.find(([sql]) => normalize(String(sql)).startsWith('update public.ccp_deviations') && normalize(String(sql)).includes('set hold_id'));
-    expect(holdLink).toBeUndefined();
+    expect(result).toEqual({
+      ok: false,
+      reason: 'error',
+      message: 'Out-of-limit CCP reading requires a work order so affected product can be held.',
+    });
+    for (const table of [
+      'public.haccp_monitoring_log',
+      'public.ncr_reports',
+      'public.ccp_deviations',
+      'public.quality_holds',
+    ]) {
+      const insert = vi.mocked(client.query).mock.calls.find(([sql]) =>
+        normalize(String(sql)).startsWith(`insert into ${table}`),
+      );
+      expect(insert).toBeUndefined();
+    }
+  });
+
+  it('recordMonitoring breach rejects before writing when the work order has no resolvable site', async () => {
+    ccpLimits = { min: '70.0000', max: null };
+    workOrderSiteId = null;
+
+    const result = await recordMonitoring({
+      ccpId: CCP_ID,
+      measuredValue: '69.9999',
+      woId: WO_ID,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'error',
+      message: 'The selected work order was not found or has no assigned site; the CCP breach was not recorded.',
+    });
+    const monitoringInsert = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      normalize(String(sql)).startsWith('insert into public.haccp_monitoring_log'),
+    );
+    expect(monitoringInsert).toBeUndefined();
   });
 
   it('resolveCcpDeviation requires e-sign and flips the deviation to resolved', async () => {
@@ -470,8 +513,8 @@ describe('quality HACCP server actions', () => {
   it('re-recording the same monitoring_log_id does not double-open a deviation', async () => {
     ccpLimits = { min: '70.0000', max: null };
 
-    await recordMonitoring({ ccpId: CCP_ID, measuredValue: '69.9999' });
-    await recordMonitoring({ ccpId: CCP_ID, measuredValue: '69.9999' });
+    await recordMonitoring({ ccpId: CCP_ID, measuredValue: '69.9999', woId: WO_ID });
+    await recordMonitoring({ ccpId: CCP_ID, measuredValue: '69.9999', woId: WO_ID });
 
     const deviationInserts = vi
       .mocked(client.query)

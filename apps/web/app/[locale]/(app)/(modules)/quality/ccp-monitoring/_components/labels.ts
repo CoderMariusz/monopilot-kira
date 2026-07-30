@@ -56,6 +56,10 @@ export type CcpRecordLabels = {
   subtitle: string;
   ccp: string;
   ccpPlaceholder: string;
+  wo: string;
+  woPlaceholder: string;
+  woHelp: string;
+  woNoMatches: string;
   value: string;
   valuePlaceholder: string;
   valueHelp: string;
@@ -211,6 +215,10 @@ export function buildCcpRecordLabels(t: Translator): CcpRecordLabels {
     subtitle: t('record.subtitle'),
     ccp: t('record.ccp'),
     ccpPlaceholder: t('record.ccpPlaceholder'),
+    wo: t('record.wo'),
+    woPlaceholder: t('record.woPlaceholder'),
+    woHelp: t('record.woHelp'),
+    woNoMatches: t('record.woNoMatches'),
     value: t('record.value'),
     valuePlaceholder: t('record.valuePlaceholder'),
     valueHelp: t('record.valueHelp'),

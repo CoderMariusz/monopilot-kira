@@ -129,13 +129,13 @@ async function writeAuditEvent(
   );
 }
 
-async function resolveWoSiteId(ctx: QualityContext, woId: string | undefined): Promise<string | null> {
-  if (!woId) return null;
+async function resolveWoSiteId(ctx: QualityContext, woId: string): Promise<string | null> {
   const { rows } = await ctx.client.query<{ site_id: string | null }>(
     `select site_id::text as site_id
-       from public.work_orders
+      from public.work_orders
       where org_id = app.current_org_id()
         and id = $1::uuid
+        and app.user_can_see_site(site_id)
       limit 1`,
     [woId],
   );
@@ -638,6 +638,27 @@ export async function recordMonitoring(data: {
 
       const withinLimits = isWithinLimits(parsed.measuredValue, ccp.critical_limit_min, ccp.critical_limit_max);
 
+      let breachTarget: { woId: string; siteId: string } | null = null;
+      if (!withinLimits) {
+        if (!parsed.woId) {
+          return {
+            ok: false,
+            reason: 'error',
+            message: 'Out-of-limit CCP reading requires a work order so affected product can be held.',
+          };
+        }
+        const siteId = await resolveWoSiteId(ctx, parsed.woId);
+        if (!siteId) {
+          return {
+            ok: false,
+            reason: 'error',
+            message:
+              'The selected work order was not found or has no assigned site; the CCP breach was not recorded.',
+          };
+        }
+        breachTarget = { woId: parsed.woId, siteId };
+      }
+
       const insertedLog = await ctx.client.query<{ id: string }>(
         `insert into public.haccp_monitoring_log (
            org_id,
@@ -664,9 +685,14 @@ export async function recordMonitoring(data: {
       if (!logId) throw new Error('monitoring log insert did not return a row');
 
       if (withinLimits) return { ok: true, data: { withinLimits, ncrId: null, outboxEmitted: false } };
+      if (!breachTarget) throw new Error('CCP breach target invariant failed');
 
-      const existingDeviation = await ctx.client.query<{ id: string; breach_ncr_id: string | null }>(
-        `select d.id::text, l.breach_ncr_id::text
+      const existingDeviation = await ctx.client.query<{
+        id: string;
+        breach_ncr_id: string | null;
+        hold_id: string | null;
+      }>(
+        `select d.id::text, l.breach_ncr_id::text, d.hold_id::text
            from public.ccp_deviations d
            left join public.haccp_monitoring_log l on l.id = d.monitoring_log_id and l.org_id = d.org_id
           where d.org_id = app.current_org_id()
@@ -677,10 +703,10 @@ export async function recordMonitoring(data: {
       );
       const existing = existingDeviation.rows[0];
       if (existing) {
+        if (!existing.hold_id) throw new Error('Existing CCP deviation has no linked hold');
         return { ok: true, data: { withinLimits, ncrId: existing.breach_ncr_id, outboxEmitted: false } };
       }
 
-      const sourceSiteId = await resolveWoSiteId(ctx, parsed.woId);
       const ncr = await ctx.client.query<{ id: string }>(
         `insert into public.ncr_reports (
            org_id,
@@ -712,7 +738,7 @@ export async function recordMonitoring(data: {
           `Measured value ${parsed.measuredValue} was outside configured CCP limits.`,
           parsed.ccpId,
           ctx.userId,
-          sourceSiteId,
+          breachTarget.siteId,
         ],
       );
       const ncrId = ncr.rows[0]?.id;
@@ -733,21 +759,19 @@ export async function recordMonitoring(data: {
         measuredValue: parsed.measuredValue,
       });
 
-      let outputLps: OutputLp[] = [];
-      let woHold: ActiveHold | null = null;
+      const windowStart = await findCcpHoldWindowStart(ctx, {
+        ccpId: parsed.ccpId,
+        woId: breachTarget.woId,
+        logId,
+      });
+      const outputLps = await findOutputLpsInCcpHoldWindow(ctx, {
+        woId: breachTarget.woId,
+        windowStart,
+      });
       let firstLpHold: ActiveHold | null = null;
-      if (parsed.woId) {
-        const windowStart = await findCcpHoldWindowStart(ctx, {
-          ccpId: parsed.ccpId,
-          woId: parsed.woId,
-          logId,
-        });
-        outputLps = await findOutputLpsInCcpHoldWindow(ctx, { woId: parsed.woId, windowStart });
-      }
 
-      const deviationNote = !parsed.woId
-        ? 'Auto-hold not created: no work order target was provided.'
-        : outputLps.length === 0
+      const deviationNote =
+        outputLps.length === 0
           ? 'Auto-hold created at work-order level only: no output license plates were found in the CCP breach window.'
           : null;
 
@@ -778,36 +802,34 @@ export async function recordMonitoring(data: {
       const deviationId = deviation.rows[0]?.id;
       if (!deviationId) throw new Error('CCP deviation insert did not return a row');
 
-      if (parsed.woId) {
-        for (const lp of outputLps) {
-          const hold = await createCcpDeviationHoldIfMissing(ctx, {
-            referenceType: 'lp',
-            referenceId: lp.id,
-            ccpCode: ccp.ccp_code,
-            measuredValue: parsed.measuredValue,
-            monitoringLogId: logId,
-          });
-          firstLpHold ??= hold;
-        }
-
-        woHold = await createCcpDeviationHoldIfMissing(ctx, {
-          referenceType: 'wo',
-          referenceId: parsed.woId,
-          lpIds: outputLps.map((lp) => lp.id),
+      for (const lp of outputLps) {
+        const hold = await createCcpDeviationHoldIfMissing(ctx, {
+          referenceType: 'lp',
+          referenceId: lp.id,
           ccpCode: ccp.ccp_code,
           measuredValue: parsed.measuredValue,
           monitoringLogId: logId,
         });
-
-        const linkedHold = firstLpHold ?? woHold;
-        await ctx.client.query(
-          `update public.ccp_deviations
-              set hold_id = $2::uuid
-            where org_id = app.current_org_id()
-              and id = $1::uuid`,
-          [deviationId, linkedHold.id],
-        );
+        firstLpHold ??= hold;
       }
+
+      const woHold = await createCcpDeviationHoldIfMissing(ctx, {
+        referenceType: 'wo',
+        referenceId: breachTarget.woId,
+        lpIds: outputLps.map((lp) => lp.id),
+        ccpCode: ccp.ccp_code,
+        measuredValue: parsed.measuredValue,
+        monitoringLogId: logId,
+      });
+
+      const linkedHold = firstLpHold ?? woHold;
+      await ctx.client.query(
+        `update public.ccp_deviations
+            set hold_id = $2::uuid
+          where org_id = app.current_org_id()
+            and id = $1::uuid`,
+        [deviationId, linkedHold.id],
+      );
 
       return { ok: true, data: { withinLimits, ncrId, outboxEmitted: true } };
     });

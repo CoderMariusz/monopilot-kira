@@ -13,16 +13,11 @@
  *
  * Wires the reviewed `recordMonitoring` Server Action (imported by the page,
  * passed in as a prop — never authored here). On an out-of-limit value the
- * action auto-creates an NCR and returns its id; this island surfaces that
- * breach inline with a deep-link to the NCR (CCP CODE shown, never a UUID).
- *
- * DEVIATION (documented per UI-PROTOTYPE-PARITY-POLICY.md): the optional
- * work-order selector is OMITTED. `recordMonitoring.woId` is optional and
- * expects a UUID; the only existing WO reader (production/_actions/
- * list-work-orders.ts) lives in another module and is a list — not a
- * number→UUID resolver — so wiring it would require a cross-module import +
- * authoring a new resolver action (both out of scope) or leaking a raw UUID
- * (forbidden by rule 0.11). The reading is recorded without a WO link.
+ * action auto-creates an NCR and mandatory holds, then returns the NCR id; this
+ * island surfaces that breach inline with a deep-link (CCP CODE shown, never a
+ * UUID). A human WO number is resolved org-side before submit. In-limit
+ * readings may omit it; the action rejects an out-of-limit reading without it
+ * before writing anything.
  */
 
 import { useState, useTransition } from 'react';
@@ -30,7 +25,7 @@ import { useState, useTransition } from 'react';
 import Modal from '@monopilot/ui/Modal';
 import { Select } from '@monopilot/ui/Select';
 
-import type { CcpBoardItem, RecordMonitoringAction } from './ccp-contracts';
+import type { CcpBoardItem, RecordMonitoringAction, ResolveWoAction } from './ccp-contracts';
 import type { CcpRecordLabels } from './labels';
 
 const DECIMAL_RE = /^-?\d+(\.\d+)?$/;
@@ -46,6 +41,7 @@ export function CcpRecordModal({
   labels,
   locale,
   recordMonitoringAction,
+  resolveWoAction,
   onRecorded,
   initialCcpId,
 }: {
@@ -55,11 +51,13 @@ export function CcpRecordModal({
   labels: CcpRecordLabels;
   locale: string;
   recordMonitoringAction: RecordMonitoringAction;
+  resolveWoAction: ResolveWoAction;
   onRecorded?: (result: CcpRecordSuccess) => void;
   initialCcpId?: string;
 }) {
   const [ccpId, setCcpId] = useState<string>(initialCcpId ?? '');
   const [value, setValue] = useState('');
+  const [woNumber, setWoNumber] = useState('');
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [breach, setBreach] = useState<{ ccpCode: string; value: string; ncrId: string | null } | null>(
@@ -74,6 +72,7 @@ export function CcpRecordModal({
   function reset() {
     setCcpId(initialCcpId ?? '');
     setValue('');
+    setWoNumber('');
     setNote('');
     setError(null);
     setBreach(null);
@@ -101,9 +100,25 @@ export function CcpRecordModal({
     }
 
     startTransition(async () => {
+      let woId: string | undefined;
+      const normalizedWoNumber = woNumber.trim();
+      if (normalizedWoNumber) {
+        const resolvedWo = await resolveWoAction({ woNumber: normalizedWoNumber });
+        if (!resolvedWo.ok) {
+          setError(labels.error.replace('{message}', resolvedWo.message ?? resolvedWo.reason));
+          return;
+        }
+        if (!resolvedWo.data) {
+          setError(labels.woNoMatches.replace('{query}', normalizedWoNumber));
+          return;
+        }
+        woId = resolvedWo.data.id;
+      }
+
       const result = await recordMonitoringAction({
         ccpId,
         measuredValue: normalizedValue,
+        ...(woId ? { woId } : {}),
         ...(note.trim() ? { note: note.trim() } : {}),
       });
       if (!result.ok) {
@@ -149,6 +164,24 @@ export function CcpRecordModal({
                 }))}
               />
             </div>
+          </label>
+
+          <label className="flex flex-col gap-1">
+            <span className="font-medium text-slate-700">{labels.wo}</span>
+            <input
+              type="text"
+              data-testid="ccp-record-wo"
+              value={woNumber}
+              onChange={(e) => {
+                setWoNumber(e.target.value);
+                setError(null);
+                setBreach(null);
+              }}
+              placeholder={labels.woPlaceholder}
+              disabled={pending}
+              className="rounded-md border border-slate-300 px-2.5 py-1.5 focus:border-slate-400 focus:outline-none disabled:opacity-50"
+            />
+            <span className="text-xs text-slate-400">{labels.woHelp}</span>
           </label>
 
           {/* Measured value (numeric). */}

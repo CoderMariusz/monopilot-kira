@@ -33,6 +33,7 @@ import { PageHeader } from '@monopilot/ui/PageHeader';
 // Owned by the reviewed HACCP backend (quality/_actions/haccp-actions.ts).
 // Imported, never authored here.
 import { listCcps, listMonitoringLog, recordMonitoring, upsertCcp } from '../_actions/haccp-actions';
+import { resolveWoByNumber } from '../_actions/lookup-actions';
 // Read-only RBAC probe (additive read confined to ccp-monitoring/**) — gates the
 // "Add CCP" button on quality.haccp.plan_edit (rule 0.13c).
 import { canEditCcpPlan } from './_actions/can-edit-ccp';
@@ -42,6 +43,7 @@ import type {
   CcpTrendPoint,
   MonitoringLogRow,
   RecordMonitoringAction,
+  ResolveWoAction,
   UpsertCcpAction,
 } from './_components/ccp-contracts';
 import { buildCcpBoardLabels, buildCcpRecordLabels, buildCcpCreateLabels } from './_components/labels';
@@ -172,6 +174,7 @@ async function BoardContent({ locale }: { locale: string }) {
       createLabels={createLabels}
       locale={locale}
       recordMonitoringAction={recordMonitoring as unknown as RecordMonitoringAction}
+      resolveWoAction={resolveWoByNumber as unknown as ResolveWoAction}
       upsertCcpAction={upsertCcp as unknown as UpsertCcpAction}
       canEdit={canEdit}
       setupHref={`/${locale}/quality`}

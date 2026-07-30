@@ -71,6 +71,10 @@ export type RecordMonitoringAction = (data: {
   note?: string;
 }) => Promise<ActionResult<MonitoringResult>>;
 
+export type ResolveWoAction = (data: {
+  woNumber: string;
+}) => Promise<ActionResult<{ id: string; display: string } | null>>;
+
 /**
  * Exact callable signature of the reviewed `upsertCcp` action
  * (haccp-actions.ts:259). Wired by MODAL-CCP-CREATE — never re-authored here.

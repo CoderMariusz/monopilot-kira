@@ -32,7 +32,12 @@ import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Card } from '@monopilot/ui/Card';
 
 import { Sparkline } from '../../../production/_components/sparkline';
-import type { CcpBoardItem, RecordMonitoringAction, UpsertCcpAction } from './ccp-contracts';
+import type {
+  CcpBoardItem,
+  RecordMonitoringAction,
+  ResolveWoAction,
+  UpsertCcpAction,
+} from './ccp-contracts';
 import type { CcpBoardLabels, CcpRecordLabels, CcpCreateLabels } from './labels';
 import { formatLimit } from './labels';
 import { CcpRecordModal, type CcpRecordSuccess } from './ccp-record-modal.client';
@@ -161,6 +166,7 @@ export function CcpBoardClient({
   createLabels,
   locale,
   recordMonitoringAction,
+  resolveWoAction,
   upsertCcpAction,
   canEdit,
   setupHref,
@@ -171,6 +177,7 @@ export function CcpBoardClient({
   createLabels: CcpCreateLabels;
   locale: string;
   recordMonitoringAction: RecordMonitoringAction;
+  resolveWoAction: ResolveWoAction;
   /** reviewed upsertCcp action (gated server-side on quality.haccp.plan_edit). */
   upsertCcpAction: UpsertCcpAction;
   /**
@@ -415,6 +422,7 @@ export function CcpBoardClient({
         labels={recordLabels}
         locale={locale}
         recordMonitoringAction={recordMonitoringAction}
+        resolveWoAction={resolveWoAction}
         onRecorded={handleRecorded}
       />
       {createModal}
