@@ -74,11 +74,21 @@ const DEFAULT_PROVIDER_SETTINGS: EmailProviderSettings = {
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof typeof DEFAULT_LABELS>;
 
-function buildLabelsFromTranslations(t: (key: string) => string): Labels {
+type LabelTranslator = ((key: string) => string) & { raw?: (key: string) => unknown };
+
+function buildLabelsFromTranslations(t: LabelTranslator): Labels {
   const labels: Labels = { ...DEFAULT_LABELS };
   for (const key of LABEL_KEYS) {
     try {
-      const translated = t(key);
+      // Messages with an ICU placeholder (templatesTitle, sent, editEmailTemplate) are
+      // substituted downstream by `interpolate(...)` in the client, so the TEMPLATE has to
+      // survive the trip. Calling next-intl's t() on them with no values raises
+      // FORMATTING_ERROR and yields the dotted KEY PATH — which is not equal to the bare
+      // `key`, so the guard below waves it through and the user sees
+      // "settings.email_templates.templatesTitle" as a heading. t.raw() returns the template.
+      // Tree-backed test translators have no .raw and already return the template.
+      const raw = t.raw?.(key);
+      const translated = typeof raw === 'string' ? raw : t(key);
       labels[key] = translated && translated !== key ? translated : DEFAULT_LABELS[key];
     } catch {
       labels[key] = DEFAULT_LABELS[key];

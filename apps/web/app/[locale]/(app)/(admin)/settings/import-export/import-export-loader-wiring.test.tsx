@@ -76,6 +76,20 @@ function passthroughT(key: string, values?: Record<string, string | number>) {
 }
 
 vi.mock('next-intl/server', () => ({ getTranslations: vi.fn(async () => passthroughT) }));
+
+const capturedHubProps = vi.hoisted(() => ({ last: undefined as undefined | Record<string, unknown> }));
+
+vi.mock('./import-export-hub.client', async (importOriginal) => {
+  const ReactModule = await import('react');
+  const actual = (await importOriginal()) as { default: React.ComponentType<Record<string, unknown>> };
+  return {
+    ...actual,
+    default: (props: Record<string, unknown>) => {
+      capturedHubProps.last = props;
+      return ReactModule.createElement(actual.default, props);
+    },
+  };
+});
 vi.mock('next-intl', () => ({ useTranslations: () => passthroughT }));
 
 async function loadPage() {
@@ -178,5 +192,59 @@ describe('SET-029 real-data loader wiring (no injection-only placeholder default
     expect(within(hub()).getByRole('status')).toHaveTextContent(/unable to load import\/export configuration/i);
 
     vi.doUnmock('../../../../../../actions/import-export/load-import-export');
+  });
+});
+
+/**
+ * ANTI-TEST GUARD — `passthroughT` above (and the literal label maps in the sibling suites)
+ * answer every key without ever going through next-intl, which is exactly why the raw key
+ * `settings.import_export_hub.drawer.run_import` reached the Run import button:
+ * "Run import ({rows} rows)" has an ICU placeholder, it was fetched with NO values, and
+ * next-intl answers a FORMATTING_ERROR by returning the dotted KEY PATH — never the template.
+ * The hub client then does `.replace('{rows}', …)` on a string with no `{rows}` left in it.
+ * This test builds the REAL translator over the REAL shipped catalog.
+ */
+describe('import/export hub drawer labels through the REAL next-intl translator', () => {
+  async function realTranslator(namespace: string) {
+    const { createTranslator } = await vi.importActual<typeof import('next-intl')>('next-intl');
+    const { existsSync, readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    // The shipped tree: messages/en/02-settings.json mounted under `settings` (i18n/request.ts).
+    const catalog = ['apps/web/messages/en/02-settings.json', 'messages/en/02-settings.json']
+      .map((candidate) => join(process.cwd(), candidate))
+      .find((candidate) => existsSync(candidate));
+    expect(catalog, 'shipped en settings catalog must be readable').toBeTruthy();
+    const messages = { settings: JSON.parse(readFileSync(catalog as string, 'utf8')) };
+    return createTranslator({ locale: 'en', messages: messages as never, namespace });
+  }
+
+  it('proves the trap: the real translator returns the dotted KEY PATH, not the template', async () => {
+    const t = await realTranslator('settings.import_export_hub');
+    expect((t as unknown as (k: string) => string)('drawer.run_import')).toBe(
+      'settings.import_export_hub.drawer.run_import',
+    );
+    expect(t.raw('drawer.run_import')).toBe('Run import ({rows} rows)');
+  });
+
+  it('hands the hub client substitutable TEMPLATES, never a raw key path', async () => {
+    const { getTranslations } = await import('next-intl/server');
+    vi.mocked(getTranslations).mockImplementation((async (options?: { namespace?: string }) =>
+      await realTranslator(options?.namespace ?? 'settings.import_export_hub')) as never);
+
+    try {
+      const Page = await loadPage();
+      render(<>{await Page({ params: Promise.resolve({ locale: 'en' }) })}</>);
+
+      const drawer = (capturedHubProps.last?.labels as { drawer: Record<string, string> } | undefined)?.drawer;
+      expect(drawer, 'the page must render the master-data hub with server-built labels').toBeTruthy();
+      expect(drawer?.runImport).toBe('Run import ({rows} rows)');
+      expect(drawer?.helpTitle).toContain('{entity}');
+      expect(drawer?.uploadedRows).toContain('{rows}');
+      for (const [key, value] of Object.entries(drawer ?? {})) {
+        expect(value, `drawer.${key} must not be a raw i18n key path`).not.toContain('settings.import_export_hub');
+      }
+    } finally {
+      vi.mocked(getTranslations).mockImplementation((async () => passthroughT) as never);
+    }
   });
 });

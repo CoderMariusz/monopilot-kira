@@ -167,6 +167,19 @@ async function buildLabels(locale: string): Promise<ImportExportLabels> {
   };
 }
 
+/**
+ * next-intl's t() on a message with an unfilled ICU placeholder raises FORMATTING_ERROR and
+ * returns the dotted KEY PATH, never the template — that is what put
+ * "settings.import_export_hub.drawer.run_import" on the Run import button. The hub client
+ * substitutes these itself with .replace('{...}', …), so it needs the TEMPLATE. t.raw() yields
+ * it. Tree-backed test translators have no .raw and already return the template.
+ * Same fix as the list footers in 63f8016d.
+ */
+function messageTemplate(t: { (key: string): string; raw?: (key: string) => unknown }, key: string): string {
+  const raw = t.raw?.(key);
+  return typeof raw === 'string' ? raw : t(key);
+}
+
 async function buildMasterDataHubLabels(locale: string): Promise<MasterDataHubLabels> {
   const t = await getTranslations({ locale, namespace: 'settings.import_export_hub' });
   return {
@@ -218,10 +231,10 @@ async function buildMasterDataHubLabels(locale: string): Promise<MasterDataHubLa
       dropTitle: t('drawer.drop_title'),
       dropHint: t('drawer.drop_hint'),
       chooseFile: t('drawer.choose_file'),
-      helpTitle: t('drawer.help_title'),
+      helpTitle: messageTemplate(t, 'drawer.help_title'),
       helpBody: t('drawer.help_body'),
       downloadTemplate: t('drawer.download_template'),
-      uploadedRows: t('drawer.uploaded_rows'),
+      uploadedRows: messageTemplate(t, 'drawer.uploaded_rows'),
       replace: t('drawer.replace'),
       mapTitle: t('drawer.map_title'),
       csvColumn: t('drawer.csv_column'),
@@ -247,7 +260,7 @@ async function buildMasterDataHubLabels(locale: string): Promise<MasterDataHubLa
       back: t('drawer.back'),
       continue: t('drawer.continue'),
       nextReview: t('drawer.next_review'),
-      runImport: t('drawer.run_import'),
+      runImport: messageTemplate(t, 'drawer.run_import'),
       notWiredTitle: t('drawer.not_wired_title'),
       notWiredBody: t('drawer.not_wired_body'),
     },

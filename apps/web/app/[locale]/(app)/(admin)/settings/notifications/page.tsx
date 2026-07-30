@@ -206,7 +206,7 @@ async function readNotificationsData(labels: ServerNotificationsLabels): Promise
       return {
         channels: defaultChannels(labels, smsMessagesThisMonth),
         notificationRules,
-        digestEmails: defaultDigestEmails(labels),
+        digestEmails: applyStoredDigestPreferences(defaultDigestEmails(labels), preferenceResult.rows),
         smsMessagesThisMonth,
         state: notificationRules.length > 0 ? 'ready' : 'empty',
       };
@@ -222,6 +222,26 @@ async function readNotificationsData(labels: ServerNotificationsLabels): Promise
   }
 }
 
+/**
+ * `defaultToggleDigestEmail` stores each digest under ('digest', <digestId>) with the
+ * user's choice in `channel_email`. Project those stored rows over the documented defaults —
+ * the same defaults-plus-stored-rows shape as `projectRowsToPreferences` in
+ * account/notifications/notifications-data.ts. Without this the screen rendered the
+ * hardcoded defaults and showed the OPPOSITE of what the user had just saved.
+ * A digest with no stored row keeps its default, so a brand-new user sees the baseline.
+ */
+function applyStoredDigestPreferences(
+  defaults: DigestSetting[],
+  rows: NotificationPreferenceRow[],
+): DigestSetting[] {
+  const stored = new Map(rows.filter((row) => row.category === 'digest').map((row) => [row.event, row.channel_email]));
+  return defaults.map((digest) => {
+    const enabled = stored.get(digest.id);
+    return typeof enabled === 'boolean' ? { ...digest, enabled } : digest;
+  });
+}
+
+// Digest rows are surfaced by the Digest emails section above, not as Notification rules.
 function mapPreferenceRowsToRules(rows: NotificationPreferenceRow[]): NotificationRule[] {
   return rows
     .filter((row) => row.category !== 'digest')

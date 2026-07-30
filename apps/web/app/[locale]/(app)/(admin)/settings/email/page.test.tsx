@@ -5,12 +5,13 @@
  * RED scope: tests only; production page is intentionally not implemented here.
  */
 import React from 'react';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { getTranslations } from 'next-intl/server';
 
 const capturedEmailScreenProps = vi.hoisted(() => ({
   last: undefined as undefined | { state?: unknown; testSend?: unknown },
@@ -638,5 +639,51 @@ describe('SET-090 email_templates_screen prototype parity', () => {
 
     await renderEmailTemplatesPage({ state: 'error', templates: [] });
     expect(screen.getByRole('alert')).toHaveTextContent(/unable to load email template settings/i);
+  });
+});
+
+/**
+ * ANTI-TEST GUARD — every other test in this file feeds the page `tEmailTemplate`, a literal
+ * label map, so nothing above ever passes through next-intl. That is exactly why the raw key
+ * `settings.email_templates.templatesTitle` reached the screen as the Templates heading:
+ * "Templates ({count})" has an ICU placeholder, `t('templatesTitle')` was called with NO values,
+ * and next-intl answers a FORMATTING_ERROR by returning the dotted KEY PATH (never the template).
+ * The old guard `translated !== key` compares that path with the BARE key, so it let it through.
+ * These tests build the REAL translator over the REAL shipped catalog.
+ */
+describe('email template labels resolved through the REAL next-intl translator', () => {
+  afterEach(() => {
+    cleanup();
+    vi.mocked(getTranslations).mockImplementation((async () => tEmailTemplate) as never);
+  });
+
+  async function realTranslator(namespace: string) {
+    const { createTranslator } = await vi.importActual<typeof import('next-intl')>('next-intl');
+    // The shipped tree: messages/en/02-settings.json mounted under `settings` (i18n/request.ts
+    // localeTree). Read as a file rather than importing request.ts, which drags in the mocked
+    // next-intl/server. `settings.email_templates.*` lives entirely in this catalog.
+    const catalog = ['apps/web/messages/en/02-settings.json', 'messages/en/02-settings.json']
+      .map((candidate) => join(process.cwd(), candidate))
+      .find((candidate) => existsSync(candidate));
+    expect(catalog, 'shipped en settings catalog must be readable').toBeTruthy();
+    const messages = { settings: JSON.parse(readFileSync(catalog as string, 'utf8')) };
+    return createTranslator({ locale: 'en', messages: messages as never, namespace });
+  }
+
+  it('proves the trap: the real translator returns the dotted KEY PATH, not the template', async () => {
+    const t = await realTranslator('settings.email_templates');
+    expect((t as unknown as (k: string) => string)('templatesTitle')).toBe('settings.email_templates.templatesTitle');
+    expect(t.raw('templatesTitle')).toContain('{count}');
+  });
+
+  it('never renders a raw i18n key as the Templates heading', async () => {
+    vi.mocked(getTranslations).mockImplementationOnce((async () => await realTranslator('settings.email_templates')) as never);
+
+    await renderEmailTemplatesPage();
+
+    // The Templates section heading is `interpolate(labels.templatesTitle, { count })`, so a
+    // leaked key path shows up verbatim as the heading and anywhere else in the screen.
+    expect(screenRoot().textContent).not.toContain('settings.email_templates');
+    expect(screen.getByRole('heading', { name: `Templates (${templates.length})` })).toBeInTheDocument();
   });
 });

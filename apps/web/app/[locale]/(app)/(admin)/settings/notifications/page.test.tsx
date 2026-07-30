@@ -20,10 +20,23 @@ vi.mock('next/navigation', () => ({
   redirect: vi.fn(),
   notFound: vi.fn(),
   useRouter: () => ({ push: routerPush }),
+  // The screen calls useParams() for the locale; without it every render test in this file
+  // threw "No useParams export is defined on the next/navigation mock" and the suite was dead.
+  useParams: () => ({ locale: 'en' }),
 }));
 
 vi.mock('next/cache', () => ({
   revalidatePath: vi.fn(),
+}));
+
+// Only the digest read-back tests below leave `digestEmails` uninjected, so only they reach
+// `readNotificationsData`; every other test in this file injects all three data props and
+// never touches this mock.
+const { queryMock } = vi.hoisted(() => ({ queryMock: vi.fn() }));
+
+vi.mock('../../../../../../lib/auth/with-org-context', () => ({
+  withOrgContext: (action: (ctx: unknown) => unknown) =>
+    action({ userId: 'real-user-uuid', orgId: 'real-org-uuid', sessionToken: 'tok', client: { query: queryMock } }),
 }));
 
 vi.mock('next-intl/server', () => ({
@@ -345,7 +358,7 @@ describe('T-071 notifications_screen prototype parity', () => {
     expect(document.querySelectorAll('input[type="checkbox"]:not([role="switch"])')).toHaveLength(0);
     expect(screen.getByText('✓ Verified')).toHaveAttribute('data-slot', 'badge');
     expect(screen.getByText('28 messages sent this month')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /configure/i })).toHaveAttribute('href', '/settings/integrations?highlight=slack');
+    expect(screen.getByRole('link', { name: /configure/i })).toHaveAttribute('href', '/en/settings/integrations?highlight=slack');
 
     expect(structuralSnapshot()).toMatchInlineSnapshot(`
       {
@@ -447,7 +460,7 @@ describe('T-071 notifications_screen prototype parity', () => {
 
     await user.click(screen.getByRole('link', { name: /configure/i }));
 
-    expect(routerPush).toHaveBeenCalledWith('/settings/integrations?highlight=slack');
+    expect(routerPush).toHaveBeenCalledWith('/en/settings/integrations?highlight=slack');
   });
 
   it('renders loading, empty, and error states loudly for notification settings data', async () => {
@@ -462,5 +475,70 @@ describe('T-071 notifications_screen prototype parity', () => {
 
     await renderNotificationsPage({ state: 'error', notificationRules: [] });
     expect(screen.getByRole('alert')).toHaveTextContent(/unable to load notification settings/i);
+  });
+});
+
+/**
+ * Digest toggles were WRITE-ONLY: `defaultToggleDigestEmail` upserts
+ * ('digest', <id>, channel_email) but `readNotificationsData` returned the hardcoded
+ * `defaultDigestEmails()` and `mapPreferenceRowsToRules` filtered `category==='digest'` out,
+ * so the screen rendered the OPPOSITE of what the user had just saved.
+ *
+ * These tests are the only ones in this file that exercise the real read path: they leave
+ * `digestEmails` uninjected so the page calls `readNotificationsData` against `queryMock`.
+ */
+describe('digest emails read back the stored preference (not hardcoded defaults)', () => {
+  beforeEach(() => {
+    queryMock.mockReset();
+    vi.clearAllMocks();
+    window.history.replaceState(null, '', '/en/settings/notifications');
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  function digestSwitch(label: RegExp) {
+    const row = digestRows().find((candidate) => within(candidate).queryByRole('switch', { name: label }));
+    expect(row, `digest row ${label} must render`).toBeTruthy();
+    return within(row as HTMLElement).getByRole('switch', { name: label });
+  }
+
+  it('renders a stored disabled digest as OFF instead of the hardcoded enabled default', async () => {
+    // The row `defaultToggleDigestEmail` writes after the user switches Daily plant summary off.
+    queryMock
+      .mockResolvedValueOnce({
+        rows: [{ category: 'digest', event: 'daily-plant-summary', channel_email: false, channel_in_app: false }],
+      })
+      .mockResolvedValueOnce({ rows: [{ sent_count: 0 }] });
+
+    await renderNotificationsPage({ digestEmails: undefined });
+
+    expect(digestSwitch(/daily plant summary/i)).toHaveAttribute('aria-checked', 'false');
+    // A stored digest row must not leak into the Notification rules table.
+    expect(ruleRows().some((row) => within(row).queryByText(/daily plant summary/i))).toBe(false);
+  });
+
+  it('renders a stored enabled digest as ON even when the hardcoded default is off', async () => {
+    // Monthly compliance report defaults to false — the stored row must win in both directions.
+    queryMock
+      .mockResolvedValueOnce({
+        rows: [{ category: 'digest', event: 'monthly-compliance-report', channel_email: true, channel_in_app: false }],
+      })
+      .mockResolvedValueOnce({ rows: [{ sent_count: 0 }] });
+
+    await renderNotificationsPage({ digestEmails: undefined });
+
+    expect(digestSwitch(/monthly compliance report/i)).toHaveAttribute('aria-checked', 'true');
+  });
+
+  it('keeps the documented defaults for a user who has never toggled a digest', async () => {
+    queryMock.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [{ sent_count: 0 }] });
+
+    await renderNotificationsPage({ digestEmails: undefined });
+
+    expect(digestSwitch(/daily plant summary/i)).toHaveAttribute('aria-checked', 'true');
+    expect(digestSwitch(/weekly npd digest/i)).toHaveAttribute('aria-checked', 'true');
+    expect(digestSwitch(/monthly compliance report/i)).toHaveAttribute('aria-checked', 'false');
   });
 });
