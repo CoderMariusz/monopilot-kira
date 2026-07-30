@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 
 import { cleanupTxnOrgContext, registerTxnOrgContext } from '../../scanner/txn-org-context';
+import { expiredBySiteDaySql } from '../../site/site-day';
 
 import type { QueryClient } from '../../scanner/db';
 import type { ScannerSessionRow } from '../../scanner/session';
@@ -467,6 +468,22 @@ export async function moveScannerLp(
     }
 
     const destination = await loadLocationScope(client, input.toLocationId);
+    // Mirrors the desktop `cross_site_move` rejection in
+    // warehouse/_actions/stock-move-actions.ts:273-275. Without it the scanner
+    // silently rewrote site_id + warehouse_id from the destination, i.e. one
+    // glove-scan "teleported" a pallet to another site and logged it as legal.
+    // A cross-site move IS legal — but only through Planning → Transfer Orders
+    // (public.inter_site_transfer_orders), so the message routes the operator
+    // there instead of just refusing.
+    // Only fires when BOTH sides are known: a site-less LP (legacy/single-site
+    // data) keeps moving as before — this guard must not freeze it.
+    if (lp.site_id && lp.site_id !== destination.siteId) {
+      throw new WarehouseScannerError(
+        'cross_site_move',
+        409,
+        'That location is at another site. Move stock between sites with a transfer order (Planning → Transfer Orders).',
+      );
+    }
     const moveId = await insertStockMove(client, session, {
       lpId: input.lpId,
       moveType: input.moveType,
@@ -574,6 +591,22 @@ export async function pickScannerLp(
     await assertLpNotOnActiveHold(client, input.lpId);
     if (lp.product_id !== material.product_id || lp.uom !== material.uom) {
       throw new WarehouseScannerError('lp_not_movable', 409, 'This pallet does not match the selected work order material.');
+    }
+    // Reserved stock belongs to an outbound order. The insert below books
+    // `lp.available_qty`, so a fully reserved LP produced a ZERO-quantity issue
+    // move while updateLpLocation still shoved the whole physical pallet onto
+    // the line — shipping loses the pallet, the ledger says nothing happened.
+    // Deliberately gated on available <= 0, NOT on reserved_qty > 0: a partially
+    // reserved LP is picked up to its available quantity, which is exactly what
+    // insertStockMove already records. Blocking every reserved LP would freeze
+    // legal picks. Code reuses the repo-wide `insufficient_stock` vocabulary
+    // (planning/transfer-orders ship path).
+    if (!(Number(lp.available_qty) > 0)) {
+      throw new WarehouseScannerError(
+        'insufficient_stock',
+        409,
+        'This pallet is reserved for an outbound order and has no available quantity to pick.',
+      );
     }
 
     const transactionId = transactionIdFor('warehouse.pick', input.clientOpId);
@@ -711,7 +744,7 @@ async function loadMovableLpForUpdate(
             lp.uom,
             lp.status,
             lp.qa_status,
-            (lp.expiry_date is not null and lp.expiry_date::date < current_date) as expired,
+            ${expiredBySiteDaySql('lp.expiry_date', 'lp.site_id')} as expired,
             lp.location_id::text,
             lp.locked_by::text,
             (

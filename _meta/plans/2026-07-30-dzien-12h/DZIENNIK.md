@@ -3,7 +3,7 @@
 > Aktualizowany na bieżąco. **Po kompakcie czytaj to jako drugie, zaraz po `PLAN-DNIA.md`.**
 > Koniec pracy: **20:00**. Ostatnie zlecenie: **19:45**.
 
-## OSTATNI RAPORT DLA OWNERA: 18:55 (pełny raport dnia na życzenie ownera)
+## OSTATNI RAPORT DLA OWNERA: 19:36 (pełny raport końcowy dnia)
 
 **Na każdym checkpointcie (co 10 min): `date "+%H:%M"` i porównaj z tą linią. Minęło ≥55 min →
 NAPISZ RAPORT ZANIM ZROBISZ COKOLWIEK INNEGO, potem zaktualizuj tę godzinę.**

@@ -1,5 +1,6 @@
 import type { ActiveHold } from './holds-guard';
 import { holdsGuard } from './holds-guard';
+import { expiredBySiteDaySql } from '../site/site-day';
 import type { ProductionContext, QueryClient } from './shared';
 
 export type LpConsumeSafetyError =
@@ -42,7 +43,7 @@ export async function assertLpConsumableForProduction(
     `select lp.id::text,
             lp.status,
             lp.qa_status,
-            (lp.expiry_date is not null and lp.expiry_date::date < current_date) as expired,
+            ${expiredBySiteDaySql('lp.expiry_date', 'lp.site_id')} as expired,
             lp.locked_by::text,
             (
               lp.locked_by is not null
