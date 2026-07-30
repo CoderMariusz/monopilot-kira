@@ -11,9 +11,13 @@ readonly DB_PASSWORD="monopilot"
 readonly TEMPLATE_DB="monopilot"
 readonly TEMPLATE_URL="postgres://monopilot:monopilot@127.0.0.1:5432/monopilot"
 readonly CLONES=("monopilot_t1" "monopilot_t2" "monopilot_t3")
+readonly PERSONAS_ORG_ID="00000000-0000-0000-0000-000000000002"
+readonly TEST_PERSONAS_COUNT=5
+readonly HARNESS_USER_ID="11111111-1111-4111-8111-111111111111"
 readonly REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly MIGRATIONS_DIR="${REPO_ROOT}/packages/db/migrations"
 readonly SUPABASE_SHIM="${REPO_ROOT}/scripts/supabase-shim.sql"
+readonly E2E_USER_SEED="${REPO_ROOT}/scripts/seed-e2e-user.sql"
 
 log() {
   printf '[test-db] %s\n' "$*"
@@ -51,6 +55,13 @@ template_psql() {
 template_admin_psql() {
   "$PSQL" -X --no-password -v ON_ERROR_STOP=1 \
     -U "$PG_ADMIN_ROLE" -d "$TEMPLATE_DB" "$@"
+}
+
+database_admin_psql() {
+  local database="$1"
+  shift
+  "$PSQL" -X --no-password -v ON_ERROR_STOP=1 \
+    -h "$PG_HOST" -p "$PG_PORT" -U "$PG_ADMIN_ROLE" -d "$database" "$@"
 }
 
 require_ready() {
@@ -95,11 +106,11 @@ DO $$
 BEGIN
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'monopilot') THEN
     CREATE ROLE monopilot
-      LOGIN CREATEDB NOCREATEROLE INHERIT NOSUPERUSER NOBYPASSRLS
+      LOGIN CREATEDB NOCREATEROLE INHERIT NOSUPERUSER BYPASSRLS
       PASSWORD 'monopilot';
   ELSE
     ALTER ROLE monopilot
-      LOGIN CREATEDB NOCREATEROLE INHERIT NOSUPERUSER NOBYPASSRLS
+      LOGIN CREATEDB NOCREATEROLE INHERIT NOSUPERUSER BYPASSRLS
       PASSWORD 'monopilot';
   END IF;
 END
@@ -173,12 +184,13 @@ migrate() {
   #   NOBYPASSRLS  -> "Only roles with the BYPASSRLS attribute may change the BYPASSRLS attribute."
   # Dotyczy to także USTAWIANIA ich na "nie". ADMIN OPTION nie wystarcza.
   # Usunięcie app_user odpada — wiszą na nim uprawnienia w innych bazach klastra.
-  # Dlatego podnosimy monopilot WYŁĄCZNIE na czas przebiegu; verify pilnuje stanu spoczynkowego.
+  # Dlatego podnosimy SUPERUSER/CREATEROLE WYŁĄCZNIE na czas przebiegu; verify pilnuje
+  # stanu spoczynkowego. BYPASSRLS zostaje, bo monopilot jest pulą właścicielską.
   # Odpowiada to produkcji, gdzie migracje też lecą rolą uprzywilejowaną.
   # UWAGA: przy podniesionych uprawnieniach RLS jest omijany, więc post-checki migracji
   # NIE dowodzą zachowania pod RLS — to trzeba sprawdzić osobno, rolą nieuprzywilejowaną.
   admin_psql -c "alter role monopilot createrole superuser bypassrls"
-  trap 'admin_psql -c "alter role monopilot nocreaterole nosuperuser nobypassrls"' EXIT
+  trap 'admin_psql -c "alter role monopilot nocreaterole nosuperuser bypassrls"' EXIT
   local status=0
   (
     cd "$REPO_ROOT"
@@ -187,7 +199,7 @@ migrate() {
       MIGRATE_ALLOW_CHECKSUM_DRIFT_FOR="" \
       pnpm db:migrate
   ) || status=$?
-  admin_psql -c "alter role monopilot nocreaterole nosuperuser nobypassrls"
+  admin_psql -c "alter role monopilot nocreaterole nosuperuser bypassrls"
   trap - EXIT
 
   (( status == 0 )) || die "Łańcuch migracji zakończył się kodem ${status}."
@@ -216,13 +228,23 @@ verify_migration_completeness() {
   )"
   [[ -n "$repo_files" ]] || die "Brak plików SQL w ${MIGRATIONS_DIR}."
 
+  local ledger_exists
+  if ! ledger_exists="$(template_psql -Atqc "select to_regclass('public.schema_migrations')")"; then
+    die "Nie można sprawdzić public.schema_migrations jako rola monopilot."
+  fi
+  if [[ -z "$ledger_exists" ]]; then
+    printf '[test-db] Szablon nie ma public.schema_migrations.\n' >&2
+    return 1
+  fi
+
   local db_count
-  if ! db_count="$(template_psql -Atqc "select count(*) from public.schema_migrations")"; then
+  if ! db_count="$(template_psql -Atqc "select count(filename) from public.schema_migrations")"; then
     die "Nie można odczytać public.schema_migrations jako rola monopilot."
   fi
   if ! db_files="$(template_psql -Atqc "
     select filename
     from public.schema_migrations
+    where filename is not null
     order by filename
   " | LC_ALL=C sort)"; then
     die "Nie można odczytać nazw z public.schema_migrations jako rola monopilot."
@@ -251,15 +273,27 @@ verify_migration_completeness() {
         printf '  - %s\n' "$file" >&2
       done <<<"$unexpected"
     fi
-    die "Szablon monopilot nie przeszedł kontroli kompletności migracji."
+    return 1
   fi
 
   log "Migracje kompletne: ${db_count} plików, najwyższy numer ${db_max}."
 }
 
+ensure_template_migrations() {
+  if verify_migration_completeness; then
+    return
+  fi
+
+  log "Szablon monopilot jest niepełny; uruchamiam idempotentny runner migracji."
+  migrate
+  verify_migration_completeness ||
+    die "Szablon monopilot nadal jest niekompletny po migracji."
+}
+
 verify() {
   require_ready
-  verify_migration_completeness
+  verify_migration_completeness ||
+    die "Szablon monopilot nie przeszedł kontroli kompletności migracji."
   template_psql -P pager=off <<'SQL'
 DO $$
 DECLARE
@@ -317,37 +351,73 @@ SQL
   log "Weryfikacja zakończona: app_user nie ma SUPERUSER ani BYPASSRLS."
 }
 
+seed_clone() {
+  local database="$1"
+  local admin_url="postgres://${PG_ADMIN_ROLE}@${PG_HOST}:${PG_PORT}/${database}"
+
+  log "Seeduję persony testowe w ${database} jako ${PG_ADMIN_ROLE}."
+  (
+    cd "$REPO_ROOT"
+    DATABASE_URL="$admin_url" \
+      TEST_PERSONAS_ORG_ID="$PERSONAS_ORG_ID" \
+      TEST_PERSONAS_CONFIRM_TEST_DB=YES \
+      NEXT_PUBLIC_SUPABASE_URL= \
+      SUPABASE_SERVICE_ROLE_KEY= \
+      pnpm --filter @monopilot/db exec tsx seeds/test-personas.ts
+  )
+
+  log "Seeduję użytkownika harnessu w ${database} jako ${PG_ADMIN_ROLE}."
+  database_admin_psql "$database" -f "$E2E_USER_SEED"
+}
+
 create_clones() {
   require_ready
-  verify_migration_completeness
+  command -v pnpm >/dev/null 2>&1 || die "Nie znaleziono pnpm w PATH."
+  ensure_template_migrations
+
+  local targets=("$@")
+  if (( ${#targets[@]} == 0 )); then
+    targets=("${CLONES[@]}")
+  fi
+
   admin_psql -c "alter database monopilot with allow_connections false"
 
   local status=0
   admin_psql -q <<'SQL' || status=$?
 SELECT pg_terminate_backend(pid)
 FROM pg_stat_activity
-WHERE datname IN ('monopilot', 'monopilot_t1', 'monopilot_t2', 'monopilot_t3')
+WHERE datname = 'monopilot'
+  AND pid <> pg_backend_pid();
+SQL
+
+  local database
+  if (( status == 0 )); then
+    for database in "${targets[@]}"; do
+      admin_psql -q <<SQL || status=$?
+SELECT pg_terminate_backend(pid)
+FROM pg_stat_activity
+WHERE datname = '${database}'
   AND pid <> pg_backend_pid();
 
-DROP DATABASE IF EXISTS monopilot_t1;
-DROP DATABASE IF EXISTS monopilot_t2;
-DROP DATABASE IF EXISTS monopilot_t3;
-
-CREATE DATABASE monopilot_t1 OWNER monopilot TEMPLATE monopilot;
-CREATE DATABASE monopilot_t2 OWNER monopilot TEMPLATE monopilot;
-CREATE DATABASE monopilot_t3 OWNER monopilot TEMPLATE monopilot;
+DROP DATABASE IF EXISTS "${database}";
+CREATE DATABASE "${database}" OWNER monopilot TEMPLATE monopilot;
 SQL
+      (( status == 0 )) || break
+    done
+  fi
 
   admin_psql -c "alter database monopilot with allow_connections true"
   (( status == 0 )) || die "Klonowanie zakończyło się kodem ${status}."
 
-  admin_psql -P pager=off -c "
-    select datname, pg_get_userbyid(datdba) as owner, datallowconn
-    from pg_database
-    where datname in ('monopilot_t1', 'monopilot_t2', 'monopilot_t3')
-    order by datname;
-  "
-  log "Utworzono trzy czyste klony z TEMPLATE monopilot."
+  for database in "${targets[@]}"; do
+    seed_clone "$database"
+    admin_psql -P pager=off -c "
+      select datname, pg_get_userbyid(datdba) as owner, datallowconn
+      from pg_database
+      where datname = '${database}';
+    "
+  done
+  log "Utworzono i zaseedowano ${#targets[@]} czystych klonów z TEMPLATE monopilot."
 }
 
 drop_clones() {
@@ -372,6 +442,98 @@ print_urls() {
   done
 }
 
+clone_database_name() {
+  case "$1" in
+    t1|t2|t3) printf 'monopilot_%s\n' "$1" ;;
+    *) die "Nieznany klon '$1'. Dozwolone: t1, t2, t3." ;;
+  esac
+}
+
+print_database_status() {
+  local database="$1"
+  local repo_count="$2"
+  local repo_max="$3"
+  local database_exists ledger_exists users_exists
+  local db_files="" db_count=0 db_max=0 max_matches="NIE"
+  local persona_count=0 persona_status harness_count=0 harness_status="NIE"
+
+  database_exists="$(admin_psql -Atqc \
+    "select count(*) from pg_database where datname = '${database}'")"
+  if [[ "$database_exists" == "0" ]]; then
+    printf '%-14s %-11s %-12s %-10s %-15s %-8s\n' \
+      "$database" "BRAK" "${repo_max}/-" "NIE" "NIE (0/${TEST_PERSONAS_COUNT})" "NIE"
+    return
+  fi
+
+  ledger_exists="$(database_admin_psql "$database" -Atqc \
+    "select to_regclass('public.schema_migrations')")"
+  if [[ -n "$ledger_exists" ]]; then
+    db_files="$(database_admin_psql "$database" -Atqc "
+      select filename
+      from public.schema_migrations
+      where filename is not null
+      order by filename
+    " | LC_ALL=C sort)"
+    db_count="$(printf '%s\n' "$db_files" | awk 'NF { count++ } END { print count + 0 }')"
+    db_max="$(printf '%s\n' "$db_files" | max_migration_number)"
+  fi
+  [[ "$db_max" == "$repo_max" ]] && max_matches="TAK"
+
+  users_exists="$(database_admin_psql "$database" -Atqc \
+    "select to_regclass('public.users')")"
+  if [[ -n "$users_exists" ]]; then
+    persona_count="$(database_admin_psql "$database" -Atqc "
+      select count(*)
+      from public.users
+      where org_id = '${PERSONAS_ORG_ID}'::uuid
+        and id = any(array[
+          '7f290000-0000-4000-8000-000000000001'::uuid,
+          '7f290000-0000-4000-8000-000000000002'::uuid,
+          '7f290000-0000-4000-8000-000000000003'::uuid,
+          '7f290000-0000-4000-8000-000000000004'::uuid,
+          '7f290000-0000-4000-8000-000000000005'::uuid
+        ])
+    ")"
+    harness_count="$(database_admin_psql "$database" -Atqc "
+      select count(*)
+      from public.users
+      where id = '${HARNESS_USER_ID}'::uuid
+        and org_id = '${PERSONAS_ORG_ID}'::uuid
+    ")"
+  fi
+
+  if [[ "$persona_count" == "$TEST_PERSONAS_COUNT" ]]; then
+    persona_status="TAK (${persona_count}/${TEST_PERSONAS_COUNT})"
+  else
+    persona_status="NIE (${persona_count}/${TEST_PERSONAS_COUNT})"
+  fi
+  [[ "$harness_count" == "1" ]] && harness_status="TAK"
+
+  printf '%-14s %-11s %-12s %-10s %-15s %-8s\n' \
+    "$database" "${db_count}/${repo_count}" "${repo_max}/${db_max}" \
+    "$max_matches" "$persona_status" "$harness_status"
+}
+
+status() {
+  require_ready
+  local repo_files file repo_count repo_max database
+  repo_files="$(
+    for file in "${MIGRATIONS_DIR}"/*.sql; do
+      [[ -f "$file" ]] || continue
+      printf '%s\n' "${file##*/}"
+    done | LC_ALL=C sort
+  )"
+  [[ -n "$repo_files" ]] || die "Brak plików SQL w ${MIGRATIONS_DIR}."
+  repo_count="$(printf '%s\n' "$repo_files" | awk 'NF { count++ } END { print count + 0 }')"
+  repo_max="$(printf '%s\n' "$repo_files" | max_migration_number)"
+
+  printf '%-14s %-11s %-12s %-10s %-15s %-8s\n' \
+    "BAZA" "MIGRACJE" "MAX(repo/db)" "MAX=REPO" "PERSONY" "HARNESS"
+  for database in "$TEMPLATE_DB" "${CLONES[@]}"; do
+    print_database_status "$database" "$repo_count" "$repo_max"
+  done
+}
+
 run_all() {
   "$BASH" "$REPO_ROOT/scripts/test-db.sh" recreate &&
     "$BASH" "$REPO_ROOT/scripts/test-db.sh" migrate &&
@@ -381,7 +543,7 @@ run_all() {
 
 usage() {
   cat <<EOF
-Użycie: $0 {up|recreate|migrate|verify|clone|all|reset|urls|down}
+Użycie: $0 {up|recreate|migrate|verify|clone|all|reset [t1|t2|t3]|status|urls|down}
 EOF
 }
 
@@ -393,9 +555,17 @@ case "${1:-}" in
   clone) create_clones ;;
   all) run_all ;;
   reset)
-    log "Odtwarzam czyste klony z bazy monopilot."
-    create_clones
+    (( $# <= 2 )) || die "reset przyjmuje najwyżej jeden argument: t1, t2 albo t3."
+    if [[ -n "${2:-}" ]]; then
+      reset_database="$(clone_database_name "$2")"
+      log "Odtwarzam czysty klon ${reset_database} z bazy monopilot."
+      create_clones "$reset_database"
+    else
+      log "Odtwarzam wszystkie czyste klony z bazy monopilot."
+      create_clones
+    fi
     ;;
+  status) status ;;
   urls) print_urls ;;
   down) drop_clones ;;
   *)
