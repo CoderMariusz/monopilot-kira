@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 
 import { Badge } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
@@ -161,6 +162,7 @@ export default function D365AuditScreen({
   state = 'ready',
   initialSearchParams,
 }: D365AuditScreenProps) {
+  const router = useRouter();
   const initialStatus = firstParam(initialSearchParams.status);
   const initialDirection = firstParam(initialSearchParams.direction);
   const initialStatusFilter: D365SyncStatus | 'all' = isStatus(initialStatus) ? initialStatus : 'all';
@@ -186,17 +188,33 @@ export default function D365AuditScreen({
       && (!endDate || started <= endDate);
   });
 
+  const triggerSync = runSyncNow ?? (async () => {
+    try {
+      const response = await fetch('/api/settings/d365/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entity: 'items' }),
+      });
+      return response.ok
+        ? { ok: true as const }
+        : { ok: false as const, message: labels.error };
+    } catch {
+      return { ok: false as const, message: labels.error };
+    }
+  });
+
   const runNow = async () => {
-    if (!isOwner || !runSyncNow) return;
+    if (!isOwner) return;
     setTriggerState('pending');
     setTriggerError(null);
-    const result = await runSyncNow();
+    const result = await triggerSync();
     if ('message' in result) {
       setTriggerState('error');
       setTriggerError(result.message);
       return;
     }
     setTriggerState('idle');
+    router.refresh();
   };
 
   const actions = (

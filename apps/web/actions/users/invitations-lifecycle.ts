@@ -471,7 +471,7 @@ export async function resendInvitation(input: InvitationLifecycleInput): Promise
       // answer `not_admin` on every production call, so the UPDATE + audit +
       // outbox + revalidate below were unreachable and the action always ended
       // `invite_failed`. Same service-role factory the initial invite uses
-      // (invite.ts → mintInviteLink).
+      // (invite.ts → sendInviteEmail).
       let linkResponse: Awaited<
         ReturnType<Awaited<ReturnType<typeof createSupabaseAuthAdmin>>['auth']['admin']['generateLink']>
       >;

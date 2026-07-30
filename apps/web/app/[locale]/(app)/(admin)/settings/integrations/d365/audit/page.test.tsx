@@ -12,9 +12,14 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+const navigation = vi.hoisted(() => ({
+  refresh: vi.fn(),
+}));
+
 vi.mock('next/navigation', () => ({
   redirect: vi.fn(),
   notFound: vi.fn(),
+  useRouter: () => ({ refresh: navigation.refresh }),
 }));
 
 vi.mock('next-intl/server', () => ({
@@ -205,11 +210,13 @@ describe('T-112 D365 sync audit localized AppShell route contract', () => {
 describe('T-112 D365 sync audit behavior', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.unstubAllGlobals();
     window.history.replaceState(null, '', '/en/settings/integrations/d365/audit');
   });
 
   afterEach(() => {
     cleanup();
+    vi.unstubAllGlobals();
   });
 
   it('renders five mixed-status sync runs sorted by started_at descending with status badges', async () => {
@@ -292,27 +299,26 @@ describe('T-112 D365 sync audit behavior', () => {
     expect(runSyncNow).not.toHaveBeenCalled();
   });
 
-  it('fail-closes the default D365 manual sync control when no reviewed backend trigger is wired', async () => {
+  it('wires the default production control to the manual D365 sync endpoint', async () => {
     const user = userEvent.setup();
-    withOrgContextMock.mockImplementation(async (callback: (ctx: unknown) => unknown) => callback({
-      userId: '00000000-0000-4000-8000-000000000001',
-      orgId: '00000000-0000-4000-8000-000000000002',
-      client: {
-        query: vi.fn(async () => ({ rows: [{ is_owner: true }] })),
-      },
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
     }));
+    vi.stubGlobal('fetch', fetchMock);
 
     await renderD365AuditPage({ callerRole: 'owner', runSyncNow: undefined });
 
     const trigger = screen.getByRole('button', { name: /run sync now/i });
-    expect(
-      trigger,
-      'Default production D365 sync must be disabled unless a reviewed, side-effecting backend trigger is wired; a not_available server-action response must not be reachable from the normal UI.',
-    ).toBeDisabled();
-    expect(trigger).toHaveAttribute('aria-disabled', 'true');
-    expect(auditScreen()).toHaveTextContent(/not configured|coming soon|sync trigger unavailable/i);
-
+    expect(trigger).toBeEnabled();
     await user.click(trigger);
-    expect(withOrgContextMock).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      '/api/settings/d365/sync',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ entity: 'items' }),
+      }),
+    ));
+    expect(navigation.refresh).toHaveBeenCalledTimes(1);
   });
 });

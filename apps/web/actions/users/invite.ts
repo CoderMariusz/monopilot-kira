@@ -192,12 +192,12 @@ export async function inviteUser(input: InviteUserInput): Promise<InviteUserResu
       return { ok: false, error: 'invalid_input' };
     }
 
-    const minted = await mintInviteLink(email, orgId, userId, site, personalMessage, redirectTo);
-    if (!minted.ok) {
-      return minted;
+    const sent = await sendInviteEmail(email, orgId, userId, site, personalMessage, redirectTo);
+    if (!sent.ok) {
+      return sent;
     }
-    const inviteToken = minted.inviteToken;
-    const authUserId = minted.authUserId;
+    const inviteToken = sent.inviteToken;
+    const authUserId = sent.authUserId;
 
     try {
       if (existing) {
@@ -304,7 +304,7 @@ export async function inviteUser(input: InviteUserInput): Promise<InviteUserResu
 }
 
 // Helpers are declared AFTER inviteUser so raw source order mirrors execution
-// order (seat/active-count pre-flight → mint auth link → write audit+outbox).
+// order (seat/active-count pre-flight → send auth invite → write audit+outbox).
 // The structural guards in invite.test.ts read this source-position ordering.
 
 type InviteQueryClient = Parameters<Parameters<typeof withOrgContext>[0]>[0]['client'];
@@ -361,7 +361,7 @@ async function replaceInvitedUserSiteScope(
   return (result.rowCount ?? result.rows.length) >= 1;
 }
 
-async function mintInviteLink(
+async function sendInviteEmail(
   email: string,
   orgId: string,
   userId: string,
@@ -373,34 +373,26 @@ async function mintInviteLink(
   | { ok: false; error: 'invite_failed' }
 > {
   const supabase = await createSupabaseAuthAdmin();
-  const linkResponse = await supabase.auth.admin.generateLink({
-    type: 'invite',
-    email,
-    options: {
-      data: {
-        org_id: orgId,
-        invited_by: userId,
-        expires_in: INVITE_TTL_SECONDS,
-        site: site ?? undefined,
-        personal_message: personalMessage ?? undefined,
-      },
-      redirectTo: redirectTo ?? undefined,
+  const inviteResponse = await supabase.auth.admin.inviteUserByEmail(email, {
+    data: {
+      org_id: orgId,
+      invited_by: userId,
+      expires_in: INVITE_TTL_SECONDS,
+      site: site ?? undefined,
+      personal_message: personalMessage ?? undefined,
     },
+    redirectTo: redirectTo ?? undefined,
   });
-  if (linkResponse.error) {
+  if (inviteResponse.error) {
     return { ok: false, error: 'invite_failed' };
   }
 
-  const inviteToken =
-    linkResponse.data?.properties?.hashed_token ??
-    linkResponse.data?.properties?.email_otp ??
-    null;
-  const authUserId = linkResponse.data?.user?.id ?? null;
-  if (!inviteToken || !authUserId) {
+  const authUserId = inviteResponse.data?.user?.id ?? null;
+  if (!authUserId) {
     return { ok: false, error: 'invite_failed' };
   }
 
-  return { ok: true, inviteToken, authUserId };
+  return { ok: true, inviteToken: authUserId, authUserId };
 }
 
 async function writeInviteAuditAndOutbox(

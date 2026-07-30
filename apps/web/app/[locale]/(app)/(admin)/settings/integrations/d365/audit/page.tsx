@@ -152,19 +152,11 @@ export default async function D365AuditPage(propsInput: D365AuditPageProps = {})
   }
 
   const searchParams = propsInput.searchParams ? await propsInput.searchParams : {};
-  const hasReviewedSyncTrigger = typeof propsInput.runSyncNow === 'function';
-  const screenLabels = hasReviewedSyncTrigger
-    ? labels
-    : {
-        ...labels,
-        subtitle: `${labels.subtitle} Sync trigger unavailable: D365 manual sync backend is not configured yet.`,
-        ownerRequired: 'Sync trigger unavailable: D365 manual sync backend is not configured yet.',
-      };
   return (
     <D365AuditScreen
-      callerRole={hasReviewedSyncTrigger ? callerRole : 'viewer'}
-      labels={screenLabels}
-      runSyncNow={hasReviewedSyncTrigger ? propsInput.runSyncNow : undefined}
+      callerRole={callerRole}
+      labels={labels}
+      runSyncNow={propsInput.runSyncNow}
       runs={runs}
       state={state}
       initialSearchParams={searchParams}

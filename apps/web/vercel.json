@@ -9,12 +9,16 @@
       "schedule": "0 2 * * *"
     },
     {
+      "path": "/api/internal/cron/d365-pull",
+      "schedule": "0 2 * * *"
+    },
+    {
       "path": "/api/internal/cron/catch-weight-variance",
       "schedule": "30 2 * * *"
     },
     {
       "path": "/api/internal/cron/outbox",
-      "schedule": "0 3 * * *"
+      "schedule": "*/5 * * * *"
     },
     {
       "path": "/api/internal/cron/reporting-refresh",

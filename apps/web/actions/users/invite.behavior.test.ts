@@ -14,10 +14,12 @@ const AUTH_USER_ID = '22222222-2222-4222-8222-222222222222';
 const {
   _withOrgContextRunner,
   _mockGenerateLink,
+  _mockInviteUserByEmail,
   _revalidateLocalized,
 } = vi.hoisted(() => ({
   _withOrgContextRunner: vi.fn(),
   _mockGenerateLink: vi.fn(),
+  _mockInviteUserByEmail: vi.fn(),
   _revalidateLocalized: vi.fn(),
 }));
 
@@ -36,17 +38,19 @@ vi.mock('../../lib/auth/supabase-server', () => ({
     auth: {
       admin: {
         generateLink: _mockGenerateLink,
+        inviteUserByEmail: _mockInviteUserByEmail,
       },
     },
   })),
 }));
 
-// f4.1: generateLink moved to the shared service-role admin factory.
+// Service-role auth calls use the shared admin factory.
 vi.mock('./supabase-admin', () => ({
   createSupabaseAuthAdmin: vi.fn(async () => ({
     auth: {
       admin: {
         generateLink: _mockGenerateLink,
+        inviteUserByEmail: _mockInviteUserByEmail,
       },
     },
   })),
@@ -235,6 +239,12 @@ beforeEach(() => {
     },
     error: null,
   });
+  _mockInviteUserByEmail.mockResolvedValue({
+    data: {
+      user: { id: AUTH_USER_ID },
+    },
+    error: null,
+  });
   process.env.NEXT_PUBLIC_APP_URL = 'https://app.example.com';
 });
 
@@ -246,6 +256,60 @@ async function loadInvite(): Promise<InviteModule> {
 }
 
 describe('inviteUser RBAC (behavior)', () => {
+  it('sends the initial invitation email through Supabase before reporting success', async () => {
+    currentClient = makeClient({
+      hasInvitePermission: true,
+      seatLimit: 100,
+      activeUsers: 5,
+      rolesById: {
+        [VIEWER_ROLE_ID]: { id: VIEWER_ROLE_ID, org_id: ORG_ID, code: 'viewer', is_system: false, display_order: 99 },
+      },
+      siteByName: { 'Warsaw Plant': WARSAW_SITE_ID },
+    });
+    const { inviteUser } = await loadInvite();
+
+    const result = await inviteUser({
+      email: 'new@example.com',
+      roleId: VIEWER_ROLE_ID,
+      site: 'Warsaw Plant',
+    });
+
+    expect(result.ok).toBe(true);
+    expect(_mockInviteUserByEmail).toHaveBeenCalledWith(
+      'new@example.com',
+      expect.objectContaining({
+        data: expect.objectContaining({ org_id: ORG_ID, invited_by: USER_ID }),
+      }),
+    );
+    expect(_mockGenerateLink).not.toHaveBeenCalled();
+  });
+
+  it('does not report success when the invitation email provider rejects the send', async () => {
+    _mockInviteUserByEmail.mockResolvedValueOnce({
+      data: { user: null },
+      error: new Error('mail provider rejected invite'),
+    });
+    currentClient = makeClient({
+      hasInvitePermission: true,
+      seatLimit: 100,
+      activeUsers: 5,
+      rolesById: {
+        [VIEWER_ROLE_ID]: { id: VIEWER_ROLE_ID, org_id: ORG_ID, code: 'viewer', is_system: false, display_order: 99 },
+      },
+      siteByName: { 'Warsaw Plant': WARSAW_SITE_ID },
+    });
+    const { inviteUser } = await loadInvite();
+
+    const result = await inviteUser({
+      email: 'new@example.com',
+      roleId: VIEWER_ROLE_ID,
+      site: 'Warsaw Plant',
+    });
+
+    expect(result).toEqual({ ok: false, error: 'invite_failed' });
+    expect(currentClient.upsertedUser).toBeNull();
+  });
+
   it('returns forbidden when caller lacks settings.users.invite permission', async () => {
     currentClient = makeClient({
       hasInvitePermission: false,
@@ -259,7 +323,7 @@ describe('inviteUser RBAC (behavior)', () => {
     const result = await inviteUser({ email: 'new@example.com', roleId: VIEWER_ROLE_ID });
 
     expect(result).toEqual({ ok: false, error: 'forbidden' });
-    expect(_mockGenerateLink).not.toHaveBeenCalled();
+    expect(_mockInviteUserByEmail).not.toHaveBeenCalled();
     expect(currentClient.upsertedUser).toBeNull();
   });
 
@@ -284,14 +348,15 @@ describe('inviteUser RBAC (behavior)', () => {
     expect(result.ok).toBe(true);
     const siteLookup = currentClient.calls.find(({ sql }) => sql.includes('from public.sites s'));
     expect(siteLookup?.params).toEqual([null, 'Warsaw Plant']);
-    expect(_mockGenerateLink).toHaveBeenCalledWith(expect.objectContaining({
-      options: expect.objectContaining({
+    expect(_mockInviteUserByEmail).toHaveBeenCalledWith(
+      'new@example.com',
+      expect.objectContaining({
         data: expect.objectContaining({
           site: 'Warsaw Plant',
           personal_message: 'Welcome to the team',
         }),
       }),
-    }));
+    );
     expect(currentClient.outboxEvents[0]?.payload).toMatchObject({
       site: 'Warsaw Plant',
       personal_message_present: true,
@@ -316,7 +381,7 @@ describe('inviteUser RBAC (behavior)', () => {
       site: 'Unknown Plant',
     });
     expect(unknownSite).toEqual({ ok: false, error: 'invalid_input' });
-    expect(_mockGenerateLink).not.toHaveBeenCalled();
+    expect(_mockInviteUserByEmail).not.toHaveBeenCalled();
     expect(currentClient.userSiteAssignment).toBeNull();
 
     const invited = await inviteUser({
@@ -417,7 +482,7 @@ describe('inviteUser RBAC (behavior)', () => {
     });
 
     expect(result).toEqual({ ok: false, error: 'invalid_input' });
-    expect(_mockGenerateLink).not.toHaveBeenCalled();
+    expect(_mockInviteUserByEmail).not.toHaveBeenCalled();
     expect(currentClient.upsertedUser).toBeNull();
   });
 
@@ -484,7 +549,7 @@ describe('inviteUser RBAC (behavior)', () => {
     });
 
     expect(result).toEqual({ ok: false, error: 'invalid_input' });
-    expect(_mockGenerateLink).not.toHaveBeenCalled();
+    expect(_mockInviteUserByEmail).not.toHaveBeenCalled();
     expect(currentClient.upsertedUser).toBeNull();
   });
 });
@@ -501,7 +566,7 @@ describe('inviteUser roleId handling', () => {
     const result = await inviteUser({ email: 'new@example.com' });
 
     expect(result).toEqual({ ok: false, error: 'invalid_input' });
-    expect(_mockGenerateLink).not.toHaveBeenCalled();
+    expect(_mockInviteUserByEmail).not.toHaveBeenCalled();
     expect(currentClient.upsertedUser).toBeNull();
   });
 
@@ -576,7 +641,7 @@ describe('inviteUser roleId handling', () => {
     });
 
     expect(result).toEqual({ ok: false, error: 'email_taken' });
-    expect(_mockGenerateLink).not.toHaveBeenCalled();
+    expect(_mockInviteUserByEmail).not.toHaveBeenCalled();
     expect(currentClient.upsertedUser).toBeNull();
     expect(currentClient.updatedInvite).toBeNull();
   });
@@ -614,12 +679,12 @@ describe('inviteUser roleId handling', () => {
     if (result.ok) {
       expect(result.data.resent).toBe(true);
     }
-    expect(_mockGenerateLink).toHaveBeenCalledTimes(1);
+    expect(_mockInviteUserByEmail).toHaveBeenCalledTimes(1);
     expect(currentClient.upsertedUser).toBeNull();
     expect(currentClient.updatedInvite).toMatchObject({
       id: 'pending-user-id',
       org_id: ORG_ID,
-      invite_token: 'hashed-token-stub',
+      invite_token: AUTH_USER_ID,
     });
     expect(currentClient.updatedInvite).not.toMatchObject({
       name: 'SOL-R01-DUPLICATE',
