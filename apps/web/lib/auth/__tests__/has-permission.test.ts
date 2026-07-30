@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { hasAnyPermission, hasPermission, type HasPermissionClient } from '../has-permission';
 
+// The fake deliberately does NOT model org isolation: a fake that reimplements the org
+// filter can only ever confirm itself. Org isolation is proven in has-permission.pg.test.ts
+// against Postgres; here it is covered only as a statement-shape assertion.
 type RoleFixture = {
-  orgId?: string;
   rpPermissions?: string[];
   jsonbPermissions?: string[];
   code?: string;
@@ -10,7 +12,6 @@ type RoleFixture = {
 };
 
 const ORG_ID = '00000000-0000-4000-8000-000000000002';
-const OTHER_ORG_ID = '00000000-0000-4000-8000-000000000003';
 
 class FakePermissionClient implements HasPermissionClient {
   readonly calls: Array<{ sql: string; params?: readonly unknown[] }> = [];
@@ -22,15 +23,10 @@ class FakePermissionClient implements HasPermissionClient {
 
     const requested = params?.[2];
     const superRoles = params?.[3];
-    const orgId = params?.[1];
     const permissions = Array.isArray(requested) ? requested : [requested];
     const bypassRoles = Array.isArray(superRoles) ? superRoles : [];
 
     const ok = this.roles.some((role) => {
-      if (role.orgId !== undefined && role.orgId !== orgId) {
-        return false;
-      }
-
       const normalizedPermissions = permissions.filter((permission): permission is string => typeof permission === 'string');
       return (
         normalizedPermissions.some((permission) => role.rpPermissions?.includes(permission)) ||
@@ -101,7 +97,7 @@ describe('hasPermission', () => {
     await expect(hasPermission(ctxFor(client), 'production.wo.release')).resolves.toBe(false);
   });
 
-  it('emits SQL containing downstream mock guard tokens', async () => {
+  it('emits SQL that keeps the org filter, plus downstream mock guard tokens', async () => {
     const client = new FakePermissionClient([{ rpPermissions: ['production.wo.release'] }]);
 
     await hasPermission(ctxFor(client), 'production.wo.release');
@@ -112,14 +108,12 @@ describe('hasPermission', () => {
     expect(client.calls[0]?.sql).toContain('any($4');
     expect(client.calls[0]?.sql).not.toContain('r.code = $3');
     expect(client.calls[0]?.sql).not.toContain('r.slug = $3');
-  });
-
-  it('denies when a matching role permission belongs to another org', async () => {
-    const client = new FakePermissionClient([
-      { orgId: OTHER_ORG_ID, rpPermissions: ['production.wo.release'] },
-    ]);
-
-    await expect(hasPermission(ctxFor(client), 'production.wo.release')).resolves.toBe(false);
+    // Org isolation, statement SHAPE only — the real denial is proven against Postgres in
+    // has-permission.pg.test.ts. These two lines exist so that deleting the org filter also
+    // reddens the mock suite: any run without DATABASE_URL (every local `vitest run`) skips
+    // the pg file SILENTLY. CI sets DATABASE_URL today; the skip stays silent if that changes.
+    expect(client.calls[0]?.sql).toContain('ur.org_id = $2');
+    expect(client.calls[0]?.params?.[1]).toBe(ORG_ID);
   });
 });
 
@@ -138,5 +132,14 @@ describe('hasAnyPermission', () => {
     await expect(
       hasAnyPermission(ctxFor(client), ['production.wo.cancel', 'production.wo.release']),
     ).resolves.toBe(false);
+  });
+
+  it('emits SQL that keeps the org filter (separate statement from hasPermission)', async () => {
+    const client = new FakePermissionClient([{ rpPermissions: ['production.wo.release'] }]);
+
+    await hasAnyPermission(ctxFor(client), ['production.wo.release']);
+
+    expect(client.calls[0]?.sql).toContain('ur.org_id = $2');
+    expect(client.calls[0]?.params?.[1]).toBe(ORG_ID);
   });
 });
