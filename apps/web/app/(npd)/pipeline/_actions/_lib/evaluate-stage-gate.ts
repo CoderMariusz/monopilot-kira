@@ -16,7 +16,7 @@ import {
   type GateBlocker,
   type GateProjectRow,
 } from './gate-helpers';
-import { type OrgContextLike, type ProjectGate } from '../shared';
+import { resolveStageFieldValues, type OrgContextLike, type ProjectGate } from '../shared';
 
 export type StageGateEvaluation =
   | { status: 'PASS' }
@@ -40,7 +40,6 @@ type RequiredFieldRow = {
 };
 
 function resolveGateFieldValues(row: RequiredFieldRow): Record<string, unknown> {
-  if (row.product_json) return row.product_json;
   const projectJson = row.project_json ?? {};
   const rawFieldValues = projectJson.field_values;
   const fieldValues =
@@ -52,7 +51,7 @@ function resolveGateFieldValues(row: RequiredFieldRow): Record<string, unknown> 
     if (key !== 'field_values') values[key] = value;
   }
   values.product_name = projectJson.name ?? null;
-  return values;
+  return resolveStageFieldValues(row.product_json, values);
 }
 
 function isFilled(value: unknown): boolean {

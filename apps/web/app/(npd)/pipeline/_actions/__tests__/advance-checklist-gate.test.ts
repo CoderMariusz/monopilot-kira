@@ -55,6 +55,49 @@ function unsatisfiedBomSignalsQuery() {
   };
 }
 
+function wireBriefWeeklyVolumeGate(weeklyVolumePacks: string | null) {
+  ctx.handler = (sql) => {
+    const q = sql.replace(/\s+/g, ' ').trim().toLowerCase();
+    if (q.includes('from public.npd_projects') && q.includes('for update')) {
+      return {
+        rows: [
+          {
+            id: 'proj-1',
+            code: 'NPD-001',
+            name: 'Test',
+            type: 'standard',
+            current_gate: 'G0',
+            current_stage: 'brief',
+            product_code: 'FG-001',
+          },
+        ],
+      };
+    }
+    if (q.includes('from public.gate_checklist_items') && q.includes('gci.required = true')) {
+      return { rows: [] };
+    }
+    if (q.includes('from public.npd_projects p') && q.includes('linked_bom_count')) {
+      return satisfiedSignalsQuery();
+    }
+    if (q.includes('from public.npd_departments')) {
+      return {
+        rows: [
+          {
+            dept_code: 'Core',
+            dept_name: 'Core',
+            field_code: 'weekly_volume_packs',
+            field_label: 'Weekly volume (packs/week)',
+            auto_source_field: null,
+            product_json: { product_code: 'FG-001' },
+            project_json: { weekly_volume_packs: weeklyVolumePacks, field_values: {} },
+          },
+        ],
+      };
+    }
+    return { rows: [] };
+  };
+}
+
 describe('evaluateStageGate checklist enforcement (S18 + D1)', () => {
   beforeEach(() => {
     ctx.handler = (sql) => {
@@ -204,5 +247,37 @@ describe('evaluateStageGate checklist enforcement (S18 + D1)', () => {
         },
       ],
     });
+  });
+
+  it('keeps the brief gate blocked when project weekly_volume_packs is empty', async () => {
+    wireBriefWeeklyVolumeGate(null);
+
+    const evaluation = await evaluateStageGate('proj-1', 'brief', 'recipe', {
+      userId: ctx.userId,
+      orgId: ctx.orgId,
+      client: { query: async (sql: string, params?: readonly unknown[]) => ctx.handler(sql, params) },
+    } as never);
+
+    expect(evaluation).toEqual({
+      status: 'HARD_BLOCKED',
+      hardReason: 'REQUIRED_EVIDENCE_BLOCKED',
+      blockers: [{
+        code: 'REQUIRED_EVIDENCE_MISSING',
+        message: 'Core: Weekly volume (packs/week)',
+        itemText: 'Core: Weekly volume (packs/week)',
+      }],
+    });
+  });
+
+  it('passes the brief gate when UI-persisted project weekly_volume_packs is filled for a linked FG', async () => {
+    wireBriefWeeklyVolumeGate('1777.000');
+
+    const evaluation = await evaluateStageGate('proj-1', 'brief', 'recipe', {
+      userId: ctx.userId,
+      orgId: ctx.orgId,
+      client: { query: async (sql: string, params?: readonly unknown[]) => ctx.handler(sql, params) },
+    } as never);
+
+    expect(evaluation).toEqual({ status: 'PASS' });
   });
 });

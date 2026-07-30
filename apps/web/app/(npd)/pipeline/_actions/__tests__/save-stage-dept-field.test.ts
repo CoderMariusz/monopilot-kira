@@ -66,6 +66,9 @@ function wireQueries() {
       const columnName = String(params?.[0] ?? '');
       return { rows: projectColumns.has(columnName) ? [{ ok: true }] : [] };
     }
+    if (/from\s+public\.npd_projects/i.test(text) && /product_code\s*=\s*\$2/i.test(text)) {
+      return { rows: [{ ok: true }] };
+    }
     if (/set_config\('app\.fa_actor_user_id'/i.test(text)) {
       return { rows: [] };
     }
@@ -76,9 +79,10 @@ function wireQueries() {
       const value = params?.[1] == null ? null : String(params[1]);
       return { rows: [{ previous_value: previousValues.product_name ?? null, new_value: value }] };
     }
-    if (/set\s+"pack_size"\s*=\s*\$2/i.test(text)) {
+    const directProjectColumn = text.match(/set\s+"([a-z0-9_]+)"\s*=\s*\$2/i)?.[1];
+    if (directProjectColumn) {
       const value = params?.[1] == null ? null : String(params[1]);
-      return { rows: [{ previous_value: previousValues.pack_size ?? null, new_value: value }] };
+      return { rows: [{ previous_value: previousValues[directProjectColumn] ?? null, new_value: value }] };
     }
     if (/field_values\s*=\s*case/i.test(text)) {
       const key = String(params?.[1] ?? '');
@@ -98,14 +102,18 @@ beforeEach(() => {
   fields = {
     product_name: { deptCode: 'Core', dataType: 'text' },
     pack_size: { deptCode: 'Core', dataType: 'text' },
+    weekly_volume_packs: { deptCode: 'Core', dataType: 'number' },
+    runs_per_week: { deptCode: 'Core', dataType: 'number' },
     case_format: { deptCode: 'Packaging', dataType: 'text' },
     private_note: { deptCode: 'Core', dataType: 'text' },
     auto_margin: { deptCode: 'Core', dataType: 'text', auto: true },
   };
-  projectColumns = new Set(['pack_size']);
+  projectColumns = new Set(['pack_size', 'weekly_volume_packs', 'runs_per_week']);
   previousValues = {
     product_name: 'Old Project',
     pack_size: '100g',
+    weekly_volume_packs: null,
+    runs_per_week: null,
     private_note: 'old note',
   };
   wireQueries();
@@ -155,6 +163,21 @@ describe('saveStageDeptField pre-FG project writes', () => {
 
     expect(result).toEqual({ previousValue: '100g', newValue: '200g', builtReset: false });
     expect(queryMock.mock.calls.some((call) => /set\s+"pack_size"\s*=\s*\$2/i.test(String(call[0])))).toBe(true);
+  });
+
+  it('writes project-owned brief values to npd_projects after an FG is linked', async () => {
+    const { saveStageDeptField } = await import('../save-stage-dept-field');
+
+    const result = await saveStageDeptField({
+      projectId,
+      productCode: 'FG-001',
+      fieldCode: 'weekly_volume_packs',
+      value: '1777',
+    });
+
+    expect(result).toEqual({ previousValue: null, newValue: '1777', builtReset: false });
+    expect(queryMock.mock.calls.some((call) => /set\s+"weekly_volume_packs"\s*=\s*\$2/i.test(String(call[0])))).toBe(true);
+    expect(queryMock.mock.calls.some((call) => /update\s+public\.product/i.test(String(call[0])))).toBe(false);
   });
 
   it('writes non-column catalog fields to field_values and clears keys on null', async () => {

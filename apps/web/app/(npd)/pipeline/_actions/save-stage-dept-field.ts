@@ -25,6 +25,7 @@ import {
   isProtectedFaFieldCode,
   isProtectedNpdProjectColumn,
 } from '../../../../lib/npd/g4-definition-freeze';
+import { isProjectOwnedStageField } from './shared';
 
 type SaveStageDeptFieldInput = {
   projectId: string;
@@ -49,7 +50,7 @@ export async function saveStageDeptField(input: SaveStageDeptFieldInput) {
   const productCode = (parsed.data.productCode ?? '').trim();
   if (
     productCode &&
-    parsed.data.fieldCode === 'product_name'
+    (parsed.data.fieldCode === 'product_name' || isProjectOwnedStageField(parsed.data.fieldCode))
   ) {
     return withOrgContext<UpdateFaCellResult>(async (rawCtx) => {
       const ctx = rawCtx as OrgContextLike;
@@ -70,12 +71,7 @@ export async function saveStageDeptField(input: SaveStageDeptFieldInput) {
       const newValue = await validateValue(ctx, column, parsed.data.value);
       await assertProtectedFieldEditable(ctx, parsed.data.projectId, parsed.data.fieldCode, column.column_key);
       await ctx.client.query(`select set_config('app.fa_actor_user_id', $1, true)`, [ctx.userId]);
-      const result = await updateProjectName(ctx, parsed.data.projectId, newValue);
-      await syncLinkedFgNameFromProject(
-        ctx,
-        parsed.data.projectId,
-        typeof newValue === 'string' ? newValue : null,
-      );
+      const result = await updateProjectField(ctx, parsed.data.projectId, column.column_key, newValue);
       await writeProjectEditOutbox(ctx, parsed.data.projectId, column.column_key, result);
       safeRevalidatePath(`/pipeline/${parsed.data.projectId}`, 'layout');
       return result;

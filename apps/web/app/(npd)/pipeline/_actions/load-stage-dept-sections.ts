@@ -11,6 +11,7 @@ import {
   type StageDeptSectionsResult,
   type StageRequiredFieldsStatus,
 } from './load-stage-dept-sections.types';
+import { resolveStageFieldValues } from './shared';
 
 type QueryResult<T = Record<string, unknown>> = { rows: T[]; rowCount?: number | null };
 type QueryClient = {
@@ -285,10 +286,12 @@ async function loadStageDeptSectionsInContext(
     resolveProjectProductCode(ctx, projectId),
     readCatalogRows(ctx, stage),
   ]);
-  const [values, dropdowns] = await Promise.all([
-    productCode ? readProductValues(ctx, productCode) : readProjectValues(ctx, projectId),
+  const [productValues, projectValues, dropdowns] = await Promise.all([
+    readProductValues(ctx, productCode),
+    readProjectValues(ctx, projectId),
     readDropdowns(ctx, catalogRows),
   ]);
+  const values = resolveStageFieldValues(productCode ? productValues : null, projectValues);
   const sections = buildSections(catalogRows, productCode, values, dropdowns);
 
   return {

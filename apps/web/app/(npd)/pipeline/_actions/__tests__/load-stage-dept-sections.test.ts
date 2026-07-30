@@ -27,6 +27,7 @@ const catalogRows: CatalogRowInput[] = [
   { dept: 'Core', stage: 'brief', field: 'product_name', label: 'Product name', required: true, order: 10 },
   { dept: 'Core', stage: 'brief', field: 'pack_size', label: 'Pack size', required: true, order: 20 },
   { dept: 'Core', stage: 'brief', field: 'weekly_volume_packs', label: 'Weekly volume (packs/week)', order: 30 },
+  { dept: 'Core', stage: 'brief', field: 'runs_per_week', label: 'Runs per week', order: 35 },
   { dept: 'Core', stage: 'brief', field: 'auto_margin', label: 'Auto margin', order: 40, auto: true },
   { dept: 'Core', stage: 'brief', field: 'formula_cost', label: 'Formula cost', order: 50, dataType: 'formula' },
   { dept: 'Packaging', stage: 'packaging', field: 'case_format', label: 'Case format', required: true, order: 10 },
@@ -129,6 +130,27 @@ describe('loadStageDeptSections', () => {
     expect(result.sections[0]?.fields.find((field) => field.code === 'formula_cost')?.readOnly).toBe(true);
     expect(queryMock.mock.calls.some((call) => /to_jsonb\(p\.\*\)/i.test(String(call[0])))).toBe(false);
     expect(queryMock.mock.calls.some((call) => /to_jsonb\(np\.\*\)/i.test(String(call[0])))).toBe(true);
+  });
+
+  it('shows project-owned brief values after an FG is linked', async () => {
+    wireQueries({
+      productCode: 'FG-001',
+      values: { product_name: 'Pie', pack_size: '200g', runs_per_week: null },
+      projectValues: {
+        weekly_volume_packs: '1777.000',
+        runs_per_week: '7.00',
+        field_values: {},
+      },
+    });
+    const { loadStageDeptSections } = await import('../load-stage-dept-sections');
+
+    const result = await loadStageDeptSections({
+      projectId: '11111111-1111-4111-8111-111111111111',
+      stage: 'brief',
+    });
+
+    expect(result.sections[0]?.fields.find((field) => field.code === 'weekly_volume_packs')?.value).toBe('1777.000');
+    expect(result.sections[0]?.fields.find((field) => field.code === 'runs_per_week')?.value).toBe('7.00');
   });
 
   it('counts required filled and missing fields for gate consumers', async () => {

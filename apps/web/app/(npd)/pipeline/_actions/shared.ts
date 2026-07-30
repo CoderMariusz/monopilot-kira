@@ -21,6 +21,27 @@ export type OrgContextLike = {
   client: QueryClient;
 };
 
+// Brief and costing both persist/read these on npd_projects; product.runs_per_week
+// is only an FG mirror and product has no weekly_volume_packs column.
+const PROJECT_OWNED_STAGE_FIELDS = [
+  'weekly_volume_packs',
+  'runs_per_week',
+] as const;
+
+export function isProjectOwnedStageField(field: string): boolean {
+  return (PROJECT_OWNED_STAGE_FIELDS as readonly string[]).includes(field);
+}
+
+export function resolveStageFieldValues(
+  productValues: Record<string, unknown> | null,
+  projectValues: Record<string, unknown>,
+): Record<string, unknown> {
+  if (!productValues) return projectValues;
+  const values = { ...productValues };
+  for (const field of PROJECT_OWNED_STAGE_FIELDS) values[field] = projectValues[field] ?? null;
+  return values;
+}
+
 export type ProjectPriority = 'high' | 'normal' | 'low';
 export type ProjectGate = 'G0' | 'G1' | 'G2' | 'G3' | 'G4' | 'Launched';
 /** Honest advance/approval targets — G0 is creation-only and never a transition destination. */
