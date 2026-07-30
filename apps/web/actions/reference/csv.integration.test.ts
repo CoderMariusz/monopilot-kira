@@ -7,6 +7,8 @@ const ORG_ID = '00000000-0000-0000-0000-000000000002';
 const USER_ID = '22222222-2222-4222-8222-022000000155';
 const ROLE_ID = '22222222-2222-4222-8222-022000000156';
 const TABLE_CODE = 'processes';
+// The universal reference schema seeded in the test databases; 'processes' is not.
+const ATOMIC_TABLE_CODE = 'currency_reference';
 const ROW_KEY = 'CSV_REGRESSION_155';
 
 describe('reference CSV import integration', () => {
@@ -61,6 +63,11 @@ describe('reference CSV import integration', () => {
           and row_key = $3`,
       [ORG_ID, TABLE_CODE, ROW_KEY],
     );
+    await ownerPool.query(
+      `delete from public.reference_tables
+        where org_id = $1::uuid and table_code = $2 and row_key like 'CSV_ATOMIC_155%'`,
+      [ORG_ID, ATOMIC_TABLE_CODE],
+    );
   });
 
   afterAll(async () => {
@@ -70,6 +77,11 @@ describe('reference CSV import integration', () => {
           and table_code = $2
           and row_key = $3`,
       [ORG_ID, TABLE_CODE, ROW_KEY],
+    );
+    await ownerPool.query(
+      `delete from public.reference_tables
+        where org_id = $1::uuid and table_code = $2 and row_key like 'CSV_ATOMIC_155%'`,
+      [ORG_ID, ATOMIC_TABLE_CODE],
     );
     if (committedReportIds.length > 0) {
       await ownerPool.query(
@@ -150,5 +162,53 @@ describe('reference CSV import integration', () => {
       event_type: 'reference.csv.committed',
       payload: { tableCode: TABLE_CODE },
     });
+  });
+
+  // A duplicated row_key slips past the up-front conflict scan (both copies see the
+  // same pre-loop version), so the first UPDATE bumps the version and the second one
+  // matches 0 rows mid-loop. Commit must leave the table untouched, not half-written.
+  it('rolls back every earlier write when a mid-loop version conflict aborts the commit', async () => {
+    const { previewReferenceCsvImport, commitReferenceCsvImport } = await import('./import-csv');
+    const KEY_A = 'CSV_ATOMIC_155_A';
+    const KEY_B = 'CSV_ATOMIC_155_B';
+
+    const seed = await previewReferenceCsvImport({
+      tableCode: ATOMIC_TABLE_CODE,
+      csvText: [
+        'row_key,code,is_active,name',
+        `${KEY_A},AAA,true,Seed A`,
+        `${KEY_B},BBB,true,Seed B`,
+      ].join('\n'),
+    });
+    if (seed.ok !== true) expect.fail(`seed preview failed: ${JSON.stringify(seed)}`);
+    const seedCommit = await commitReferenceCsvImport({ reportId: seed.data.reportId });
+    expect(seedCommit).toMatchObject({ ok: true });
+    committedReportIds.push(seed.data.reportId);
+
+    const preview = await previewReferenceCsvImport({
+      tableCode: ATOMIC_TABLE_CODE,
+      csvText: [
+        'row_key,code,is_active,name',
+        `${KEY_A},AAA,true,Changed A`,
+        `${KEY_B},BBB,true,Changed B once`,
+        `${KEY_B},BBB,true,Changed B twice`,
+      ].join('\n'),
+    });
+    if (preview.ok !== true) expect.fail(`preview failed: ${JSON.stringify(preview)}`);
+
+    const commit = await commitReferenceCsvImport({ reportId: preview.data.reportId });
+    expect(commit).toMatchObject({ ok: false, error: 'conflict_detected' });
+
+    const after = await ownerPool.query<{ row_key: string; row_data: Record<string, unknown>; version: number }>(
+      `select row_key, row_data, version
+         from public.reference_tables
+        where org_id = $1::uuid and table_code = $2 and row_key like 'CSV_ATOMIC_155%'
+        order by row_key`,
+      [ORG_ID, ATOMIC_TABLE_CODE],
+    );
+    expect(after.rows.map((row) => [row.row_key, row.row_data.name, row.version])).toEqual([
+      [KEY_A, 'Seed A', 1],
+      [KEY_B, 'Seed B', 1],
+    ]);
   });
 });

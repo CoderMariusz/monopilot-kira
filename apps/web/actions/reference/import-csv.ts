@@ -172,6 +172,24 @@ export async function previewReferenceCsvImport(rawInput: unknown): Promise<Prev
   }
 }
 
+/**
+ * A CAS miss discovered *mid-loop* must unwind the rows the loop already wrote —
+ * `withOrgContext` commits on a plain return, so `return { conflict_detected }`
+ * left a partial import behind while telling the user nothing was imported.
+ * Same shape as `WoConcurrentModificationError`: throw to roll back, then map it
+ * straight back to the structured result so the caller still sees
+ * `conflict_detected` (and its staleRows), never `persistence_failed`.
+ */
+class ReferenceCsvConflictError extends Error {
+  readonly result: Extract<CommitReferenceCsvImportResult, { ok: false }>;
+
+  constructor(result: Extract<CommitReferenceCsvImportResult, { ok: false }>) {
+    super('conflict_detected');
+    this.name = 'ReferenceCsvConflictError';
+    this.result = result;
+  }
+}
+
 export async function commitReferenceCsvImport(rawInput: unknown): Promise<CommitReferenceCsvImportResult> {
   const input = parseCommitInput(rawInput);
   if (!input) return { ok: false, error: 'invalid_input' };
@@ -237,7 +255,12 @@ export async function commitReferenceCsvImport(rawInput: unknown): Promise<Commi
             [report.tableCode, entry.rowKey, JSON.stringify(entry.rowData), entry.displayOrder, entry.expectedVersion],
           );
           if ((rowCount ?? rows.length) < 1) {
-            return { ok: false, error: 'conflict_detected', staleRows: [entry.rowKey], conflictReport: [{ rowKey: entry.rowKey, row_key: entry.rowKey }] };
+            throw new ReferenceCsvConflictError({
+              ok: false,
+              error: 'conflict_detected',
+              staleRows: [entry.rowKey],
+              conflictReport: [{ rowKey: entry.rowKey, row_key: entry.rowKey }],
+            });
           }
         }
       }
@@ -259,7 +282,10 @@ export async function commitReferenceCsvImport(rawInput: unknown): Promise<Commi
       await deleteReport(client, input.reportId);
       return { ok: true, data: { summary: report.summary } };
     });
-  } catch {
+  } catch (err) {
+    // The conflict already rolled the transaction back; hand the user the same
+    // message they used to get, not an opaque server error.
+    if (err instanceof ReferenceCsvConflictError) return err.result;
     return { ok: false, error: 'persistence_failed' };
   }
 }
