@@ -142,6 +142,18 @@ export type EcoSummary = {
   lineCount: number;
 };
 
+/** One row of technical_change_order_approvals, resolved for display. */
+export type EcoApproval = {
+  id: string;
+  action: string;
+  fromStatus: string | null;
+  toStatus: string;
+  actorUserId: string | null;
+  actorName: string | null;
+  comment: string | null;
+  occurredAt: string;
+};
+
 export type EcoDetail = EcoSummary & {
   description: string | null;
   requesterUserId: string | null;
@@ -152,6 +164,7 @@ export type EcoDetail = EcoSummary & {
   implementingAt: string | null;
   closedAt: string | null;
   lines: EcoLine[];
+  approvals: EcoApproval[];
 };
 
 export type ListEcoResult =

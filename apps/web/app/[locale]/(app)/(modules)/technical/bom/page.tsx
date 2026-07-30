@@ -16,6 +16,7 @@
  */
 
 import { getTranslations } from 'next-intl/server';
+import { messageTemplate } from '../../../../../../i18n/message-template';
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { listBomHeaders, type ListBomHeadersResult } from './_actions/queries';
@@ -73,7 +74,7 @@ const LABEL_KEYS = [
 
 function translateLabel(t: (key: string) => string, key: keyof BomListLabels): string {
   try {
-    const value = t(key);
+    const value = messageTemplate(t, key);
     return value === key ? key : value;
   } catch {
     return key;

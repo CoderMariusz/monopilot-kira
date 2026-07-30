@@ -6,6 +6,7 @@
  */
 
 import { getTranslations } from 'next-intl/server';
+import { messageTemplate } from '../../../../../../../../i18n/message-template';
 
 import { EU14_CODES, EU14_DEFAULT_NAMES } from './nutrition-eu14';
 import type { NutritionTabLabels } from './nutrition-tab.client';
@@ -62,7 +63,7 @@ export async function buildNutritionTabLabels(locale: string): Promise<Nutrition
   // Resolve a key with an English fallback (avoids hard-crash when a locale lags).
   const tr = (key: string, fallback: string): string => {
     try {
-      const value = t(key);
+      const value = messageTemplate(t, key);
       return value && value !== key ? value : fallback;
     } catch {
       return fallback;

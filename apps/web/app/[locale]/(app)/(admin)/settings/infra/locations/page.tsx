@@ -1,5 +1,6 @@
 import { getTranslations } from 'next-intl/server';
 
+import { messageTemplate } from '../../../../../../../i18n/message-template';
 import { LocationTreeScreen } from './location-tree-client';
 import type {
   DeleteLocationInput,
@@ -221,7 +222,7 @@ async function buildLabels(locale: string): Promise<LocationTreeLabels> {
     const t = await getTranslations({ locale, namespace: LABEL_NAMESPACE });
     return LABEL_KEYS.reduce((labels, key) => {
       try {
-        const translated = t(key);
+        const translated = messageTemplate(t, key);
         labels[key] = isMissingTranslation(key, translated) ? DEFAULT_LABELS[key] : translated;
       } catch {
         labels[key] = DEFAULT_LABELS[key];

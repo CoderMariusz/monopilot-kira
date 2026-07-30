@@ -17,6 +17,7 @@
  */
 
 import { notFound } from 'next/navigation';
+import { messageTemplate } from '../../../../../../../i18n/message-template';
 import { getTranslations } from 'next-intl/server';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
@@ -162,7 +163,7 @@ const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof BomDetailLabels>;
 
 function translateLabel(t: (key: string) => string, key: keyof BomDetailLabels): string {
   try {
-    const value = t(key);
+    const value = messageTemplate(t, key);
     // next-intl returns the FULL path (`technical.bomDetail.<key>`) for a missing
     // message — not the relative key — so match both shapes before falling back.
     return value === key || value.endsWith(`.${key}`) ? DEFAULT_LABELS[key] : value;
@@ -200,7 +201,7 @@ async function buildFirstAuthoringLabels(locale: string): Promise<BomFirstAuthor
     const t = await getTranslations({ locale, namespace: 'technical.bom.firstAuthoring' });
     return FIRST_AUTHORING_KEYS.reduce((labels, key) => {
       try {
-        const value = t(key);
+        const value = messageTemplate(t, key);
         labels[key] = value === key ? DEFAULT_FIRST_AUTHORING_LABELS[key] : value;
       } catch {
         labels[key] = DEFAULT_FIRST_AUTHORING_LABELS[key];

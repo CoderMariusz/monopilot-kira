@@ -2,6 +2,7 @@
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import {
+  type EcoApproval,
   type EcoLine,
   type EcoStatus,
   type EcoStatusTone,
@@ -45,6 +46,17 @@ type EcoLineRow = {
   before_value: unknown;
   after_value: unknown;
   rationale: string | null;
+};
+
+type EcoApprovalRow = {
+  id: string;
+  action: string;
+  from_status: string | null;
+  to_status: string;
+  actor_user_id: string | null;
+  actor_name: string | null;
+  comment: string | null;
+  occurred_at: string;
 };
 
 export async function getChangeOrder(rawInput: unknown): Promise<GetEcoResult> {
@@ -102,6 +114,36 @@ export async function getChangeOrder(rawInput: unknown): Promise<GetEcoResult> {
         [parsed.data.id],
       );
 
+      const { rows: approvalRows } = await qc.query<EcoApprovalRow>(
+        `select a.id,
+                a.action,
+                a.from_status,
+                a.to_status,
+                a.actor_user_id,
+                u.name as actor_name,
+                a.comment,
+                a.occurred_at::text as occurred_at
+           from public.technical_change_order_approvals a
+           left join public.users u
+             on u.id = a.actor_user_id
+            and u.org_id = a.org_id
+          where a.org_id = app.current_org_id()
+            and a.change_order_id = $1::uuid
+          order by a.occurred_at, a.id`,
+        [parsed.data.id],
+      );
+
+      const approvals: EcoApproval[] = approvalRows.map((row) => ({
+        id: row.id,
+        action: row.action,
+        fromStatus: row.from_status,
+        toStatus: row.to_status,
+        actorUserId: row.actor_user_id,
+        actorName: row.actor_name,
+        comment: row.comment,
+        occurredAt: row.occurred_at,
+      }));
+
       const lines: EcoLine[] = lineRows.map((line) => ({
         id: line.id,
         lineNo: Number(line.line_no),
@@ -138,6 +180,7 @@ export async function getChangeOrder(rawInput: unknown): Promise<GetEcoResult> {
           updatedAt: header.updated_at,
           lineCount: lines.length,
           lines,
+          approvals,
         },
       };
     });

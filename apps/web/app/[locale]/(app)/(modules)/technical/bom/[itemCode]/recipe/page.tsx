@@ -14,6 +14,7 @@
  */
 
 import { notFound } from 'next/navigation';
+import { messageTemplate } from '../../../../../../../../i18n/message-template';
 import { getTranslations } from 'next-intl/server';
 
 import { getBomDetailPage } from '../../_actions/detail-page';
@@ -52,7 +53,7 @@ async function buildLabels(
     const t = await getTranslations({ locale, namespace: 'technical.bomRecipe' });
     const read = (key: string, fallback: string) => {
       try {
-        const v = t(key);
+        const v = messageTemplate(t, key);
         return v === key ? fallback : v;
       } catch {
         return fallback;

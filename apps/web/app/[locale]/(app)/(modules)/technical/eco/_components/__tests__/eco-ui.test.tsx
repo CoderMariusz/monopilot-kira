@@ -132,6 +132,7 @@ function detail(overrides: Partial<EcoDetail> = {}): EcoDetail {
         rationale: 'Lower sodium target',
       },
     ],
+    approvals: [],
     ...overrides,
   };
 }
@@ -251,6 +252,61 @@ describe('ECO create modal', () => {
 });
 
 // ── Detail drawer: status-appropriate actions + RBAC ─────────────────────────────
+describe('ECO approval trail is visible in the drawer', () => {
+  it('renders one row per recorded approval (who / when / comment)', async () => {
+    getMock.mockResolvedValue({
+      ok: true,
+      data: detail({
+        status: 'implementing',
+        approvals: [
+          {
+            id: 'apr-1',
+            action: 'approve',
+            fromStatus: 'draft',
+            toStatus: 'approved',
+            actorUserId: 'user-1',
+            actorName: 'Angelika Kowalska',
+            comment: 'Zatwierdzam po testach sensorycznych',
+            occurredAt: '2026-04-18T09:41:00.000Z',
+          },
+          {
+            id: 'apr-2',
+            action: 'start_implementation',
+            fromStatus: 'approved',
+            toStatus: 'implementing',
+            actorUserId: 'user-2',
+            actorName: 'Marek Nowak',
+            comment: null,
+            occurredAt: '2026-04-19T07:15:00.000Z',
+          },
+        ],
+      }),
+    });
+    render(<EcoDetailButton id="eco-1" canApprove openLabel="Open" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Open' }));
+
+    const drawer = await screen.findByTestId('eco-detail-drawer');
+    const rows = within(drawer).getAllByTestId('eco-approval-row');
+    expect(rows).toHaveLength(2);
+    expect(within(rows[0]).getByText('Angelika Kowalska')).toBeInTheDocument();
+    expect(within(rows[0]).getByText('Zatwierdzam po testach sensorycznych')).toBeInTheDocument();
+    expect(within(rows[0]).getByText('2026-04-18T09:41:00.000Z')).toBeInTheDocument();
+    expect(within(rows[1]).getByText('Marek Nowak')).toBeInTheDocument();
+    expect(within(drawer).queryByTestId('eco-approvals-empty')).not.toBeInTheDocument();
+  });
+
+  // Contrary control: no approvals recorded ⇒ no fabricated rows.
+  it('shows the empty state and zero rows when nothing was approved yet', async () => {
+    getMock.mockResolvedValue({ ok: true, data: detail({ status: 'draft', approvals: [] }) });
+    render(<EcoDetailButton id="eco-1" canApprove openLabel="Open" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Open' }));
+
+    const drawer = await screen.findByTestId('eco-detail-drawer');
+    expect(within(drawer).queryAllByTestId('eco-approval-row')).toHaveLength(0);
+    expect(within(drawer).getByTestId('eco-approvals-empty')).toBeInTheDocument();
+  });
+});
+
 describe('ECO detail drawer actions per status', () => {
   it('draft + approve permission → shows Approve and calls approveChangeOrder', async () => {
     getMock.mockResolvedValue({ ok: true, data: detail({ status: 'draft' }) });

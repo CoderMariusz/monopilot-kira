@@ -15,6 +15,7 @@
  */
 
 import { notFound } from 'next/navigation';
+import { messageTemplate } from '../../../../../../../../i18n/message-template';
 import { getTranslations } from 'next-intl/server';
 
 import { getBomHistory } from '../../_actions/history';
@@ -46,7 +47,7 @@ const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof BomHistoryLabels>;
 
 function translateLabel(t: (key: string) => string, key: keyof BomHistoryLabels): string {
   try {
-    const value = t(key);
+    const value = messageTemplate(t, key);
     return value === key ? DEFAULT_LABELS[key] : value;
   } catch {
     return DEFAULT_LABELS[key];

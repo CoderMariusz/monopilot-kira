@@ -4,6 +4,7 @@
  */
 
 import { getTranslations } from 'next-intl/server';
+import { messageTemplate } from '../../../../../../../i18n/message-template';
 
 import type { AllergensConfigLabels } from './allergens-config.client';
 
@@ -53,7 +54,7 @@ function translate(
       for (const [nk, nv] of Object.entries(value as Record<string, string>)) {
         const dotted = `${key}.${nk}`;
         try {
-          const resolved = t(dotted);
+          const resolved = messageTemplate(t, dotted);
           nested[nk] = resolved === dotted ? nv : resolved;
         } catch {
           nested[nk] = nv;
@@ -62,7 +63,7 @@ function translate(
       out[key] = nested;
     } else {
       try {
-        const resolved = t(key);
+        const resolved = messageTemplate(t, key);
         out[key] = resolved === key ? (value as string) : resolved;
       } catch {
         out[key] = value as string;

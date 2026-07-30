@@ -30,6 +30,7 @@
  */
 
 import Link from 'next/link';
+import { messageTemplate } from '../../../../../../i18n/message-template';
 import { getTranslations } from 'next-intl/server';
 
 import type { EcoSummary } from './_actions/shared';
@@ -44,7 +45,7 @@ export const dynamic = 'force-dynamic';
 
 function safeLabel(t: Awaited<ReturnType<typeof getTranslations>>, key: string, fallback: string): string {
   try {
-    const value = t(key);
+    const value = messageTemplate(t, key);
     return value === key || value.endsWith(`.${key}`) ? fallback : value;
   } catch {
     return fallback;

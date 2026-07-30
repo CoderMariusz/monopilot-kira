@@ -215,6 +215,41 @@ function EcoDetailDrawer({
                   </tbody>
                 </table>
               </div>
+
+              {/* Approval trail — technical_change_order_approvals, written by the
+                  approve/start/close actions. Read-only; the state machine itself
+                  is enforced server-side by the status guards on each transition. */}
+              <h3 className="helper mt-3" style={{ fontWeight: 600 }}>
+                {tt('detail.approvals', 'Approval history')}
+              </h3>
+              {detail.approvals.length === 0 ? (
+                <p className="helper" data-testid="eco-approvals-empty">
+                  {tt('detail.approvals.empty', 'No approvals recorded yet.')}
+                </p>
+              ) : (
+                <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
+                  <table aria-label={tt('detail.approvals', 'Approval history')}>
+                    <thead>
+                      <tr>
+                        <th scope="col">{tt('detail.col.approvalAction', 'Action')}</th>
+                        <th scope="col">{tt('detail.col.actor', 'By')}</th>
+                        <th scope="col">{tt('detail.col.occurredAt', 'When')}</th>
+                        <th scope="col">{tt('detail.col.comment', 'Comment')}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {detail.approvals.map((approval) => (
+                        <tr key={approval.id} data-testid="eco-approval-row">
+                          <td>{tt(`approvalAction.${approval.action}`, approval.action)}</td>
+                          <td>{approval.actorName ?? approval.actorUserId ?? '—'}</td>
+                          <td className="mono">{approval.occurredAt}</td>
+                          <td>{approval.comment ?? '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </>
           )}
         </div>
