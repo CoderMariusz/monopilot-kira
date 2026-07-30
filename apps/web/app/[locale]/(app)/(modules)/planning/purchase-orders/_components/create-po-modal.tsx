@@ -221,18 +221,17 @@ function lineFieldErrorMessage(
   error: PoLineFieldError,
 ): string {
   const n = String(error.lineNo);
-  if (error.field === 'unitPrice') {
-    return error.reason === 'required'
-      ? labels.priceRequired.replace('{line}', n)
-      : labels.linePriceInvalid.replace('{line}', n);
-  }
-  const map: Record<Exclude<LineField, 'unitPrice'>, string> = {
+  const map: Record<LineField, string | undefined> = {
     item: labels.lineItemRequired,
     qty: labels.lineQtyInvalid,
     uom: labels.lineUomRequired,
     taxPct: labels.lineTaxInvalid,
+    unitPrice: error.reason === 'required' ? labels.priceRequired : labels.linePriceInvalid,
   };
-  return map[error.field].replace('{line}', n);
+  // ponytail: the type promises `string`, the i18n bundle does not. A missing or
+  // renamed key must degrade to a readable line, never throw and take the whole
+  // modal down mid-edit.
+  return (map[error.field] ?? `Line {line}: ${error.field} (${error.reason})`).replace('{line}', n);
 }
 
 function fieldErrorForLine(

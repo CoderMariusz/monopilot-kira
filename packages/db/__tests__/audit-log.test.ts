@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const migrationsDir = resolve(packageRoot, 'migrations');
 const schemaPath = resolve(packageRoot, 'schema', 'audit-log.ts');
+const renewalMigrationPath = resolve(migrationsDir, '556-audit-log-partition-safety.sql');
 
 function readSqlMigrations(): Array<{ filename: string; sql: string }> {
   return readdirSync(migrationsDir)
@@ -75,5 +76,27 @@ describe('T-010 audit_log partitioning migration contract', () => {
     expect(sql).toMatch(/ALTER\s+TABLE\s+public\.audit_log\s+DETACH\s+PARTITION/i);
     expect(sql).not.toMatch(/DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?public\.audit_log_/i);
     expect(sql).not.toMatch(/cron\.schedule\s*\(/i);
+  });
+
+  it('adds a rolling 24-month creator, daily renewal, and a default safety partition', () => {
+    expect(existsSync(renewalMigrationPath), 'migration 556 must renew audit_log partitions').toBe(true);
+
+    const sql = readFileSync(renewalMigrationPath, 'utf8');
+    expect(sql).toMatch(/CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?public\.audit_log_default[\s\S]+PARTITION\s+OF\s+public\.audit_log\s+DEFAULT/i);
+    expect(sql).toMatch(/audit_log_create_partitions\s*\(\s*24\s*\)/i);
+    expect(sql).toMatch(/cron\.schedule\s*\([\s\S]*audit_log_partition_maintenance_daily/i);
+    expect(sql).toMatch(/INSERT\s+INTO\s+public\.[^\s]+[\s\S]+FROM\s+public\.audit_log_default/i);
+    expect(sql).toMatch(/ALTER\s+TABLE\s+public\.audit_log\s+ATTACH\s+PARTITION/i);
+  });
+
+  it('post-check inserts next-year and current rows, verifies tableoid, then removes both', () => {
+    expect(existsSync(renewalMigrationPath), 'migration 556 must contain the executable post-check').toBe(true);
+
+    const sql = readFileSync(renewalMigrationPath, 'utf8');
+    expect(sql).toMatch(/DO\s+\$\$[\s\S]+INSERT\s+INTO\s+public\.audit_log[\s\S]+RETURNING\s+tableoid/i);
+    expect(sql).toMatch(/interval\s+'1 year'/i);
+    expect(sql).toMatch(/audit_log_default/i);
+    expect(sql).toMatch(/DELETE\s+FROM\s+public\.audit_log[\s\S]+probe/i);
+    expect(sql).toMatch(/RAISE\s+NOTICE[\s\S]+future_partition[\s\S]+current_partition/i);
   });
 });

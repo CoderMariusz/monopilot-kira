@@ -5024,6 +5024,7 @@
       "blockedPrefix": "Complete:",
       "notDerivable": "—",
       "blockedYieldRequired": "Fill in the yield % on the recipe, then recompute.",
+      "blockedPackWeight": "Set the pack weight on the Brief, then recompute.",
       "blockedBriefInputs": "Complete the costing inputs: avg batch (panel above) plus weekly volume and runs/week in Brief.",
       "blockedPacksPerCase": "Set packs per box on the Packaging stage.",
       "blockedIngredientCosts": "At least one recipe ingredient has no cost - fill in ingredient costs."
@@ -7976,7 +7977,8 @@
         "invalid_state": "That action isn't allowed in the current status.",
         "persistence_failed": "Something went wrong saving. Please retry.",
         "po_has_receipts": "This purchase order already has receipts and cannot be reopened to draft.",
-        "line_uom_not_convertible": "A priced line uses a unit of measure that cannot be converted to kg for costing, so the goods could not be received. Set the item's net weight per each (and units per box) in the item master, or order the line in kg."
+        "line_uom_not_convertible": "Платний рядок неможливо перерахувати в кг для оцінки. Для штук або коробок задайте базову одиницю маси (кг/г), виберіть Each/Box як вихідну одиницю та вкажіть нетто на штуку (і штук у коробці) в картці позиції; інакше замовляйте рядок у кг.",
+        "unsupported_currency": "Це замовлення на закупівлю не можна надіслати або підтвердити, оскільки оцінка запасів наразі підтримує лише GBP, а механізму курсів FX немає. Поки замовлення є чернеткою, виберіть постачальника з валютою GBP або виправте валюту постачальника перед надсиланням."
       },
       "create": {
         "title": "Create purchase order",
@@ -8016,13 +8018,13 @@
           "no_active_site": "Select a site before creating a purchase order. This organisation has no active site yet — add one in Settings → Sites.",
           "ambiguous_site": "Select a site in the top bar before creating a purchase order.",
           "warehouse_site_mismatch": "Destination warehouse must belong to the purchase order's site.",
-          "priceInvalid": "Enter a unit price with at most 4 decimal places, using a dot separator (e.g. 0.0199).",
-          "priceRequired": "Line {line}: enter a unit price (type 0 for a free line).",
-          "linePriceInvalid": "Line {line}: enter a unit price with at most 4 decimal places, using a dot separator (e.g. 0.0199).",
-          "lineItemRequired": "Line {line}: select an item.",
-          "lineQtyInvalid": "Line {line}: enter a positive quantity (up to 6 decimals).",
-          "lineUomRequired": "Line {line}: select a unit of measure.",
-          "lineTaxInvalid": "Line {line}: tax must be between 0 and 100 (up to 4 decimals)."
+          "priceInvalid": "Вкажіть ціну за одиницю не більше ніж з 4 десятковими знаками, використовуючи крапку (напр. 0.0199).",
+          "priceRequired": "Рядок {line}: вкажіть ціну за одиницю (введіть 0 для безкоштовного рядка).",
+          "linePriceInvalid": "Рядок {line}: вкажіть ціну за одиницю не більше ніж з 4 десятковими знаками, використовуючи крапку (напр. 0.0199).",
+          "lineItemRequired": "Рядок {line}: виберіть позицію.",
+          "lineQtyInvalid": "Рядок {line}: вкажіть додатну кількість (до 6 десяткових знаків).",
+          "lineUomRequired": "Рядок {line}: виберіть одиницю виміру.",
+          "lineTaxInvalid": "Рядок {line}: податок має бути від 0 до 100 (до 4 десяткових знаків)."
         },
         "picker": {
           "trigger": "+ Add item",
@@ -8167,7 +8169,7 @@
             "invalid_location": "That destination location is invalid.",
             "location_inactive": "That location has been deactivated and cannot receive stock.",
             "invalid_state": "This purchase order can't be received in its current status.",
-            "wac_unresolved_uom": "Прийом заблоковано: для позиції {item} не визначено переведення для одиниці {uom}, тому цей прийом неможливо оцінити. Додайте переведення для {uom} (або встановіть базову одиницю позиції) в основних даних позиції — повторна спроба не допоможе, доки це не буде виправлено.",
+            "wac_unresolved_uom": "Прийом заблоковано: позиція {item} оцінюється в {uom}, але {uom} неможливо перерахувати в кг для оцінки запасів. Для штук або коробок задайте базову одиницю маси (кг/г), виберіть Each/Box як вихідну одиницю та вкажіть нетто на штуку (і штук у коробці) в картці позиції; інакше замовляйте рядок у кг.",
             "wac_unsupported_currency": "Прийом заблоковано, оскільки це замовлення на закупівлю не в GBP. Оцінка запасів наразі вимагає GBP — змініть валюту замовлення на GBP перед прийомом або створіть замовлення наново в GBP. Замовлення в іноземній валюті можна й надалі створювати й редагувати, але їх не можна приймати, доки не буде підтримано конвертацію валют (FX).",
             "error": "Something went wrong receiving. Please retry."
           }
@@ -11551,7 +11553,9 @@
         "cancel": "Cancel",
         "errors": {
           "customerRequired": "Select a customer.",
-          "linesRequired": "Add at least one line with an item and a positive quantity."
+          "linesRequired": "Add at least one line with an item and a positive quantity.",
+          "priceInvalid": "Введіть невід’ємну ціну за одиницю для кожного рядка.",
+          "termsInvalid": "Знижка й податок мають бути 0–100, а валюта — трилітерним кодом."
         },
         "picker": {
           "trigger": "+ Add finished good",
@@ -11612,7 +11616,7 @@
           "cancel": "Скасувати",
           "errors": {
             "linesInvalid": "Введіть додатну кількість для кожного рядка.",
-            "priceInvalid": "Ціна за одиницю має бути більше нуля для кожного рядка.",
+            "priceInvalid": "Введіть невід’ємну ціну за одиницю для кожного рядка.",
             "termsInvalid": "Знижка й податок мають бути 0–100, а валюта — трилітерним кодом."
           }
         },
@@ -11640,7 +11644,9 @@
         "already_exists": "A customer with that code already exists.",
         "so_cancel_blocked_shipped": "Cannot cancel this order while a shipment is already shipped or delivered.",
         "deallocate_not_allowed": "Deallocate is only allowed before packing has started.",
-        "not_draft": "Редагувати або видаляти можна лише чернетки замовлень."
+        "not_draft": "Редагувати або видаляти можна лише чернетки замовлень.",
+        "so_lines_required": "Перед підтвердженням додайте принаймні один рядок замовлення.",
+        "so_unit_price_required": "Перед підтвердженням установіть ціну за одиницю більше нуля для кожного рядка."
       }
     },
     "pick": {
@@ -12346,7 +12352,7 @@
         "title": "Create RMA",
         "customerLabel": "Customer",
         "customerPlaceholder": "Select customer",
-        "salesOrderLabel": "Sales order ID (optional)",
+        "salesOrderLabel": "Sales order ID",
         "salesOrderPlaceholder": "UUID of the original SO",
         "reasonLabel": "Reason code",
         "reasonPlaceholder": "Select reason",

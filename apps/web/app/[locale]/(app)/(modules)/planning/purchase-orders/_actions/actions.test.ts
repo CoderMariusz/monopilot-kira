@@ -30,6 +30,7 @@ let currentStatus = 'draft';
 let activeReceivedCount = 0;
 let fullyReceived = false;
 let supplierStatus = 'active';
+let poCurrency = 'GBP';
 let listTotal = 1;
 let warehouseSiteId: string | null = SITE_ID;
 let poDestinationWarehouseId: string | null = null;
@@ -186,8 +187,8 @@ function makeClient(): QueryClient {
       if (normalized.startsWith('insert into public.purchase_order_lines')) {
         return { rows: [], rowCount: 1 };
       }
-      if (normalized.startsWith('select status from public.purchase_orders')) {
-        return { rows: poExists ? [{ status: currentStatus }] : [], rowCount: poExists ? 1 : 0 };
+      if (normalized.startsWith('select status, currency from public.purchase_orders')) {
+        return { rows: poExists ? [{ status: currentStatus, currency: poCurrency }] : [], rowCount: poExists ? 1 : 0 };
       }
       if (normalized.startsWith('update public.purchase_orders') && normalized.includes("set status = 'draft'")) {
         return { rows: poExists ? [header({ status: 'draft', supplier_code: null, supplier_name: null })] : [], rowCount: poExists ? 1 : 0 };
@@ -224,6 +225,7 @@ describe('planning purchase order actions', () => {
     currentStatus = 'draft';
     activeReceivedCount = 0;
     fullyReceived = false;
+    poCurrency = 'GBP';
     listTotal = 1;
     warehouseSiteId = SITE_ID;
     poDestinationWarehouseId = null;
@@ -548,6 +550,40 @@ describe('planning purchase order actions', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(result.error);
     expect(result.data.status).toBe('sent');
+  });
+
+  it('refuses draft -> sent for a foreign-currency PO before it can reach receiving', async () => {
+    currentStatus = 'draft';
+    poCurrency = 'EUR';
+
+    const result = await transitionPurchaseOrderStatus(PO_ID, 'sent');
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'unsupported_currency',
+      code: 'unsupported_currency',
+    });
+    const calls = vi.mocked(client.query).mock.calls.map(([sql]) => String(sql));
+    expect(calls.some((sql) => sql.startsWith('update public.purchase_orders') && sql.includes('set status = $2'))).toBe(
+      false,
+    );
+  });
+
+  it('refuses sent -> confirmed for a legacy foreign-currency PO', async () => {
+    currentStatus = 'sent';
+    poCurrency = 'EUR';
+
+    const result = await transitionPurchaseOrderStatus(PO_ID, 'confirmed');
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'unsupported_currency',
+      code: 'unsupported_currency',
+    });
+    const calls = vi.mocked(client.query).mock.calls.map(([sql]) => String(sql));
+    expect(calls.some((sql) => sql.startsWith('update public.purchase_orders') && sql.includes('set status = $2'))).toBe(
+      false,
+    );
   });
 
   // R07-03: a priced line whose UoM cannot be costed in kg was orderable and then

@@ -6,6 +6,29 @@ export const appUserPassword = process.env.APP_USER_PASSWORD ?? 'app-user-test-p
 type Queryable = Pick<pg.Pool | pg.PoolClient, 'query'>;
 type PoolLike = Queryable & { connect: () => Promise<pg.PoolClient> };
 
+const fixtureColumns = {
+  tenants: ['id', 'name', 'region_cluster', 'data_plane_url'],
+  organizations: ['id', 'tenant_id', 'name', 'slug', 'industry_code'],
+  roles: ['id', 'org_id', 'slug', 'system', 'code', 'name', 'permissions', 'is_system', 'display_order'],
+  users: ['id', 'org_id', 'email', 'display_name', 'name', 'role_id'],
+  sites: ['id', 'org_id', 'site_code', 'name', 'is_default', 'is_active', 'timezone', 'created_by'],
+  warehouses: ['id', 'org_id', 'site_id', 'code', 'name', 'warehouse_type', 'is_default'],
+  locations: ['id', 'org_id', 'warehouse_id', 'code', 'name', 'location_type', 'level', 'path', 'is_active'],
+} as const;
+
+type FixtureTable = keyof typeof fixtureColumns;
+
+export type PgTestFixture = {
+  tenantId: string;
+  orgId: string;
+  roleId: string;
+  userId: string;
+  siteId: string;
+  warehouseId: string;
+  locationId: string;
+  cleanup: () => Promise<void>;
+};
+
 function asUuid(value: unknown): string | undefined {
   return typeof value === 'string' &&
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
@@ -82,6 +105,198 @@ export async function ensureAppUser(owner: Queryable, password = appUserPassword
     end
     $$;
   `);
+}
+
+export async function createPgTestFixture(
+  owner: Queryable,
+  options: { permissions: readonly string[] },
+): Promise<PgTestFixture> {
+  const shouldRelease = 'idleCount' in owner;
+  const client = shouldRelease ? await (owner as unknown as PoolLike).connect() : owner;
+  const ids = {
+    tenantId: randomUUID(),
+    orgId: randomUUID(),
+    roleId: randomUUID(),
+    userId: randomUUID(),
+    siteId: randomUUID(),
+    warehouseId: randomUUID(),
+    locationId: randomUUID(),
+  };
+  const sessionToken = randomUUID();
+  let transactionStarted = false;
+  let sessionRegistered = false;
+
+  try {
+    const role = await client.query<{
+      role: string;
+      rolsuper: boolean;
+      rolbypassrls: boolean;
+    }>(
+      `select current_user as role, rolsuper, rolbypassrls
+         from pg_roles
+        where rolname = current_user`,
+    );
+    const currentRole = role.rows[0];
+    if (!currentRole?.rolsuper && !currentRole?.rolbypassrls) {
+      throw new Error(
+        `createPgTestFixture: ${currentRole?.role ?? 'current role'} is neither superuser nor BYPASSRLS; ` +
+          'use DATABASE_URL_OWNER because public.organizations/public.users FORCE RLS',
+      );
+    }
+
+    const required = await client.query<{ table_name: FixtureTable; column_name: string }>(
+      `select table_name, column_name
+         from information_schema.columns
+        where table_schema = 'public'
+          and table_name = any($1::text[])
+          and is_nullable = 'NO'
+          and column_default is null
+          and is_generated = 'NEVER'
+          and identity_generation is null
+        order by table_name, ordinal_position`,
+      [Object.keys(fixtureColumns)],
+    );
+    for (const table of Object.keys(fixtureColumns) as FixtureTable[]) {
+      const uncovered = required.rows
+        .filter((column) => column.table_name === table)
+        .map((column) => column.column_name)
+        .filter((column) => !(fixtureColumns[table] as readonly string[]).includes(column));
+      if (uncovered.length > 0) {
+        throw new Error(`createPgTestFixture: public.${table} requires uncovered column(s): ${uncovered.join(', ')}`);
+      }
+    }
+
+    await client.query('begin');
+    transactionStarted = true;
+    await client.query(
+      `insert into public.tenants (id, name, region_cluster, data_plane_url)
+       values ($1::uuid, $2, 'eu', $3)`,
+      [ids.tenantId, `PG fixture ${ids.tenantId.slice(0, 8)}`, 'https://pg-fixture.example.test'],
+    );
+    await client.query(
+      `insert into public.organizations (id, tenant_id, name, slug, industry_code)
+       values ($1::uuid, $2::uuid, $3, $4, 'fmcg')`,
+      [ids.orgId, ids.tenantId, `PG fixture ${ids.orgId.slice(0, 8)}`, `pg-fixture-${ids.orgId.slice(0, 8)}`],
+    );
+    await client.query(
+      `insert into app.session_org_contexts (session_token, org_id, user_id)
+       values ($1::uuid, $2::uuid, null)`,
+      [sessionToken, ids.orgId],
+    );
+    sessionRegistered = true;
+    await client.query(`select app.set_org_context($1::uuid, $2::uuid)`, [sessionToken, ids.orgId]);
+    await client.query(
+      `insert into public.roles
+         (id, org_id, slug, system, code, name, permissions, is_system, display_order)
+       values ($1::uuid, $2::uuid, $3, false, $3, $4, $5::jsonb, false, 900)`,
+      [
+        ids.roleId,
+        ids.orgId,
+        `pg-fixture-${ids.roleId.slice(0, 8)}`,
+        'PG Fixture Role',
+        JSON.stringify(options.permissions),
+      ],
+    );
+    await client.query(
+      `insert into public.users (id, org_id, email, display_name, name, role_id)
+       values ($1::uuid, $2::uuid, $3, 'PG Fixture User', 'PG Fixture User', $4::uuid)`,
+      [ids.userId, ids.orgId, `pg-fixture-${ids.userId}@example.test`, ids.roleId],
+    );
+    await client.query(
+      `update app.session_org_contexts
+          set user_id = $2::uuid
+        where session_token = $1::uuid`,
+      [sessionToken, ids.userId],
+    );
+    await client.query(`select app.set_org_context($1::uuid, $2::uuid)`, [sessionToken, ids.orgId]);
+    await client.query(
+      `insert into public.role_permissions (role_id, permission)
+       select $1::uuid, permission
+         from unnest($2::text[]) permission
+       on conflict (role_id, permission) do nothing`,
+      [ids.roleId, [...options.permissions]],
+    );
+    await client.query(
+      `insert into public.user_roles (user_id, role_id, org_id)
+       values ($1::uuid, $2::uuid, $3::uuid)`,
+      [ids.userId, ids.roleId, ids.orgId],
+    );
+    await client.query(
+      `insert into public.sites
+         (id, org_id, site_code, name, is_default, is_active, timezone, created_by)
+       values ($1::uuid, $2::uuid, $3, 'PG Fixture Site', true, true, 'Europe/London', $4::uuid)`,
+      [ids.siteId, ids.orgId, `FX${ids.siteId.slice(0, 6)}`, ids.userId],
+    );
+    await client.query(
+      `insert into public.warehouses
+         (id, org_id, site_id, code, name, warehouse_type, is_default)
+       values ($1::uuid, $2::uuid, $3::uuid, $4, 'PG Fixture Warehouse', 'standard', true)`,
+      [ids.warehouseId, ids.orgId, ids.siteId, `FX-${ids.warehouseId.slice(0, 8)}`],
+    );
+    await client.query(
+      `insert into public.locations
+         (id, org_id, warehouse_id, code, name, location_type, level, path, is_active)
+       values ($1::uuid, $2::uuid, $3::uuid, 'ROOT', 'PG Fixture Root', 'storage', 0, 'ROOT', true)`,
+      [ids.locationId, ids.orgId, ids.warehouseId],
+    );
+    await client.query('commit');
+    transactionStarted = false;
+  } catch (error) {
+    if (transactionStarted) await client.query('rollback').catch(() => undefined);
+    throw error;
+  } finally {
+    if (sessionRegistered) {
+      await client
+        .query(`delete from app.session_org_contexts where session_token = $1::uuid`, [sessionToken])
+        .catch(() => undefined);
+    }
+    if (shouldRelease && 'release' in client) {
+      (client as pg.PoolClient).release();
+    }
+  }
+
+  return {
+    ...ids,
+    cleanup: () => cleanupPgTestFixture(owner, ids),
+  };
+}
+
+async function cleanupPgTestFixture(
+  owner: Queryable,
+  ids: Omit<PgTestFixture, 'cleanup'>,
+): Promise<void> {
+  const shouldRelease = 'idleCount' in owner;
+  const client = shouldRelease ? await (owner as unknown as PoolLike).connect() : owner;
+  const sessionToken = randomUUID();
+  try {
+    await client.query('begin');
+    await client.query(
+      `insert into app.session_org_contexts (session_token, org_id, user_id)
+       values ($1::uuid, $2::uuid, $3::uuid)`,
+      [sessionToken, ids.orgId, ids.userId],
+    );
+    await client.query(`select app.set_org_context($1::uuid, $2::uuid)`, [sessionToken, ids.orgId]);
+    await client.query(`delete from public.locations where id = $1::uuid`, [ids.locationId]);
+    await client.query(`delete from public.warehouses where id = $1::uuid`, [ids.warehouseId]);
+    await client.query(`delete from public.sites where id = $1::uuid`, [ids.siteId]);
+    await client.query(`delete from public.user_roles where user_id = $1::uuid`, [ids.userId]);
+    await client.query(`delete from public.role_permissions where role_id = $1::uuid`, [ids.roleId]);
+    await client.query(`delete from public.users where id = $1::uuid`, [ids.userId]);
+    await client.query(`delete from public.roles where id = $1::uuid`, [ids.roleId]);
+    await client.query(`delete from public.organizations where id = $1::uuid`, [ids.orgId]);
+    await client.query(`delete from public.tenants where id = $1::uuid`, [ids.tenantId]);
+    await client.query('commit');
+  } catch (error) {
+    await client.query('rollback').catch(() => undefined);
+    throw error;
+  } finally {
+    await client
+      .query(`delete from app.session_org_contexts where session_token = $1::uuid`, [sessionToken])
+      .catch(() => undefined);
+    if (shouldRelease && 'release' in client) {
+      (client as pg.PoolClient).release();
+    }
+  }
 }
 
 export async function ownerQueryWithOrgContext<T extends pg.QueryResultRow = pg.QueryResultRow>(

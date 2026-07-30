@@ -535,7 +535,8 @@ describe('scanner receive PO service', () => {
     expect(result).toEqual({
       ok: false,
       reason: 'no_warehouse_for_site',
-      message: 'No warehouse is configured for your site — set one in Settings -> Sites',
+      message:
+        'No site-enabled warehouse is available. Assign a site to the warehouse in Settings -> Sites, then try again.',
     });
     expect(client.calls.some((call) => call.sql.includes('insert into public.license_plates'))).toBe(false);
     expect(auditResult(client)).toBe('no_warehouse_for_site');
@@ -848,6 +849,23 @@ function makeReceiveClient(options: {
       if (normalized.includes('bool_and(coalesce(rec.received_qty')) {
         return { rows: [{ is_received: options.isReceived ?? false }] as T[], rowCount: 1 };
       }
+      // WAC preflight also reads purchase_order_lines. Match its narrower query
+      // before the broad receive-line fixture below.
+      if (normalized.includes('select pol.item_id::text, pol.unit_price::text as unit_price')) {
+        if (options.poUnitPrice === null) {
+          return { rows: [] as T[], rowCount: 0 };
+        }
+        return {
+          rows: [
+            {
+              item_id: ITEM_ID,
+              unit_price: options.poUnitPrice ?? '4.20',
+              currency: options.poCurrency ?? 'GBP',
+            },
+          ] as T[],
+          rowCount: 1,
+        };
+      }
       if (normalized.includes('from public.purchase_order_lines pol')) {
         const openStatuses = params[2] as string[] | undefined;
         const poStatus = options.poStatus ?? 'confirmed';
@@ -927,21 +945,6 @@ function makeReceiveClient(options: {
       }
       if (normalized.includes('insert into public.quality_inspections')) {
         return { rows: [{ id: 'insp-1' }] as T[], rowCount: 1 };
-      }
-      if (normalized.includes('select pol.item_id::text, pol.unit_price::text as unit_price')) {
-        if (options.poUnitPrice === null) {
-          return { rows: [] as T[], rowCount: 0 };
-        }
-        return {
-          rows: [
-            {
-              item_id: ITEM_ID,
-              unit_price: options.poUnitPrice ?? '4.20',
-              currency: options.poCurrency ?? 'GBP',
-            },
-          ] as T[],
-          rowCount: 1,
-        };
       }
       if (normalized.includes('from public.items i') && normalized.includes('as qty_kg')) {
         const uom = String(params[1] ?? 'kg').toLowerCase();

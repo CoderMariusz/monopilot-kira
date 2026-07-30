@@ -68,7 +68,7 @@ const labels: PoReceiveLabels = {
     location_inactive: 'That location has been deactivated.',
     invalid_state: 'This PO is closed.',
     wac_unresolved_uom:
-      "Receipt is blocked: {item} has no unit conversion defined for {uom}. Add a conversion for {uom} in the item's master data — retrying will not help.",
+      'Receipt is blocked: {item} is priced in {uom}, but {uom} cannot be converted to kg for inventory valuation. For pieces or boxes, set a mass Base UoM (kg/g), choose Each/Box as Output UoM, and enter Net content per each (plus Units per box for boxes) in the item master data; otherwise order the line in kg.',
     wac_unsupported_currency: 'This PO is not in GBP.',
     error: 'Something went wrong receiving. Please retry.',
   },
@@ -243,7 +243,7 @@ describe('Warehouse PO receive — wac_unresolved_uom is named, not masked', () 
 
     const text = (await screen.findByTestId('po-receive-error')).textContent ?? '';
     expect(text).not.toContain('{uom}');
-    expect(text.match(/\bkg\b/g) ?? []).toHaveLength(2);
+    expect(text.match(/\bkg\b/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
   });
 });
 

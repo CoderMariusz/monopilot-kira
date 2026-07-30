@@ -614,12 +614,13 @@ describe('LP split/merge/destroy · cross-site direct invocation', () => {
     expect(result).toEqual({ ok: false, error: 'cross_site_lp' });
   });
 
-  it('does NOT block a legacy LP with no site of its own (anti-over-blocking)', async () => {
-    // Pre-multi-site pallets carry site_id NULL. They are not another tenant's rows — org scoping
-    // still covers them — and freezing them would strand real stock.
+  it('blocks an LP with no site instead of preserving the legacy NULL tolerance', async () => {
     primarySiteId = null;
 
-    await expect(destroyLp(PRIMARY_LP_ID, 'destroy legacy pallet', DESTROY_CLIENT_OP_ID)).resolves.toEqual({ ok: true });
+    await expect(destroyLp(PRIMARY_LP_ID, 'destroy legacy pallet', DESTROY_CLIENT_OP_ID)).resolves.toEqual({
+      ok: false,
+      error: 'cross_site_lp',
+    });
   });
 
   it('does NOT block the ALL-sites (super_admin) bind', async () => {

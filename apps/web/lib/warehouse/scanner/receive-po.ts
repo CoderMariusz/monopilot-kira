@@ -145,7 +145,7 @@ type PoLineRow = {
 };
 
 const NO_WAREHOUSE_FOR_SITE_MESSAGE =
-  'No warehouse is configured for your site — set one in Settings -> Sites';
+  'No site-enabled warehouse is available. Assign a site to the warehouse in Settings -> Sites, then try again.';
 
 export async function listScannerPurchaseOrders(
   client: QueryClient,

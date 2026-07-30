@@ -5100,6 +5100,7 @@
       "blockedPrefix": "Uzupełnij:",
       "notDerivable": "—",
       "blockedYieldRequired": "Uzupełnij uzysk (yield %) w recepturze, potem przelicz ponownie.",
+      "blockedPackWeight": "Uzupełnij wagę paczki w Briefie, potem przelicz ponownie.",
       "blockedBriefInputs": "Uzupełnij dane kosztowe: średni batch (panel powyżej) oraz wolumen tygodniowy i przebiegi/tydzień w Brief.",
       "blockedPacksPerCase": "Uzupełnij liczbę paczek w boxie na etapie Opakowania.",
       "blockedIngredientCosts": "Co najmniej jeden składnik receptury nie ma ceny - uzupełnij koszty składników."
@@ -8061,7 +8062,8 @@
         "invalid_state": "Ta akcja nie jest dozwolona w bieżącym statusie.",
         "persistence_failed": "Coś poszło nie tak podczas zapisu. Spróbuj ponownie.",
         "po_has_receipts": "To zamówienie ma już przyjęcia i nie można przywrócić go do wersji roboczej.",
-        "line_uom_not_convertible": "Wyceniona linia używa jednostki, której nie da się przeliczyć na kilogramy do wyceny, więc towaru nie dałoby się przyjąć. Uzupełnij w kartotece pozycji masę netto sztuki (i liczbę sztuk w kartonie) albo zamów tę linię w kg."
+        "line_uom_not_convertible": "Płatnej pozycji nie da się przeliczyć na kg do wyceny. Dla sztuk lub kartonów ustaw w kartotece bazową jednostkę masy (kg/g), jednostkę wyjściową Each/Box i Zawartość netto na sztukę (oraz Sztuk w kartonie); w przeciwnym razie zamów pozycję w kg.",
+        "unsupported_currency": "Tego zamówienia zakupu nie można wysłać ani potwierdzić, ponieważ wycena zapasów obsługuje obecnie tylko GBP, a mechanizmu kursów FX nie ma. Dopóki ZZ jest wersją roboczą, wybierz dostawcę w GBP albo popraw walutę dostawcy przed wysłaniem."
       },
       "create": {
         "title": "Utwórz zamówienie zakupu",
@@ -8252,7 +8254,7 @@
             "invalid_location": "Ta lokalizacja docelowa jest nieprawidłowa.",
             "location_inactive": "Ta lokalizacja została dezaktywowana i nie może przyjmować towaru.",
             "invalid_state": "Tego zamówienia nie można przyjąć w obecnym statusie.",
-            "wac_unresolved_uom": "Przyjęcie zablokowane: pozycja {item} nie ma zdefiniowanego przelicznika dla jednostki {uom}, więc nie można wycenić tego przyjęcia. Uzupełnij przelicznik dla {uom} (lub ustaw jednostkę bazową pozycji) w danych podstawowych — ponawianie nic nie da, dopóki tego nie poprawisz.",
+            "wac_unresolved_uom": "Przyjęcie zablokowane: pozycja {item} jest wyceniona w {uom}, ale {uom} nie da się przeliczyć na kg do wyceny zapasów. Dla sztuk lub kartonów ustaw w kartotece bazową jednostkę masy (kg/g), jednostkę wyjściową Each/Box i Zawartość netto na sztukę (oraz Sztuk w kartonie); w przeciwnym razie zamów pozycję w kg.",
             "wac_unsupported_currency": "Przyjęcie jest zablokowane, ponieważ to zamówienie nie jest w GBP. Wycena zapasów wymaga obecnie GBP — zmień walutę ZZ na GBP przed przyjęciem lub utwórz zamówienie ponownie w GBP. Zamówienia w obcej walucie można nadal tworzyć i edytować, ale nie można ich przyjąć, dopóki nie będzie obsługiwana konwersja FX.",
             "error": "Coś poszło nie tak podczas przyjmowania. Spróbuj ponownie."
           }
@@ -11664,7 +11666,9 @@
         "cancel": "Anuluj",
         "errors": {
           "customerRequired": "Wybierz klienta.",
-          "linesRequired": "Dodaj co najmniej jedną pozycję z produktem i dodatnią ilością."
+          "linesRequired": "Dodaj co najmniej jedną pozycję z produktem i dodatnią ilością.",
+          "priceInvalid": "Wprowadź nieujemną cenę jednostkową dla każdej pozycji.",
+          "termsInvalid": "Rabat i podatek muszą wynosić 0–100, a waluta musi mieć 3-literowy kod."
         },
         "picker": {
           "trigger": "+ Dodaj wyrób gotowy",
@@ -11725,7 +11729,7 @@
           "cancel": "Anuluj",
           "errors": {
             "linesInvalid": "Wprowadź dodatnią ilość na każdej pozycji.",
-            "priceInvalid": "Cena jednostkowa musi być większa od zera na każdej pozycji.",
+            "priceInvalid": "Wprowadź nieujemną cenę jednostkową dla każdej pozycji.",
             "termsInvalid": "Rabat i podatek muszą wynosić 0–100, a waluta musi mieć 3-literowy kod."
           }
         },
@@ -11753,7 +11757,9 @@
         "already_exists": "Klient z tym kodem już istnieje.",
         "so_cancel_blocked_shipped": "Nie można anulować zamówienia, gdy wysyłka została już wysłana lub dostarczona.",
         "deallocate_not_allowed": "Cofnięcie alokacji jest możliwe tylko przed rozpoczęciem pakowania.",
-        "not_draft": "Tylko wersje robocze zamówień można edytować lub usuwać."
+        "not_draft": "Tylko wersje robocze zamówień można edytować lub usuwać.",
+        "so_lines_required": "Przed potwierdzeniem dodaj co najmniej jedną pozycję zamówienia.",
+        "so_unit_price_required": "Przed potwierdzeniem ustaw cenę jednostkową większą od zera dla każdej pozycji."
       }
     },
     "pick": {
@@ -12459,7 +12465,7 @@
         "title": "Utwórz RMA",
         "customerLabel": "Klient",
         "customerPlaceholder": "Wybierz klienta",
-        "salesOrderLabel": "ID zamówienia (opcjonalnie)",
+        "salesOrderLabel": "ID zamówienia",
         "salesOrderPlaceholder": "UUID oryginalnego ZS",
         "reasonLabel": "Kod powodu",
         "reasonPlaceholder": "Wybierz powód",

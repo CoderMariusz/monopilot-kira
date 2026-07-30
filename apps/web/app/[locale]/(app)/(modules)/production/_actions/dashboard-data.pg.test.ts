@@ -11,6 +11,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { getAppConnection, getOwnerConnection } from '../../../../../../../../packages/db/src/clients.js';
 import {
+  createPgTestFixture,
+  type PgTestFixture,
+} from '../../../../../../tests/helpers/owner-org-context.js';
+import {
   PRODUCTION_DASHBOARD_WO_LIST_SQL,
   PRODUCTION_DASHBOARD_WO_LIST_SQL_BROKEN_TEXT_LATERAL,
 } from '../_lib/dashboard-queries';
@@ -20,10 +24,9 @@ if (!databaseUrl) {
   throw new Error('dashboard-data.pg.test.ts requires DATABASE_URL (no silent describe.skip)');
 }
 
-const tenantId = randomUUID();
-const orgId = randomUUID();
-const siteId = randomUUID();
-const userId = randomUUID();
+let orgId: string;
+let siteId: string;
+let userId: string;
 const productId = randomUUID();
 const bomHeaderId = randomUUID();
 const woId = randomUUID();
@@ -31,36 +34,14 @@ const woId = randomUUID();
 describe('production dashboard WO list SQL (real Postgres)', () => {
   let ownerPool: pg.Pool;
   let appPool: pg.Pool;
+  let fixture: PgTestFixture;
 
   beforeAll(async () => {
     ownerPool = getOwnerConnection();
     appPool = getAppConnection();
 
-    await ownerPool.query(
-      `insert into public.tenants (id, name, region_cluster, data_plane_url)
-       values ($1, 'FIX3 Dashboard Tenant', 'eu', 'https://fix3-dashboard.example.test')
-       on conflict (id) do nothing`,
-      [tenantId],
-    );
-    await ownerPool.query(
-      `insert into public.organizations (id, tenant_id, name, slug, industry_code)
-       values ($1, $2, 'FIX3 Dashboard Org', $3, 'fmcg')
-       on conflict (id) do nothing`,
-      [orgId, tenantId, `fix3-dash-${orgId.slice(0, 8)}`],
-    );
-    await ownerPool.query(
-      `insert into public.sites
-         (id, org_id, site_code, name, is_default, is_active, timezone)
-       values ($1, $2, 'FIX3', 'FIX3 Dashboard Site', true, true, 'Europe/London')
-       on conflict (id) do nothing`,
-      [siteId, orgId],
-    );
-    await ownerPool.query(
-      `insert into public.users (id, org_id, email, name)
-       values ($1, $2, $3, 'FIX3 Dashboard User')
-       on conflict (id) do nothing`,
-      [userId, orgId, `fix3-dash-${userId}@example.test`],
-    );
+    fixture = await createPgTestFixture(ownerPool, { permissions: [] });
+    ({ orgId, siteId, userId } = fixture);
     await ownerPool.query(
       `insert into public.items (id, org_id, item_code, item_type, name, uom_base, created_by)
        values ($1, $2, 'FG-FIX3', 'fg', 'FIX3 Dashboard FG', 'kg', $3)
@@ -68,8 +49,15 @@ describe('production dashboard WO list SQL (real Postgres)', () => {
       [productId, orgId, userId],
     );
     await ownerPool.query(
-      `insert into public.bom_headers (id, org_id, product_id, version, status, yield_pct, created_by)
-       values ($1, $2, $3, 1, 'active', 100, $4)
+      // Fixture był pisany pod stary schemat. Aktualny stan (sprawdzony w bazie):
+      //  * kolumna twórcy to `created_by_user`, nie `created_by`;
+      //  * status 'active' wymaga KOMPLETU zatwierdzenia (approved_by + approved_at),
+      //    inaczej łamie bom_headers_approved_status_requires_approval_check;
+      //  * bom_headers_not_orphaned_check został PRZEDEFINIOWANY i patrzy na `item_id`
+      //    (uuid → items.id), nie na starą tekstową kolumnę `product_id`.
+      `insert into public.bom_headers
+         (id, org_id, item_id, version, status, yield_pct, created_by_user, approved_by, approved_at)
+       values ($1, $2, $3, 1, 'active', 100, $4, $4, pg_catalog.now())
        on conflict (id) do nothing`,
       [bomHeaderId, orgId, productId, userId],
     );
@@ -94,10 +82,7 @@ describe('production dashboard WO list SQL (real Postgres)', () => {
     await ownerPool?.query('delete from public.work_orders where org_id = $1', [orgId]).catch(() => undefined);
     await ownerPool?.query('delete from public.bom_headers where org_id = $1', [orgId]).catch(() => undefined);
     await ownerPool?.query('delete from public.items where org_id = $1', [orgId]).catch(() => undefined);
-    await ownerPool?.query('delete from public.users where id = $1', [userId]).catch(() => undefined);
-    await ownerPool?.query('delete from public.sites where id = $1', [siteId]).catch(() => undefined);
-    await ownerPool?.query('delete from public.organizations where id = $1', [orgId]).catch(() => undefined);
-    await ownerPool?.query('delete from public.tenants where id = $1', [tenantId]).catch(() => undefined);
+    await fixture?.cleanup();
     await appPool?.end();
     await ownerPool?.end();
   });

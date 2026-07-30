@@ -28,11 +28,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PoListView, type PoListLabels, type PoRow } from '../_components/po-list-view';
 import { normalizePage, toPaginatedResult } from '../../../../../../../lib/shared/pagination';
 import { PoDetailView, type PoDetailLabels, type PoDetail } from '../_components/po-detail-view';
-import type { CreatePoResult } from '../_components/create-po-modal';
-import type { PoTransitionResult } from '../_components/po-detail-view';
 import type { PoSupplierOption } from '../_actions/po-form-data-types';
-import type { CreateExportJobInput, CreateExportJobResult } from '../_actions/create-export-job';
-import type { ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items-types';
 
 const refresh = vi.fn();
 const push = vi.fn();
@@ -60,6 +56,10 @@ const errors = {
   already_exists: 'A purchase order with that number already exists.',
   invalid_state: 'invalid state',
   po_has_receipts: 'This purchase order already has receipts and cannot be reopened to draft.',
+  line_uom_not_convertible:
+    'A priced line cannot be converted to kg for valuation. For pieces or boxes, set a mass Base UoM (kg/g), choose Each/Box as Output UoM, and enter Net content per each.',
+  unsupported_currency:
+    'This purchase order cannot be sent because inventory valuation supports GBP only and no FX-rate mechanism exists.',
   persistence_failed: 'save failed',
 };
 
@@ -68,6 +68,8 @@ const listLabels: PoListLabels = {
   exportLabel: 'Export',
   exporting: 'Exporting…',
   exportError: 'Export failed. Please retry.',
+  importLabel: 'Import',
+  bulkImportLabel: 'Import POs',
   searchPlaceholder: 'Search PO number or supplier…',
   rowsCount: '{n} rows',
   supplierFilterLabel: 'Supplier',
@@ -115,6 +117,8 @@ const listLabels: PoListLabels = {
     lineQty: 'Qty',
     lineUom: 'UoM',
     lineUnitPrice: 'Unit price',
+    lineTaxPct: 'Tax %',
+    taxPctPlaceholder: '0',
     priceSource: { spec: 'From supplier spec', list_price: 'From list price' },
     uomPlaceholder: 'Unit',
     uomOptions: { kg: 'kg', g: 'g', l: 'l', ml: 'ml', pcs: 'pcs', pack: 'pack', box: 'box', pallet: 'pallet' },
@@ -127,6 +131,18 @@ const listLabels: PoListLabels = {
       poNumberRequired: 'Enter a PO number.',
       supplierRequired: 'Select a supplier.',
       linesRequired: 'Add at least one line with an item and a positive quantity.',
+      priceInvalid: 'Enter a unit price with at most 4 decimal places, using a dot separator (e.g. 0.0199).',
+      priceRequired: 'Line {line}: enter a unit price (type 0 for a free line).',
+      linePriceInvalid:
+        'Line {line}: enter a unit price with at most 4 decimal places, using a dot separator (e.g. 0.0199).',
+      lineItemRequired: 'Line {line}: select an item.',
+      lineQtyInvalid: 'Line {line}: enter a positive quantity (up to 6 decimals).',
+      lineUomRequired: 'Line {line}: select a unit of measure.',
+      lineTaxInvalid: 'Line {line}: tax must be between 0 and 100 (up to 4 decimals).',
+      no_active_site:
+        'Select a site before creating a purchase order. This organisation has no active site yet — add one in Settings → Sites.',
+      ambiguous_site: 'Select a site in the top bar before creating a purchase order.',
+      warehouse_site_mismatch: "Destination warehouse must belong to the purchase order's site.",
       ...errors,
     },
     picker: {
@@ -159,7 +175,13 @@ const detailLabels: PoDetailLabels = {
     currency: 'Currency',
     destinationWarehouse: 'Destination warehouse',
     total: 'Total',
+    netTotal: 'Net',
+    taxTotal: 'Tax',
     created: 'Created',
+  },
+  relatedGrns: {
+    title: 'Related GRNs',
+    empty: 'No GRNs yet.',
   },
   lines: {
     title: 'PO lines',
@@ -168,6 +190,7 @@ const detailLabels: PoDetailLabels = {
     qty: 'Qty',
     uom: 'UoM',
     unitPrice: 'Unit price',
+    taxPct: 'Tax',
     lineTotal: 'Line total',
     received: 'Received',
     receivedFull: 'Received',
@@ -187,6 +210,10 @@ const detailLabels: PoDetailLabels = {
     cancel: 'Cancel PO',
     pending: 'Updating…',
     confirmPrompt: 'Change status of {po} to {status}?',
+    cancelConfirmTitle: 'Cancel {po}?',
+    cancelConfirmBody: 'Cancel this purchase order?',
+    cancelSuccess: 'Purchase order cancelled.',
+    cancelPoHasReceipts: 'This purchase order has receipts.',
   },
   reopen: {
     button: 'Reopen to draft',
@@ -199,6 +226,62 @@ const detailLabels: PoDetailLabels = {
   },
   notesTitle: 'Notes',
   errors,
+  // Wave R1 DRAFT-only edit affordances. This suite never wires the edit seams
+  // (updatePurchaseOrder* are optional props), but `edit` is REQUIRED on
+  // PoDetailLabels, so the fixture carries the real en copy — values mirror
+  // apps/web/i18n/en.json → Planning.purchaseOrders.edit 1:1.
+  edit: {
+    editOrder: 'Edit order',
+    addLine: '+ Add line',
+    editLine: 'Edit',
+    deleteLine: 'Delete',
+    deleteLinePrompt: "Delete line {line}? This can't be undone.",
+    lastLineRefused: 'A purchase order must keep at least one line.',
+    modal: {
+      title: 'Edit purchase order',
+      supplierLabel: 'Supplier',
+      supplierPlaceholder: 'Select a supplier',
+      expectedLabel: 'Expected delivery',
+      currencyLabel: 'Currency',
+      notesLabel: 'Notes',
+      notesPlaceholder: 'Optional notes',
+      submit: 'Save changes',
+      submitting: 'Saving…',
+      cancel: 'Cancel',
+      errors: {
+        supplierRequired: 'Select a supplier.',
+        ...errors,
+        invalid_state: "This purchase order is no longer a draft, so it can't be edited.",
+      },
+    },
+    lineModal: {
+      addTitle: 'Add PO line',
+      editTitle: 'Edit PO line',
+      lineItem: 'Item',
+      lineQty: 'Qty',
+      lineUom: 'UoM',
+      lineUnitPrice: 'Unit price',
+      lineTaxPct: 'Tax %',
+      taxPctPlaceholder: '0',
+      uomPlaceholder: 'Unit',
+      uomOptions: listLabels.create.uomOptions,
+      qtyPlaceholder: '0',
+      unitPricePlaceholder: '0.00',
+      submitAdd: 'Add line',
+      submitEdit: 'Save line',
+      submitting: 'Saving…',
+      cancel: 'Cancel',
+      errors: {
+        itemRequired: 'Select an item.',
+        qtyRequired: 'Enter a quantity greater than zero and pick a unit.',
+        priceInvalid: listLabels.create.errors.priceInvalid,
+        priceRequired: 'Enter a unit price (type 0 for a free line).',
+        ...errors,
+        invalid_state: "This purchase order is no longer a draft, so it can't be edited.",
+      },
+      picker: listLabels.create.picker,
+    },
+  },
 };
 
 const suppliers: PoSupplierOption[] = [
@@ -216,7 +299,6 @@ function makeRow(over: Partial<PoRow>): PoRow {
     status: 'draft',
     expectedDelivery: '2026-07-01',
     currency: 'EUR',
-    destinationWarehouseName: null,
     notes: null,
     lineCount: 0,
     ...over,
@@ -246,17 +328,23 @@ const defaultStatusCounts = {
   cancelled: 0,
 };
 
-function renderList(props: Partial<React.ComponentProps<typeof PoListView>> = {}) {
-  const searchPoItemsAction = vi.fn<[unknown], Promise<ItemPickerOption[]>>().mockResolvedValue([
+// Mock signatures are DERIVED from the real component props (vitest 4 takes the
+// whole function type, not the old [args], return pair). Deriving keeps the
+// fixtures from drifting away from the props the way the labels above did.
+type ListProps = React.ComponentProps<typeof PoListView>;
+type DetailProps = React.ComponentProps<typeof PoDetailView>;
+
+function renderList(props: Partial<ListProps> = {}) {
+  const searchPoItemsAction = vi.fn<ListProps['searchPoItemsAction']>().mockResolvedValue([
     { id: 'item-1', itemCode: 'RM-001', name: 'Pork Belly', itemType: 'rm', status: 'active', costPerKgEur: null, uomBase: 'kg' },
   ]);
   const getItemSupplierPriceAction = vi
-    .fn<[unknown], Promise<{ ok: true; data: { unitPrice: string | null; currency: string | null; source: 'spec' | 'list_price' | 'none' } }>>()
+    .fn<NonNullable<ListProps['getItemSupplierPriceAction']>>()
     .mockResolvedValue({ ok: true, data: { unitPrice: '3.75', currency: 'GBP', source: 'spec' } });
-  const createPurchaseOrderAction = vi.fn<[unknown], Promise<CreatePoResult>>();
-  const setSiteAction = vi.fn<[string | null], Promise<{ ok: boolean }>>().mockResolvedValue({ ok: true });
+  const createPurchaseOrderAction = vi.fn<ListProps['createPurchaseOrderAction']>();
+  const setSiteAction = vi.fn<ListProps['setSiteAction']>().mockResolvedValue({ ok: true });
   const createExportJobAction = vi
-    .fn<[CreateExportJobInput], Promise<CreateExportJobResult>>()
+    .fn<ListProps['createExportJobAction']>()
     .mockResolvedValue({ ok: true, data: { jobId: 'job-1', filename: 'purchase-orders-2026-06-18.csv', csv: 'po_number\r\nPO-DRAFT', rows: 1 } });
   const utils = render(
     <PoListView
@@ -393,7 +481,7 @@ describe('PoListView — Export to file (Wave E-IO)', () => {
 
   it('surfaces an inline error when the export action fails', async () => {
     const createExportJobAction = vi
-      .fn<[CreateExportJobInput], Promise<CreateExportJobResult>>()
+      .fn<ListProps['createExportJobAction']>()
       .mockResolvedValue({ ok: false, error: 'persistence_failed' });
     renderList({ createExportJobAction });
     fireEvent.click(screen.getByTestId('po-list-export'));
@@ -565,10 +653,31 @@ describe('PoListView — create modal (parity: po-screens.jsx:45 + modals create
     await waitFor(() => expect(screen.getAllByTestId('item-picker-option').length).toBeGreaterThan(0));
     fireEvent.click(screen.getAllByTestId('item-picker-option')[0]);
     fireEvent.change(screen.getByTestId('create-po-line-qty'), { target: { value: '10' } });
+    // A blank unit price is NOT consent to zero (R07-01): the line stays invalid and
+    // submit is blocked client-side, so price it explicitly to reach the RBAC surface.
+    fireEvent.change(screen.getByTestId('create-po-line-price'), { target: { value: '2.50' } });
 
     fireEvent.click(screen.getByTestId('create-po-submit'));
     await waitFor(() => expect(screen.getByTestId('create-po-error')).toHaveTextContent(errors.forbidden));
     expect(refresh).not.toHaveBeenCalled();
+  });
+
+  // Regression: the labels type promises `string`, an i18n bundle can still be missing
+  // the key. A missing line-error label must degrade to readable text, never throw and
+  // take the whole modal down mid-edit (create-po-modal.tsx lineFieldErrorMessage).
+  it('degrades to readable text when a line-error translation key is missing', () => {
+    const { lineQtyInvalid: _missing, ...withoutQtyLabel } = listLabels.create.errors;
+    renderList({
+      labels: {
+        ...listLabels,
+        create: { ...listLabels.create, errors: withoutQtyLabel as PoListLabels['create']['errors'] },
+      },
+    });
+    fireEvent.click(screen.getByTestId('po-list-create'));
+    fireEvent.change(screen.getByTestId('create-po-line-qty'), { target: { value: '0' } });
+
+    expect(screen.getByTestId('create-po-line-qty-error')).toHaveTextContent('Line 1: qty (invalid)');
+    expect(screen.getByTestId('create-po-form')).toBeInTheDocument();
   });
 });
 
@@ -587,8 +696,8 @@ describe('CreatePoModal — supplier-filtered picker + price pre-fill (BUG2 + BU
     // Open the picker → it searches. Every call must include supplierId: 'sup-1'.
     fireEvent.click(screen.getByTestId('item-picker-trigger'));
     await waitFor(() => expect(searchPoItemsAction).toHaveBeenCalled());
-    const lastCall = searchPoItemsAction.mock.calls.at(-1)?.[0] as { supplierId?: string };
-    expect(lastCall.supplierId).toBe('sup-1');
+    const lastCall = searchPoItemsAction.mock.calls.at(-1)?.[0];
+    expect(lastCall?.supplierId).toBe('sup-1');
   });
 
   // BUG1 — modals.jsx:212 "Auto-filled from supplier_products · editable": on item
@@ -645,8 +754,8 @@ describe('CreatePoModal — supplier-filtered picker + price pre-fill (BUG2 + BU
     // A new picker search now carries the new supplier id.
     fireEvent.click(screen.getByTestId('item-picker-trigger'));
     await waitFor(() => {
-      const lastCall = searchPoItemsAction.mock.calls.at(-1)?.[0] as { supplierId?: string };
-      expect(lastCall.supplierId).toBe('sup-2');
+      const lastCall = searchPoItemsAction.mock.calls.at(-1)?.[0];
+      expect(lastCall?.supplierId).toBe('sup-2');
     });
   });
 });
@@ -655,21 +764,24 @@ describe('PoDetailView — header + lines + transitions (parity: po-screens.jsx:
   const detail: PoDetail = {
     id: 'po-1',
     poNumber: 'PO-2026-0001',
+    supplierId: 'sup-1',
     supplierCode: 'AGRO',
     supplierName: 'Agro-Fresh Ltd.',
     status: 'draft',
     expectedDelivery: '2026-07-01',
     currency: 'EUR',
+    destinationWarehouseName: null,
     notes: 'Deliver to dock 3',
     createdAt: '2026-06-01T00:00:00.000Z',
     lines: [
-      { id: 'l1', itemCode: 'RM-001', itemName: 'Pork Belly', qty: '500', uom: 'kg', unitPrice: '2.50', lineNo: 1, receivedQty: '500' },
-      { id: 'l2', itemCode: 'RM-002', itemName: 'Salt', qty: '10', uom: 'kg', unitPrice: '1.00', lineNo: 2, receivedQty: '4' },
+      { id: 'l1', itemCode: 'RM-001', itemName: 'Pork Belly', qty: '500', uom: 'kg', unitPrice: '2.50', taxPct: '0', lineNo: 1, receivedQty: '500' },
+      { id: 'l2', itemCode: 'RM-002', itemName: 'Salt', qty: '10', uom: 'kg', unitPrice: '1.00', taxPct: '0', lineNo: 2, receivedQty: '4' },
     ],
+    relatedGrns: [],
   };
 
   function renderDetail(over: Partial<PoDetail> = {}) {
-    const transitionAction = vi.fn<[string, string], Promise<PoTransitionResult>>();
+    const transitionAction = vi.fn<DetailProps['transitionPurchaseOrderStatusAction']>();
     const utils = render(
       <PoDetailView po={{ ...detail, ...over }} labels={detailLabels} locale="en" transitionPurchaseOrderStatusAction={transitionAction} />,
     );
@@ -720,6 +832,33 @@ describe('PoDetailView — header + lines + transitions (parity: po-screens.jsx:
     expect(refresh).not.toHaveBeenCalled();
   });
 
+  it('surfaces the GBP-only valuation gate when sending a foreign-currency draft', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const { transitionAction } = renderDetail({ status: 'draft', currency: 'EUR' });
+    transitionAction.mockResolvedValue({ ok: false, error: 'unsupported_currency' });
+
+    fireEvent.click(screen.getByTestId('po-transition-sent'));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('po-detail-error')).toHaveTextContent('inventory valuation supports GBP only'),
+    );
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it('surfaces the mass-base and net-content fix when a priced pcs line cannot be valued', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const { transitionAction } = renderDetail({ status: 'draft', currency: 'GBP' });
+    transitionAction.mockResolvedValue({ ok: false, error: 'line_uom_not_convertible' });
+
+    fireEvent.click(screen.getByTestId('po-transition-sent'));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('po-detail-error')).toHaveTextContent('mass Base UoM (kg/g)'),
+    );
+    expect(screen.getByTestId('po-detail-error')).toHaveTextContent('Net content per each');
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
   it('renders an honest empty lines panel when the PO has no lines', () => {
     renderDetail({ lines: [] });
     expect(screen.getByTestId('po-lines-empty')).toHaveTextContent('No lines on this purchase order.');
@@ -738,7 +877,7 @@ describe('PoDetailView — header + lines + transitions (parity: po-screens.jsx:
   it('shows an em-dash and no chip for a line with nothing received', () => {
     renderDetail({
       lines: [
-        { id: 'l3', itemCode: 'RM-003', itemName: 'Pepper', qty: '5', uom: 'kg', unitPrice: '3.00', lineNo: 1, receivedQty: '0' },
+        { id: 'l3', itemCode: 'RM-003', itemName: 'Pepper', qty: '5', uom: 'kg', unitPrice: '3.00', taxPct: '0', lineNo: 1, receivedQty: '0' },
       ],
     });
     expect(screen.getByTestId('po-line-received-l3')).toHaveTextContent('—');
@@ -761,8 +900,8 @@ describe('PoDetailView — header + lines + transitions (parity: po-screens.jsx:
   //    header danger/secondary action group; RBAC npd.planning.write + the
   //    no-receipts guard are enforced server-side inside reopenPurchaseOrder). ──
   function renderDetailWithReopen(over: Partial<PoDetail> = {}) {
-    const transitionAction = vi.fn<[string, string], Promise<PoTransitionResult>>();
-    const reopenAction = vi.fn<[string], Promise<PoTransitionResult>>();
+    const transitionAction = vi.fn<DetailProps['transitionPurchaseOrderStatusAction']>();
+    const reopenAction = vi.fn<NonNullable<DetailProps['reopenPurchaseOrderAction']>>();
     const utils = render(
       <PoDetailView
         po={{ ...detail, ...over }}

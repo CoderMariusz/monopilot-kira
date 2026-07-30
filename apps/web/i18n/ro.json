@@ -5024,6 +5024,7 @@
       "blockedPrefix": "Complete:",
       "notDerivable": "—",
       "blockedYieldRequired": "Fill in the yield % on the recipe, then recompute.",
+      "blockedPackWeight": "Set the pack weight on the Brief, then recompute.",
       "blockedBriefInputs": "Complete the costing inputs: avg batch (panel above) plus weekly volume and runs/week in Brief.",
       "blockedPacksPerCase": "Set packs per box on the Packaging stage.",
       "blockedIngredientCosts": "At least one recipe ingredient has no cost - fill in ingredient costs."
@@ -7976,7 +7977,8 @@
         "invalid_state": "That action isn't allowed in the current status.",
         "persistence_failed": "Something went wrong saving. Please retry.",
         "po_has_receipts": "This purchase order already has receipts and cannot be reopened to draft.",
-        "line_uom_not_convertible": "A priced line uses a unit of measure that cannot be converted to kg for costing, so the goods could not be received. Set the item's net weight per each (and units per box) in the item master, or order the line in kg."
+        "line_uom_not_convertible": "O linie cu preț nu poate fi convertită în kg pentru evaluare. Pentru bucăți sau cutii, setați o unitate de bază de masă (kg/g), alegeți Each/Box ca unitate de ieșire și completați conținutul net per bucată (plus bucăți per cutie) în fișa articolului; altfel comandați linia în kg.",
+        "unsupported_currency": "Această comandă de achiziție nu poate fi trimisă sau confirmată deoarece evaluarea stocurilor acceptă momentan doar GBP, iar mecanismul de curs FX nu există. Cât timp comanda este încă o ciornă, alegeți un furnizor în GBP sau corectați moneda furnizorului înainte de trimitere."
       },
       "create": {
         "title": "Create purchase order",
@@ -8016,13 +8018,13 @@
           "no_active_site": "Select a site before creating a purchase order. This organisation has no active site yet — add one in Settings → Sites.",
           "ambiguous_site": "Select a site in the top bar before creating a purchase order.",
           "warehouse_site_mismatch": "Destination warehouse must belong to the purchase order's site.",
-          "priceInvalid": "Enter a unit price with at most 4 decimal places, using a dot separator (e.g. 0.0199).",
-          "priceRequired": "Line {line}: enter a unit price (type 0 for a free line).",
-          "linePriceInvalid": "Line {line}: enter a unit price with at most 4 decimal places, using a dot separator (e.g. 0.0199).",
-          "lineItemRequired": "Line {line}: select an item.",
-          "lineQtyInvalid": "Line {line}: enter a positive quantity (up to 6 decimals).",
-          "lineUomRequired": "Line {line}: select a unit of measure.",
-          "lineTaxInvalid": "Line {line}: tax must be between 0 and 100 (up to 4 decimals)."
+          "priceInvalid": "Introduceți un preț unitar cu cel mult 4 zecimale, folosind punctul ca separator (ex. 0.0199).",
+          "priceRequired": "Linia {line}: introduceți un preț unitar (tastați 0 pentru o linie gratuită).",
+          "linePriceInvalid": "Linia {line}: introduceți un preț unitar cu cel mult 4 zecimale, folosind punctul ca separator (ex. 0.0199).",
+          "lineItemRequired": "Linia {line}: selectați un articol.",
+          "lineQtyInvalid": "Linia {line}: introduceți o cantitate pozitivă (maximum 6 zecimale).",
+          "lineUomRequired": "Linia {line}: selectați o unitate de măsură.",
+          "lineTaxInvalid": "Linia {line}: taxa trebuie să fie între 0 și 100 (maximum 4 zecimale)."
         },
         "picker": {
           "trigger": "+ Add item",
@@ -8167,7 +8169,7 @@
             "invalid_location": "That destination location is invalid.",
             "location_inactive": "That location has been deactivated and cannot receive stock.",
             "invalid_state": "This purchase order can't be received in its current status.",
-            "wac_unresolved_uom": "Recepție blocată: articolul {item} nu are nicio conversie definită pentru unitatea {uom}, deci această recepție nu poate fi evaluată. Adăugați o conversie pentru {uom} (sau setați unitatea de bază a articolului) în datele de bază ale articolului — reîncercarea nu va ajuta până când acest lucru nu este corectat.",
+            "wac_unresolved_uom": "Recepție blocată: articolul {item} are prețul în {uom}, dar {uom} nu poate fi convertită în kg pentru evaluarea stocurilor. Pentru bucăți sau cutii, setați o unitate de bază de masă (kg/g), alegeți Each/Box ca unitate de ieșire și completați conținutul net per bucată (plus bucăți per cutie) în fișa articolului; altfel comandați linia în kg.",
             "wac_unsupported_currency": "Recepția este blocată deoarece această comandă de achiziție nu este în GBP. Evaluarea stocurilor necesită în prezent GBP — schimbați moneda comenzii în GBP înainte de recepție sau recreați comanda în GBP. Comenzile în valută străină pot fi în continuare create și editate, dar nu pot fi recepționate până când conversia valutară (FX) este suportată.",
             "error": "Something went wrong receiving. Please retry."
           }
@@ -11551,7 +11553,9 @@
         "cancel": "Cancel",
         "errors": {
           "customerRequired": "Select a customer.",
-          "linesRequired": "Add at least one line with an item and a positive quantity."
+          "linesRequired": "Add at least one line with an item and a positive quantity.",
+          "priceInvalid": "Introduceți un preț unitar nenegativ pe fiecare linie.",
+          "termsInvalid": "Reducerea și taxa trebuie să fie 0–100, iar moneda trebuie să aibă un cod din 3 litere."
         },
         "picker": {
           "trigger": "+ Add finished good",
@@ -11612,7 +11616,7 @@
           "cancel": "Anulați",
           "errors": {
             "linesInvalid": "Introduceți o cantitate pozitivă pe fiecare linie.",
-            "priceInvalid": "Prețul unitar trebuie să fie mai mare decât zero pe fiecare linie.",
+            "priceInvalid": "Introduceți un preț unitar nenegativ pe fiecare linie.",
             "termsInvalid": "Reducerea și taxa trebuie să fie 0–100, iar moneda trebuie să aibă un cod din 3 litere."
           }
         },
@@ -11640,7 +11644,9 @@
         "already_exists": "A customer with that code already exists.",
         "so_cancel_blocked_shipped": "Cannot cancel this order while a shipment is already shipped or delivered.",
         "deallocate_not_allowed": "Dezalocarea este permisă doar înainte de începerea ambalării.",
-        "not_draft": "Doar comenzile ciornă pot fi editate sau șterse."
+        "not_draft": "Doar comenzile ciornă pot fi editate sau șterse.",
+        "so_lines_required": "Adăugați cel puțin o linie de comandă înainte de confirmare.",
+        "so_unit_price_required": "Setați un preț unitar mai mare decât zero pe fiecare linie înainte de confirmare."
       }
     },
     "pick": {
@@ -12346,7 +12352,7 @@
         "title": "Create RMA",
         "customerLabel": "Customer",
         "customerPlaceholder": "Select customer",
-        "salesOrderLabel": "Sales order ID (optional)",
+        "salesOrderLabel": "Sales order ID",
         "salesOrderPlaceholder": "UUID of the original SO",
         "reasonLabel": "Reason code",
         "reasonPlaceholder": "Select reason",

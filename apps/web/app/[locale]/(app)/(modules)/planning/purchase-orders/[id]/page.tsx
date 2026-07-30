@@ -211,6 +211,7 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
       // priced line's UoM cannot be costed in kg — name the missing item-master field
       // instead of degrading to the generic persistence_failed copy (R07-03).
       line_uom_not_convertible: t('errors.line_uom_not_convertible'),
+      unsupported_currency: t('errors.unsupported_currency'),
       persistence_failed: t('errors.persistence_failed'),
     },
     edit: {

@@ -32,6 +32,7 @@ import {
   describeUnvaluablePoLines,
   findUnvaluablePricedPoLines,
 } from '../../../../../../../lib/finance/book-receipt-wac';
+import { WAC_VALUATION_CURRENCY_CODE } from '../../../../../../../lib/finance/upsert-wac';
 import {
   CreatePurchaseOrderInput,
   createPurchaseOrderCore,
@@ -118,6 +119,7 @@ type PurchaseOrderError =
   | 'ambiguous_site'
   | 'supplier_blocked'
   | 'warehouse_site_mismatch'
+  | 'unsupported_currency'
   | 'line_uom_not_convertible';
 type PurchaseOrderResult<T> = { ok: true; data: T } | { ok: false; error: PurchaseOrderError; code?: PurchaseOrderError; message?: string };
 type PurchaseOrderListResult =
@@ -1047,8 +1049,8 @@ export async function transitionPurchaseOrderStatus(id: string, status: string):
       const perm = await requireActionPermission(ctx, PLANNING_PO_MANAGE_PERMISSION);
       if (!perm.ok) return perm;
 
-      const before = await ctx.client.query<{ status: string }>(
-        `select status
+      const before = await ctx.client.query<{ status: string; currency: string }>(
+        `select status, currency
            from public.purchase_orders
           where org_id = app.current_org_id()
             and id = $1::uuid
@@ -1077,6 +1079,12 @@ export async function transitionPurchaseOrderStatus(id: string, status: string):
       // Guard the transition server-side against the legal state machine.
       const allowed = PO_TRANSITIONS[previous.status] ?? [];
       if (!allowed.includes(parsed.data)) return { ok: false, error: 'invalid_state' };
+      if (
+        WAC_RESOLVABLE_UOM_REQUIRED_TRANSITIONS.has(parsed.data) &&
+        previous.currency.trim().toUpperCase() !== WAC_VALUATION_CURRENCY_CODE
+      ) {
+        return { ok: false, error: 'unsupported_currency', code: 'unsupported_currency' };
+      }
       if (parsed.data === 'cancelled') {
         const receiptState = await getPurchaseOrderReceiptState(ctx.client, id);
         if (receiptState.activeReceivedCount > 0) return { ok: false, error: 'po_has_receipts', code: 'po_has_receipts' };

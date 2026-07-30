@@ -427,6 +427,12 @@ describe('warehouse backend actions', () => {
     expect(result.data).toMatchObject({ status: 'available', reservedQty: '0.000000', reservedForWoId: null });
     const calls = vi.mocked(client.query).mock.calls.map(([sql, params]) => ({ sql: normalize(sql), params }));
     expect(calls.some((call) => call.sql.startsWith('update public.license_plates'))).toBe(true);
+    const allocationRelease = calls.find((call) => call.sql.startsWith('with released_allocations as'));
+    expect(allocationRelease?.sql).toContain('update public.inventory_allocations ia');
+    expect(allocationRelease?.sql).toContain("set status = 'released'");
+    expect(allocationRelease?.sql).toContain('update public.sales_order_lines sol');
+    expect(allocationRelease?.sql).toContain('quantity_allocated = greatest');
+    expect(allocationRelease?.params).toEqual([LP_ID, USER_ID]);
     const history = calls.find((call) => call.sql.startsWith('insert into public.lp_state_history'));
     expect(history).toBeTruthy();
     expect(history?.params?.slice(0, 4)).toEqual([LP_ID, 'reserved', 'available', 'operator release']);

@@ -85,7 +85,7 @@ const receiveLabels: NonNullable<PoDetailLabels['receive']> = {
       location_inactive: 'That location has been deactivated.',
       invalid_state: 'no longer a draft',
       wac_unresolved_uom:
-        "Receipt is blocked: {item} has no unit conversion defined for {uom}. Add a conversion for {uom} in the item's master data — retrying will not help.",
+        'Receipt is blocked: {item} is priced in {uom}, but {uom} cannot be converted to kg for inventory valuation. For pieces or boxes, set a mass Base UoM (kg/g), choose Each/Box as Output UoM, and enter Net content per each (plus Units per box for boxes) in the item master data; otherwise order the line in kg.',
       wac_unsupported_currency:
         'Receipt is blocked because this purchase order is not in GBP. Change the PO currency to GBP before receiving.',
       error: 'save failed',
@@ -95,8 +95,8 @@ const receiveLabels: NonNullable<PoDetailLabels['receive']> = {
 
 const detailLabels: PoDetailLabels = {
   status: statusLabels,
-  summary: { title: 'PO summary', supplier: 'Supplier', status: 'Status', expected: 'Expected delivery', currency: 'Currency', total: 'Total', created: 'Created' },
-  lines: { title: 'PO lines', seq: '#', item: 'Item', qty: 'Qty', uom: 'UoM', unitPrice: 'Unit price', lineTotal: 'Line total', received: 'Received', receivedFull: 'Received', receivedPartial: 'Partial', empty: 'No lines.' },
+  summary: { title: 'PO summary', supplier: 'Supplier', status: 'Status', expected: 'Expected delivery', currency: 'Currency', destinationWarehouse: 'Destination warehouse', total: 'Total', netTotal: 'Net', taxTotal: 'Tax', created: 'Created' },
+  lines: { title: 'PO lines', seq: '#', item: 'Item', qty: 'Qty', uom: 'UoM', unitPrice: 'Unit price', taxPct: 'Tax', lineTotal: 'Line total', received: 'Received', receivedFull: 'Received', receivedPartial: 'Partial', empty: 'No lines.' },
   receivedSummary: { title: 'Receipt progress', lines: '{received} / {total} lines' },
   // po-detail-view reads labels.relatedGrns.{title,empty} unconditionally; the real
   // page supplies both from detail.relatedGrns.* (present in all four locales).
@@ -135,12 +135,14 @@ function makePo(over: Partial<PoDetail> = {}): PoDetail {
     status: 'confirmed',
     expectedDelivery: '2026-07-01',
     currency: 'EUR',
+    destinationWarehouseName: null,
     notes: null,
     createdAt: '2026-06-01T00:00:00.000Z',
     lines: [
-      { id: 'line-1', itemCode: 'RM-001', itemName: 'Pork Belly', qty: '100', uom: 'kg', unitPrice: '5.50', lineNo: 1, receivedQty: '0' },
-      { id: 'line-2', itemCode: 'RM-002', itemName: 'Casing', qty: '40', uom: 'm', unitPrice: '0.20', lineNo: 2, receivedQty: '40' },
+      { id: 'line-1', itemCode: 'RM-001', itemName: 'Pork Belly', qty: '100', uom: 'kg', unitPrice: '5.50', taxPct: '0', lineNo: 1, receivedQty: '0' },
+      { id: 'line-2', itemCode: 'RM-002', itemName: 'Casing', qty: '40', uom: 'm', unitPrice: '0.20', taxPct: '0', lineNo: 2, receivedQty: '40' },
     ],
+    relatedGrns: [],
     ...over,
   };
 }

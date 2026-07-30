@@ -143,6 +143,7 @@ function buildLabels(locale: string): DirectAdjustFormLabels {
       supervisor_forbidden: t('errors.supervisor_forbidden'),
       insufficient_unreserved: t('errors.insufficient_unreserved'),
       insufficient_stock: t('errors.insufficient_stock'),
+      site_required: t('errors.site_required'),
       use_count_session: t('errors.use_count_session'),
       invalid_quantity: t('errors.invalid_quantity'),
       invalid_expiry_date: t('errors.invalid_expiry_date'),
@@ -263,6 +264,28 @@ describe('DirectAdjustForm — RBAC + flow', () => {
     await waitFor(() => {
       expect(screen.getByTestId('adjust-error')).toHaveTextContent(
         'You are not authorized to make stock adjustments.',
+      );
+    });
+  });
+
+  it('surfaces an actionable site-required result inline', async () => {
+    const applyAction = vi.fn().mockResolvedValue({
+      ok: false,
+      error: { code: 'site_required', message: 'site_required' },
+    });
+    setup({ applyAction });
+
+    selectLocation();
+    await chooseItem();
+    fireEvent.change(screen.getByTestId('adjust-quantity'), { target: { value: '5' } });
+    fireEvent.change(screen.getByTestId('adjust-uom'), { target: { value: 'kg' } });
+    selectReason('found_stock');
+    fireEvent.change(screen.getByTestId('adjust-password'), { target: { value: 'secret' } });
+    fireEvent.click(screen.getByTestId('adjust-submit'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('adjust-error')).toHaveTextContent(
+        'Assign a site to this warehouse in Settings → Sites, then try again.',
       );
     });
   });

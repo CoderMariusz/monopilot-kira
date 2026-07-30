@@ -2447,6 +2447,7 @@
       "blockedPrefix": "Complete:",
       "notDerivable": "—",
       "blockedYieldRequired": "Fill in the yield % on the recipe, then recompute.",
+      "blockedPackWeight": "Set the pack weight on the Brief, then recompute.",
       "blockedBriefInputs": "Complete the costing inputs: avg batch (panel above) plus weekly volume and runs/week in Brief.",
       "blockedPacksPerCase": "Set packs per box on the Packaging stage.",
       "blockedIngredientCosts": "At least one recipe ingredient has no cost - fill in ingredient costs."
@@ -9068,7 +9069,8 @@
         "invalid_state": "That action isn't allowed in the current status.",
         "persistence_failed": "Something went wrong saving. Please retry.",
         "po_has_receipts": "This purchase order already has receipts and cannot be reopened to draft.",
-        "line_uom_not_convertible": "A priced line uses a unit of measure that cannot be converted to kg for costing, so the goods could not be received. Set the item's net weight per each (and units per box) in the item master, or order the line in kg."
+        "line_uom_not_convertible": "A priced line cannot be converted to kg for valuation. For pcs or boxes, set a mass Base UoM (kg/g), choose Each/Box as Output UoM, and enter Net content per each (plus Units per box for boxes) in the item master; otherwise order the line in kg.",
+        "unsupported_currency": "This purchase order cannot be sent or confirmed because inventory valuation currently supports GBP only and no FX-rate mechanism exists. While it is still a draft, choose a GBP supplier or correct the supplier's currency before sending."
       },
       "create": {
         "title": "Create purchase order",
@@ -9259,7 +9261,7 @@
             "invalid_location": "That destination location is invalid.",
             "location_inactive": "That location has been deactivated and cannot receive stock.",
             "invalid_state": "This purchase order can't be received in its current status.",
-            "wac_unresolved_uom": "Receipt is blocked: {item} has no unit conversion defined for {uom}, so this receipt can't be valued. Add a conversion for {uom} (or set the item's base unit) in the item's master data — retrying will not help until that is fixed.",
+            "wac_unresolved_uom": "Receipt is blocked: {item} is priced in {uom}, but {uom} cannot be converted to kg for inventory valuation. For pieces or boxes, set a mass Base UoM (kg/g), choose Each/Box as Output UoM, and enter Net content per each (plus Units per box for boxes) in the item master; otherwise order the line in kg.",
             "wac_unsupported_currency": "Receipt is blocked because this purchase order is not in GBP. Inventory valuation currently requires GBP — change the PO currency to GBP before receiving, or recreate the order in GBP. Foreign-currency POs can still be created and edited, but cannot be received until FX conversion is supported.",
             "error": "Something went wrong receiving. Please retry."
           }
@@ -11661,7 +11663,9 @@
         "cancel": "Cancel",
         "errors": {
           "customerRequired": "Select a customer.",
-          "linesRequired": "Add at least one line with an item and a positive quantity."
+          "linesRequired": "Add at least one line with an item and a positive quantity.",
+          "priceInvalid": "Enter a non-negative unit price on every line.",
+          "termsInvalid": "Discount and tax must be 0–100, and currency must be a 3-letter code."
         },
         "picker": {
           "trigger": "+ Add finished good",
@@ -11722,7 +11726,7 @@
           "cancel": "Cancel",
           "errors": {
             "linesInvalid": "Enter a positive quantity on every line.",
-            "priceInvalid": "Unit price must be greater than zero on every line.",
+            "priceInvalid": "Enter a non-negative unit price on every line.",
             "termsInvalid": "Discount and tax must be 0–100, and currency must be a 3-letter code."
           }
         },
@@ -11750,7 +11754,9 @@
         "already_exists": "A customer with that code already exists.",
         "so_cancel_blocked_shipped": "Cannot cancel this order while a shipment is already shipped or delivered.",
         "deallocate_not_allowed": "Deallocate is only allowed before packing has started.",
-        "not_draft": "Only draft sales orders can be edited or deleted."
+        "not_draft": "Only draft sales orders can be edited or deleted.",
+        "so_lines_required": "Add at least one sales order line before confirming.",
+        "so_unit_price_required": "Set a unit price greater than zero on every line before confirming."
       }
     },
     "pick": {
@@ -12461,7 +12467,7 @@
         "title": "Create RMA",
         "customerLabel": "Customer",
         "customerPlaceholder": "Select customer",
-        "salesOrderLabel": "Sales order ID (optional)",
+        "salesOrderLabel": "Sales order ID",
         "salesOrderPlaceholder": "UUID of the original SO",
         "reasonLabel": "Reason code",
         "reasonPlaceholder": "Select reason",

@@ -62,7 +62,7 @@ const BUNDLE = {
         location_inactive: 'That location has been deactivated and cannot receive stock.',
         invalid_state: "This purchase order is closed and can't be received.",
         wac_unresolved_uom:
-          "Receipt is blocked: {item} has no unit conversion defined for {uom}, so this receipt can't be valued. Add a conversion for {uom} (or set the item's base unit) in the item's master data — retrying will not help until that is fixed.",
+          'Receipt is blocked: {item} is priced in {uom}, but {uom} cannot be converted to kg for inventory valuation. For pieces or boxes, set a mass Base UoM (kg/g), choose Each/Box as Output UoM, and enter Net content per each (plus Units per box for boxes) in the item master data; otherwise order the line in kg.',
         wac_unsupported_currency:
           'Receipt is blocked because this purchase order is not in GBP. Inventory valuation currently requires GBP — change the PO currency to GBP before receiving, or recreate the order in GBP.',
         error: 'Something went wrong receiving. Please retry.',
@@ -137,7 +137,7 @@ const BUNDLE = {
         location_inactive: 'Ta lokalizacja została dezaktywowana i nie może przyjmować towaru.',
         invalid_state: 'To zamówienie zakupu jest zamknięte i nie można go przyjąć.',
         wac_unresolved_uom:
-          'Przyjęcie zablokowane: pozycja {item} nie ma zdefiniowanego przelicznika dla jednostki {uom}, więc nie można wycenić tego przyjęcia. Uzupełnij przelicznik dla {uom} (lub ustaw jednostkę bazową pozycji) w danych podstawowych — ponawianie nic nie da, dopóki tego nie poprawisz.',
+          'Przyjęcie zablokowane: pozycja {item} jest wyceniona w {uom}, ale {uom} nie da się przeliczyć na kg do wyceny zapasów. Dla sztuk lub kartonów ustaw w kartotece bazową jednostkę masy (kg/g), jednostkę wyjściową Each/Box i Zawartość netto na sztukę (oraz Sztuk w kartonie); w przeciwnym razie zamów pozycję w kg.',
         wac_unsupported_currency:
           'Przyjęcie jest zablokowane, ponieważ to zamówienie nie jest w GBP. Wycena zapasów wymaga obecnie GBP — zmień walutę ZZ na GBP przed przyjęciem lub utwórz zamówienie ponownie w GBP.',
         error: 'Coś poszło nie tak podczas przyjęcia. Spróbuj ponownie.',
@@ -168,7 +168,7 @@ const BUNDLE = {
     receivePo: {
       errors: {
         wac_unresolved_uom:
-          'Recepție blocată: articolul {item} nu are nicio conversie definită pentru unitatea {uom}, deci această recepție nu poate fi evaluată. Adăugați o conversie pentru {uom} (sau setați unitatea de bază a articolului) în datele de bază ale articolului — reîncercarea nu va ajuta până când acest lucru nu este corectat.',
+          'Recepție blocată: articolul {item} are prețul în {uom}, dar {uom} nu poate fi convertită în kg pentru evaluarea stocurilor. Pentru bucăți sau cutii, setați o unitate de bază de masă (kg/g), alegeți Each/Box ca unitate de ieșire și completați conținutul net per bucată (plus bucăți per cutie) în fișa articolului; altfel comandați linia în kg.',
         wac_unsupported_currency:
           'Recepția este blocată deoarece această comandă de achiziție nu este în GBP. Evaluarea stocurilor necesită în prezent GBP — schimbați moneda comenzii în GBP înainte de recepție sau recreați comanda în GBP.',
       },
@@ -178,7 +178,7 @@ const BUNDLE = {
     receivePo: {
       errors: {
         wac_unresolved_uom:
-          'Прийом заблоковано: для позиції {item} не визначено переведення для одиниці {uom}, тому цей прийом неможливо оцінити. Додайте переведення для {uom} (або встановіть базову одиницю позиції) в основних даних позиції — повторна спроба не допоможе, доки це не буде виправлено.',
+          'Прийом заблоковано: позиція {item} оцінюється в {uom}, але {uom} неможливо перерахувати в кг для оцінки запасів. Для штук або коробок задайте базову одиницю маси (кг/г), виберіть Each/Box як вихідну одиницю та вкажіть нетто на штуку (і штук у коробці) в картці позиції; інакше замовляйте рядок у кг.',
         wac_unsupported_currency:
           'Прийом заблоковано, оскільки це замовлення на закупівлю не в GBP. Оцінка запасів наразі вимагає GBP — змініть валюту замовлення на GBP перед прийомом або створіть замовлення наново в GBP.',
       },
