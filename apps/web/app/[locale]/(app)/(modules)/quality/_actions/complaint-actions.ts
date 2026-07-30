@@ -264,6 +264,33 @@ export async function createComplaint(input: {
 }): Promise<ActionResult<ComplaintRow>> {
   try {
     const parsed = createComplaintSchema.parse(input);
+    // mig 564: complaints_org_complaint_number_uq is what actually stops the duplicate —
+    // the advisory lock below cannot, because under READ COMMITTED the statement snapshot
+    // predates the lock wait, so max() never sees the other session's fresh commit.
+    // A losing writer must therefore re-run in a NEW transaction (new snapshot); retrying
+    // inside this one would only recompute the same max(). ponytail: bounded linear retry,
+    // fine for two operators — move to an org_sequences counter if contention ever grows.
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        return await createComplaintOnce(parsed);
+      } catch (err) {
+        if (attempt >= 5 || !isComplaintNumberConflict(err)) throw err;
+      }
+    }
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+function isComplaintNumberConflict(err: unknown): boolean {
+  const pg = err as { code?: string; constraint?: string } | null;
+  return pg?.code === '23505' && pg?.constraint === 'complaints_org_complaint_number_uq';
+}
+
+async function createComplaintOnce(
+  parsed: ReturnType<typeof createComplaintSchema.parse>,
+): Promise<ActionResult<ComplaintRow>> {
+  {
     return await withOrgContext(async (ctx): Promise<ActionResult<ComplaintRow>> => {
       if (!(await hasPermission(ctx, WRITE_PERMISSION))) return { ok: false, error: 'forbidden' };
 
@@ -347,8 +374,6 @@ export async function createComplaint(input: {
       if (!row) return { ok: false, error: 'insert_failed' };
       return { ok: true, data: mapComplaintRow(row) };
     });
-  } catch (err) {
-    return { ok: false, error: errorMessage(err) };
   }
 }
 

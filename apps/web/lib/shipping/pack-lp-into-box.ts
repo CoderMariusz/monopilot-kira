@@ -217,25 +217,45 @@ export async function packLpIntoBoxCore(ctx: PackContext, input: PackLpInput): P
       throw err;
     }
 
-    const { rows: boxNumberRows } = await ctx.client.query<{ next_box_number: number | string | bigint }>(
-      `select coalesce(max(sb.box_number), 0) + 1 as next_box_number
-         from public.shipment_boxes sb
-        where sb.org_id = app.current_org_id()
-          and sb.shipment_id = $1::uuid
-          and sb.deleted_at is null`,
-      [input.shipmentId],
-    );
-    const nextBoxNumber = toNumber(boxNumberRows[0]?.next_box_number) || 1;
     boxSiteId = allocation.site_id ?? shipment.site_id;
 
-    const { rows: boxRows } = await ctx.client.query<{ id: string }>(
-      `insert into public.shipment_boxes
-         (org_id, site_id, shipment_id, box_number, sscc, created_by, updated_by)
-       values ($1::uuid, $2::uuid, $3::uuid, $4::integer, $5::varchar(18), $6::uuid, $6::uuid)
-       returning id::text`,
-      [orgId, boxSiteId, input.shipmentId, nextBoxNumber, sscc, userId],
-    );
-    boxId = boxRows[0]?.id;
+    // mig 564: shipment_boxes_org_shipment_box_number_uq (partial, live rows only) is what
+    // actually stops two concurrent packers minting box "1" twice — max()+1 cannot, it reads
+    // a snapshot taken before the other session committed. We run inside the CALLER's
+    // transaction, so a 23505 would poison it; the SAVEPOINT lets us roll back just the
+    // failed insert, re-read max() (a new statement = a new snapshot) and take the next free
+    // number. ponytail: bounded linear retry, matches real packer concurrency.
+    for (let attempt = 0; ; attempt += 1) {
+      const { rows: boxNumberRows } = await ctx.client.query<{ next_box_number: number | string | bigint }>(
+        `select coalesce(max(sb.box_number), 0) + 1 as next_box_number
+           from public.shipment_boxes sb
+          where sb.org_id = app.current_org_id()
+            and sb.shipment_id = $1::uuid
+            and sb.deleted_at is null`,
+        [input.shipmentId],
+      );
+      const nextBoxNumber = toNumber(boxNumberRows[0]?.next_box_number) || 1;
+
+      await ctx.client.query('savepoint pack_box_number');
+      try {
+        const { rows: boxRows } = await ctx.client.query<{ id: string }>(
+          `insert into public.shipment_boxes
+             (org_id, site_id, shipment_id, box_number, sscc, created_by, updated_by)
+           values ($1::uuid, $2::uuid, $3::uuid, $4::integer, $5::varchar(18), $6::uuid, $6::uuid)
+           returning id::text`,
+          [orgId, boxSiteId, input.shipmentId, nextBoxNumber, sscc, userId],
+        );
+        await ctx.client.query('release savepoint pack_box_number');
+        boxId = boxRows[0]?.id;
+        break;
+      } catch (err) {
+        await ctx.client.query('rollback to savepoint pack_box_number');
+        const pg = err as { code?: string; constraint?: string } | null;
+        const boxNumberTaken =
+          pg?.code === '23505' && pg?.constraint === 'shipment_boxes_org_shipment_box_number_uq';
+        if (attempt >= 5 || !boxNumberTaken) throw err;
+      }
+    }
     if (!boxId) throw new Error('persistence_failed');
   }
 
