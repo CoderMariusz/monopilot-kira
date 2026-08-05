@@ -84,7 +84,7 @@ function normalizeLot(value: string): string {
     throw new Error('Invalid lot: lot too long, maximum is 20 characters');
   }
 
-  if (!/^[A-Za-z0-9!"%&'()*+,.\/:;<=>?_-]+$/.test(lot)) {
+  if (!/^[A-Za-z0-9!"%&'()*+,./:;<=>?_-]+$/.test(lot)) {
     throw new Error('Invalid lot: expected 1 to 20 characters from GS1 character set 82');
   }
 

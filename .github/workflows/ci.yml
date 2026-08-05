@@ -18,9 +18,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: rhysd/actionlint@v1
-        with:
-          args: .github/workflows/*.yml
+      # rhysd/actionlint publishes no action.yml and has no v1 ref, so `uses: rhysd/actionlint@v1`
+      # never resolved — this job died before linting a single file. Vendor-documented install
+      # script instead, version pinned so a new actionlint release cannot turn CI red on its own.
+      - name: Run actionlint
+        run: |
+          bash <(curl -sSL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.12/scripts/download-actionlint.bash) 1.7.12
+          ./actionlint -color .github/workflows/*.yml
 
   pr-labels:
     if: github.event_name == 'pull_request'
@@ -54,7 +58,9 @@ jobs:
           node-version: 20
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm -r lint
+      # `pnpm -r` skips the workspace root, so the root-only guards (hardcoded strings,
+      # 'use server' exports) never ran in CI. Root `lint` ends with `pnpm -r lint`.
+      - run: pnpm lint
 
   typecheck:
     runs-on: ubuntu-latest
@@ -200,7 +206,7 @@ jobs:
       - name: Start built Next.js app
         run: |
           pnpm --filter web start > /tmp/monopilot-next.log 2>&1 &
-          for attempt in {1..60}; do
+          for _ in {1..60}; do
             if curl --fail --silent --show-error http://127.0.0.1:3000 >/dev/null; then
               exit 0
             fi
