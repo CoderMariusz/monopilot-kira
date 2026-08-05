@@ -33,6 +33,7 @@ import {
   type SalesOrderConfirmationBlocker,
 } from './so-status-write';
 import { revalidateAfterCommit } from '../../../../../../lib/i18n/revalidate-localized';
+import { expiredBySiteDaySql } from '../../../../../../lib/site/site-day';
 import { OrderLineUomError, resolveOrderQtyToInventoryQty, SALES_ORDER_LINE_ALLOCATED_TO_ORDER_SQL } from '../../../../../../lib/shipping/order-line-uom';
 import {
   buildSoCreateIdempotencyPayload,
@@ -1395,7 +1396,12 @@ export async function allocateSalesOrder(id: string): Promise<AllocateSalesOrder
             -- Food-safety (G-QA-03 / owner per-rule BLOCK): never allocate an
             -- already-expired LP. The order-by still prefers earliest expiry
             -- (FEFO); this only drops LPs that are past their expiry date.
-            and (lp.expiry_date is null or lp.expiry_date >= current_date)
+            -- INVERTED on purpose: this predicate keeps the USABLE LPs, so it is
+            -- the NEGATION of expiredBySiteDaySql -- the exact complement of the
+            -- three egress guards (pick / pack / ship), which keep the BLOCKED
+            -- ones. expiredBySiteDaySql returns false (never null) for a null
+            -- expiry, so negating it still admits no-expiry LPs, as before.
+            and not ${expiredBySiteDaySql('lp.expiry_date', 'lp.site_id')}
             -- Food-safety (G-QA-07 / owner per-rule BLOCK): never allocate an LP
             -- on an active quality hold. status='available' + qa_status='released'
             -- does NOT cover holds — they are a separate polymorphic layer (T-064,

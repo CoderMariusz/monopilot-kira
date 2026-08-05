@@ -108,7 +108,12 @@ function makeClient(): QueryClient {
         };
       }
 
-      if (q.includes('from public.sites')) {
+      // Site PICKER lookups only. `expiredBySiteDaySql` resolves the site-local
+      // day through a correlated `select s.timezone from public.sites s`
+      // sub-select, so a bare `includes('from public.sites')` would hijack the
+      // pack-time food-safety guard and answer it with site rows — making every
+      // pack look blocked.
+      if (q.includes('from public.sites') && !q.includes('select s.timezone from public.sites')) {
         const rows = q.includes('and is_default')
           ? activeSiteRows.filter((site) => site.is_default)
           : activeSiteRows;

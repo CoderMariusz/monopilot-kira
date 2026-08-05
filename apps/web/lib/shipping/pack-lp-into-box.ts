@@ -13,6 +13,8 @@
  * callers (desktop requirePermission / scanner hasPermission).
  */
 
+import { expiredBySiteDaySql } from '../site/site-day';
+
 export type PackQueryClient = {
   query<T = Record<string, unknown>>(
     sql: string,
@@ -171,7 +173,7 @@ export async function packLpIntoBoxCore(ctx: PackContext, input: PackLpInput): P
         and lp.org_id = app.current_org_id()
         and ( h.hold_id is not null
               or lp.qa_status is distinct from 'released'
-              or (lp.expiry_date is not null and lp.expiry_date < current_date) )
+              or ${expiredBySiteDaySql('lp.expiry_date', 'lp.site_id')} )
       limit 1`,
     [licensePlateId],
   );

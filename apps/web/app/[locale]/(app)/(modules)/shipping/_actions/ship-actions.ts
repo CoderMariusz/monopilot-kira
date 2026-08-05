@@ -9,6 +9,7 @@ import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { debitWac } from '../../../../../../lib/finance/upsert-wac';
 import { fetchShipmentPackCompleteness } from '../../../../../../lib/shipping/shipment-pack-completeness';
+import { expiredBySiteDaySql } from '../../../../../../lib/site/site-day';
 import { makeStockMoveNumber } from '../../../../../../lib/warehouse/lp-create';
 import { toAuditEventId } from './audit-event-id';
 import { LIVE_ALLOCATION_SQL, SHIP_CLOSED_ALLOCATION_REASON } from './so-transitions';
@@ -460,7 +461,7 @@ export async function shipShipment(shipmentId: string): Promise<ShipShipmentResu
             and sbc.quantity is not null and sbc.quantity > 0
             and ( h.hold_id is not null
                   or lp.qa_status is distinct from 'released'
-                  or (lp.expiry_date is not null and lp.expiry_date < current_date) )
+                  or ${expiredBySiteDaySql('lp.expiry_date', 'lp.site_id')} )
           limit 5`,
         [shipmentId],
       );

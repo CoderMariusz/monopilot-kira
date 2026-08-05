@@ -11,6 +11,7 @@ import {
   updateSalesOrder,
 } from '../so-actions';
 import { reserveLp } from '../../../warehouse/license-plates/[lpId]/_actions/lp-detail-actions';
+import { expiredBySiteDaySql } from '../../../../../../../lib/site/site-day';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -224,7 +225,11 @@ function makeClient(): QueryClient {
       if (q.includes('next_sales_order_document_number')) {
         return { rows: [{ so_number: soNumber }], rowCount: 1 };
       }
-      if (q.includes('from public.sites')) {
+      // Site PICKER lookups only. `expiredBySiteDaySql` resolves the site-local
+      // day through a correlated `select s.timezone from public.sites s`
+      // sub-select, so a bare `includes('from public.sites')` would hijack every
+      // query carrying the food-safety expiry guard and answer it with site rows.
+      if (q.includes('from public.sites') && !q.includes('select s.timezone from public.sites')) {
         const rows = q.includes('and is_default')
           ? activeSiteRows.filter((site) => site.is_default)
           : activeSiteRows;
@@ -1399,16 +1404,28 @@ describe('allocateSalesOrder', () => {
     ).toBe(false);
   });
 
-  it('excludes expired LPs in the allocation candidate query', async () => {
+  // CONTRACT CHANGED (food-safety): this used to pin the literal
+  // `and (lp.expiry_date is null or lp.expiry_date >= current_date)`. Both sides
+  // of that comparison were session-zone dependent, so on a UTC server between
+  // 00:00 and 02:00 Warsaw the allocator still offered pallets that production
+  // and the scanner already refused. The boundary is now the SITE's day, shared
+  // with every other guard via `expiredBySiteDaySql`. The direction is what
+  // matters here and is asserted explicitly: this filter KEEPS the usable LPs,
+  // so it must be the NEGATION — pasting the block form in would allocate only
+  // expired stock. `lp-expiry-site-day.pg.test.ts` proves both directions
+  // against real Postgres rows.
+  it('excludes expired LPs in the allocation candidate query (site-local day)', async () => {
     status = 'confirmed';
     candidateRows = [{ lp_id: LP_1, available_qty: '10' }];
 
     await allocateSalesOrder(SO_ID);
 
     const candidateQuery = queryLog.find(({ sql }) => normalize(sql).startsWith('select lp.id::text as lp_id'))?.sql;
-    expect(normalize(String(candidateQuery))).toContain(
-      'and (lp.expiry_date is null or lp.expiry_date >= current_date)',
-    );
+    const normalized = normalize(String(candidateQuery));
+    expect(normalized).toContain(normalize(`and not ${expiredBySiteDaySql('lp.expiry_date', 'lp.site_id')}`));
+    // the session-zone boundary must not come back
+    expect(normalized).not.toContain('lp.expiry_date >= current_date');
+    expect(normalized).not.toContain('lp.expiry_date < current_date');
   });
 
   it('excludes LPs on an active quality hold via v_active_holds (G-QA-07)', async () => {

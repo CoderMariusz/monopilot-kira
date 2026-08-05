@@ -6,6 +6,7 @@ import { assertNoActiveHoldForLp, QaHoldActiveError } from '@monopilot/server/qu
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { revalidateAfterCommit } from '../../../../../../lib/i18n/revalidate-localized';
+import { expiredBySiteDaySql } from '../../../../../../lib/site/site-day';
 import {
   ALLOWED_CREATE_PICK_LIST_SO_STATUSES,
   isSalesOrderStatus,
@@ -64,8 +65,12 @@ async function assertLpPickable(ctx: ShippingContext, lpId: string): Promise<{ o
                   from public.license_plates lp
                  where lp.org_id = app.current_org_id()
                    and lp.id = $1::uuid
-                   and lp.expiry_date is not null
-                   and lp.expiry_date < current_date
+                   -- Food-safety day boundary = the SITE's day, not the DB
+                   -- session's. The old form compared the timestamptz straight
+                   -- against session-zone midnight, so on a UTC server between
+                   -- 00:00 and 02:00 Warsaw an expired pallet passed PICK while
+                   -- production and the scanner already blocked it.
+                   and ${expiredBySiteDaySql('lp.expiry_date', 'lp.site_id')}
               ) then 'expired'
               else null
             end as reason`,

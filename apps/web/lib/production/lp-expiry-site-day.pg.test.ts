@@ -8,6 +8,11 @@
  * the plants are Europe/Warsaw, so every night between 00:00 and 02:00 Warsaw
  * time the session date was still YESTERDAY and an expired pallet passed.
  *
+ * The SAME defect survived on the whole EGRESS side — pick / pack / ship / SO
+ * allocation each carried its own bare `current_date`, so a pallet that
+ * production and the scanner refused was still pickable, packable and
+ * shippable. All six sites now share this ONE boundary.
+ *
  * The 00:00-02:00 window is reproduced deterministically here: the site row is
  * repointed (inside the transaction) at a timezone whose LOCAL time right now is
  * between 00:00 and 02:00, so "01:30 site-local" holds whenever this test runs.
@@ -37,22 +42,34 @@ type Verdict = { yesterday: boolean; today: boolean; tomorrow: boolean };
 
 const run = process.env.DATABASE_URL ? describe : describe.skip;
 
-// Runs without a database: the PG proof below exercises the SQL, this pins the
-// two guards to it so nobody reintroduces `::date < current_date` in either one.
-describe('both consume guards share ONE expiry boundary', () => {
-  const guards = [
-    new URL('./lp-safety-guard.ts', import.meta.url),
-    new URL('../warehouse/scanner/movement.ts', import.meta.url),
-  ];
+const CALL = `\${expiredBySiteDaySql('lp.expiry_date', 'lp.site_id')}`;
 
-  it.each(guards.map((u) => [u.pathname.split('/').slice(-2).join('/'), u] as const))(
-    '%s reads expiry through expiredBySiteDaySql and never through current_date',
-    (_name, url) => {
-      const src = readFileSync(url, 'utf8');
-      expect(src).toContain(`\${expiredBySiteDaySql('lp.expiry_date', 'lp.site_id')} as expired`);
-      expect(src).not.toContain('current_date');
-    },
-  );
+/**
+ * Every site that decides "is this pallet past its expiry", with the EXACT
+ * fragment it must carry. Five keep the BLOCKED rows, `so-actions` keeps the
+ * USABLE ones — hence `not`. Mechanically pasting the block form into the
+ * allocation filter would let ONLY expired pallets be allocated, so the
+ * direction is pinned here per site, not assumed.
+ */
+const GUARDS: ReadonlyArray<readonly [string, URL, string]> = [
+  ['production/lp-safety-guard.ts', new URL('./lp-safety-guard.ts', import.meta.url), `${CALL} as expired`],
+  ['scanner/movement.ts', new URL('../warehouse/scanner/movement.ts', import.meta.url), `${CALL} as expired`],
+  ['shipping/pick-actions.ts', new URL('../../app/[locale]/(app)/(modules)/shipping/_actions/pick-actions.ts', import.meta.url), `and ${CALL}`],
+  ['shipping/ship-actions.ts', new URL('../../app/[locale]/(app)/(modules)/shipping/_actions/ship-actions.ts', import.meta.url), `or ${CALL} )`],
+  ['shipping/pack-lp-into-box.ts', new URL('../shipping/pack-lp-into-box.ts', import.meta.url), `or ${CALL} )`],
+  ['shipping/so-actions.ts', new URL('../../app/[locale]/(app)/(modules)/shipping/_actions/so-actions.ts', import.meta.url), `and not ${CALL}`],
+];
+
+// Runs without a database: the PG proof below exercises the SQL, this pins every
+// guard to it so nobody reintroduces a bare `current_date` comparison.
+describe('every expiry guard shares ONE boundary', () => {
+  it.each(GUARDS)('%s reads expiry through expiredBySiteDaySql, never current_date', (_name, url, fragment) => {
+    const src = readFileSync(url, 'utf8');
+    expect(src).toContain(fragment);
+    // Targeted, not blanket: `so-actions` legitimately uses current_date for the
+    // sales-order ORDER date. Only the food-safety comparison is forbidden.
+    expect(src).not.toMatch(/expiry_date(::date)?\s*[<>]=?\s*current_date/);
+  });
 });
 
 run('LP expiry boundary is the SITE day, not the session day (real Postgres)', () => {
@@ -115,6 +132,23 @@ run('LP expiry boundary is the SITE day, not the session day (real Postgres)', (
     await client.query(`set local role app_user`);
     await client.query(`select app.set_org_context($1::uuid, $2::uuid)`, [ORG_TOKEN, DEMO_ORG]);
     await client.query(`select app.set_site_context($1::uuid, $2::uuid)`, [SITE_TOKEN, DEMO_SITE]);
+
+    // Real rows in the real table, so the egress guards are proven against
+    // license_plates under RLS — not only against a synthetic probe CTE.
+    await client.query(
+      `insert into public.license_plates
+         (org_id, site_id, warehouse_id, product_id, lp_number, quantity, uom, status, qa_status, expiry_date)
+       select $1::uuid, $2::uuid,
+              (select id from public.warehouses where org_id = $1::uuid order by id limit 1),
+              (select id from public.items where org_id = $1::uuid order by id limit 1),
+              p.label, 10, 'kg', 'available', 'released',
+              ((date(pg_catalog.now() at time zone (select timezone from public.sites where id = $2::uuid)) + p.offs)::timestamp
+                 at time zone 'UTC')
+         from (values ('SITE-DAY-PROOF-1-EXPIRED-YESTERDAY', -1),
+                      ('SITE-DAY-PROOF-2-VALID-TODAY', 0),
+                      ('SITE-DAY-PROOF-3-VALID-TOMORROW', 1)) p(label, offs)`,
+      [DEMO_ORG, DEMO_SITE],
+    );
   });
 
   afterAll(async () => {
@@ -160,5 +194,43 @@ run('LP expiry boundary is the SITE day, not the session day (real Postgres)', (
     expect(distinctOld.size).toBeGreaterThan(1);
     // At least one session zone let an ALREADY-EXPIRED pallet through.
     expect(fresh.some((f) => f.old.yesterday === false)).toBe(true);
+  });
+
+  // BOTH directions on REAL license_plates rows. A guard that rejects
+  // everything also "lets no expired pallet through", so the valid rows are
+  // half of the proof, not decoration.
+  it('egress BLOCKS the expired pallet and still PASSES the valid ones (real rows)', async () => {
+    const { rows } = await client.query<{
+      lp_number: string;
+      egress_blocks: boolean;
+      so_allocatable: boolean;
+      old_guard_blocks: boolean;
+    }>(
+      `select lp.lp_number,
+              ${expiredBySiteDaySql('lp.expiry_date', 'lp.site_id')}     as egress_blocks,
+              not ${expiredBySiteDaySql('lp.expiry_date', 'lp.site_id')} as so_allocatable,
+              (lp.expiry_date is not null and lp.expiry_date < current_date) as old_guard_blocks
+         from public.license_plates lp
+        where lp.org_id = app.current_org_id()
+          and lp.lp_number like 'SITE-DAY-PROOF-%'
+        order by lp.lp_number`,
+    );
+    // eslint-disable-next-line no-console -- this table IS the evidence
+    console.log('[site-day egress proof]', JSON.stringify(rows));
+
+    expect(rows).toHaveLength(3);
+    const [expired, today, tomorrow] = rows;
+
+    // Direction 1 — expired by the SITE day is refused by pick/pack/ship and
+    // dropped by SO allocation, while the OLD `current_date` guard let it pass.
+    expect(expired!.egress_blocks).toBe(true);
+    expect(expired!.so_allocatable).toBe(false);
+    expect(expired!.old_guard_blocks).toBe(false);
+
+    // Direction 2 — valid stock still ships. Same-day expiry is usable today.
+    for (const ok of [today!, tomorrow!]) {
+      expect(ok.egress_blocks).toBe(false);
+      expect(ok.so_allocatable).toBe(true);
+    }
   });
 });
