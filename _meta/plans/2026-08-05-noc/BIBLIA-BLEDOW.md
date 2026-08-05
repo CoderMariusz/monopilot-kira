@@ -16,6 +16,38 @@ Przebieg godzina po godzinie jest w `DZIENNIK-NOCY.md`.
 
 # CZĘŚĆ I — ZANIM COKOLWIEK WDROŻYSZ
 
+## 0. APLIKACJA SIĘ NIE BUDUJE. To wyprzedza wszystko inne. — UDOWODNIONE
+
+```
+at (…/technical/where-used/_actions/list-where-used.ts:26:1)
+at (…/technical/where-used/page.tsx:8:1)
+ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  web@0.1.0 build: `next build`   Exit status 1
+```
+
+Zweryfikowane moim własnym przebiegiem `pnpm build`, nie cudzym meldunkiem.
+
+Przyczyna:
+```ts
+'use server';                          // linia 1
+export const WHERE_USED_LIMIT = 100;   // linia 26  ← tu pada build
+export type WhereUsedList = { … };     // linia 28
+```
+**Moduł `'use server'` może eksportować wyłącznie funkcje asynchroniczne.** Każdy inny eksport
+jest nielegalny — Next odrzuca cały moduł, a z nim stronę, która go importuje.
+
+**To nie jest nowy błąd.** 28 lipca ta sama klasa wywróciła moduł Units (`export type {}` bez
+`from` emitował wiązanie runtime → `ReferenceError`). Naprawiono wtedy **jeden przypadek**.
+Ten wrócił gdzie indziej. Dlatego naprawa idzie na całą klasę: przegląd **wszystkich** modułów
+`'use server'` w `apps/web`.
+
+**Jedyna dobra wiadomość:** nieudany build **zatrzymuje** wdrożenie — to akurat jest awaria
+bezpieczna. Dlatego produkcja wciąż działa na starym kodzie z 30 lipca. Ale oznacza to też,
+że **nic z ostatnich siedmiu dni nie mogło i nie może trafić na produkcję**, dopóki to nie
+zostanie naprawione.
+
+Kolejność jest więc taka: **najpierw ten build, potem fail-open migracji, potem webhooki.**
+Podłączanie webhooków wcześniej nie ma sensu — build i tak by padł.
+
 ## 1. Push nie uruchamia wdrożenia. Nic nie trafia na produkcję. — UDOWODNIONE
 
 ```
