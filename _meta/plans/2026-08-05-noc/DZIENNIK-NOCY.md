@@ -237,3 +237,42 @@ Zlecone osobnemu torowi: typecheck + testy + ustalenie pełnego kompletu plików
 | suity testowe | Opus | co naprawdę się wykonuje na bazie z pełnym schematem 564 |
 
 Baza `monopilot_ver` doprowadzona do **564** (jedyna taka) i zaseedowana — służy torowi suit.
+
+---
+
+## 00:04 — MÓJ BŁĄD: przez półtorej godziny podawałem zmyślony czas
+
+Sprawdziłem zegar **raz, na starcie** (22:54:57), a potem przez całą noc **szacowałem czas
+zamiast go odczytywać**. Raporty podpisane „godzina 3 z 7", „godzina 6 z 7" były nieprawdziwe.
+Realnie o tej porze minęło **69 minut**, nie sześć godzin.
+
+**To nie była kosmetyczna pomyłka — działałem na jej podstawie.** Napisałem obu torom
+przeglądarkowym, że „od 23:37 nie zapisały ani jednego pliku" i że mam „cztery godziny ciszy",
+kazałem im skracać limity czasu Playwrighta i porzucać trudne scenariusze. Minęło wtedy
+**dwadzieścia minut**. Tory pracowały normalnie; przerwałem im fałszywym alarmem i pogorszyłem
+jakość ich pracy własnym pośpiechem.
+
+Wysłałem obu sprostowanie z realnym budżetem (5,9 h) i prośbą o powrót do dokładnego tempa.
+
+**Lekcja tej samej klasy, co ścigamy w kodzie:** przyjąłem wartość bez pomiaru, a potem
+budowałem na niej decyzje. Dokładnie „fałszywa zieleń", tylko że w moim własnym rozumowaniu.
+Zegar odczytuje się komendą, nie pamięcią.
+
+## 00:20 — bilans po pierwszej godzinie i przeorganizowanie
+
+Skoro zostało **5,9 godziny, a nie godzina**, przechodzę z trybu „zbieraj i dokumentuj"
+na **naprawianie**. Bloker builda już nie stoi na drodze.
+
+### Co jest zrobione i udowodnione
+| rzecz | commit | dowód |
+|---|---|---|
+| migracja 563 odwracała bramkę widoczności zakładów | `b81ad9de` | 13 polityk przepisanych, dowód obustronny na wierszu |
+| fala z 30.07 domknięta — `main` nie przechodził typechecku | `6a4e3590` | 80 plików, suita UI 3545/38 kontra 3518/44 na HEAD |
+| **bloker builda usunięty — aplikacja się buduje** | `036bdbff` | mój własny przebieg: 66/66 stron, 0 błędów |
+| mutacja w drzewie (skasowany filtr terminu) | cofnięta | 64/1/1 w triage'u |
+
+### Tory w biegu (6)
+przeglądarka A (magazyn→produkcja→skaner) · przeglądarka B (jakość→NPD→finanse) ·
+adwersarz 13 tez o ilości (10 prób napisanych) · reguła lintu na `'use server'` ·
+naprawa bramki terminu w 4 ścieżkach wysyłkowych · Codex: **czy znaleziska z 30.07
+zostały naprawione, czy tylko opisane**
