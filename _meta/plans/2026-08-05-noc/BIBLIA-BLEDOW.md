@@ -3,6 +3,39 @@
 Dokument uporządkowany **według tego, co trzeba zrobić**, nie chronologicznie.
 Przebieg godzina po godzinie jest w `DZIENNIK-NOCY.md`.
 
+---
+
+# ZACZNIJ TUTAJ — kolejność na rano
+
+Kolejność nie jest dowolna: każdy krok odblokowuje następny. Robienie ich w innej kolejności
+to strata czasu, bo np. podłączenie webhooka przy padającym buildzie nic nie da.
+
+| # | co zrobić | czas | co odblokowuje | kto |
+|---|---|---|---|---|
+| **1** | **Decyzja o `yard.manage` i `freight.manage`** — snapshot RBAC albo rename na trzy człony | 5 min | job **`lint`** → a przez to **`build` przestaje być pomijany** | **tylko Ty** — to zmiana zamrożonego kontraktu uprawnień |
+| **2** | **Migracja 051 ma tolerować brak ról Supabase** (`anon`, `authenticated`) | ~1 h | **`vitest` + `migration-check` + `playwright`** zaczynają cokolwiek mierzyć — pierwszy raz od 3 czerwca | agent |
+| **3** | **Usunąć `\|\| echo "[WARN]"`** z polecenia budującego na Vercelu | 1 min | nieudana migracja **zatrzyma deploy** zamiast go po cichu przepuścić | **tylko Ty** — ustawienie projektu |
+| **4** | **Sprawdzić stan migracji na produkcyjnej bazie** (zapytania niżej, poz. 4) | 10 min | wiadomo, czy deploy jest bezpieczny | **tylko Ty** — mnie blokuje klasyfikator |
+| **5** | **Podłączyć repozytorium w ustawieniach Vercel** | 5 min | push zaczyna wdrażać | **tylko Ty** |
+| **6** | Regeneracja `__expected__/schema.sql` | 15 min | bramka driftu przestaje być teatrem (stoi na migracji 281 z 564) | agent |
+| **7** | Defekty kodu wg wagi — sekcja „BŁĘDY W APLIKACJI" | dni | — | agenci |
+
+**Punkty 1, 3, 4 i 5 są tylko dla Ciebie** — to decyzje i ustawienia, nie kod. Razem ~20 minut.
+Bez nich reszta pracy nie dojedzie na produkcję.
+
+## Stan repozytorium po tej nocy
+
+| | przed | po |
+|---|---|---|
+| `pnpm build` | **pada** (`'use server'` eksportował stałą) | **kod 0**, 66/66 stron |
+| `pnpm typecheck` | **5 błędów** (`main` był rozcięty w pół) | **0** |
+| łańcuch migracji | **stawał na 563** (odwrócona bramka widoczności) | **dochodzi do 564** |
+| bramka terminu w wysyłkach | liczyła dobę w strefie sesji | liczy w **strefie zakładu** |
+| bramki lintu z korzenia | **nigdy nie chodziły w CI** | wpięte |
+| `lint-workflows` | **nigdy nie przelintował ani jednego pliku** | działa |
+
+**17 commitów.** Repozytorium jest po raz pierwszy od 30 lipca w stanie zdatnym do zbudowania.
+
 ## Jak czytać status dowodu
 
 | status | znaczenie |
@@ -377,6 +410,91 @@ Dwie flagi postawy (nie wyciek, ale warto): 3 tabele z `org_id` mają RLS **bez 
 | `mwo-loto-signing` (4) | podwójny podpis LOTO nie tworzy parowanych wpisów; **sekwencja exploitu przechodzi** | **defekt bezpieczeństwa** |
 | `production-site-visibility` | operator jednego zakładu widzi wiersz `wo_outputs` z zakładu B | **defekt** |
 | `site-day` + `lp-expiry-site-day` (3) | granica doby wg strefy sesji | **defekt** — spójne z poz. 9 |
+
+## 17. ODPOWIEDŹ NA „czy bugi z 30 lipca zostały wyeliminowane" — ZMIERZONE
+
+32 znaleziska sprawdzone w kodzie, jedno po drugim:
+
+| werdykt | ile |
+|---|---|
+| **naprawione częściowo** | **21** |
+| naprawione | 7 |
+| **nienaprawione** | **4** |
+
+**Nie zostały tylko opisane — ale kampania jest daleka od zamknięcia.** Najczęstszy stan
+to *„naprawiono przypadek główny, pozostawiono sąsiedni wariant"*. To wzorzec, który mamy
+zapisany w `WZORCE-KAMPANII-NAPRAWCZEJ` — teraz **zmierzony na całej kampanii**.
+
+Jak wygląda „połowa naprawy": `revalidatePath` — literalnych `/npd/` już zero, ale **zostały
+cztery inne** bezskuteczne przez grupy tras · rewalidacja w transakcji — **78 wystąpień**
+nadal wewnątrz callbacków · skaner między zakładami — zakład sprawdzany **tylko dla nie-NULL** ·
+import 1/3 · spójność Auth↔DB 1/3 · skaner/GS1 2/6 · skala zapytań 2/8 · **integralność
+danych 3/15**.
+
+Pełna tabela: `WERYFIKACJA-ZNALEZISK-30-07.md`.
+
+## 18. Towar znika z ewidencji — 10 z 13 tez POTWIERDZONYCH pomiarem
+
+Tor adwersarski dostał polecenie **obalać**. Napisał 18 sond, **18 wykonanych**, każda
+z pomiarem stanu bazy przed i po. Nie udało mu się prawie nigdzie.
+
+| operacja | pomiar |
+|---|---|
+| anulowanie wysyłki | paleta 10→4→**10**, w księdze **nadal tylko `issue +6`** |
+| anulowanie zakończonego zlecenia | paleta 100→**0, `destroyed`**, jedyny ruch to `receipt +100` |
+| unieważnienie straty | po `ok:true` paleta **nadal 6 kg** (było 10), strata netto **zero** |
+| odwrócenie konsumpcji | księga zapisuje `consume_to_wo **+4**` — **odwrócony znak** |
+| konsumpcja i odpad bez palety | paleta nietknięta, `stock_moves` **puste**, logi zapisane |
+| wyrób zastępczy | `wo_outputs +8` z pustym `lp_id` — **osiem kilogramów tylko na papierze** |
+
+**Sprostowanie mojego wczorajszego osądu:** twierdziłem, że rejestracja 103 kg przy zużyciu
+100 kg to prawdopodobnie decyzja produktowa. **Miałem rację co do połowy.** Po ustawieniu progu
+`massbalance_threshold_pct = 1` operacja rzuca `insufficient_input_for_output` — bramka działa,
+jest domyślnie wyłączona. **Ale wyrób 100 kg przy ZEROWYM zużyciu przechodzi nawet z włączonym
+progiem**, bo bramka zwraca `undefined` przy zerowej konsumpcji. To jest realny błąd.
+
+Poza listą: **cały moduł zwrotów RMA jest martwy** (`shipping.rma.*` nie istnieje
+w `outbox_events_event_type_check` ani w wyliczeniu zdarzeń) · **demontaż wieloproduktowy
+jest strukturalnie niewykonalny**.
+
+Pełne werdykty: `WERDYKTY-ZACHOWANIE-ILOSCI.md`. Sondy: `probes/`.
+
+## 19. Dezaktywacja pracownika nie odbiera dostępu — UDOWODNIONE z kodu
+
+SCIM przy `active=false` ustawia **wyłącznie** `deleted_at`
+(`api/scim/v2/Users/[id]/route.ts:184`). Główna bramka **wszystkich akcji serwerowych**
+sprawdza **wyłącznie** `is_active` (`lib/auth/with-org-context.ts:243`). Bramka skanera
+(`lib/scanner/auth.ts:15`) tak samo.
+
+**Pracownik usunięty z katalogu firmowego, mając ważną sesję, nadal wykonuje operacje.**
+
+Test SCIM sprawdza tylko, czy kolumna została ustawiona — **nie próbuje wykonać autoryzowanej
+operacji po usunięciu**. To dokładnie ta luka, która pozwoliła defektowi przeżyć.
+
+Architektonicznie: repo używa **trzech konwencji** kasowania miękkiego (`deleted_at`,
+`voided_at`, `deactivated_at`+`active`) bez wspólnego mechanizmu filtrowania.
+
+## 20. CI nie było zielone ani razu od ponad miesiąca — UDOWODNIONE
+
+```
+gh run list --branch main --status success  →  []
+200 przebiegów od 3 lipca · 192 nieudane · ZERO zielonych
+```
+
+Trzy niezależne awarie nakładają się:
+
+- **Migracja 051 zabija bazodanową połowę CI od 3 czerwca.** Robi
+  `revoke ... from public, anon, authenticated`, a `anon`/`authenticated` to role **Supabase** —
+  w gołym `postgres:16-alpine` ich nie ma. `vitest`, `migration-check` i `playwright` padają
+  **przed uruchomieniem czegokolwiek**. Dwa miesiące zerowego sygnału.
+- **`rhysd/actionlint@v1` w ogóle nie jest GitHub Action** — brak manifestu (tag 404, gałąź 404,
+  `action.yml` 404). Job `lint-workflows` **nie przelintował nigdy ani jednego pliku**.
+  Naprawione; actionlint od razu znalazł prawdziwy błąd w `ci.yml:201`.
+- **Bramka driftu schematu zamrożona na migracji 281.** Baseline z 11 czerwca; od tego czasu
+  **240 migracji jest dla niej niewidzialnych**. To baza z identyfikowalnością żywności.
+
+**To domyka pytanie, dlaczego bloker builda przeżył tydzień:** job `build` jest **pomijany**,
+bo zależy od `lint` i `typecheck`. Nigdy się nie uruchomił.
 
 ---
 
