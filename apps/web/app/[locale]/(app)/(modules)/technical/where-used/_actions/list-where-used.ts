@@ -2,6 +2,7 @@
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import type { QueryClient } from '../../cost/_actions/shared';
+import { WHERE_USED_LIMIT } from './shared';
 
 type WhereUsedRow = {
   fg_code: string;
@@ -16,14 +17,6 @@ type WhereUsedResult = {
   component_qty: number;
   component_uom: string;
 };
-
-/**
- * The list is capped. That is fine; hiding the cap is not — this screen is used
- * during recalls to decide which finished goods a component reaches, and a list
- * that silently stops at 100 reads as "these are all of them". So we ask for
- * WHERE_USED_LIMIT + 1 rows and report `truncated` when the extra one comes back.
- */
-export const WHERE_USED_LIMIT = 100;
 
 export type WhereUsedList = {
   rows: WhereUsedResult[];

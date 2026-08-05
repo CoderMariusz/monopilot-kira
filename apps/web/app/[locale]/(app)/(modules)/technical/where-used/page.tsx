@@ -5,7 +5,8 @@ import { useSearchParams } from 'next/navigation';
 
 import Input from '@monopilot/ui/Input';
 
-import { WHERE_USED_LIMIT, listWhereUsed } from './_actions/list-where-used';
+import { listWhereUsed } from './_actions/list-where-used';
+import { WHERE_USED_LIMIT } from './_actions/shared';
 
 type WhereUsedResult = {
   fg_code: string;
