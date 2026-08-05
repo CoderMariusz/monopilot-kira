@@ -26,19 +26,21 @@
 --   does, and wrap the row-independent part in a scalar sub-select so it becomes an
 --   InitPlan evaluated ONCE per query instead of once per row:
 --
---       (select app.user_site_scope_unrestricted())      -- once
---       or site_id is null                               -- free
---       or site_id = any ((select app.user_visible_sites()))  -- array built once, then a membership test
+--       site_id is not null                              -- fail closed before unrestricted branches
+--       and (
+--         (select app.user_site_scope_unrestricted())    -- once
+--         or site_id = any ((select app.user_visible_sites()))  -- array built once, then a membership test
+--       )
 --
 -- EQUIVALENCE (this is a security predicate; it must decide identically, not merely faster)
---   app.user_can_see_site(p) is `A or B or C or p is null or D(p)` where
+--   app.user_can_see_site(p) is `p is not null and (A or B or C or D(p))` where
 --     A = current_user_id() is null, B = has an admin role, C = has no site assignments,
 --     D(p) = exists(user_sites row for this user/org/site p).
 --   user_site_scope_unrestricted() is exactly `A or B or C` — same three sub-selects,
 --   same order, copied from mig 551's body.
 --   user_visible_sites() is the set that D(p) tests membership of, so
---   `p = any(user_visible_sites())` ≡ D(p) for non-null p; NULL site_id is decided one
---   clause earlier by `site_id is null`, exactly as before. NULL rows in user_sites.site_id
+--   `p = any(user_visible_sites())` ≡ D(p) for non-null p; NULL site_id is rejected
+--   before the unrestricted branch, exactly as before. NULL rows in user_sites.site_id
 --   are excluded from the array (they can never satisfy D(p) for a non-null p either).
 --   The post-check below proves the equivalence by evaluating both forms for every
 --   (user, site) pair that exists in this database, plus the NULL site.
@@ -108,11 +110,15 @@ do $$
 declare
   r record;
   v_pred constant text :=
-    '((select app.user_site_scope_unrestricted())'
-    || ' or site_id is null'
+    -- The outer parens are load-bearing: this string is interpolated straight into
+    -- `using %s with check %s`, and USING/WITH CHECK require a parenthesised
+    -- expression. The pre-fix predicate happened to start with `(` and end with `)`,
+    -- so it wrapped itself; `site_id is not null and (...)` does not.
+    '(site_id is not null'
+    || ' and ((select app.user_site_scope_unrestricted())'
     -- the ::uuid[] is required, not cosmetic: without it the grammar reads
     -- `any (select …)` as the SUBQUERY form of ANY and fails with `uuid = uuid[]`.
-    || ' or site_id = any ((select app.user_visible_sites())::uuid[]))';
+    || ' or site_id = any ((select app.user_visible_sites())::uuid[])))';
   v_count integer := 0;
 begin
   for r in
@@ -183,9 +189,11 @@ begin
         v_old := app.user_can_see_site(v_site);
         -- same three clauses as the policy; the `(select …)` wrapper the policy uses is
         -- a planner hint only (InitPlan), it does not change what is computed.
-        v_new := app.user_site_scope_unrestricted()
-                 or v_site is null
-                 or v_site = any (app.user_visible_sites());
+        v_new := v_site is not null
+                 and (
+                   app.user_site_scope_unrestricted()
+                   or v_site = any (app.user_visible_sites())
+                 );
         v_pairs := v_pairs + 1;
         if v_old is distinct from coalesce(v_new, false) then
           raise exception 'mig563: predicate differs for user % site %: old=% new=%',
@@ -223,9 +231,11 @@ begin
         union all select null::uuid
       loop
         v_old := app.user_can_see_site(v_site);
-        v_new := app.user_site_scope_unrestricted()
-                 or v_site is null
-                 or v_site = any (app.user_visible_sites());
+        v_new := v_site is not null
+                 and (
+                   app.user_site_scope_unrestricted()
+                   or v_site = any (app.user_visible_sites())
+                 );
         if v_old is distinct from coalesce(v_new, false) then
           raise exception 'mig563: restricted-branch mismatch for site %: old=% new=%', v_site, v_old, v_new;
         end if;
