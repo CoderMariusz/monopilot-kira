@@ -24,6 +24,7 @@ import {
   markInboxNotificationRead,
 } from '../../../components/shell/_actions/notification-inbox-actions';
 import type { PhaseOneLanguage, UserLanguage } from '../../../lib/i18n/user-language';
+import { signOut as signOutAction } from './_actions/sign-out';
 
 type Locale = 'en' | 'pl' | 'uk' | 'ro';
 
@@ -59,25 +60,6 @@ function phaseOneLocale(locale: Locale): PhaseOneLanguage {
 
 function userLanguageFromMetadata(value: unknown): UserLanguage | null {
   return value === 'en' || value === 'pl' || value === 'uk' || value === 'ro' ? value : null;
-}
-
-async function signOutAction(formData: FormData): Promise<never> {
-  'use server';
-
-  const locale = formData.get('locale');
-  const targetLocale = typeof locale === 'string' && locale.length > 0 ? locale : 'en';
-
-  // Clear the Supabase session before redirecting. Without this the auth
-  // cookies survive, the (app) layout guard re-admits the user, and "logout"
-  // does nothing (Walking Skeleton DoD #1: logout must actually log out).
-  try {
-    const supabase = await createServerSupabaseClient();
-    await supabase.auth.signOut();
-  } catch (error) {
-    console.error('[layout] sign-out failed to clear Supabase session:', error);
-  }
-
-  redirect(`/${targetLocale}/login`);
 }
 
 async function selectLanguageAction(input: { userId: string; orgId: string; locale: UserLanguage }) {

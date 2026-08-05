@@ -48,6 +48,7 @@ export function toCountErrorCode(message: string | undefined): CountErrorCode {
   }
   if (m.includes('forbidden')) return 'forbidden';
   if (m.includes('count_no_stock') || m.includes('no_stock')) return 'no_stock';
+  if (m.includes('count_uom_ambiguous')) return 'invalid_input';
   if (m.includes('not_found')) return 'not_found';
   if (m.includes('already') && m.includes('appl')) return 'already_applied';
   if (m.includes('esign') || m.includes('signature') || m.includes('password')) return 'esign_failed';

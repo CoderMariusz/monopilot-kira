@@ -15,13 +15,12 @@
  * contract closeNcr({ncrId, resolution, signature:{password}}) — every NCR close
  * requires e-sign (21 CFR Part 11); the server re-verifies via signEvent and
  * rejects when no receipt hash is produced. Critical NCRs additionally enforce
- * dual-sign SoD server-side; failures are surfaced VERBATIM.
+ * sequential dual-sign SoD server-side; failures are surfaced VERBATIM.
  *
- * DEVIATIONS (red-lines): the prototype's 6-digit numeric PINs + the dual second
- * signer PIN block (modals.jsx:444-462) collapse to a single account-password
- * e-sign field (the backend signature contract is {password}); the second
- * Production-Manager signature for critical NCRs is enforced SERVER-side (SoD), not
- * collected as a second client PIN. The pre-close checklist + root-cause/category
+ * DEVIATIONS (red-lines): the prototype's 6-digit numeric PIN fields use the
+ * backend's account-password e-sign contract. Each signer enters only their own
+ * credential; after the first signature the same modal exposes the frozen
+ * decision and waits for the configured second role. The pre-close checklist + root-cause/category
  * re-entry (modals.jsx:415-435) live on the detail Investigation section (saved via
  * updateNcrInvestigation before close), so the modal stays a focused close action.
  */
@@ -30,6 +29,11 @@ import { useState, useTransition } from 'react';
 
 import Modal from '@monopilot/ui/Modal';
 
+import {
+  PendingQualitySignoffPanel,
+  type PendingSignoffLabels,
+} from '../../../_components/pending-quality-signoff';
+import type { PendingQualitySignoff } from '../../../_actions/quality-signoff-types';
 import type { CloseNcrAction, NcrSeverity, NcrStatus } from '../../_components/ncr-contracts';
 
 const RESOLUTION_MIN = 10;
@@ -46,8 +50,9 @@ export type NcrCloseLabels = {
   submit: string;
   submitting: string;
   formIncomplete: string;
-  validation: { resolutionRequired: string; passwordRequired: string };
+  validation: { resolutionRequired: string; passwordRequired: string; rootCauseRequired: string };
   policyErrors: Record<'second_signature_required' | 'signer_role_not_allowed', string>;
+  pendingSignoff: PendingSignoffLabels;
   error: string;
   success: string;
   severityValues: Record<string, string>;
@@ -62,6 +67,8 @@ function closeErrorMessage(
   if (code === 'second_signature_required' || code === 'signer_role_not_allowed') {
     return labels.policyErrors[code];
   }
+  // V-QA-NCR-005 refusal — a machine code, never shown raw.
+  if (code === 'root_cause_required') return labels.validation.rootCauseRequired;
   return labels.error.replace('{message}', code);
 }
 
@@ -71,6 +78,7 @@ export type NcrCloseTarget = {
   title: string | null;
   severity: NcrSeverity;
   status: NcrStatus;
+  requiredCloseSignatures: 1 | 2;
 };
 
 export function NcrCloseModal({
@@ -80,6 +88,9 @@ export function NcrCloseModal({
   labels,
   closeNcrAction,
   onClosed,
+  onPending,
+  initialPendingSignoff = null,
+  initialResolution = '',
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -87,20 +98,25 @@ export function NcrCloseModal({
   labels: NcrCloseLabels;
   closeNcrAction: CloseNcrAction;
   onClosed?: (closed: { status: 'closed'; closedAt: string; signatureHash: string | null }) => void;
+  onPending?: (pendingSignoff: PendingQualitySignoff, resolution: string) => void;
+  initialPendingSignoff?: PendingQualitySignoff | null;
+  initialResolution?: string;
 }) {
-  const [resolution, setResolution] = useState('');
+  const [resolution, setResolution] = useState(initialResolution);
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [pendingSignoff, setPendingSignoff] = useState(initialPendingSignoff);
   const [pending, startTransition] = useTransition();
 
-  const isCritical = ncr.severity === 'critical';
+  const requiresTwoSignatures = ncr.requiredCloseSignatures === 2;
   const trimmedResolution = resolution.trim();
   const valid = trimmedResolution.length >= RESOLUTION_MIN && password.length > 0;
 
   function reset() {
-    setResolution('');
+    setResolution(initialResolution);
     setPassword('');
     setError(null);
+    setPendingSignoff(initialPendingSignoff);
   }
 
   function close() {
@@ -127,6 +143,12 @@ export function NcrCloseModal({
       });
       if (!result.ok) {
         setError(closeErrorMessage(labels, result));
+        return;
+      }
+      if (result.data.status === 'pending_second_signature') {
+        setPendingSignoff(result.data.pendingSignoff);
+        setPassword('');
+        onPending?.(result.data.pendingSignoff, trimmedResolution);
         return;
       }
       reset();
@@ -162,6 +184,10 @@ export function NcrCloseModal({
           </dl>
 
           {/* Closure notes (parity modals.jsx:422-424). */}
+          {pendingSignoff && (
+            <PendingQualitySignoffPanel signoff={pendingSignoff} labels={labels.pendingSignoff} />
+          )}
+
           <label className="flex flex-col gap-1">
             <span className="font-medium text-slate-700">
               {labels.resolution} <span aria-hidden className="text-red-500">*</span>
@@ -169,6 +195,7 @@ export function NcrCloseModal({
             <textarea
               data-testid="ncr-close-resolution"
               value={resolution}
+              disabled={pendingSignoff !== null}
               onChange={(e) => setResolution(e.target.value)}
               maxLength={1000}
               rows={3}
@@ -179,7 +206,7 @@ export function NcrCloseModal({
           </label>
 
           {/* Critical dual-sign warning (parity modals.jsx:437-442). */}
-          {isCritical && (
+          {requiresTwoSignatures && (
             <div
               role="note"
               data-testid="ncr-close-dualsign-warning"
@@ -235,7 +262,11 @@ export function NcrCloseModal({
           title={!valid ? labels.formIncomplete : undefined}
           className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white transition enabled:hover:bg-emerald-700 disabled:opacity-50"
         >
-          🔒 {pending ? labels.submitting : labels.submit}
+          🔒 {pending
+            ? labels.submitting
+            : pendingSignoff
+              ? labels.pendingSignoff.submitSecond
+              : labels.submit}
         </button>
       </Modal.Footer>
     </Modal>

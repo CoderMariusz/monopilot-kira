@@ -68,8 +68,15 @@ export type LpDetailLabels = {
       };
       cancel: string;
       confirm: string;
+      confirmSecond: string;
       submitting: string;
       success: string;
+      pendingSignoff: {
+        title: string;
+        signedBy: string;
+        awaitingRole: string;
+        anyAuthorizedSigner: string;
+      };
       errors: {
         forbidden: string;
         invalidState: string;
@@ -327,8 +334,15 @@ export function buildLpDetailLabels(locale: string): LpDetailLabels {
         },
         cancel: t('detail.actions.unblockModal.cancel'),
         confirm: t('detail.actions.unblockModal.confirm'),
+        confirmSecond: t('detail.actions.unblockModal.confirmSecond'),
         submitting: t('detail.actions.unblockModal.submitting'),
         success: t('detail.actions.unblockModal.success'),
+        pendingSignoff: {
+          title: t('detail.actions.unblockModal.pendingSignoff.title'),
+          signedBy: t('detail.actions.unblockModal.pendingSignoff.signedBy'),
+          awaitingRole: t('detail.actions.unblockModal.pendingSignoff.awaitingRole'),
+          anyAuthorizedSigner: t('detail.actions.unblockModal.pendingSignoff.anyAuthorizedSigner'),
+        },
         errors: {
           forbidden: t('detail.actions.unblockModal.errors.forbidden'),
           invalidState: t('detail.actions.unblockModal.errors.invalidState'),
@@ -617,4 +631,3 @@ export function buildLpDetailLabels(locale: string): LpDetailLabels {
     expiryBanner: t('detail.expiryBanner'),
   };
 }
-

@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
+// R4 — revalidate-localized stays REAL so the production chain runs
+// (revalidatePath -> revalidateLocalized -> revalidateAfterCommit); only the
+// Next primitive is faked, which is the thing that throws outside a request.
+const revalidatePathMock = vi.hoisted(() => vi.fn());
+vi.mock('next/cache', () => ({ revalidatePath: revalidatePathMock }));
 
 import { maxSqlPlaceholderIndex } from '../../../../../../lib/shared/sql-placeholders';
 import { traceGenealogy } from './genealogy-actions';
@@ -50,9 +54,22 @@ function makeLpListRow(index: number) {
   };
 }
 
+// Mirrors the real withOrgContext contract: COMMIT on any plain return,
+// ROLLBACK only on a thrown error (with-org-context.ts:356-365).
+const txn = vi.hoisted(() => ({ committed: 0, rolledBack: 0 }));
+
 vi.mock('../../../../../../lib/auth/with-org-context', () => ({
-  withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
-    action({ userId: USER_ID, orgId: ORG_ID, client }),
+  withOrgContext: vi.fn(
+    async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) => {
+      try {
+        const result = await action({ userId: USER_ID, orgId: ORG_ID, client });
+        txn.committed += 1;
+        return result;
+      } catch (err) {
+        txn.rolledBack += 1;
+        throw err;
+      }
+    },
   ),
 }));
 
@@ -300,6 +317,37 @@ describe('warehouse backend actions', () => {
     activeHold = false;
     listLpTotal = 1;
     client = makeClient();
+    revalidatePathMock.mockReset();
+    txn.committed = 0;
+    txn.rolledBack = 0;
+  });
+
+  it('R4 — releaseReservation keeps the release committed when revalidation throws', async () => {
+    lpStatus = 'reserved';
+    revalidatePathMock.mockImplementation(() => {
+      throw new Error('revalidatePath was called outside a request scope');
+    });
+
+    const result = await releaseReservation({ lpId: LP_ID, reason: 'operator release' });
+
+    expect(result.ok).toBe(true);
+    const calls = vi.mocked(client.query).mock.calls.map(([sql]) => normalize(sql));
+    expect(calls.some((sql) => sql.startsWith('update public.license_plates'))).toBe(true);
+    expect(calls.some((sql) => sql.startsWith('insert into public.lp_state_history'))).toBe(true);
+    expect(txn).toEqual({ committed: 1, rolledBack: 0 });
+    expect(revalidatePathMock).toHaveBeenCalled();
+  });
+
+  it('R4 — a refused release still reports the refusal and never revalidates', async () => {
+    lpStatus = 'consumed';
+    revalidatePathMock.mockImplementation(() => {
+      throw new Error('revalidatePath was called outside a request scope');
+    });
+
+    const result = await releaseReservation({ lpId: LP_ID, reason: 'stray reservation' });
+
+    expect(result).toEqual({ ok: false, reason: 'error', message: 'not_releasable_status' });
+    expect(revalidatePathMock).not.toHaveBeenCalled();
   });
 
   it('returns forbidden before read SQL when warehouse inventory read permission is missing', async () => {

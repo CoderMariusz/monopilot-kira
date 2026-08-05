@@ -23,6 +23,7 @@
  */
 
 import { evaluateNpdValidation } from '@monopilot/validation';
+import { messageTemplate } from '../../../../../../../i18n/message-template';
 import { getTranslations } from 'next-intl/server';
 
 import {
@@ -188,7 +189,7 @@ const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof ApprovalLabels>;
 
 function translateLabel(t: (key: string) => string, key: keyof ApprovalLabels): string {
   try {
-    const value = t(key);
+    const value = messageTemplate(t, key);
     return value === key ? DEFAULT_LABELS[key] : value;
   } catch {
     return DEFAULT_LABELS[key];
@@ -327,7 +328,7 @@ function translateComplianceLabel(
   key: keyof ComplianceDocsLabels,
 ): string {
   try {
-    const value = t(key);
+    const value = messageTemplate(t, key);
     return value === key ? COMPLIANCE_DEFAULT_LABELS[key] : value;
   } catch {
     return COMPLIANCE_DEFAULT_LABELS[key];
@@ -441,7 +442,7 @@ const RISK_LABEL_KEYS = Object.keys(RISK_DEFAULT_LABELS) as Array<keyof RiskRegi
 
 function translateRiskLabel(t: (key: string) => string, key: keyof RiskRegisterLabels): string {
   try {
-    const value = t(key);
+    const value = messageTemplate(t, key);
     return value === key ? RISK_DEFAULT_LABELS[key] : value;
   } catch {
     return RISK_DEFAULT_LABELS[key];
@@ -498,7 +499,7 @@ async function buildValidationLabels(locale: string): Promise<ValidationLabels> 
     const t = await getTranslations({ locale, namespace: 'npd.faRightPanel' });
     const pick = (key: string, fallback: string) => {
       try {
-        const value = t(key);
+        const value = messageTemplate(t, key);
         return value === key ? fallback : value;
       } catch {
         return fallback;

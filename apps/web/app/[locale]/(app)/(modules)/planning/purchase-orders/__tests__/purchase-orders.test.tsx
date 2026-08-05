@@ -336,7 +336,16 @@ type DetailProps = React.ComponentProps<typeof PoDetailView>;
 
 function renderList(props: Partial<ListProps> = {}) {
   const searchPoItemsAction = vi.fn<ListProps['searchPoItemsAction']>().mockResolvedValue([
-    { id: 'item-1', itemCode: 'RM-001', name: 'Pork Belly', itemType: 'rm', status: 'active', costPerKgEur: null, uomBase: 'kg' },
+    {
+      id: 'item-1',
+      itemCode: 'RM-001',
+      name: 'Pork Belly',
+      itemType: 'rm',
+      status: 'active',
+      costPerKgEur: null,
+      uomBase: 'kg',
+      outputUom: 'each',
+    },
   ]);
   const getItemSupplierPriceAction = vi
     .fn<NonNullable<ListProps['getItemSupplierPriceAction']>>()
@@ -617,6 +626,7 @@ describe('PoListView — create modal (parity: po-screens.jsx:45 + modals create
     // Change the unit from the defaulted kg to pcs via the dropdown.
     const uomCell = screen.getByTestId('create-po-line-uom');
     fireEvent.click(within(uomCell).getByRole('combobox'));
+    expect(screen.queryByRole('option', { name: 'pallet' })).toBeNull();
     fireEvent.click(await screen.findByRole('option', { name: 'pcs' }));
 
     fireEvent.change(screen.getByTestId('create-po-line-qty'), { target: { value: '12' } });

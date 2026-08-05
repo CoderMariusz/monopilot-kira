@@ -236,8 +236,15 @@
           },
           "cancel": "Cancel",
           "confirm": "Unblock LP",
+          "confirmSecond": "Add second signature",
           "submitting": "Unblocking…",
           "success": "License plate unblocked — it is available again.",
+          "pendingSignoff": {
+            "title": "Awaiting second signature",
+            "signedBy": "Signed by: {name}",
+            "awaitingRole": "Awaiting: {role}",
+            "anyAuthorizedSigner": "Any authorized signer"
+          },
           "errors": {
             "forbidden": "You do not have permission to unblock license plates.",
             "invalidState": "This license plate cannot be unblocked in its current state.",
@@ -712,8 +719,15 @@
           },
           "cancel": "Anuluj",
           "confirm": "Odblokuj LP",
+          "confirmSecond": "Dodaj drugi podpis",
           "submitting": "Odblokowywanie…",
           "success": "LP odblokowany — jest ponownie dostępny.",
+          "pendingSignoff": {
+            "title": "Oczekuje na drugi podpis",
+            "signedBy": "Podpisał(a): {name}",
+            "awaitingRole": "Oczekuje na rolę: {role}",
+            "anyAuthorizedSigner": "Dowolna uprawniona osoba"
+          },
           "errors": {
             "forbidden": "Nie masz uprawnień do odblokowywania LP.",
             "invalidState": "Tego LP nie można odblokować w obecnym stanie.",
@@ -1188,8 +1202,15 @@
           },
           "cancel": "Cancel",
           "confirm": "Unblock LP",
+          "confirmSecond": "Add second signature",
           "submitting": "Unblocking…",
           "success": "License plate unblocked — it is available again.",
+          "pendingSignoff": {
+            "title": "Awaiting second signature",
+            "signedBy": "Signed by: {name}",
+            "awaitingRole": "Awaiting: {role}",
+            "anyAuthorizedSigner": "Any authorized signer"
+          },
           "errors": {
             "forbidden": "You do not have permission to unblock license plates.",
             "invalidState": "This license plate cannot be unblocked in its current state.",
@@ -1664,8 +1685,15 @@
           },
           "cancel": "Cancel",
           "confirm": "Unblock LP",
+          "confirmSecond": "Add second signature",
           "submitting": "Unblocking…",
           "success": "License plate unblocked — it is available again.",
+          "pendingSignoff": {
+            "title": "Awaiting second signature",
+            "signedBy": "Signed by: {name}",
+            "awaitingRole": "Awaiting: {role}",
+            "anyAuthorizedSigner": "Any authorized signer"
+          },
           "errors": {
             "forbidden": "You do not have permission to unblock license plates.",
             "invalidState": "This license plate cannot be unblocked in its current state.",

@@ -4,6 +4,7 @@ import { nextDocumentNumber } from '../../../../../../../lib/documents/numbering
 import { resolveWriteSiteId } from '../../../../../../../lib/site/site-context';
 import {
   PurchaseOrderCreateInput,
+  normalizeProcurementLine,
   requireActionPermission,
   PLANNING_PO_MANAGE_PERMISSION,
   isPgError,
@@ -210,6 +211,23 @@ export async function createPurchaseOrderCore(
     };
   }
 
+  const normalizedLines: typeof input.lines = [];
+  for (const line of input.lines) {
+    const normalized = await normalizeProcurementLine(ctx.client, {
+      itemId: line.itemId,
+      quantity: line.qty,
+      uom: line.uom,
+    });
+    if (!normalized) {
+      return {
+        ok: false,
+        error: 'line_uom_not_convertible',
+        code: 'line_uom_not_convertible',
+      };
+    }
+    normalizedLines.push({ ...line, qty: normalized.quantity, uom: normalized.uom });
+  }
+
   async function insertHeader(poNumber: string) {
     return ctx.client.query<PurchaseOrderRow>(
       `insert into public.purchase_orders
@@ -246,7 +264,7 @@ export async function createPurchaseOrderCore(
   const header = rows[0];
   if (!header) return { ok: false, error: 'persistence_failed' };
 
-  for (const line of input.lines) {
+  for (const line of normalizedLines) {
     await ctx.client.query(
       `insert into public.purchase_order_lines
          (org_id, po_id, item_id, qty, uom, unit_price, tax_pct, line_no, created_by, updated_by)

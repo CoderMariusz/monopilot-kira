@@ -227,6 +227,41 @@ describe('LP detail reserve/block server actions', () => {
     });
   });
 
+  it('keeps the LP blocked while hold release awaits its second signature', async () => {
+    releaseHoldFromWarehouseLpUnblock.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        id: 'hold-1',
+        holdNumber: 'HLD-00000001',
+        status: 'pending_second_signature',
+        disposition: 'release',
+        pendingSignoff: {
+          state: 'pending_second_signature',
+          subjectHash: 'a'.repeat(64),
+          firstSignatureId: 'signature-1',
+          firstSignedAt: '2026-06-23T00:00:00.000Z',
+          firstSigner: { id: 'user-1', displayName: 'Quality Lead' },
+          awaitingRole: { id: 'role-2', displayName: 'Production Manager' },
+        },
+      },
+    });
+
+    const result = await unblockLp(LP_ID, 'inspection passed', 'Account-Password-1!');
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.message ?? result.reason);
+    expect(result.data).toMatchObject({
+      lpId: LP_ID,
+      status: 'blocked',
+      qaStatus: 'on_hold',
+      holdId: 'hold-1',
+      pendingSignoff: {
+        firstSigner: { displayName: 'Quality Lead' },
+        awaitingRole: { displayName: 'Production Manager' },
+      },
+    });
+  });
+
   it('WH-119 unblockLp rejects an explicitly wrong e-sign password', async () => {
     releaseHoldFromWarehouseLpUnblock.mockResolvedValueOnce({
       ok: false,

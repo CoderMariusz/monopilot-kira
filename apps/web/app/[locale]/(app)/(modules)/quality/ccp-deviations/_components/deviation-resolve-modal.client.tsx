@@ -27,6 +27,7 @@ import { useState, useTransition } from 'react';
 import Modal from '@monopilot/ui/Modal';
 import { Select } from '@monopilot/ui/Select';
 
+import { PendingQualitySignoffPanel } from '../../_components/pending-quality-signoff';
 import {
   DEVIATION_DISPOSITIONS,
   type DeviationDisposition,
@@ -43,6 +44,7 @@ export function DeviationResolveModal({
   locale,
   resolveAction,
   onResolved,
+  onPending,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -51,21 +53,24 @@ export function DeviationResolveModal({
   locale: string;
   resolveAction: ResolveDeviationAction;
   onResolved?: () => void;
+  onPending?: (deviation: DeviationRow) => void;
 }) {
-  const [actionTaken, setActionTaken] = useState('');
-  const [disposition, setDisposition] = useState<DeviationDisposition | ''>('');
+  const [actionTaken, setActionTaken] = useState(deviation.actionTaken ?? '');
+  const [disposition, setDisposition] = useState<DeviationDisposition | ''>(deviation.disposition ?? '');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [pendingSignoff, setPendingSignoff] = useState(deviation.pendingSignoff);
   const [pending, startTransition] = useTransition();
 
   const trimmedAction = actionTaken.trim();
   const valid = trimmedAction.length > 0 && disposition !== '' && password.length > 0;
 
   function reset() {
-    setActionTaken('');
-    setDisposition('');
+    setActionTaken(deviation.actionTaken ?? '');
+    setDisposition(deviation.disposition ?? '');
     setPassword('');
     setError(null);
+    setPendingSignoff(deviation.pendingSignoff);
   }
 
   function close() {
@@ -86,7 +91,18 @@ export function DeviationResolveModal({
         signature: { password },
       });
       if (!result.ok) {
-        setError(labels.error.replace('{message}', result.message ?? result.reason));
+        const code = result.reason === 'policy' ? result.code : result.message ?? result.reason;
+        setError(
+          code === 'second_signature_required' || code === 'signer_role_not_allowed'
+            ? labels.policyErrors[code]
+            : labels.error.replace('{message}', result.message ?? result.reason),
+        );
+        return;
+      }
+      if (result.data.status === 'open' && result.data.pendingSignoff) {
+        setPendingSignoff(result.data.pendingSignoff);
+        setPassword('');
+        onPending?.(result.data);
         return;
       }
       reset();
@@ -106,6 +122,10 @@ export function DeviationResolveModal({
       <Modal.Body>
         <div data-testid="deviation-resolve-form" className="flex flex-col gap-4 text-sm">
           <p className="text-xs text-slate-500">{labels.subtitle}</p>
+
+          {pendingSignoff && (
+            <PendingQualitySignoffPanel signoff={pendingSignoff} labels={labels.pendingSignoff} />
+          )}
 
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
             <dt className="text-slate-500">{labels.reading}</dt>
@@ -140,6 +160,7 @@ export function DeviationResolveModal({
             <textarea
               data-testid="deviation-resolve-action"
               value={actionTaken}
+              disabled={pendingSignoff !== null}
               onChange={(e) => {
                 setActionTaken(e.target.value);
                 setError(null);
@@ -159,6 +180,7 @@ export function DeviationResolveModal({
               <Select
                 aria-label={labels.disposition}
                 value={disposition}
+                disabled={pendingSignoff !== null}
                 onValueChange={(v) => {
                   setDisposition(v as DeviationDisposition);
                   setError(null);
@@ -217,7 +239,11 @@ export function DeviationResolveModal({
           title={!valid ? labels.formIncomplete : undefined}
           className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white transition enabled:hover:bg-emerald-700 disabled:opacity-50"
         >
-          🔒 {pending ? labels.submitting : labels.submit}
+          🔒 {pending
+            ? labels.submitting
+            : pendingSignoff
+              ? labels.pendingSignoff.submitSecond
+              : labels.submit}
         </button>
       </Modal.Footer>
     </Modal>

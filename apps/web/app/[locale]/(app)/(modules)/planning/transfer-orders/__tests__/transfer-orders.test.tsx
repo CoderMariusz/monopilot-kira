@@ -130,7 +130,16 @@ const defaultStatusCounts = {
 
 function renderList(props: Partial<React.ComponentProps<typeof ToListView>> = {}) {
   const searchTransferItemsAction = vi.fn().mockResolvedValue([
-    { id: 'i1', itemCode: 'RM-001', name: 'Beef Trim', itemType: 'rm', status: 'active', costPerKgEur: null, uomBase: 'kg' },
+    {
+      id: 'i1',
+      itemCode: 'RM-001',
+      name: 'Beef Trim',
+      itemType: 'rm',
+      status: 'active',
+      costPerKgEur: null,
+      uomBase: 'kg',
+      uomSecondary: 'g',
+    },
   ]);
   const createTransferOrderAction = vi.fn();
   const utils = render(
@@ -341,7 +350,8 @@ describe('ToListView — create modal (parity: to-screens.jsx:37 + modals.jsx:69
 
     const uomCell = screen.getByTestId('create-to-line-uom-0');
     fireEvent.click(within(uomCell).getByRole('combobox'));
-    fireEvent.click(await screen.findByRole('option', { name: 'pallet' }));
+    expect(screen.queryByRole('option', { name: 'pallet' })).toBeNull();
+    fireEvent.click(await screen.findByRole('option', { name: 'g' }));
 
     fireEvent.change(screen.getByTestId('create-to-line-qty-0'), { target: { value: '2' } });
     fireEvent.click(screen.getByTestId('create-to-submit'));
@@ -349,7 +359,7 @@ describe('ToListView — create modal (parity: to-screens.jsx:37 + modals.jsx:69
     await waitFor(() =>
       expect(createTransferOrderAction).toHaveBeenCalledWith(
         expect.objectContaining({
-          lines: [expect.objectContaining({ itemId: 'i1', qty: '2', uom: 'pallet', lineNo: 1 })],
+          lines: [expect.objectContaining({ itemId: 'i1', qty: '2', uom: 'g', lineNo: 1 })],
         }),
       ),
     );

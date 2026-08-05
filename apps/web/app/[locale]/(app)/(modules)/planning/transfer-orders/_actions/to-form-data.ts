@@ -117,8 +117,11 @@ export async function searchTransferItems(input: SearchTransferItemsInput = {}):
       status: string;
       cost_per_kg: string | null;
       uom_base: string;
+      uom_secondary: string | null;
+      output_uom: string | null;
     }>(
-      `select i.id, i.item_code, i.name, i.item_type, i.status, i.cost_per_kg, i.uom_base
+      `select i.id, i.item_code, i.name, i.item_type, i.status, i.cost_per_kg,
+              i.uom_base, i.uom_secondary, i.output_uom
          from public.items i
         where i.org_id = app.current_org_id()
           and i.status <> 'blocked'
@@ -142,6 +145,8 @@ export async function searchTransferItems(input: SearchTransferItemsInput = {}):
       status: r.status,
       costPerKgEur: r.cost_per_kg,
       uomBase: r.uom_base,
+      uomSecondary: r.uom_secondary,
+      outputUom: r.output_uom === 'each' || r.output_uom === 'box' ? r.output_uom : 'base',
     }));
   });
 }

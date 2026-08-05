@@ -96,7 +96,7 @@ export function createManufacturingOpsLookup(options: ManufacturingOpsLookupOpti
 
       const result = await input.client.query<ManufacturingOperationRow>(
         `select operation_name, process_suffix, operation_seq
-           from "Reference.ManufacturingOperations"
+           from "Reference"."ManufacturingOperations"
           where org_id = $1
             and operation_name = $2
             and coalesce(is_active, true) = true

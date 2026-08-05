@@ -5,6 +5,7 @@ import { requireScannerSession } from '../../../../../../lib/scanner/guard';
 import { jsonError, jsonOk } from '../../../../../../lib/scanner/route-utils';
 import { withTxnOrgContext } from '../../../../../../lib/scanner/txn-org-context';
 import { withScannerOrg } from '../../../../../../lib/scanner/with-scanner-org';
+import { auditAttempt } from '../../../../production/scanner/_support';
 
 type ShipmentListRow = {
   id: string;
@@ -33,6 +34,7 @@ export async function GET(request: NextRequest) {
         orgId: session.org_id,
       } as unknown as ProductionContext;
       if (!(await hasPermission(permCtx, 'ship.pack.close'))) {
+        await auditAttempt(scopedClient, session, 'warehouse.scanner.ship.shipments', 'forbidden', {});
         return jsonError('forbidden', 403, {
           message: 'You need the "ship.pack.close" permission to pack shipments. Ask an admin to grant it.',
         });

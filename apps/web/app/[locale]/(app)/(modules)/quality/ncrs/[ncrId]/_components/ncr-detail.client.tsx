@@ -29,7 +29,7 @@
  * ncr-close-modal.client.tsx).
  */
 
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -37,6 +37,7 @@ import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Card } from '@monopilot/ui/Card';
 import { Select } from '@monopilot/ui/Select';
 
+import { PendingQualitySignoffPanel } from '../../../_components/pending-quality-signoff';
 import { NcrCloseModal, type NcrCloseLabels } from './ncr-close-modal.client';
 import {
   NCR_ROOT_CAUSE_CATEGORIES,
@@ -153,9 +154,31 @@ export function NcrDetailClient({
   const [status, setStatus] = useState(ncr.status);
   const [closedAt, setClosedAt] = useState(ncr.closedAt);
   const [closureSignatureHash, setClosureSignatureHash] = useState(ncr.closureSignatureHash);
+  const [pendingSignoff, setPendingSignoff] = useState(ncr.pendingSignoff);
+  const [pendingCloseResolution, setPendingCloseResolution] = useState(ncr.pendingCloseResolution);
+  /** Root cause as PERSISTED (not as typed) — what closeNcr will actually see. */
+  const [savedRootCause, setSavedRootCause] = useState(ncr.rootCause ?? '');
+  useEffect(() => {
+    setStatus(ncr.status);
+    setClosedAt(ncr.closedAt);
+    setClosureSignatureHash(ncr.closureSignatureHash);
+    setPendingSignoff(ncr.pendingSignoff);
+    setPendingCloseResolution(ncr.pendingCloseResolution);
+    setSavedRootCause(ncr.rootCause ?? '');
+  }, [
+    ncr.status,
+    ncr.closedAt,
+    ncr.closureSignatureHash,
+    ncr.pendingSignoff,
+    ncr.pendingCloseResolution,
+    ncr.rootCause,
+  ]);
   const isClosed = TERMINAL.has(status);
-  const isCritical = ncr.severity === 'critical';
-  const canClose = !isClosed && status === 'investigating';
+  const requiresTwoSignatures = ncr.requiredCloseSignatures === 2;
+  const investigating = !isClosed && status === 'investigating';
+  // Parity ncr-screens.jsx:191 (`canClose = … && d.rootCause`) + V-QA-NCR-005: no
+  // Close affordance until a root cause is recorded. The server rejects it too.
+  const canClose = investigating && savedRootCause.trim().length > 0;
 
   const [rootCause, setRootCause] = useState(ncr.rootCause ?? '');
   const [rootCauseCategory, setRootCauseCategory] = useState<string>(ncr.rootCauseCategory ?? '');
@@ -182,6 +205,7 @@ export function NcrDetailClient({
       if (result.data.status) {
         setStatus(result.data.status);
       }
+      setSavedRootCause(result.data.rootCause ?? '');
       setSaved(true);
       router.refresh();
     });
@@ -230,6 +254,13 @@ export function NcrDetailClient({
           <span aria-hidden>⚠</span>
           <span>{labels.overdueBanner.replace('{due}', ncr.responseDueAt ?? '—')}</span>
         </div>
+      )}
+
+      {pendingSignoff && !isClosed && (
+        <PendingQualitySignoffPanel
+          signoff={pendingSignoff}
+          labels={labels.closeLabels.pendingSignoff}
+        />
       )}
 
       {/* Immutable closed/signed banner (parity ncr-screens.jsx:223-228). */}
@@ -314,7 +345,7 @@ export function NcrDetailClient({
             <label className="flex flex-col gap-1">
               <span className="text-xs font-medium text-slate-700">
                 {labels.investigation.rootCause}
-                {canClose && <span aria-hidden className="ml-1 text-red-500">*</span>}
+                {investigating && <span aria-hidden className="ml-1 text-red-500">*</span>}
               </span>
               <textarea
                 data-testid="ncr-investigation-rootcause"
@@ -488,7 +519,7 @@ export function NcrDetailClient({
           )}
 
           {/* Critical dual-sign reg note (parity ncr-screens.jsx:341-345). */}
-          {isCritical && (
+          {requiresTwoSignatures && (
             <Card
               data-testid="ncr-detail-dualsign-note"
               className="rounded-xl border border-red-200 bg-red-50 p-4 text-[11px] leading-relaxed text-red-800"
@@ -504,13 +535,29 @@ export function NcrDetailClient({
         <NcrCloseModal
           open={closeOpen}
           onOpenChange={setCloseOpen}
-          ncr={{ id: ncr.id, ncrNumber: ncr.ncrNumber, title: ncr.title, severity: ncr.severity, status: ncr.status }}
+          ncr={{
+            id: ncr.id,
+            ncrNumber: ncr.ncrNumber,
+            title: ncr.title,
+            severity: ncr.severity,
+            status: ncr.status,
+            requiredCloseSignatures: ncr.requiredCloseSignatures,
+          }}
           labels={labels.closeLabels}
           closeNcrAction={closeNcrAction}
+          initialPendingSignoff={pendingSignoff}
+          initialResolution={pendingCloseResolution ?? ''}
+          onPending={(signoff, resolution) => {
+            setPendingSignoff(signoff);
+            setPendingCloseResolution(resolution);
+            router.refresh();
+          }}
           onClosed={(closed) => {
             setStatus('closed');
             setClosedAt(closed.closedAt);
             setClosureSignatureHash(closed.signatureHash);
+            setPendingSignoff(null);
+            setPendingCloseResolution(null);
             router.refresh();
           }}
         />

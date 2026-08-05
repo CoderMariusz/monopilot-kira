@@ -16,7 +16,11 @@ import {
 } from '../../../../../../lib/corrections/correct-ledger-entry';
 import { CONSUMPTION_CORRECT_PERMISSION } from '../../../../../../lib/corrections/constants';
 import { materialIdFromConsumptionExt } from '../../../../../../lib/corrections/material-scope';
-import { applyConsumptionWacReversal, applyOutputWacReversal } from '../../../../../../lib/finance/upsert-wac';
+import {
+  applyConsumptionWacReversal,
+  applyOutputWacReversal,
+  upsertWac,
+} from '../../../../../../lib/finance/upsert-wac';
 import { hasLpConsumptionOrChildren } from '../../../../../../lib/production/lp-downstream-guard';
 import { reconcileWoOutputGenealogy } from '../../../../../../lib/production/output-genealogy';
 import { syncWorkOrderOutputQuantities } from '../../../../../../lib/production/sync-work-order-output-quantities';
@@ -52,6 +56,7 @@ export type VoidWoOutputInput = {
   reasonCode: CorrectionReasonCode;
   note?: string | null;
   signature: { password: string };
+  replacement?: { qtyKg: string };
 };
 
 export type VoidWoOutputResult =
@@ -178,6 +183,59 @@ function negateDecimalString(value: string): string {
 
 function isZeroDecimalString(value: string): boolean {
   return Number(value) === 0;
+}
+
+type ParsedDecimal = {
+  negative: boolean;
+  coefficient: bigint;
+  scale: number;
+};
+
+function parseDecimal(value: string): ParsedDecimal | null {
+  const match = /^([+-]?)(\d+)(?:\.(\d+))?$/.exec(value.trim());
+  if (!match) return null;
+  const fraction = match[3] ?? '';
+  return {
+    negative: match[1] === '-',
+    coefficient: BigInt(`${match[2]}${fraction}`),
+    scale: fraction.length,
+  };
+}
+
+function isPositiveDecimalString(value: string): boolean {
+  const parsed = parseDecimal(value);
+  return parsed != null && !parsed.negative && parsed.coefficient > 0n;
+}
+
+/** Exact decimal multiply/divide rounded half-up to a NUMERIC target scale. */
+function multiplyDivideDecimalStrings(
+  left: string,
+  multiplier: string,
+  divisor: string,
+  resultScale: number,
+): string {
+  const a = parseDecimal(left);
+  const b = parseDecimal(multiplier);
+  const c = parseDecimal(divisor);
+  if (!a || !b || !c || c.coefficient === 0n) {
+    throw new CorrectionInvalidInputError('invalid replacement valuation');
+  }
+
+  const negative = a.negative !== b.negative !== c.negative;
+  const numerator =
+    a.coefficient *
+    b.coefficient *
+    10n ** BigInt(c.scale + resultScale);
+  const denominator =
+    c.coefficient *
+    10n ** BigInt(a.scale + b.scale);
+  const scaled = (numerator + denominator / 2n) / denominator;
+
+  const digits = scaled.toString().padStart(resultScale + 1, '0');
+  const integer = resultScale === 0 ? digits : digits.slice(0, -resultScale);
+  const fraction = resultScale === 0 ? '' : digits.slice(-resultScale).replace(/0+$/, '');
+  const formatted = fraction.length > 0 ? `${integer}.${fraction}` : integer;
+  return negative && scaled !== 0n ? `-${formatted}` : formatted;
 }
 
 // Locks the original waste row (FOR UPDATE OF wl — same locking discipline as
@@ -569,6 +627,7 @@ async function writeOutputVoidAudit(
     original: OutputRow;
     lp: LicensePlateRow;
     correctionId: string;
+    replacementId: string | null;
     reasonCode: CorrectionReasonCode;
     note: string | null;
   },
@@ -612,6 +671,7 @@ async function writeOutputVoidAudit(
       JSON.stringify({
         correction_id: params.correctionId,
         correction_of_id: params.original.id,
+        replacement_id: params.replacementId,
         reason_code: params.reasonCode,
         note: params.note,
         lp_status: VOIDED_LP_STATUS,
@@ -620,6 +680,67 @@ async function writeOutputVoidAudit(
       randomUUID(),
     ],
   );
+}
+
+async function insertReplacementOutput(
+  ctx: ProductionContext,
+  params: {
+    original: OutputRow;
+    reasonCode: CorrectionReasonCode;
+    note: string | null;
+    qtyKg: string;
+    wacSnapshot: Record<string, string>;
+  },
+): Promise<{ id: string }> {
+  const transactionId = correctionTransactionId({
+    orgId: ctx.orgId,
+    table: 'wo_outputs_replacement',
+    originalId: params.original.id,
+    reasonCode: params.reasonCode,
+  });
+  const { rows } = await ctx.client.query<{ id: string }>(
+    `insert into public.wo_outputs (
+       org_id, correction_of_id, transaction_id, site_id, wo_id, output_type,
+       product_id, lp_id, batch_number, qty_kg, uom, qa_status, expiry_date,
+       catch_weight_details, allergen_profile_snapshot, ext_jsonb,
+       registered_by, created_by, updated_by
+     )
+     values (
+       app.current_org_id(), $1::uuid, $2::uuid, $3::uuid, $4::uuid, $5,
+       $6::uuid, null, $7, $8::numeric, $9, 'PASSED', $10::date,
+       $11::jsonb, $12::jsonb, $13::jsonb,
+       $14::uuid, $14::uuid, $14::uuid
+     )
+     returning id`,
+    [
+      null,
+      transactionId,
+      params.original.site_id,
+      params.original.wo_id,
+      params.original.output_type,
+      params.original.product_id,
+      `${params.original.batch_number}-REPL-${params.original.id.slice(0, 8)}`,
+      params.qtyKg,
+      params.original.uom,
+      params.original.expiry_date,
+      params.original.catch_weight_details == null
+        ? null
+        : JSON.stringify(params.original.catch_weight_details),
+      params.original.allergen_profile_snapshot == null
+        ? null
+        : JSON.stringify(params.original.allergen_profile_snapshot),
+      JSON.stringify({
+        correction_replacement_for_id: params.original.id,
+        correction_reason_code: params.reasonCode,
+        correction_note: params.note,
+        ...params.wacSnapshot,
+      }),
+      ctx.userId,
+    ],
+  );
+  const replacement = rows[0];
+  if (!replacement) throw new Error('persistence_failed');
+  return replacement;
 }
 
 async function writeConsumptionReverseAudit(
@@ -936,8 +1057,18 @@ export async function voidWoOutput(input: VoidWoOutputInput): Promise<VoidWoOutp
   const reasonCode = typeof input?.reasonCode === 'string' ? input.reasonCode.trim() : '';
   const note = typeof input?.note === 'string' && input.note.trim().length > 0 ? input.note.trim() : null;
   const password = typeof input?.signature?.password === 'string' ? input.signature.password : '';
+  const replacementQtyKg = input?.replacement == null
+    ? null
+    : typeof input.replacement.qtyKg === 'string'
+      ? input.replacement.qtyKg.trim()
+      : '';
 
-  if (!isUuid(outputId) || !isReasonCode(reasonCode) || password.length === 0) {
+  if (
+    !isUuid(outputId) ||
+    !isReasonCode(reasonCode) ||
+    password.length === 0 ||
+    (replacementQtyKg != null && !isPositiveDecimalString(replacementQtyKg))
+  ) {
     return { ok: false, error: 'invalid_input' };
   }
 
@@ -1027,7 +1158,7 @@ export async function voidWoOutput(input: VoidWoOutputInput): Promise<VoidWoOutp
         },
       });
 
-      await applyOutputWacReversal(ctx.client, {
+      const wacReversal = await applyOutputWacReversal(ctx.client, {
         orgId,
         siteId: original.site_id,
         itemId: original.product_id,
@@ -1038,6 +1169,42 @@ export async function voidWoOutput(input: VoidWoOutputInput): Promise<VoidWoOutp
         logContext: { woOutputId: original.id },
       });
 
+      let replacementId: string | null = null;
+      if (replacementQtyKg != null) {
+        let wacSnapshot: Record<string, string>;
+        if (wacReversal.applied) {
+          const replacementValue = multiplyDivideDecimalStrings(
+            replacementQtyKg,
+            wacReversal.deltaValue,
+            wacReversal.deltaQtyKg,
+            4,
+          );
+          const replacementWac = await upsertWac(ctx.client, {
+            orgId,
+            siteId: original.site_id,
+            itemId: original.product_id,
+            deltaQtyKg: replacementQtyKg,
+            deltaValue: replacementValue,
+            updatedBy: userId,
+          });
+          wacSnapshot = {
+            wac_qty_kg: replacementWac.appliedQtyKg ?? replacementQtyKg,
+            wac_value: replacementWac.appliedValue ?? replacementValue,
+          };
+        } else {
+          wacSnapshot = { wac_excluded: 'un_costed' };
+        }
+
+        const replacement = await insertReplacementOutput(ctx, {
+          original,
+          reasonCode,
+          note,
+          qtyKg: replacementQtyKg,
+          wacSnapshot,
+        });
+        replacementId = replacement.id;
+      }
+
       await writeOutputVoidStockMove(ctx, { original, lp, correctionId: correction.id, reasonCode, note });
       await markLpVoided(ctx, original.lp_id);
       await unlinkLpGenealogyChildren(ctx, original.lp_id);
@@ -1046,6 +1213,7 @@ export async function voidWoOutput(input: VoidWoOutputInput): Promise<VoidWoOutp
         original,
         lp,
         correctionId: correction.id,
+        replacementId,
         reasonCode,
         note,
       });

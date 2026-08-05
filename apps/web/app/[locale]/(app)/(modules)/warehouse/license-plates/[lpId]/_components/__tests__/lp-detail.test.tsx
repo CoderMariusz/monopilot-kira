@@ -544,6 +544,41 @@ describe('LpDetailClient (WH-003 parity)', () => {
     expect(await screen.findByTestId('lp-action-toast')).toHaveTextContent(EN.actions.unblock.success);
   });
 
+  it('keeps the unblock modal open and freezes the decision while awaiting a second signature', async () => {
+    const user = userEvent.setup();
+    const unblockLpAction = vi.fn(async () => ({
+      ok: true as const,
+      data: {
+        lpId: 'lp-1',
+        status: 'blocked' as const,
+        qaStatus: 'on_hold' as const,
+        holdId: 'hold-1',
+        holdNumber: 'HLD-00000001',
+        pendingSignoff: {
+          state: 'pending_second_signature' as const,
+          subjectHash: 'a'.repeat(64),
+          firstSignatureId: 'signature-1',
+          firstSignedAt: '2026-06-23T00:00:00.000Z',
+          firstSigner: { id: 'user-1', displayName: 'Quality Lead' },
+          awaitingRole: { id: 'role-2', displayName: 'Production Manager' },
+        },
+      },
+    }));
+
+    renderDetail({ status: 'blocked' }, EN, { unblockLpAction });
+    await user.click(screen.getByTestId('lp-action-unblock'));
+    await user.type(screen.getByTestId('lp-unblock-reason'), 'inspection passed');
+    await user.type(screen.getByTestId('lp-unblock-password'), 'Account-Password-1!');
+    await user.click(screen.getByTestId('lp-unblock-confirm'));
+
+    expect(await screen.findByTestId('lp-unblock-pending-signoff')).toHaveTextContent('Quality Lead');
+    expect(screen.getByTestId('lp-unblock-pending-signoff')).toHaveTextContent('Production Manager');
+    expect(screen.getByTestId('lp-unblock-reason')).toBeDisabled();
+    expect(screen.getByTestId('lp-unblock-password')).toHaveValue('');
+    expect(screen.getByTestId('lp-unblock-confirm')).toHaveTextContent(EN.actions.unblock.confirmSecond);
+    expect(screen.queryByTestId('lp-action-toast')).not.toBeInTheDocument();
+  });
+
   it('opens the QA release modal for pending LPs', () => {
     renderDetail({ qaStatus: 'pending' });
     const btn = screen.getByTestId('lp-action-qa');

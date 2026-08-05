@@ -172,6 +172,18 @@ export function DeviationsListClient({
                     <Badge variant={STATUS_VARIANT[r.status] ?? 'muted'} data-testid={`deviation-status-${r.id}`}>
                       {labels.status[r.status] ?? r.status}
                     </Badge>
+                    {r.pendingSignoff && (
+                      <div
+                        data-testid={`deviation-pending-signoff-${r.id}`}
+                        className="mt-1 text-[10px] leading-snug text-amber-700"
+                      >
+                        {resolveLabels.pendingSignoff.signedBy}: {r.pendingSignoff.firstSigner.displayName}
+                        <br />
+                        {resolveLabels.pendingSignoff.awaitingRole}:{' '}
+                        {r.pendingSignoff.awaitingRole?.displayName
+                          ?? resolveLabels.pendingSignoff.anyAuthorizedSigner}
+                      </div>
+                    )}
                   </TableCell>
                   {/* Linked hold — hold NUMBER deep-linked to /quality/holds/{id}; never the id. */}
                   <TableCell>
@@ -200,7 +212,9 @@ export function DeviationsListClient({
                         onClick={() => canResolve && setTarget(r)}
                         className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 transition enabled:hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        {labels.resolveAction}
+                        {r.pendingSignoff
+                          ? resolveLabels.pendingSignoff.submitSecond
+                          : labels.resolveAction}
                       </button>
                     ) : (
                       <span className="text-xs text-slate-400">{labels.noHold}</span>
@@ -225,6 +239,10 @@ export function DeviationsListClient({
           resolveAction={resolveAction}
           onResolved={() => {
             setTarget(null);
+            router.refresh();
+          }}
+          onPending={(updated) => {
+            setTarget(updated);
             router.refresh();
           }}
         />

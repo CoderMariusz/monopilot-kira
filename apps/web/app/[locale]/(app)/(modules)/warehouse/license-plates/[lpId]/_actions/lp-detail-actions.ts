@@ -1,6 +1,7 @@
 'use server';
 
 import { releaseHoldFromWarehouseLpUnblock } from '../../../../quality/_actions/hold-actions';
+import type { PendingQualitySignoff } from '../../../../quality/_actions/quality-signoff-types';
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
 import {
   WAREHOUSE_LP_RESERVE_PERMISSION,
@@ -26,7 +27,7 @@ export type BlockLpResult = {
   holdNumber: string;
 };
 
-export type UnblockLpResult = {
+type CompletedUnblockLpResult = {
   lpId: string;
   status: 'available';
   qaStatus: 'released';
@@ -34,6 +35,17 @@ export type UnblockLpResult = {
   holdNumber: string;
   releasedAt: string;
 };
+
+type PendingUnblockLpResult = {
+  lpId: string;
+  status: 'blocked';
+  qaStatus: 'on_hold';
+  holdId: string;
+  holdNumber: string;
+  pendingSignoff: PendingQualitySignoff;
+};
+
+export type UnblockLpResult = CompletedUnblockLpResult | PendingUnblockLpResult;
 
 export type ReserveLpResult = {
   lpId: string;
@@ -378,6 +390,20 @@ export async function unblockLp(
     if (released.reason === 'forbidden') return { ok: false, reason: 'forbidden' };
     if (released.message === 'license plate not found') return { ok: false, reason: 'not_found' };
     return { ok: false, reason: 'error', message: released.message };
+  }
+
+  if (released.data.status === 'pending_second_signature') {
+    return {
+      ok: true,
+      data: {
+        lpId,
+        status: 'blocked',
+        qaStatus: 'on_hold',
+        holdId: released.data.id,
+        holdNumber: released.data.holdNumber,
+        pendingSignoff: released.data.pendingSignoff,
+      },
+    };
   }
 
   return {

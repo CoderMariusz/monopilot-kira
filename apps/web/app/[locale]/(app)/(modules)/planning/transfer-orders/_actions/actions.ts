@@ -28,6 +28,7 @@ import {
   PLANNING_TO_MANAGE_PERMISSION,
   isPgError,
   numeric6PositiveSchema,
+  normalizeProcurementLine,
   pgErrorToResult,
   toIso,
   uuidSchema,
@@ -608,6 +609,20 @@ export async function addTransferOrderLine(id: string, rawInput: unknown): Promi
       if (!header) return { ok: false, error: 'not_found' };
       if (header.status !== 'draft') return { ok: false, error: 'invalid_state' };
       if (!(await ensureItemInOrg(ctx.client, input.itemId))) return { ok: false, error: 'forbidden' };
+      const normalizedLine = await normalizeProcurementLine(ctx.client, {
+        itemId: input.itemId,
+        quantity: input.quantity,
+        uom: input.uom,
+      });
+      if (!normalizedLine) {
+        return {
+          ok: false,
+          error: 'line_uom_not_convertible',
+          code: 'line_uom_not_convertible',
+        };
+      }
+      // Zawężenie z guardu nie sięga do ciała deklaracji funkcji poniżej — przypinamy je aliasem.
+      const line = normalizedLine;
 
       await denseRenumberTransferOrderLines(ctx.client, input.toId);
       async function insertLine() {
@@ -623,7 +638,14 @@ export async function addTransferOrderLine(id: string, rawInput: unknown): Promi
              (org_id, to_id, item_id, qty, uom, line_no, created_by, updated_by)
            values
              (app.current_org_id(), $1::uuid, $2::uuid, $3::numeric, $4, $5::integer, $6::uuid, $6::uuid)`,
-          [input.toId, input.itemId, input.quantity, input.uom, next.rows[0]?.line_no ?? 1, userId],
+          [
+            input.toId,
+            input.itemId,
+            line.quantity,
+            line.uom,
+            next.rows[0]?.line_no ?? 1,
+            userId,
+          ],
         );
       }
       try {
@@ -638,7 +660,12 @@ export async function addTransferOrderLine(id: string, rawInput: unknown): Promi
         action: 'planning.transfer_order.line_added',
         resourceType: 'transfer_order',
         resourceId: input.toId,
-        afterState: { itemId: input.itemId, quantity: input.quantity, uom: input.uom, notes: input.notes ?? null },
+        afterState: {
+          itemId: input.itemId,
+          quantity: normalizedLine.quantity,
+          uom: normalizedLine.uom,
+          notes: input.notes ?? null,
+        },
       });
       revalidateTransferOrderPaths(input.toId);
       return { ok: true, data: { ...mapTransferOrder(header), lines: await fetchLines(ctx.client, input.toId) } };
@@ -670,8 +697,8 @@ export async function updateTransferOrderLine(
       if (!header) return { ok: false, error: 'not_found' };
       if (header.status !== 'draft') return { ok: false, error: 'invalid_state' };
 
-      const current = await ctx.client.query<{ id: string; qty: string; uom: string }>(
-        `select id, qty::text as qty, uom
+      const current = await ctx.client.query<{ id: string; item_id: string; qty: string; uom: string }>(
+        `select id, item_id::text, qty::text as qty, uom
            from public.transfer_order_lines
           where org_id = app.current_org_id()
             and to_id = $1::uuid
@@ -682,6 +709,22 @@ export async function updateTransferOrderLine(
       );
       const previous = current.rows[0];
       if (!previous) return { ok: false, error: 'not_found' };
+
+      const normalizedLine =
+        input.quantity !== undefined || input.uom !== undefined
+          ? await normalizeProcurementLine(ctx.client, {
+              itemId: previous.item_id,
+              quantity: input.quantity ?? previous.qty,
+              uom: input.uom ?? previous.uom,
+            })
+          : null;
+      if ((input.quantity !== undefined || input.uom !== undefined) && !normalizedLine) {
+        return {
+          ok: false,
+          error: 'line_uom_not_convertible',
+          code: 'line_uom_not_convertible',
+        };
+      }
 
       const updated = await ctx.client.query(
         `update public.transfer_order_lines l
@@ -696,7 +739,13 @@ export async function updateTransferOrderLine(
             and t.id = $1::uuid
             and t.status = 'draft'
             and l.id = $2::uuid`,
-        [input.toId, input.lineId, input.quantity ?? previous.qty, input.uom ?? previous.uom, userId],
+        [
+          input.toId,
+          input.lineId,
+          normalizedLine?.quantity ?? previous.qty,
+          normalizedLine?.uom ?? previous.uom,
+          userId,
+        ],
       );
       if ((updated.rowCount ?? 0) === 0) return { ok: false, error: 'invalid_state' };
 
@@ -707,8 +756,8 @@ export async function updateTransferOrderLine(
         beforeState: { lineId: input.lineId, quantity: previous.qty, uom: previous.uom },
         afterState: {
           lineId: input.lineId,
-          quantity: input.quantity ?? previous.qty,
-          uom: input.uom ?? previous.uom,
+          quantity: normalizedLine?.quantity ?? previous.qty,
+          uom: normalizedLine?.uom ?? previous.uom,
           notes: input.notes ?? null,
         },
       });
@@ -842,7 +891,7 @@ type PlannedPick = {
   /** Quantity removed from the source LP (LP native UoM, micro-6). */
   takeLpMicro: bigint;
   lpUom: string;
-  /** Quantity recorded on the in-transit junction row (line UoM, micro-6). */
+  /** Quantity recorded on the in-transit junction row (item base UoM, micro-6). */
   recordMicro: bigint;
   recordUom: string;
 };
@@ -897,8 +946,9 @@ async function shipTransferOrder(
   // C058: shadow LP quantity across ALL lines — duplicate-product lines must not
   // each plan against the pre-ship DB quantity independently.
   // PF-R10-01: convertible UoMs (e.g. kg LP + g line) are normalized to item base
-  // at micro-6 before allocation; picks are recorded in line UoM on the junction.
+  // at micro-6 before allocation and materialization.
   const picks: PlannedPick[] = [];
+  const normalizedLines = new Map<string, { quantity: string; uom: string }>();
   const skippedHeldLps: SkippedHeldLp[] = [];
   const lpQtyShadow = new Map<string, bigint>();
   for (const line of lines.rows) {
@@ -914,6 +964,10 @@ async function shipTransferOrder(
         message: `line ${line.line_no}: unconvertible_uom ${line.uom}`,
       };
     }
+    normalizedLines.set(line.id, {
+      quantity: microToText6(lineNeedBase),
+      uom: item.uom_base,
+    });
 
     const lps = await ctx.client.query<SourceLpRow>(
       `select lp.id, lp.lp_number, lp.quantity::text as quantity, lp.reserved_qty::text as reserved_qty,
@@ -958,8 +1012,7 @@ async function shipTransferOrder(
 
       const takeBase = availableBase < remainingBase ? availableBase : remainingBase;
       const takeLpMicro = baseMicro6ToQty(item, takeBase, lp.uom);
-      const recordMicro = baseMicro6ToQty(item, takeBase, line.uom);
-      if (takeLpMicro === null || takeLpMicro <= 0n || recordMicro === null || recordMicro <= 0n) {
+      if (takeLpMicro === null || takeLpMicro <= 0n || takeBase <= 0n) {
         continue;
       }
 
@@ -972,8 +1025,8 @@ async function shipTransferOrder(
         lpLocationId: lp.location_id,
         takeLpMicro,
         lpUom: lp.uom,
-        recordMicro,
-        recordUom: line.uom,
+        recordMicro: takeBase,
+        recordUom: item.uom_base,
       });
       remainingBase -= takeBase;
     }
@@ -1004,6 +1057,24 @@ async function shipTransferOrder(
   }
 
   // Phase 2 — apply the plan (all-or-nothing inside the withOrgContext txn).
+  for (const line of lines.rows) {
+    const normalized = normalizedLines.get(line.id);
+    if (!normalized) continue;
+    if (toMicro6(line.qty) === toMicro6(normalized.quantity) && line.uom.toLowerCase() === normalized.uom.toLowerCase()) {
+      continue;
+    }
+    await ctx.client.query(
+      `update public.transfer_order_lines
+          set qty = $2::numeric,
+              uom = $3,
+              updated_by = $4::uuid,
+              updated_at = now()
+        where org_id = app.current_org_id()
+          and id = $1::uuid`,
+      [line.id, normalized.quantity, normalized.uom, ctx.userId],
+    );
+  }
+
   const pickedLpIds = [...new Set(picks.map((pick) => pick.lpId))];
   for (const lpId of pickedLpIds) {
     const finalQtyMicro = lpQtyShadow.get(lpId);
@@ -1116,14 +1187,22 @@ async function receiveTransferOrder(
     best_before_date: string | null;
     shelf_life_mode_snapshot: string | null;
     qa_status: string;
+    uom_base: string;
+    net_qty_per_each: string | null;
+    each_per_box: string | null;
   }>(
     `select tll.id, tll.source_lp_id, tll.qty::text as qty, tll.uom,
             lp.product_id, lp.batch_number, lp.supplier_batch_number,
-            lp.expiry_date, lp.best_before_date, lp.shelf_life_mode_snapshot, lp.qa_status
+            lp.expiry_date, lp.best_before_date, lp.shelf_life_mode_snapshot, lp.qa_status,
+            i.uom_base, i.net_qty_per_each::text as net_qty_per_each,
+            i.each_per_box::text as each_per_box
        from public.transfer_order_line_lps tll
        join public.license_plates lp
          on lp.org_id = app.current_org_id()
         and lp.id = tll.source_lp_id
+       join public.items i
+         on i.org_id = app.current_org_id()
+        and i.id = lp.product_id
       where tll.org_id = app.current_org_id()
         and tll.to_id = $1::uuid
         and tll.dest_lp_id is null
@@ -1132,7 +1211,27 @@ async function receiveTransferOrder(
     [to.id],
   );
 
-  for (const row of pending.rows) {
+  const normalizedPending = pending.rows.map((row) => {
+    const item: TransferItemUomRow = {
+      id: row.product_id,
+      uom_base: row.uom_base,
+      net_qty_per_each: row.net_qty_per_each,
+      each_per_box: row.each_per_box,
+    };
+    const quantityBase = qtyToBaseMicro6(item, row.qty, row.uom);
+    if (quantityBase === null || quantityBase <= 0n) {
+      throw new TransferOrderConservationError(
+        `Cannot receive junction ${row.id}: ${row.qty} ${row.uom} is not convertible to ${row.uom_base}`,
+      );
+    }
+    return {
+      ...row,
+      materializedQty: microToText6(quantityBase),
+      materializedUom: row.uom_base,
+    };
+  });
+
+  for (const row of normalizedPending) {
     const lpNumber = makeLpNumber();
     const inserted = await ctx.client.query<{ id: string }>(
       `insert into public.license_plates (
@@ -1154,8 +1253,8 @@ async function receiveTransferOrder(
         destLocationId,
         lpNumber,
         row.product_id,
-        row.qty,
-        row.uom,
+        row.materializedQty,
+        row.materializedUom,
         row.qa_status,
         row.batch_number,
         row.supplier_batch_number,
@@ -1174,7 +1273,7 @@ async function receiveTransferOrder(
       `insert into public.lp_genealogy (org_id, child_lp_id, parent_lp_id, relation_type, qty, uom)
        values (app.current_org_id(), $1::uuid, $2::uuid, 'derived', $3::numeric, $4)
        on conflict (org_id, child_lp_id, parent_lp_id, relation_type) do nothing`,
-      [destLp.id, row.source_lp_id, row.qty, row.uom],
+      [destLp.id, row.source_lp_id, row.materializedQty, row.materializedUom],
     );
 
     await ctx.client.query(
@@ -1193,7 +1292,16 @@ async function receiveTransferOrder(
        values (app.current_org_id(), $1, $2::uuid, 'transfer', null, $3::uuid,
                $4::numeric, $5, $6, $7::uuid, $8::uuid, $8::uuid)
        on conflict (org_id, transaction_id) do nothing`,
-      [makeStockMoveNumber(moveTxn), destLp.id, destLocationId, row.qty, row.uom, `TO receive ${to.to_number}`, moveTxn, ctx.userId],
+      [
+        makeStockMoveNumber(moveTxn),
+        destLp.id,
+        destLocationId,
+        row.materializedQty,
+        row.materializedUom,
+        `TO receive ${to.to_number}`,
+        moveTxn,
+        ctx.userId,
+      ],
     );
     await ctx.client.query(
       `update public.transfer_order_line_lps

@@ -23,6 +23,7 @@
  */
 
 import { getTranslations } from 'next-intl/server';
+import { messageTemplate } from '../../../../../../../i18n/message-template';
 
 import {
   FormulationEditor,
@@ -259,7 +260,7 @@ const LABEL_KEYS = (Object.keys(DEFAULT_LABELS) as Array<keyof FormulationLabels
 
 function translateLabel(t: (key: string) => string, key: ScalarLabelKey): string {
   try {
-    const value = t(key);
+    const value = messageTemplate(t, key);
     return value === key ? (DEFAULT_LABELS[key] ?? '') : value;
   } catch {
     return DEFAULT_LABELS[key] ?? '';
@@ -269,7 +270,7 @@ function translateLabel(t: (key: string) => string, key: ScalarLabelKey): string
 /** Translate a nested picker key (e.g. `picker.createItemCta`) with a fallback. */
 function translatePickerKey(t: (key: string) => string, key: string, fallback: string): string {
   try {
-    const value = t(key);
+    const value = messageTemplate(t, key);
     return value === key ? fallback : value;
   } catch {
     return fallback;
@@ -438,7 +439,7 @@ async function buildAllergenNames(locale: string): Promise<Record<string, string
     const t = await getTranslations({ locale, namespace: 'npd.allergenNames' });
     for (const code of EU14_ALLERGEN_CODES) {
       try {
-        const value = t(code);
+        const value = messageTemplate(t, code);
         names[code] = value === code ? code : value;
       } catch {
         names[code] = code;
@@ -680,7 +681,7 @@ async function buildWipNoFgLabels(
     const t = await getTranslations({ locale, namespace: 'npd.formulationEditor' });
     const pick = (key: string, fallback: string) => {
       try {
-        const value = t(key);
+        const value = messageTemplate(t, key);
         return !value || value === key || value.includes('npd.formulationEditor') ? fallback : value;
       } catch {
         return fallback;
@@ -708,7 +709,7 @@ async function buildWipPanelLabels(locale: string): Promise<FaProductionTabLabel
     const t = await getTranslations({ locale, namespace: 'npd.faProductionTab' });
     const p = (key: string, fallback: string) => {
       try {
-        const value = t(key);
+        const value = messageTemplate(t, key);
         return value === key ? fallback : value;
       } catch {
         return fallback;
@@ -901,7 +902,7 @@ async function buildBomLabels(locale: string): Promise<FaBomTabLabels> {
     const t = await getTranslations({ locale, namespace: 'npd.faBomTab' });
     const p = (key: string, fallback: string) => {
       try {
-        const value = t(key);
+        const value = messageTemplate(t, key);
         return value === key ? fallback : value;
       } catch {
         return fallback;

@@ -123,6 +123,28 @@ function makeClient(): QueryClient {
         }
         return { rows: [{ id: supplierId, status: supplierStatuses[supplierId] }], rowCount: 1 };
       }
+      // normalizeItemQuantityToBase — item master is the UoM allow-list.
+      // MUSI byc PRZED ogolnym 'from public.items', bo zapytanie normalizujace
+      // tez czyta z public.items i wpadloby w tamta galaz (bez base_uom => null
+      // => line_uom_not_convertible zamiast sukcesu).
+      if (normalized.includes('i.uom_base as base_uom')) {
+        if (!itemExists) return { rows: [], rowCount: 0 };
+        const inputUom = String(params[0]).toLowerCase();
+        return {
+          rows: [{
+            base_uom: 'kg',
+            secondary_uom: 'g',
+            output_uom: null,
+            net_qty_per_each: null,
+            each_per_box: null,
+            input_factor_to_base: inputUom === 'g' ? '0.001' : inputUom === 'kg' ? '1' : null,
+            input_category: inputUom === 'g' || inputUom === 'kg' ? 'mass' : null,
+            base_factor_to_base: '1',
+            base_category: 'mass',
+          }],
+          rowCount: 1,
+        };
+      }
       if (normalized.includes('from public.items')) {
         return { rows: itemExists ? [{ id: ITEM_ID }] : [], rowCount: itemExists ? 1 : 0 };
       }
@@ -275,7 +297,9 @@ describe('planning purchase order draft edit actions', () => {
 
       expect(result.ok).toBe(true);
       const insert = vi.mocked(client.query).mock.calls.find(([sql]) => String(sql).startsWith('insert into public.purchase_order_lines'));
-      expect(insert?.[1]).toEqual([PO_ID, ITEM_ID, '1.250', 'kg', '3.4567', '0', USER_ID]);
+      // qty leci przez normalizacje do jednostki bazowej pozycji, ktora zwraca
+      // kanoniczny decimal (bez koncowych zer) — ta sama wartosc, inny zapis.
+      expect(insert?.[1]).toEqual([PO_ID, ITEM_ID, '1.25', 'kg', '3.4567', '0', USER_ID]);
     });
 
     it('retries once when concurrent append collides on line_no', async () => {
@@ -316,11 +340,25 @@ describe('planning purchase order draft edit actions', () => {
 
   describe('updatePurchaseOrderLine', () => {
     it('updates a draft line with decimal string qty and unitPrice', async () => {
-      const result = await updatePurchaseOrderLine({ poId: PO_ID, lineId: LINE_ID, qty: '2.500', uom: 'case', unitPrice: '7.0000' });
+      // 'case' bylo wolnym tekstem sprzed uszczelnienia jednostek — pozycja RM-BEEF-80
+      // ma baze 'kg', wiec happy-path uzywa jednostki, ktora ta pozycja faktycznie ma.
+      const result = await updatePurchaseOrderLine({ poId: PO_ID, lineId: LINE_ID, qty: '2.500', uom: 'kg', unitPrice: '7.0000' });
 
       expect(result.ok).toBe(true);
       const update = vi.mocked(client.query).mock.calls.find(([sql]) => String(sql).startsWith('update public.purchase_order_lines l'));
-      expect(update?.[1]).toEqual([PO_ID, LINE_ID, '2.500', 'case', '7.0000', null, USER_ID]);
+      expect(update?.[1]).toEqual([PO_ID, LINE_ID, '2.5', 'kg', '7.0000', null, USER_ID]);
+    });
+
+    it('returns line_uom_not_convertible for a uom the item does not have', async () => {
+      await expect(
+        updatePurchaseOrderLine({ poId: PO_ID, lineId: LINE_ID, qty: '2.500', uom: 'case' }),
+      ).resolves.toEqual({
+        ok: false,
+        error: 'line_uom_not_convertible',
+        code: 'line_uom_not_convertible',
+      });
+      const calls = vi.mocked(client.query).mock.calls.map(([sql]) => String(sql));
+      expect(calls.some((sql) => sql.startsWith('update public.purchase_order_lines l'))).toBe(false);
     });
 
     it('returns invalid_state for a non-draft purchase order', async () => {

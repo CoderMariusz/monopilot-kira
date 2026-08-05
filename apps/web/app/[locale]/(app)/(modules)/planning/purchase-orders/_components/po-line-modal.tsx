@@ -27,7 +27,11 @@ import Input from '@monopilot/ui/Input';
 
 import { ItemPicker } from '../../../../(npd)/_components/item-picker';
 import type { ItemPickerOption, SearchItemsInput } from '../../../../../../(npd)/fa/actions/search-items-types';
-import { UomSelect, type UomOptionLabels } from '../../../../../../../components/forms/uom-select';
+import {
+  itemUomOptions,
+  UomSelect,
+  type UomOptionLabels,
+} from '../../../../../../../components/forms/uom-select';
 import type { GetItemSupplierPriceAction } from './create-po-modal';
 import {
   getPoLineFieldErrors,
@@ -305,7 +309,15 @@ export function PoLineModal({
               <div className="flex items-center gap-2 text-sm" data-testid="po-line-item-picked">
                 <span className="font-mono font-semibold text-blue-700">{item.itemCode}</span>
                 <span className="text-slate-800">{item.name}</span>
-                <button type="button" className="btn btn--ghost btn-sm" data-testid="po-line-item-clear" onClick={() => setItem(null)}>
+                <button
+                  type="button"
+                  className="btn btn--ghost btn-sm"
+                  data-testid="po-line-item-clear"
+                  onClick={() => {
+                    setItem(null);
+                    setUom('');
+                  }}
+                >
                   ✕
                 </button>
               </div>
@@ -314,7 +326,7 @@ export function PoLineModal({
                 searchItemsAction={searchSupplierItems}
                 onSelect={(picked) => {
                   setItem(picked);
-                  if (!uom) setUom(picked.uomBase);
+                  setUom(picked.uomBase);
                   void prefillPrice(picked);
                 }}
                 triggerClassName="btn btn--secondary btn-sm"
@@ -341,7 +353,8 @@ export function PoLineModal({
                 value={uom}
                 onValueChange={setUom}
                 labels={labels.uomOptions}
-                {...(labels.uomUnits && labels.uomUnits.length > 0 ? { units: labels.uomUnits } : {})}
+                units={isEdit ? [editLine!.uom] : itemUomOptions(item)}
+                disabled={!isEdit && !item}
                 placeholder={labels.uomPlaceholder}
                 aria-label={labels.lineUom}
               />

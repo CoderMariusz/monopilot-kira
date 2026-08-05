@@ -15,6 +15,7 @@
  */
 
 import { getTranslations } from 'next-intl/server';
+import { messageTemplate } from '../../../../../../i18n/message-template';
 
 import { exampleCodeMask } from '../../../../../../lib/documents/code-mask';
 import { ProductCreateWizard } from './product-create-wizard.client';
@@ -65,7 +66,7 @@ const PREFIX_AGNOSTIC_KEYS: ReadonlySet<keyof FaCreateLabels> = new Set([
 function translateLabel(t: (key: string) => string, key: keyof FaCreateLabels): string {
   if (PREFIX_AGNOSTIC_KEYS.has(key)) return DEFAULT_LABELS[key];
   try {
-    const value = t(key);
+    const value = messageTemplate(t, key);
     return value === key ? DEFAULT_LABELS[key] : value;
   } catch {
     return DEFAULT_LABELS[key];

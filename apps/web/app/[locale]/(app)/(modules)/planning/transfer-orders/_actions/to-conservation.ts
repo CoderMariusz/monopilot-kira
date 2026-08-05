@@ -111,7 +111,7 @@ export async function snapshotTransferOrderMatterBalance(
     total: string;
   }>(
     `select tol.item_id::text as item_id,
-            tol.uom,
+            tll.uom,
             coalesce(sum(tll.qty), 0)::text as total
        from public.transfer_order_line_lps tll
        join public.transfer_order_lines tol
@@ -120,7 +120,7 @@ export async function snapshotTransferOrderMatterBalance(
       where tll.org_id = app.current_org_id()
         and tll.to_id = $1::uuid
         and tll.dest_lp_id is null
-      group by tol.item_id, tol.uom`,
+      group by tol.item_id, tll.uom`,
     [toId],
   );
 

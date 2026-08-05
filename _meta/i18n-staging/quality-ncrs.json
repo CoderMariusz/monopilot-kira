@@ -152,7 +152,7 @@
         "noReading": "The triggering monitoring reading could not be located; showing the CCP definition only.",
         "none": "—"
       },
-      "dualSign": "V-QA-NCR-006 — critical NCRs require dual sign (Quality Lead + Production Manager) at close."
+      "dualSign": "This policy requires two distinct signatures (Quality Lead + Production Manager) at close."
     },
     "closeModal": {
       "title": "Close NCR — {number}",
@@ -165,7 +165,7 @@
       "resolution": "Closure notes",
       "resolutionHelp": "Min 10 characters. Describe the closure rationale and resolution actions.",
       "resolutionPlaceholder": "Describe closure rationale and resolution actions…",
-      "dualSignWarning": "Critical NCR — dual signature required (V-QA-NCR-006). Both Quality Lead and Production Manager must sign at close.",
+      "dualSignWarning": "This close requires two distinct signatures. Both Quality Lead and Production Manager must sign.",
       "esign": {
         "title": "Electronic signature (21 CFR Part 11)",
         "meaning": "Entering your account password or e-sign PIN applies your electronic signature to this NCR closure.",
@@ -176,9 +176,17 @@
       "cancel": "Cancel",
       "submit": "Close NCR",
       "submitting": "Closing…",
+      "pendingSignoff": {
+        "title": "First signature recorded — the NCR remains open",
+        "signedBy": "Signed by",
+        "awaitingRole": "Awaiting",
+        "anyAuthorizedSigner": "another authorized signer",
+        "submitSecond": "Add second signature"
+      },
       "validation": {
         "resolutionRequired": "Closure notes are required (min 10 characters).",
-        "passwordRequired": "A password or PIN is required to close a critical NCR."
+        "passwordRequired": "A password or PIN is required to close a critical NCR.",
+        "rootCauseRequired": "Record the root cause in the Investigation section before closing this NCR (V-QA-NCR-005)."
       },
       "error": "Could not close the NCR: {message}",
       "success": "NCR closed."
@@ -402,7 +410,7 @@
         "noReading": "Nie udało się odnaleźć powiązanego odczytu monitorowania; pokazano wyłącznie definicję CCP.",
         "none": "—"
       },
-      "dualSign": "V-QA-NCR-006 — krytyczne NCR wymagają podwójnego podpisu (Kierownik Jakości + Kierownik Produkcji) przy zamknięciu."
+      "dualSign": "Ta polityka wymaga przy zamknięciu dwóch różnych podpisów (Kierownik Jakości + Kierownik Produkcji)."
     },
     "closeModal": {
       "title": "Zamknij NCR — {number}",
@@ -415,7 +423,7 @@
       "resolution": "Uwagi do zamknięcia",
       "resolutionHelp": "Min. 10 znaków. Opisz uzasadnienie zamknięcia i działania naprawcze.",
       "resolutionPlaceholder": "Opisz uzasadnienie zamknięcia i działania naprawcze…",
-      "dualSignWarning": "Krytyczny NCR — wymagany podwójny podpis (V-QA-NCR-006). Przy zamknięciu muszą podpisać się Kierownik Jakości i Kierownik Produkcji.",
+      "dualSignWarning": "To zamknięcie wymaga dwóch różnych podpisów: Kierownika Jakości i Kierownika Produkcji.",
       "esign": {
         "title": "Podpis elektroniczny (21 CFR Part 11)",
         "meaning": "Wpisanie hasła konta lub PIN-u e-podpisu składa podpis elektroniczny pod zamknięciem tego NCR.",
@@ -426,9 +434,17 @@
       "cancel": "Anuluj",
       "submit": "Zamknij NCR",
       "submitting": "Zamykanie…",
+      "pendingSignoff": {
+        "title": "Pierwszy podpis zapisany — NCR pozostaje otwarty",
+        "signedBy": "Podpisał(a)",
+        "awaitingRole": "Oczekuje na",
+        "anyAuthorizedSigner": "innego uprawnionego podpisującego",
+        "submitSecond": "Dodaj drugi podpis"
+      },
       "validation": {
         "resolutionRequired": "Uwagi do zamknięcia są wymagane (min. 10 znaków).",
-        "passwordRequired": "Aby zamknąć krytyczny NCR, wymagane jest hasło lub PIN."
+        "passwordRequired": "Aby zamknąć krytyczny NCR, wymagane jest hasło lub PIN.",
+        "rootCauseRequired": "Przed zamknięciem NCR zapisz przyczynę źródłową w sekcji Analiza (V-QA-NCR-005)."
       },
       "error": "Nie udało się zamknąć NCR: {message}",
       "success": "NCR zamknięty."

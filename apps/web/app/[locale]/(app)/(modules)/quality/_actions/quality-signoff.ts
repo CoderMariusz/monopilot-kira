@@ -102,7 +102,9 @@ async function readUserDisplayName(client: QueryClient, userId: string): Promise
 async function readRoleDisplayName(client: QueryClient, roleId: string | null): Promise<string | null> {
   if (!roleId) return null;
   const { rows } = await client.query<{ display_name: string | null }>(
-    `select display_name
+    // `roles` has name/code/slug — never display_name (the users sibling above
+    // does, which is exactly what made this look consistent).
+    `select coalesce(name, code) as display_name
        from public.roles
       where org_id = app.current_org_id()
         and id = $1::uuid

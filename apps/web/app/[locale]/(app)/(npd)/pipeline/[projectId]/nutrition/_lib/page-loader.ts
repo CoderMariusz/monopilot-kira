@@ -3,6 +3,7 @@
  */
 
 import { getTranslations } from 'next-intl/server';
+import { messageTemplate } from '../../../../../../../../i18n/message-template';
 
 import {
   type AllergenPresence,
@@ -75,7 +76,7 @@ const LABEL_KEYS = Object.keys(DEFAULT_NUTRITION_LABELS) as Array<keyof Nutritio
 
 function translateLabel(t: (key: string) => string, key: keyof NutritionLabels): string {
   try {
-    const value = t(key);
+    const value = messageTemplate(t, key);
     return value === key ? DEFAULT_NUTRITION_LABELS[key] : value;
   } catch {
     return DEFAULT_NUTRITION_LABELS[key];

@@ -3,6 +3,7 @@
  */
 
 import { getTranslations } from 'next-intl/server';
+import { messageTemplate } from '../../../../../../../../i18n/message-template';
 
 import {
   type CostingParams,
@@ -108,7 +109,7 @@ function translateLabel(t: (key: string) => string, key: keyof CostingLabels): s
   const fallback = DEFAULT_COSTING_LABELS[key];
   if (typeof fallback !== 'string') return '';
   try {
-    const value = t(key);
+    const value = messageTemplate(t, key);
     // next-intl returns the FULL namespaced key for a missing message.
     return !value || value === key || value.includes('npd.costing') ? fallback : value;
   } catch {
@@ -130,7 +131,7 @@ export async function buildCostingLabels(locale: string): Promise<CostingLabels>
         for (const [stepKey, stepDefault] of Object.entries(stepFallback)) {
           const msgKey = 'step_' + stepKey.replace(/[A-Z]/g, (ch) => '_' + ch.toLowerCase());
           try {
-            const value = t(msgKey);
+            const value = messageTemplate(t, msgKey);
             translated[stepKey] =
               !value || value === msgKey || value.includes('npd.costing') ? stepDefault : value;
           } catch {

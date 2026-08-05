@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   fromBaseQty,
+  normalizeItemQuantityToBase,
   packHierarchyComplete,
   snapshotDecimalString,
   snapshotFromItemRow,
@@ -10,6 +11,55 @@ import {
   TypedError,
   type UomSnapshot,
 } from './convert';
+
+describe('normalizeItemQuantityToBase', () => {
+  const ITEM_ID = '66666666-6666-4666-8666-666666666666';
+  function clientReturning(row: Record<string, unknown> | null) {
+    return {
+      query: async <T = Record<string, unknown>>(): Promise<{ rows: T[]; rowCount: number }> => ({
+        rows: (row ? [row] : []) as T[],
+        rowCount: row ? 1 : 0,
+      }),
+    };
+  }
+
+  it('converts a secondary unit to the item base unit (500 g -> 0.5 kg)', async () => {
+    const client = clientReturning({
+      base_uom: 'kg',
+      secondary_uom: 'g',
+      output_uom: null,
+      net_qty_per_each: null,
+      each_per_box: null,
+      input_factor_to_base: '0.001',
+      input_category: 'mass',
+      base_factor_to_base: '1',
+      base_category: 'mass',
+    });
+    await expect(normalizeItemQuantityToBase(client, { itemId: ITEM_ID, quantity: '500', uom: 'g' }))
+      .resolves.toEqual({ quantity: '0.5', uom: 'kg' });
+  });
+
+  it('returns null (never throws) when the item has no base unit', async () => {
+    const client = clientReturning({
+      base_uom: null,
+      secondary_uom: null,
+      output_uom: null,
+      net_qty_per_each: null,
+      each_per_box: null,
+      input_factor_to_base: null,
+      input_category: null,
+      base_factor_to_base: null,
+      base_category: null,
+    });
+    await expect(normalizeItemQuantityToBase(client, { itemId: ITEM_ID, quantity: '1', uom: 'kg' }))
+      .resolves.toBeNull();
+  });
+
+  it('returns null when the item row is missing', async () => {
+    await expect(normalizeItemQuantityToBase(clientReturning(null), { itemId: ITEM_ID, quantity: '1', uom: 'kg' }))
+      .resolves.toBeNull();
+  });
+});
 
 describe('uom conversion', () => {
   const meat: UomSnapshot = {

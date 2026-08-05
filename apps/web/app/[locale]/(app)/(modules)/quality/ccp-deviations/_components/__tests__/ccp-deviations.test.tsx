@@ -69,6 +69,7 @@ function makeRow(over: Partial<DeviationRow> = {}): DeviationRow {
     disposition: over.disposition ?? null,
     hold: 'hold' in over ? (over.hold ?? null) : null,
     openedAt: over.openedAt ?? '2026-06-18T10:30:00.000Z',
+    pendingSignoff: over.pendingSignoff ?? null,
   };
 }
 
@@ -270,6 +271,43 @@ describe('DeviationResolveModal (E3 — e-sign resolve)', () => {
 
     await waitFor(() => expect(resolveAction).toHaveBeenCalled());
     expect(await screen.findByTestId('deviation-resolve-error')).toHaveTextContent('Invalid signature');
+    expect(screen.getByTestId('deviation-resolve-form')).toBeInTheDocument();
+  });
+
+  it('shows the saved first signer and keeps the deviation open for the second slot', async () => {
+    const pendingSignoff = {
+      state: 'pending_second_signature' as const,
+      subjectHash: 'c'.repeat(64),
+      firstSignatureId: 'sig-1',
+      firstSignedAt: '2026-07-30T10:00:00.000Z',
+      firstSigner: { id: 'u-1', displayName: 'Quality Lead Anna' },
+      awaitingRole: { id: 'r-2', displayName: 'Production Manager' },
+    };
+    const resolveAction = vi.fn(async () => ({
+      ok: true as const,
+      data: makeRow({
+        id: 'dev-1',
+        status: 'open',
+        actionTaken: 'Recooked to target',
+        disposition: 'corrected',
+        pendingSignoff,
+      }),
+    }));
+    renderList([makeRow()], { resolveAction });
+    fireEvent.click(screen.getByTestId('deviation-resolve-open-dev-1'));
+    fireEvent.change(screen.getByTestId('deviation-resolve-action'), {
+      target: { value: 'Recooked to target' },
+    });
+    fireEvent.click(within(screen.getByTestId('deviation-resolve-disposition')).getByRole('combobox'));
+    fireEvent.click(screen.getByRole('option', { name: RESOLVE_LABELS.dispositionOptions.corrected }));
+    fireEvent.change(screen.getByTestId('deviation-resolve-password'), { target: { value: 'first-secret' } });
+    fireEvent.click(screen.getByTestId('deviation-resolve-submit'));
+
+    expect(await screen.findByTestId('pending-quality-signoff-signer')).toHaveTextContent('Quality Lead Anna');
+    expect(screen.getByTestId('pending-quality-signoff-role')).toHaveTextContent('Production Manager');
+    expect(screen.getByTestId('deviation-resolve-action')).toBeDisabled();
+    expect(within(screen.getByTestId('deviation-resolve-disposition')).getByRole('combobox')).toBeDisabled();
+    expect(screen.getByTestId('deviation-resolve-password')).toHaveValue('');
     expect(screen.getByTestId('deviation-resolve-form')).toBeInTheDocument();
   });
 });

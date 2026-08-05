@@ -43,7 +43,11 @@ import { Select } from '@monopilot/ui/Select';
 import { ItemPicker, type ItemSearchFn } from '../../../../(npd)/_components/item-picker';
 import type { ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items-types';
 import type { WarehouseOption, SearchTransferItemsInput } from '../_actions/to-form-data';
-import { UomSelect, type UomOptionLabels } from '../../../../../../../components/forms/uom-select';
+import {
+  itemUomOptions,
+  UomSelect,
+  type UomOptionLabels,
+} from '../../../../../../../components/forms/uom-select';
 
 type CreateTransferOrderResult =
   | { ok: true; data: unknown }
@@ -101,6 +105,7 @@ type LineDraft = {
   itemCode: string;
   itemName: string;
   uom: string;
+  uomUnits: string[];
   qty: string;
 };
 
@@ -127,7 +132,15 @@ export type CreateToModalProps = {
 const QTY_PATTERN = /^\d+(?:\.\d{1,3})?$/;
 
 function newLine(): LineDraft {
-  return { key: Math.random().toString(36).slice(2), itemId: '', itemCode: '', itemName: '', uom: '', qty: '' };
+  return {
+    key: Math.random().toString(36).slice(2),
+    itemId: '',
+    itemCode: '',
+    itemName: '',
+    uom: '',
+    uomUnits: [],
+    qty: '',
+  };
 }
 
 export function CreateToModal({
@@ -187,7 +200,16 @@ export function CreateToModal({
   function pickLineItem(key: string, item: ItemPickerOption) {
     setLines((prev) =>
       prev.map((l) =>
-        l.key === key ? { ...l, itemId: item.id, itemCode: item.itemCode, itemName: item.name, uom: item.uomBase } : l,
+        l.key === key
+          ? {
+              ...l,
+              itemId: item.id,
+              itemCode: item.itemCode,
+              itemName: item.name,
+              uom: item.uomBase,
+              uomUnits: itemUomOptions(item),
+            }
+          : l,
       ),
     );
     setFormError(null);
@@ -224,6 +246,10 @@ export function CreateToModal({
       setFormError(labels.errors.lineQtyRequired);
       return;
     }
+    if (lines.some((l) => !l.uom.trim())) {
+      setFormError(labels.errors.invalid_input ?? labels.errors.persistence_failed);
+      return;
+    }
 
     setPending(true);
     try {
@@ -233,7 +259,7 @@ export function CreateToModal({
         toWarehouseId,
         scheduledDate: scheduledDate || undefined,
         notes: notes.trim() || undefined,
-        lines: lines.map((l, i) => ({ itemId: l.itemId, qty: l.qty.trim(), uom: l.uom || 'kg', lineNo: i + 1 })),
+        lines: lines.map((l, i) => ({ itemId: l.itemId, qty: l.qty.trim(), uom: l.uom, lineNo: i + 1 })),
       });
 
       if (!result.ok) {
@@ -380,7 +406,8 @@ export function CreateToModal({
                           value={l.uom}
                           onValueChange={(uom) => setLineUom(l.key, uom)}
                           labels={labels.uomOptions}
-                          {...(labels.uomUnits && labels.uomUnits.length > 0 ? { units: labels.uomUnits } : {})}
+                          units={l.uomUnits}
+                          disabled={!l.itemId}
                           placeholder={labels.uomPlaceholder}
                           aria-label={labels.lineColumns.uom}
                           className="w-20"

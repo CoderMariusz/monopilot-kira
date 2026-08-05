@@ -19,6 +19,7 @@ import {
   isPgError,
   numeric4Schema,
   numeric6PositiveSchema,
+  normalizeProcurementLine,
   pctSchema,
   pgErrorToResult,
   toIso,
@@ -715,6 +716,18 @@ export async function addPurchaseOrderLine(rawInput: unknown): Promise<PurchaseO
       if (!header) return { ok: false, error: 'not_found' };
       if (header.status !== 'draft') return { ok: false, error: 'invalid_state', code: 'invalid_state' };
       if (!(await ensureItemInOrg(ctx.client, input.itemId))) return { ok: false, error: 'not_found' };
+      const normalizedLine = await normalizeProcurementLine(ctx.client, {
+        itemId: input.itemId,
+        quantity: input.qty,
+        uom: input.uom,
+      });
+      if (!normalizedLine) {
+        return {
+          ok: false,
+          error: 'line_uom_not_convertible',
+          code: 'line_uom_not_convertible',
+        };
+      }
 
       const insertLineOnce = async (): Promise<{ id: string; line_no: number } | null> => {
         await ctx.client.query('savepoint po_line_append');
@@ -736,7 +749,15 @@ export async function addPurchaseOrderLine(rawInput: unknown): Promise<PurchaseO
                        and status = 'draft'
                   )
             returning id, line_no`,
-            [input.poId, input.itemId, input.qty, input.uom, input.unitPrice, input.taxPct, userId],
+            [
+              input.poId,
+              input.itemId,
+              normalizedLine.quantity,
+              normalizedLine.uom,
+              input.unitPrice,
+              input.taxPct,
+              userId,
+            ],
           );
           await ctx.client.query('release savepoint po_line_append');
           return rows[0] ?? null;
@@ -761,8 +782,8 @@ export async function addPurchaseOrderLine(rawInput: unknown): Promise<PurchaseO
           lineId: inserted.id,
           lineNo: Number(inserted.line_no),
           itemId: input.itemId,
-          qty: input.qty,
-          uom: input.uom,
+          qty: normalizedLine.quantity,
+          uom: normalizedLine.uom,
           unitPrice: input.unitPrice,
           taxPct: input.taxPct,
         },
@@ -808,6 +829,22 @@ export async function updatePurchaseOrderLine(rawInput: unknown): Promise<Purcha
       const before = beforeRows[0];
       if (!before) return { ok: false, error: 'not_found' };
 
+      const normalizedLine =
+        input.qty !== undefined || input.uom !== undefined
+          ? await normalizeProcurementLine(ctx.client, {
+              itemId: before.item_id,
+              quantity: input.qty ?? before.qty,
+              uom: input.uom ?? before.uom,
+            })
+          : null;
+      if ((input.qty !== undefined || input.uom !== undefined) && !normalizedLine) {
+        return {
+          ok: false,
+          error: 'line_uom_not_convertible',
+          code: 'line_uom_not_convertible',
+        };
+      }
+
       const { rowCount } = await ctx.client.query(
         `update public.purchase_order_lines l
             set qty = coalesce($3::numeric, qty),
@@ -822,7 +859,15 @@ export async function updatePurchaseOrderLine(rawInput: unknown): Promise<Purcha
             and po.id = $1::uuid
             and po.status = 'draft'
             and l.id = $2::uuid`,
-        [input.poId, input.lineId, input.qty ?? null, input.uom ?? null, input.unitPrice ?? null, input.taxPct ?? null, userId],
+        [
+          input.poId,
+          input.lineId,
+          normalizedLine?.quantity ?? null,
+          normalizedLine?.uom ?? null,
+          input.unitPrice ?? null,
+          input.taxPct ?? null,
+          userId,
+        ],
       );
       if (rowCount !== 1) return { ok: false, error: 'invalid_state', code: 'invalid_state' };
 
@@ -833,8 +878,8 @@ export async function updatePurchaseOrderLine(rawInput: unknown): Promise<Purcha
         beforeState: { lineId: before.id, qty: before.qty, uom: before.uom, unitPrice: before.unit_price, taxPct: before.tax_pct },
         afterState: {
           lineId: before.id,
-          qty: input.qty ?? before.qty,
-          uom: input.uom ?? before.uom,
+          qty: normalizedLine?.quantity ?? before.qty,
+          uom: normalizedLine?.uom ?? before.uom,
           unitPrice: input.unitPrice ?? before.unit_price,
           taxPct: input.taxPct ?? before.tax_pct,
         },

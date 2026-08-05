@@ -262,7 +262,8 @@ export async function reorderChecklistTemplateItem(input: unknown): Promise<Muta
           where org_id = app.current_org_id()
             and template_id = $1
             and gate_code = $2
-            and sequence = $3 + $5`,
+            -- node-pg sends untyped params: bare $3 + $5 is unknown + unknown.
+            and sequence = $3::int + $5::int`,
         [parsed.data.templateId, parsed.data.gateCode, parsed.data.sequence, neighborSequence, tempOffset],
       );
 

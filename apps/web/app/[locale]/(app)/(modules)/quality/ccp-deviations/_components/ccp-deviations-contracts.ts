@@ -16,6 +16,7 @@
 import type { resolveCcpDeviation } from '../../_actions/ccp-deviation-actions';
 import type { CcpDeviationDisposition } from '../../_actions/ccp-deviation-types';
 import { CCP_DEVIATION_DISPOSITIONS } from '../../_actions/ccp-deviation-types';
+import type { PendingQualitySignoff } from '../../_actions/quality-signoff-types';
 
 export type DeviationStatus = 'open' | 'resolved';
 export type DeviationDisposition = CcpDeviationDisposition;
@@ -46,6 +47,7 @@ export type DeviationRow = {
   disposition: DeviationDisposition | null;
   hold: DeviationHold | null;
   openedAt: string;
+  pendingSignoff: PendingQualitySignoff | null;
 };
 
 export type ResolveDeviationAction = typeof resolveCcpDeviation;

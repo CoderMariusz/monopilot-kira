@@ -25,6 +25,7 @@
  */
 
 import { getTranslations } from 'next-intl/server';
+import { messageTemplate } from '../../../../../../../i18n/message-template';
 
 import { TrialScreen, type TrialScreenData, type TrialLabels, type PageState, type LogTrialCall, type UpdateTrialCall, type DeleteTrialCall, type TrialActionOutcome, type BookLineTimeCall, type VoidTrialCall, type ReleaseLineTimeCall } from './_components/trial-screen';
 import { logTrialBatch } from './_actions/log-trial-batch';
@@ -164,7 +165,7 @@ const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof TrialLabels>;
 
 function translateLabel(t: (key: string) => string, key: keyof TrialLabels): string {
   try {
-    const value = t(key);
+    const value = messageTemplate(t, key);
     return value === key ? DEFAULT_LABELS[key] : value;
   } catch {
     return DEFAULT_LABELS[key];

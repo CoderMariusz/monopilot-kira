@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 
+import { clearSessionContext } from "../../../../lib/auth/clear-session-context";
 import { createServerSupabaseClient } from "../../../../lib/auth/supabase-server";
 
 const SUPPORTED_LOCALES = new Set(["en", "pl", "uk", "ro"]);
@@ -16,6 +17,7 @@ export async function signOut(formData: FormData): Promise<never> {
   const supabase = await createServerSupabaseClient();
 
   await supabase.auth.signOut();
+  await clearSessionContext();
 
   return redirect(`/${locale}/login`);
 }

@@ -1,4 +1,5 @@
 import { getTranslations } from 'next-intl/server';
+import { messageTemplate } from '../../../../../../../i18n/message-template';
 
 import type { StaleWipDefinitionBannerLabels } from '../_components/stale-wip-definition-banner';
 
@@ -17,7 +18,7 @@ export async function buildStaleWipBannerLabels(locale: string): Promise<StaleWi
     const t = await getTranslations({ locale, namespace: 'npd.staleWipBanner' });
     const pick = (key: keyof StaleWipDefinitionBannerLabels, fallback: string) => {
       try {
-        const value = t(key);
+        const value = messageTemplate(t, key);
         return value === key ? fallback : value;
       } catch {
         return fallback;

@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 
 import { toMicro } from '../../../../../../lib/shared/decimal';
+import { normalizeItemQuantityToBase } from '../../../../../../lib/uom/convert';
 
 export const PLANNING_WRITE_PERMISSION = 'npd.planning.write';
 export const PLANNING_READ_PERMISSION = 'scheduler.run.read';
@@ -32,6 +33,7 @@ export type ProcurementError =
   | 'partially_received'
   /** N-PLN-4: source and destination warehouse must differ when both are set. */
   | 'same_warehouse'
+  | 'line_uom_not_convertible'
   | 'persistence_failed';
 
 export const uuidSchema = z.string().uuid();
@@ -157,6 +159,13 @@ export async function listOrgUnits(client: QueryClient): Promise<OrgUnitOption[]
       category: typeof r.category === 'string' ? r.category : '',
     }))
     .filter((u) => u.code.length > 0);
+}
+
+export async function normalizeProcurementLine(
+  client: QueryClient,
+  input: { itemId: string; quantity: string; uom: string },
+): Promise<{ quantity: string; uom: string } | null> {
+  return normalizeItemQuantityToBase(client, input);
 }
 
 async function hasPlanningPermission(ctx: OrgActionContext, permission: string): Promise<boolean> {

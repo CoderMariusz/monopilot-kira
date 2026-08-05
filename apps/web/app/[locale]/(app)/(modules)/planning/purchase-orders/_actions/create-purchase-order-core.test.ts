@@ -35,6 +35,19 @@ function makeClient(): QueryClient {
 
     if (normalized.includes('from public.user_roles')) {
       rows = allowPermission ? [{ ok: true }] : [];
+    } else if (normalized.includes('i.uom_base as base_uom')) {
+      const inputUom = String(params[0]).toLowerCase();
+      rows = [{
+        base_uom: 'kg',
+        secondary_uom: 'g',
+        output_uom: 'base',
+        net_qty_per_each: null,
+        each_per_box: null,
+        input_factor_to_base: inputUom === 'g' ? '0.001' : inputUom === 'kg' ? '1' : null,
+        input_category: inputUom === 'g' || inputUom === 'kg' ? 'mass' : null,
+        base_factor_to_base: '1',
+        base_category: 'mass',
+      }];
     } else if (normalized.includes('from public.suppliers')) {
       supplierQuerySql = sql;
       rows = [{ status: supplierStatus }];
@@ -109,6 +122,50 @@ describe('createPurchaseOrderCore', () => {
     expect(result.ok).toBe(true);
     expect(supplierQuerySql.toLowerCase()).toContain('for update');
     expect(supplierQuerySql.toLowerCase()).toContain('supplier_row');
+  });
+
+  it('normalizes every line before inserting the PO header', async () => {
+    const result = await createPurchaseOrderCore(
+      { userId: USER_ID, orgId: ORG_ID, client },
+      {
+        poNumber: 'PO-UOM-1',
+        supplierId: SUPPLIER_ID,
+        status: 'draft',
+        currency: 'GBP',
+        lines: [{ itemId: ITEM_ID, qty: '500', uom: 'g', unitPrice: '1', lineNo: 1 }],
+      },
+    );
+
+    expect(result.ok).toBe(true);
+    const calls = vi.mocked(client.query).mock.calls;
+    const normalizationIndex = calls.findIndex(([sql]) => String(sql).includes('i.uom_base as base_uom'));
+    const headerIndex = calls.findIndex(([sql]) => String(sql).includes('insert into public.purchase_orders'));
+    const lineInsert = calls.find(([sql]) => String(sql).includes('insert into public.purchase_order_lines'));
+    expect(normalizationIndex).toBeGreaterThanOrEqual(0);
+    expect(normalizationIndex).toBeLessThan(headerIndex);
+    expect(lineInsert?.[1]?.slice(2, 4)).toEqual(['0.5', 'kg']);
+  });
+
+  it('rejects a non-convertible line before inserting the PO header', async () => {
+    const result = await createPurchaseOrderCore(
+      { userId: USER_ID, orgId: ORG_ID, client },
+      {
+        poNumber: 'PO-UOM-BAD',
+        supplierId: SUPPLIER_ID,
+        status: 'draft',
+        currency: 'GBP',
+        lines: [{ itemId: ITEM_ID, qty: '500', uom: 'pcs', unitPrice: '1', lineNo: 1 }],
+      },
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: 'line_uom_not_convertible',
+      code: 'line_uom_not_convertible',
+    });
+    expect(vi.mocked(client.query).mock.calls.some(([sql]) =>
+      String(sql).includes('insert into public.purchase_orders'),
+    )).toBe(false);
   });
 
   it('rejects blocked suppliers under the row lock', async () => {

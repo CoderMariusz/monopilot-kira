@@ -40,11 +40,12 @@ const LOCATION_ID = '88888888-8888-4888-8888-888888888888';
 let lpOnHandKg = '20.000000';
 let inTransitKg = '0.000000';
 let inTransitG = '0.000000';
-let shipWritesApplied = false;
+let junctionWrites: Array<{ qty: string; uom: string }> = [];
+let normalizedLineWrites: Array<{ qty: string; uom: string }> = [];
 
 function makeClient(): QueryClient {
   return {
-    query: vi.fn(async (sql: string, _params: readonly unknown[] = []) => {
+    query: vi.fn(async (sql: string, params: readonly unknown[] = []) => {
       const n = sql.replace(/\s+/g, ' ').trim().toLowerCase();
 
       if (n.includes('from public.user_roles')) return { rows: [{ ok: true }], rowCount: 1 };
@@ -84,7 +85,7 @@ function makeClient(): QueryClient {
 
       if (
         n.includes('from public.transfer_order_line_lps tll') &&
-        n.includes('group by tol.item_id, tol.uom')
+        n.includes('group by tol.item_id, tll.uom')
       ) {
         const rows: Array<{ item_id: string; uom: string; total: string }> = [];
         if (inTransitKg !== '0.000000') rows.push({ item_id: ITEM_ID, uom: 'kg', total: inTransitKg });
@@ -116,10 +117,16 @@ function makeClient(): QueryClient {
       }
 
       if (n.startsWith('insert into public.transfer_order_line_lps')) {
-        shipWritesApplied = true;
-        lpOnHandKg = '10.000000';
-        inTransitKg = '6.125000';
-        inTransitG = '3875.000000';
+        const qty = String(params[3]);
+        const uom = String(params[4]);
+        junctionWrites.push({ qty, uom });
+        if (uom === 'kg') inTransitKg = (Number(inTransitKg) + Number(qty)).toFixed(6);
+        if (uom === 'g') inTransitG = (Number(inTransitG) + Number(qty)).toFixed(6);
+        return { rows: [], rowCount: 1 };
+      }
+
+      if (n.startsWith('update public.transfer_order_lines') && n.includes('set qty = $2::numeric')) {
+        normalizedLineWrites.push({ qty: String(params[1]), uom: String(params[2]) });
         return { rows: [], rowCount: 1 };
       }
 
@@ -128,8 +135,8 @@ function makeClient(): QueryClient {
         n.startsWith('insert into public.stock_moves') ||
         n.startsWith('insert into public.lp_state_history')
       ) {
-        if (n.startsWith('update public.license_plates') && shipWritesApplied) {
-          lpOnHandKg = '10.000000';
+        if (n.startsWith('update public.license_plates')) {
+          lpOnHandKg = String(params[1]);
         }
         return { rows: [], rowCount: 1 };
       }
@@ -148,7 +155,8 @@ describe('shipTransferOrder — mixed UoM (PF-R10-01)', () => {
     lpOnHandKg = '20.000000';
     inTransitKg = '0.000000';
     inTransitG = '0.000000';
-    shipWritesApplied = false;
+    junctionWrites = [];
+    normalizedLineWrites = [];
     shipLines = [
       { id: 'line-1', item_id: ITEM_ID, qty: '6.125000', uom: 'kg', line_no: 1 },
       { id: 'line-2', item_id: ITEM_ID, qty: '3875.000000', uom: 'g', line_no: 2 },
@@ -158,6 +166,23 @@ describe('shipTransferOrder — mixed UoM (PF-R10-01)', () => {
   it('ships 6.125 kg + 3875 g when a single 20 kg LP covers the physical total', async () => {
     const result = await transitionTransferOrderStatus(TO_ID, 'in_transit');
     expect(result.ok).toBe(true);
+    expect(junctionWrites).toEqual([
+      { qty: '6.125', uom: 'kg' },
+      { qty: '3.875', uom: 'kg' },
+    ]);
+    expect(normalizedLineWrites).toEqual([{ qty: '3.875', uom: 'kg' }]);
+  });
+
+  it('repairs a legacy 5000 g line to one 5 kg base quantity before receive can materialize it', async () => {
+    shipLines = [
+      { id: 'line-legacy', item_id: ITEM_ID, qty: '5000.000000', uom: 'g', line_no: 1 },
+    ];
+
+    const result = await transitionTransferOrderStatus(TO_ID, 'in_transit');
+
+    expect(result.ok).toBe(true);
+    expect(normalizedLineWrites).toEqual([{ qty: '5', uom: 'kg' }]);
+    expect(junctionWrites).toEqual([{ qty: '5', uom: 'kg' }]);
   });
 
   it('still rejects when only 9.999999 kg exists for a 10 kg physical order', async () => {

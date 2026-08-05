@@ -24,6 +24,7 @@
  */
 
 import { getTranslations } from 'next-intl/server';
+import { messageTemplate } from '../../../../../../../i18n/message-template';
 
 import {
   PackagingScreen,
@@ -155,7 +156,7 @@ const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof PackagingLabels>;
 
 function translateLabel(t: (key: string) => string, key: keyof PackagingLabels): string {
   try {
-    const value = t(key);
+    const value = messageTemplate(t, key);
     return value === key ? DEFAULT_LABELS[key] : value;
   } catch {
     return DEFAULT_LABELS[key];

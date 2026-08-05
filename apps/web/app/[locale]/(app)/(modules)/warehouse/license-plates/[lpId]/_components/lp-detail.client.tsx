@@ -250,6 +250,9 @@ export function LpDetailClient({
   // P0-B3: unblocking releases the QA hold, which now requires a real e-sign.
   const [unblockPassword, setUnblockPassword] = useState('');
   const [unblockError, setUnblockError] = useState<string | null>(null);
+  const [unblockPendingSignoff, setUnblockPendingSignoff] = useState<
+    Extract<UnblockLpResult, { status: 'blocked' }>['pendingSignoff'] | null
+  >(null);
   const [actionToast, setActionToast] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   const [moveModalOpen, setMoveModalOpen] = useState(false);
   const [metadataModalOpen, setMetadataModalOpen] = useState(false);
@@ -349,9 +352,9 @@ export function LpDetailClient({
   function closeUnblockModal() {
     if (isPending) return;
     setUnblockModalOpen(false);
-    setUnblockReason('');
     setUnblockPassword('');
     setUnblockError(null);
+    if (!unblockPendingSignoff) setUnblockReason('');
   }
 
   function unblockErrorMessage(result: Extract<WarehouseResult<UnblockLpResult>, { ok: false }>): string {
@@ -380,10 +383,18 @@ export function LpDetailClient({
     startTransition(async () => {
       const result = await unblockLpAction(detail.id, reason, unblockPassword);
       if (result.ok) {
+        if (result.data.status === 'blocked') {
+          setUnblockPendingSignoff(result.data.pendingSignoff);
+          setUnblockPassword('');
+          setUnblockError(null);
+          router.refresh();
+          return;
+        }
         setUnblockModalOpen(false);
         setUnblockReason('');
         setUnblockPassword('');
         setUnblockError(null);
+        setUnblockPendingSignoff(null);
         setActionToast({ tone: 'success', text: labels.actions.unblock.success });
         router.refresh();
         return;
@@ -1058,7 +1069,7 @@ export function LpDetailClient({
               id="lp-unblock-reason"
               rows={3}
               value={unblockReason}
-              disabled={isPending}
+              disabled={isPending || unblockPendingSignoff !== null}
               placeholder={labels.actions.unblock.reasonPlaceholder}
               onChange={(event) => setUnblockReason(event.target.value)}
               data-testid="lp-unblock-reason"
@@ -1093,6 +1104,27 @@ export function LpDetailClient({
               </label>
               <p className="mt-1 text-[10px] leading-snug text-slate-400">{labels.actions.unblock.esign.passwordHelp}</p>
             </div>
+            {unblockPendingSignoff ? (
+              <div
+                data-testid="lp-unblock-pending-signoff"
+                className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950"
+              >
+                <div className="font-medium">{labels.actions.unblock.pendingSignoff.title}</div>
+                <div>
+                  {labels.actions.unblock.pendingSignoff.signedBy.replace(
+                    '{name}',
+                    unblockPendingSignoff.firstSigner.displayName,
+                  )}
+                </div>
+                <div>
+                  {labels.actions.unblock.pendingSignoff.awaitingRole.replace(
+                    '{role}',
+                    unblockPendingSignoff.awaitingRole?.displayName
+                      ?? labels.actions.unblock.pendingSignoff.anyAuthorizedSigner,
+                  )}
+                </div>
+              </div>
+            ) : null}
             {unblockError ? (
               <p role="alert" data-testid="lp-unblock-error" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                 {unblockError}
@@ -1117,7 +1149,11 @@ export function LpDetailClient({
             data-testid="lp-unblock-confirm"
             className="rounded-md bg-emerald-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-emerald-300"
           >
-            {isPending ? labels.actions.unblock.submitting : labels.actions.unblock.confirm}
+            {isPending
+              ? labels.actions.unblock.submitting
+              : unblockPendingSignoff
+                ? labels.actions.unblock.confirmSecond
+                : labels.actions.unblock.confirm}
           </button>
         </Modal.Footer>
       </Modal>

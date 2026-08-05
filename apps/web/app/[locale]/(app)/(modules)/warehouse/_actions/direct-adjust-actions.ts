@@ -7,8 +7,9 @@ import { z } from 'zod';
 import { verifyPin } from '../../../../../../../../packages/auth/src/verify-pin.js';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { creditWacAtAvgCost, debitWac } from '../../../../../../lib/finance/upsert-wac';
-import { microToDecimal, mulMicro, toMicro } from '../../../../../../lib/shared/decimal';
+import { microToDecimal, toMicro } from '../../../../../../lib/shared/decimal';
 import { resolveWriteSiteId } from '../../../../../../lib/site/site-context';
+import { normalizeItemQuantityToBase } from '../../../../../../lib/uom/convert';
 import { makeLpNumber, makeStockMoveNumber } from '../../../../../../lib/warehouse/lp-create';
 import {
   hasWarehousePermission,
@@ -87,23 +88,6 @@ type ReplayRow = {
   lp_id: string;
 };
 
-type NormalizedAdjustmentQuantity = {
-  quantity: string;
-  uom: string;
-};
-
-type ItemAdjustmentUomRow = {
-  base_uom: string;
-  secondary_uom: string | null;
-  output_uom: 'base' | 'each' | 'box';
-  net_qty_per_each: string | null;
-  each_per_box: string | null;
-  input_factor_to_base: string | null;
-  input_category: string | null;
-  base_factor_to_base: string | null;
-  base_category: string | null;
-};
-
 function failure(code: string, message = code): Extract<DirectAdjustResult, { ok: false }> {
   return { ok: false, error: { code, message } };
 }
@@ -159,76 +143,6 @@ async function readReplay(client: QueryClient, transactionId: string): Promise<R
     [transactionId],
   );
   return rows[0] ?? null;
-}
-
-async function normalizeAdjustmentQuantity(
-  client: QueryClient,
-  input: { itemId: string; quantity: string; uom: string },
-): Promise<NormalizedAdjustmentQuantity | null> {
-  const { rows } = await client.query<ItemAdjustmentUomRow>(
-    `select i.uom_base as base_uom,
-            i.uom_secondary as secondary_uom,
-            i.output_uom,
-            i.net_qty_per_each::text,
-            i.each_per_box::text,
-            input_uom.factor_to_base::text as input_factor_to_base,
-            input_uom.category as input_category,
-            base_uom.factor_to_base::text as base_factor_to_base,
-            base_uom.category as base_category
-       from public.items i
-       left join public.unit_of_measure input_uom
-         on input_uom.org_id = i.org_id
-        and lower(input_uom.code) = lower($1::text)
-        and input_uom.deleted_at is null
-       left join public.unit_of_measure base_uom
-         on base_uom.org_id = i.org_id
-        and lower(base_uom.code) = lower(i.uom_base)
-        and base_uom.deleted_at is null
-      where i.org_id = app.current_org_id()
-        and i.id = $2::uuid
-      limit 1`,
-    [input.uom, input.itemId],
-  );
-  const row = rows[0];
-  if (!row) return null;
-
-  const enteredUom = input.uom.trim().toLowerCase();
-  const baseUom = row.base_uom.trim().toLowerCase();
-  let quantityBase: bigint | null = null;
-  const entered = toMicro(input.quantity);
-
-  if (enteredUom === baseUom) {
-    quantityBase = entered;
-  } else if (
-    ['pcs', 'each', 'ea', 'szt'].includes(enteredUom)
-    && (row.output_uom === 'each' || row.output_uom === 'box')
-    && row.net_qty_per_each
-  ) {
-    quantityBase = mulMicro(entered, toMicro(row.net_qty_per_each));
-  } else if (
-    enteredUom === 'box'
-    && row.output_uom === 'box'
-    && row.net_qty_per_each
-    && row.each_per_box
-  ) {
-    quantityBase = mulMicro(
-      entered,
-      mulMicro(toMicro(row.net_qty_per_each), toMicro(row.each_per_box)),
-    );
-  } else if (
-    enteredUom === row.secondary_uom?.trim().toLowerCase()
-    && row.input_category
-    && row.input_category === row.base_category
-    && row.input_factor_to_base
-    && row.base_factor_to_base
-  ) {
-    const numerator = entered * toMicro(row.input_factor_to_base);
-    const denominator = toMicro(row.base_factor_to_base);
-    if (denominator > 0n) quantityBase = (numerator + denominator / 2n) / denominator;
-  }
-
-  const quantity = quantityBase === null ? null : parsePositiveQuantity(microToDecimal(quantityBase));
-  return quantity ? { quantity, uom: row.base_uom } : null;
 }
 
 async function selectLpsForDirectDecrease(
@@ -595,7 +509,7 @@ export async function applyDirectAdjustment(input: DirectAdjustInput): Promise<D
         return { ok: true, data: { adjustmentId: replay.adjustment_id, lpId: replay.lp_id } };
       }
 
-      const normalized = await normalizeAdjustmentQuantity(ctx.client, {
+      const normalized = await normalizeItemQuantityToBase(ctx.client, {
         itemId: parsed.data.itemId,
         quantity: enteredQuantity,
         uom: parsed.data.uom,

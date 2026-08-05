@@ -20,6 +20,7 @@
  */
 
 import { getTranslations } from 'next-intl/server';
+import { messageTemplate } from '../../../../../../../i18n/message-template';
 
 import {
   PilotScreen,
@@ -186,7 +187,7 @@ const GATE_CODES = ['G0', 'G1', 'G2', 'G3', 'G4', 'Launched'] as const;
 
 function translateLabel(t: (key: string) => string, key: keyof PilotLabels): string {
   try {
-    const value = t(key);
+    const value = messageTemplate(t, key);
     return value === key ? DEFAULT_LABELS[key] ?? '' : value;
   } catch {
     return DEFAULT_LABELS[key] ?? '';

@@ -41,6 +41,8 @@ let currentTransferNotes: string | null = null;
 let lineReceiveQty = '12.000000';
 let lineReceivedQty = '0.000000';
 let linePendingQty = '12.000000';
+let pendingJunctionQty = '12.000000';
+let pendingJunctionUom = 'kg';
 let receiveMaterialized = false;
 let remainderCancelled = false;
 let listTotal = 1;
@@ -113,6 +115,23 @@ function makeClient(): QueryClient {
       const normalized = sql.replace(/\s+/g, ' ').trim().toLowerCase();
       if (normalized.includes('from public.user_roles')) {
         return { rows: allowPermission ? [{ ok: true }] : [], rowCount: allowPermission ? 1 : 0 };
+      }
+      if (normalized.includes('i.uom_base as base_uom')) {
+        const inputUom = String(params[0]).toLowerCase();
+        return {
+          rows: [{
+            base_uom: 'kg',
+            secondary_uom: 'g',
+            output_uom: null,
+            net_qty_per_each: null,
+            each_per_box: null,
+            input_factor_to_base: inputUom === 'g' ? '0.001' : inputUom === 'kg' ? '1' : null,
+            input_category: inputUom === 'g' || inputUom === 'kg' ? 'mass' : null,
+            base_factor_to_base: '1',
+            base_category: 'mass',
+          }],
+          rowCount: 1,
+        };
       }
       if (normalized.startsWith('update public.org_document_settings')) {
         return {
@@ -246,8 +265,8 @@ function makeClient(): QueryClient {
             {
               id: JUNCTION_ID,
               source_lp_id: SOURCE_LP_ID,
-              qty: '12.000000',
-              uom: 'kg',
+              qty: pendingJunctionQty,
+              uom: pendingJunctionUom,
               product_id: ITEM_ID,
               batch_number: 'B-1',
               supplier_batch_number: null,
@@ -255,6 +274,9 @@ function makeClient(): QueryClient {
               best_before_date: null,
               shelf_life_mode_snapshot: null,
               qa_status: 'released',
+              uom_base: 'kg',
+              net_qty_per_each: null,
+              each_per_box: null,
             },
           ],
           rowCount: 1,
@@ -376,6 +398,8 @@ describe('planning transfer order actions', () => {
     lineReceiveQty = '12.000000';
     lineReceivedQty = '0.000000';
     linePendingQty = '12.000000';
+    pendingJunctionQty = '12.000000';
+    pendingJunctionUom = 'kg';
     receiveMaterialized = false;
     remainderCancelled = false;
     listTotal = 1;
@@ -537,6 +561,42 @@ describe('planning transfer order actions', () => {
     expect(calls.some((sql) => sql.includes('insert into public.audit_events'))).toBe(true);
   });
 
+  it('normalizes 5000 g to 5 kg before creating the TO header and line', async () => {
+    const result = await createTransferOrder({
+      toNumber: 'TO-UOM-001',
+      fromWarehouseId: FROM_WAREHOUSE_ID,
+      toWarehouseId: TO_WAREHOUSE_ID,
+      lines: [{ itemId: ITEM_ID, qty: '5000', uom: 'g', lineNo: 1 }],
+    });
+
+    expect(result.ok).toBe(true);
+    const calls = vi.mocked(client.query).mock.calls;
+    const normalizationIndex = calls.findIndex(([sql]) => String(sql).includes('i.uom_base as base_uom'));
+    const headerIndex = calls.findIndex(([sql]) => String(sql).startsWith('insert into public.transfer_orders'));
+    const lineInsert = calls.find(([sql]) => String(sql).startsWith('insert into public.transfer_order_lines'));
+    expect(normalizationIndex).toBeGreaterThanOrEqual(0);
+    expect(normalizationIndex).toBeLessThan(headerIndex);
+    expect(lineInsert?.[1]?.slice(2, 4)).toEqual(['5', 'kg']);
+  });
+
+  it('rejects a non-convertible create line before inserting the TO header', async () => {
+    const result = await createTransferOrder({
+      toNumber: 'TO-UOM-BAD',
+      fromWarehouseId: FROM_WAREHOUSE_ID,
+      toWarehouseId: TO_WAREHOUSE_ID,
+      lines: [{ itemId: ITEM_ID, qty: '5000', uom: 'pcs', lineNo: 1 }],
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: 'line_uom_not_convertible',
+      code: 'line_uom_not_convertible',
+    });
+    expect(vi.mocked(client.query).mock.calls.some(([sql]) =>
+      String(sql).startsWith('insert into public.transfer_orders'),
+    )).toBe(false);
+  });
+
   it('auto-generates a transfer order number when absent', async () => {
     const result = await createTransferOrder({
       fromWarehouseId: FROM_WAREHOUSE_ID,
@@ -650,6 +710,39 @@ describe('planning transfer order actions', () => {
     expect(client.query).toHaveBeenCalledWith(expect.stringContaining('select coalesce(max(line_no), 0) + 1 as line_no'), [TO_ID]);
   });
 
+  it('normalizes a manual TO line exactly once from 5000 g to 5 kg before insert', async () => {
+    const result = await addTransferOrderLine(TO_ID, {
+      itemId: ITEM_ID,
+      quantity: '5000',
+      uom: 'g',
+    });
+
+    expect(result.ok).toBe(true);
+    const insert = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      String(sql).startsWith('insert into public.transfer_order_lines'),
+    );
+    expect(insert?.[1]?.slice(2, 4)).toEqual(['5', 'kg']);
+  });
+
+  it('rejects a non-convertible manual TO line before renumbering or insert', async () => {
+    const result = await addTransferOrderLine(TO_ID, {
+      itemId: ITEM_ID,
+      quantity: '5000',
+      uom: 'pcs',
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: 'line_uom_not_convertible',
+      code: 'line_uom_not_convertible',
+    });
+    const writes = vi.mocked(client.query).mock.calls.map(([sql]) =>
+      String(sql).replace(/\s+/g, ' ').trim().toLowerCase(),
+    );
+    expect(writes.some((sql) => sql.startsWith('with numbered as'))).toBe(false);
+    expect(writes.some((sql) => sql.startsWith('insert into public.transfer_order_lines'))).toBe(false);
+  });
+
   it('retries addTransferOrderLine once on line_no conflict after dense renumbering', async () => {
     failNextLineInsert = true;
 
@@ -757,6 +850,22 @@ describe('planning transfer order actions', () => {
     expect(lpInsert?.sql).toContain('org_id, site_id, warehouse_id');
     expect(lpInsert?.params?.[0]).toBe(TO_SITE_ID);
     expect(calls.some((call) => call.sql.startsWith('insert into public.lp_genealogy'))).toBe(true);
+  });
+
+  it('materializes a legacy 5000 g in-transit row as 5 kg on the destination LP', async () => {
+    currentStatus = 'in_transit';
+    lineReceiveQty = '5000.000000';
+    linePendingQty = '5000.000000';
+    pendingJunctionQty = '5000.000000';
+    pendingJunctionUom = 'g';
+
+    const result = await transitionTransferOrderStatus(TO_ID, 'received');
+
+    expect(result.ok).toBe(true);
+    const lpInsert = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      String(sql).startsWith('insert into public.license_plates'),
+    );
+    expect(lpInsert?.[1]?.slice(5, 7)).toEqual(['5', 'kg']);
   });
 
   it('refuses receipt before creating destination LPs when the destination warehouse has no site', async () => {

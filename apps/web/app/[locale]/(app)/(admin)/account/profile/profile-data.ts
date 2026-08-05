@@ -28,8 +28,9 @@
  * log in the task closeout.
  */
 
-import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { clearSessionContext } from '../../../../../../lib/auth/clear-session-context';
 import { createServerSupabaseClient } from '../../../../../../lib/auth/supabase-server';
+import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { readMfaBackendAvailability } from './mfa-actions';
 
 export type ProfileLanguage = 'en' | 'pl' | 'de';
@@ -395,6 +396,7 @@ export async function logoutEverywhereAction(): Promise<LogoutEverywhereResult> 
       console.error('[account/profile] logoutEverywhereAction auth error:', error.message);
       return { ok: false, error: 'auth_failed' };
     }
+    await clearSessionContext();
     return { ok: true };
   } catch (error) {
     console.error('[account/profile] logoutEverywhereAction failed:', error);

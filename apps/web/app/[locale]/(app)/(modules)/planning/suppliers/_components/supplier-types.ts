@@ -25,6 +25,8 @@ export type SupplierError =
   | 'insufficient_stock_holds'
   | 'partially_received'
   | 'same_warehouse'
+  // Q2 dołożył go do ProcurementError przy uszczelnianiu jednostek w liniach PO/TO.
+  | 'line_uom_not_convertible'
   | 'persistence_failed';
 
 export type Supplier = {

@@ -116,7 +116,8 @@ export const factorySpecs = pgTable(
     npdBuilderDraftCheck: check(
       'factory_specs_npd_builder_draft_check',
       sql`${table.source} <> 'npd_builder'
-        or (${table.status} = 'draft' and ${table.approvedBy} is null and ${table.approvedAt} is null
+        or ${table.status} not in ('draft', 'in_review')
+        or (${table.approvedBy} is null and ${table.approvedAt} is null
             and ${table.releasedBy} is null and ${table.releasedAt} is null)`,
     ),
     d365ImportStatusCheck: check(

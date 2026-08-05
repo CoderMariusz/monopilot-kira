@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { maxSqlPlaceholderIndex } from '../../../../../../../lib/shared/sql-placeholders';
 import {
+  addPurchaseOrderLine,
   createPurchaseOrder,
   getPurchaseOrder,
   listPurchaseOrders,
@@ -104,6 +105,26 @@ function makeClient(): QueryClient {
       if (normalized.includes('from public.user_roles')) {
         return { rows: permissionAllowed(params[2]) ? [{ ok: true }] : [], rowCount: permissionAllowed(params[2]) ? 1 : 0 };
       }
+      if (normalized.includes('i.uom_base as base_uom')) {
+        const inputUom = String(params[0]).toLowerCase();
+        return {
+          rows: [{
+            base_uom: 'kg',
+            secondary_uom: 'g',
+            output_uom: null,
+            net_qty_per_each: null,
+            each_per_box: null,
+            input_factor_to_base: inputUom === 'g' ? '0.001' : inputUom === 'kg' ? '1' : null,
+            input_category: inputUom === 'g' || inputUom === 'kg' ? 'mass' : null,
+            base_factor_to_base: '1',
+            base_category: 'mass',
+          }],
+          rowCount: 1,
+        };
+      }
+      if (normalized.startsWith('select id from public.items')) {
+        return { rows: [{ id: ITEM_ID }], rowCount: 1 };
+      }
       if (normalized.startsWith('select status from public.suppliers')) {
         return { rows: [{ status: supplierStatus }], rowCount: 1 };
       }
@@ -185,7 +206,9 @@ function makeClient(): QueryClient {
         return { rows: [header({ po_number: String(params[0]), supplier_code: null, supplier_name: null })], rowCount: 1 };
       }
       if (normalized.startsWith('insert into public.purchase_order_lines')) {
-        return { rows: [], rowCount: 1 };
+        return normalized.includes('returning id, line_no')
+          ? { rows: [{ id: line().id, line_no: 1 }], rowCount: 1 }
+          : { rows: [], rowCount: 1 };
       }
       if (normalized.startsWith('select status, currency from public.purchase_orders')) {
         return { rows: poExists ? [{ status: currentStatus, currency: poCurrency }] : [], rowCount: poExists ? 1 : 0 };
@@ -650,6 +673,43 @@ describe('planning purchase order actions', () => {
       String(sql).startsWith('insert into public.purchase_order_lines'),
     );
     expect(lineInsert?.[1]?.[2]).toBe('10.123456');
+  });
+
+  it('normalizes a manual PO line exactly once from 500 g to 0.5 kg before insert', async () => {
+    const result = await addPurchaseOrderLine({
+      poId: PO_ID,
+      itemId: ITEM_ID,
+      qty: '500',
+      uom: 'g',
+      unitPrice: '6.2000',
+      taxPct: '0',
+    });
+
+    expect(result.ok).toBe(true);
+    const insert = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      String(sql).startsWith('insert into public.purchase_order_lines'),
+    );
+    expect(insert?.[1]?.slice(2, 4)).toEqual(['0.5', 'kg']);
+  });
+
+  it('rejects a non-convertible manual PO line before savepoint or insert', async () => {
+    const result = await addPurchaseOrderLine({
+      poId: PO_ID,
+      itemId: ITEM_ID,
+      qty: '500',
+      uom: 'pcs',
+      unitPrice: '6.2000',
+      taxPct: '0',
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: 'line_uom_not_convertible',
+      code: 'line_uom_not_convertible',
+    });
+    const writes = vi.mocked(client.query).mock.calls.map(([sql]) => String(sql).toLowerCase());
+    expect(writes.some((sql) => sql === 'savepoint po_line_append')).toBe(false);
+    expect(writes.some((sql) => sql.startsWith('insert into public.purchase_order_lines'))).toBe(false);
   });
 
   it('rejects manual transition to received when open quantity remains (confirmed -> received)', async () => {

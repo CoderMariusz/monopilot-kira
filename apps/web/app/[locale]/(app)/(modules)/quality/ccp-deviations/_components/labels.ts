@@ -13,6 +13,7 @@
  */
 import type { DeviationDisposition, DeviationStatus, DeviationStatusFilter } from './ccp-deviations-contracts';
 import { DEVIATION_DISPOSITIONS, DEVIATION_STATUS_FILTERS } from './ccp-deviations-contracts';
+import type { PendingSignoffLabels } from '../../_components/pending-quality-signoff';
 
 export type Translator = (key: string, values?: Record<string, string | number>) => string;
 
@@ -65,6 +66,8 @@ export type DeviationResolveLabels = {
   submitting: string;
   formIncomplete: string;
   validation: { actionRequired: string; dispositionRequired: string; passwordRequired: string };
+  policyErrors: Record<'second_signature_required' | 'signer_role_not_allowed', string>;
+  pendingSignoff: PendingSignoffLabels;
   error: string;
   success: string;
 };
@@ -139,6 +142,17 @@ export function buildDeviationResolveLabels(t: Translator): DeviationResolveLabe
       actionRequired: t('resolveModal.validation.actionRequired'),
       dispositionRequired: t('resolveModal.validation.dispositionRequired'),
       passwordRequired: t('resolveModal.validation.passwordRequired'),
+    },
+    policyErrors: {
+      second_signature_required: t('resolveModal.policyErrors.second_signature_required'),
+      signer_role_not_allowed: t('resolveModal.policyErrors.signer_role_not_allowed'),
+    },
+    pendingSignoff: {
+      title: t('resolveModal.pendingSignoff.title'),
+      signedBy: t('resolveModal.pendingSignoff.signedBy'),
+      awaitingRole: t('resolveModal.pendingSignoff.awaitingRole'),
+      anyAuthorizedSigner: t('resolveModal.pendingSignoff.anyAuthorizedSigner'),
+      submitSecond: t('resolveModal.pendingSignoff.submitSecond'),
     },
     error: t('resolveModal.error'),
     success: t('resolveModal.success'),

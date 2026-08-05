@@ -24,7 +24,7 @@
  * Add note / Download audit PDF secondary actions are OUT OF SCOPE for this slice.
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -32,6 +32,7 @@ import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Card } from '@monopilot/ui/Card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
+import { PendingQualitySignoffPanel } from '../../../_components/pending-quality-signoff';
 import { HoldReleaseModal, type HoldReleaseLabels } from '../../_components/hold-release-modal.client';
 import type { getHoldDetail, releaseHold } from '../../../_actions/hold-actions';
 
@@ -91,8 +92,22 @@ export function HoldDetailClient({
   const router = useRouter();
   const [tab, setTab] = useState<'items' | 'ncrs'>('items');
   const [releaseOpen, setReleaseOpen] = useState(false);
+  const [pendingSignoff, setPendingSignoff] = useState(hold.pendingSignoff);
+  const [pendingDisposition, setPendingDisposition] = useState(hold.pendingReleaseDisposition);
+  const [pendingReason, setPendingReason] = useState(hold.pendingReleaseReason);
+  useEffect(() => {
+    setPendingSignoff(hold.pendingSignoff);
+    setPendingDisposition(hold.pendingReleaseDisposition);
+    setPendingReason(hold.pendingReleaseReason);
+  }, [
+    hold.pendingSignoff,
+    hold.pendingReleaseDisposition,
+    hold.pendingReleaseReason,
+  ]);
 
   const isReleased = hold.status === 'released' || hold.releasedAt !== null;
+  const canCurrentUserRelease =
+    canRelease && !(hold.priority === 'critical' && hold.createdByCurrentUser);
   const reason = hold.reasonLabel ?? hold.reasonText ?? labels.noReason;
 
   return (
@@ -127,6 +142,13 @@ export function HoldDetailClient({
               .replace('{disposition}', hold.disposition ?? labels.context.dispositionPending)}
           </span>
         </div>
+      )}
+
+      {pendingSignoff && !isReleased && (
+        <PendingQualitySignoffPanel
+          signoff={pendingSignoff}
+          labels={labels.releaseLabels.pendingSignoff}
+        />
       )}
 
       <div className="grid gap-5 lg:grid-cols-[2fr_1fr]">
@@ -262,7 +284,7 @@ export function HoldDetailClient({
             {/* A released hold renders the immutable banner above and NO action
                 buttons (parity hard rule). Release is shown only for an active hold
                 AND a server-resolved canRelease grant. */}
-            {!isReleased && canRelease ? (
+            {!isReleased && canCurrentUserRelease ? (
               <button
                 type="button"
                 data-testid="hold-detail-release-open"
@@ -282,7 +304,7 @@ export function HoldDetailClient({
         </aside>
       </div>
 
-      {!isReleased && canRelease && (
+      {!isReleased && canCurrentUserRelease && (
         <HoldReleaseModal
           open={releaseOpen}
           onOpenChange={setReleaseOpen}
@@ -295,6 +317,15 @@ export function HoldDetailClient({
           }}
           labels={labels.releaseLabels}
           releaseHoldAction={releaseHoldAction}
+          initialPendingSignoff={pendingSignoff}
+          initialDisposition={pendingDisposition ?? ''}
+          initialReasonText={pendingReason ?? ''}
+          onPending={(signoff, disposition, reasonText) => {
+            setPendingSignoff(signoff);
+            setPendingDisposition(disposition);
+            setPendingReason(reasonText);
+            router.refresh();
+          }}
           onReleased={() => router.refresh()}
         />
       )}

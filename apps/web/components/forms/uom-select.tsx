@@ -10,9 +10,8 @@
  * English-only unit strings — `labels` is passed in and threaded through the
  * page's existing label object, i18n-staging/uom-sweep.json).
  *
- * Canonical units (`UOM_VALUES`): kg, g, l, ml, pcs, pack, box, pallet, m, cm. Callers
- * pass the subset that makes sense for their context via `units`; purchasing /
- * transfer line editors use the full list.
+ * Canonical units (`UOM_VALUES`): kg, g, l, ml, pcs, pack, box, pallet, m, cm.
+ * Callers pass the subset defined for the selected item via `units`.
  *
  * Default-to-item-uom: when a row's item picker supplies the item's base UoM,
  * the caller preselects it (`value`) while keeping it changeable. If the
@@ -38,6 +37,23 @@ export type UomOptionLabels = Partial<Record<UomValue, string>> & Record<string,
 
 /** Full ordered list used by purchasing / transfer line editors. */
 export const PURCHASING_UOMS: UomValue[] = [...UOM_VALUES];
+
+export type ItemUomSource = {
+  uomBase: string;
+  uomSecondary?: string | null;
+  outputUom?: string | null;
+};
+
+/** Item-master allow-list shared by every quantity + UoM form. */
+export function itemUomOptions(item: ItemUomSource | null): string[] {
+  if (!item) return [];
+  return Array.from(new Set([
+    item.uomBase,
+    item.uomSecondary,
+    item.outputUom === 'each' || item.outputUom === 'box' ? 'pcs' : null,
+    item.outputUom === 'box' ? 'box' : null,
+  ].filter((uom): uom is string => Boolean(uom))));
+}
 
 export type UomSelectProps = {
   /** Currently selected unit (e.g. the row item's uomBase). May be ''. */

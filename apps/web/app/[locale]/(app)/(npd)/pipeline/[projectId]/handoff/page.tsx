@@ -19,6 +19,7 @@
  */
 
 import { getTranslations } from 'next-intl/server';
+import { messageTemplate } from '../../../../../../../i18n/message-template';
 
 import {
   HandoffScreen,
@@ -176,7 +177,7 @@ const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof HandoffLabels>;
 
 function translateLabel(t: (key: string) => string, key: keyof HandoffLabels): string {
   try {
-    const value = t(key);
+    const value = messageTemplate(t, key);
     return value === key ? (DEFAULT_LABELS[key] ?? value) : value;
   } catch {
     return DEFAULT_LABELS[key] ?? key;

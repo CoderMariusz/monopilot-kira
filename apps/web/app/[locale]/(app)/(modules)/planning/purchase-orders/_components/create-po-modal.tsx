@@ -43,7 +43,11 @@ import { Select } from '@monopilot/ui/Select';
 import { ItemPicker } from '../../../../(npd)/_components/item-picker';
 import type { ItemPickerOption, SearchItemsInput } from '../../../../../../(npd)/fa/actions/search-items-types';
 import type { PoSupplierOption } from '../_actions/po-form-data-types';
-import { UomSelect, type UomOptionLabels } from '../../../../../../../components/forms/uom-select';
+import {
+  itemUomOptions,
+  UomSelect,
+  type UomOptionLabels,
+} from '../../../../../../../components/forms/uom-select';
 import { SiteSwitcher, type SiteSwitcherOption } from '../../../../../../../components/shell/site-switcher';
 import { listPoWarehouses } from '../_actions/actions';
 import {
@@ -571,7 +575,7 @@ export function CreatePoModal({
                               type="button"
                               className="btn btn--ghost btn-sm"
                               data-testid="create-po-line-clear"
-                              onClick={() => updateLine(line.key, { item: null })}
+                              onClick={() => updateLine(line.key, { item: null, uom: '' })}
                             >
                               ✕
                             </button>
@@ -580,7 +584,7 @@ export function CreatePoModal({
                           <ItemPicker
                             searchItemsAction={searchSupplierItems}
                             onSelect={(item) => {
-                              updateLine(line.key, { item, uom: line.uom || item.uomBase });
+                              updateLine(line.key, { item, uom: item.uomBase });
                               void prefillLinePrice(line.key, item);
                             }}
                             triggerClassName="btn btn--secondary btn-sm"
@@ -626,7 +630,8 @@ export function CreatePoModal({
                           value={line.uom}
                           onValueChange={(uom) => updateLine(line.key, { uom })}
                           labels={labels.uomOptions}
-                          {...(labels.uomUnits && labels.uomUnits.length > 0 ? { units: labels.uomUnits } : {})}
+                          units={itemUomOptions(line.item)}
+                          disabled={!line.item}
                           placeholder={labels.uomPlaceholder}
                           aria-label={labels.lineUom}
                           className="w-24"

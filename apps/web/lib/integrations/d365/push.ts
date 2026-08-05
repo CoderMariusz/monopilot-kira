@@ -16,7 +16,7 @@
  * (default no-op in tests) so retry tests run instantly.
  */
 
-import type { QueryClient } from './gate';
+import { assertD365Enabled, type QueryClient } from './gate';
 import {
   buildIdempotencyKey,
   isUniqueViolation,
@@ -165,6 +165,9 @@ export async function processPushJob(
 ): Promise<ProcessPushResult> {
   const sleep = options.sleep ?? defaultSleep;
   const backoff = options.backoffMs ?? D365_BACKOFF_MS;
+
+  // Reject before mutating the job or attempting any external transport.
+  await assertD365Enabled(client);
 
   await client.query(
     `update public.d365_sync_jobs

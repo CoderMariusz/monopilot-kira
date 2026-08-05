@@ -147,6 +147,7 @@ async function ListContent({ locale, t }: { locale: string; t: Translator }) {
         }
       : null,
     openedAt: d.openedAt,
+    pendingSignoff: d.pendingSignoff,
   }));
 
   return (

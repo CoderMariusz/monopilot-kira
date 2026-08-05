@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { nextDocumentNumber } from '../../../../../../../lib/documents/numbering';
 import {
   TransferOrderCreateInput,
+  normalizeProcurementLine,
   requireActionPermission,
   PLANNING_TO_MANAGE_PERMISSION,
   isPgError,
@@ -148,6 +149,23 @@ export async function createTransferOrderCore(
     return { ok: false, error: 'same_warehouse' };
   }
 
+  const normalizedLines: typeof input.lines = [];
+  for (const line of input.lines) {
+    const normalized = await normalizeProcurementLine(ctx.client, {
+      itemId: line.itemId,
+      quantity: line.qty,
+      uom: line.uom,
+    });
+    if (!normalized) {
+      return {
+        ok: false,
+        error: 'line_uom_not_convertible',
+        code: 'line_uom_not_convertible',
+      };
+    }
+    normalizedLines.push({ ...line, qty: normalized.quantity, uom: normalized.uom });
+  }
+
   async function insertHeader(toNumber: string) {
     return ctx.client.query<TransferOrderRow>(
       `insert into public.transfer_orders
@@ -181,7 +199,7 @@ export async function createTransferOrderCore(
   const header = rows[0];
   if (!header) return { ok: false, error: 'persistence_failed' };
 
-  for (const line of input.lines) {
+  for (const line of normalizedLines) {
     await ctx.client.query(
       `insert into public.transfer_order_lines
          (org_id, to_id, item_id, qty, uom, line_no, created_by, updated_by)
