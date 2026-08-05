@@ -201,3 +201,39 @@ Przywrócenie jest ściśle lepsze niż brak filtru, ale linia trafia na listę 
    nieunikalnym kodzie linii może trafić w zły zakład.
 
 Zlecone osobnemu torowi: typecheck + testy + ustalenie pełnego kompletu plików do commitu.
+
+---
+
+## 01:30 — stan produkcji, na tyle, na ile wolno mi sprawdzić
+
+| co | wynik |
+|---|---|
+| `https://monopilot-kira.vercel.app/` | **200**, 2,2 s |
+| `/en/login` | **200** |
+| najnowszy build produkcyjny | **30 lipca 07:59** — sprzed całego dnia audytu |
+| webhooki na repozytorium GitHub | **zero** — push nie uruchamia builda |
+
+**Produkcja żyje i serwuje — ale starą wersję.** Żaden z 79 commitów tam nie dotarł.
+
+### Czego NIE udało mi się sprawdzić — potrzebna decyzja ownera
+1. **Stan migracji na produkcyjnej bazie.** `.env.local` w korzeniu repo zawiera produkcyjne
+   poświadczenia, ale próba połączenia (wyłącznie `select`) została **zablokowana przez klasyfikator**
+   — tak samo jak 30 lipca. Nie obchodziłem tej blokady.
+   **To jest najważniejsza niewiadoma przed wdrożeniem**: nie wiem, czy produkcja stoi na 550,
+   562 czy gdzie indziej, ani czy ma wiersze bez zakładu blokujące migrację 551.
+2. **Vercel MCP** — token wygasł, wymaga interaktywnego ponowienia autoryzacji.
+3. **Stara zmienna `VERCEL_TOKEN` w `~/.zshrc` (linia 127)** dalej zatruwa każde wywołanie `vercel`
+   w powłoce ownera. Obejście: `env -u VERCEL_TOKEN vercel …`.
+
+## 01:40 — sześć torów w biegu
+
+| tor | silnik | zadanie |
+|---|---|---|
+| zachowanie ilości | Codex | czy towar może zniknąć albo się rozmnożyć |
+| maszyny stanów | Codex | ślepe zaułki, przejścia wsteczne bez cofnięcia skutków, niezgodności między modułami |
+| przeglądarka A | Opus | magazyn → wysyłki → produkcja → skaner → identyfikowalność |
+| przeglądarka B | Opus | planowanie → jakość → uprawnienia → NPD → ustawienia |
+| fala do commitu | Opus | typecheck + testy + pełny komplet plików |
+| suity testowe | Opus | co naprawdę się wykonuje na bazie z pełnym schematem 564 |
+
+Baza `monopilot_ver` doprowadzona do **564** (jedyna taka) i zaseedowana — służy torowi suit.
