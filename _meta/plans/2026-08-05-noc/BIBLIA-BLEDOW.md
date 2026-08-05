@@ -16,7 +16,31 @@ Przebieg godzina po godzinie jest w `DZIENNIK-NOCY.md`.
 
 # CZĘŚĆ I — ZANIM COKOLWIEK WDROŻYSZ
 
-## 0. APLIKACJA SIĘ NIE BUDUJE. To wyprzedza wszystko inne. — UDOWODNIONE
+## 0. APLIKACJA SIĘ NIE BUDOWAŁA — NAPRAWIONE I UDOWODNIONE (commit `036bdbff`)
+
+**Aplikacja buduje się po raz pierwszy od co najmniej tygodnia.** Mój własny przebieg:
+```
+✓ Compiled successfully in 11.8s
+✓ Generating static pages using 9 workers (66/66)
+pnpm typecheck → 0
+```
+
+Naprawa wg konwencji, która **już była w repo**: `_actions/shared.ts` — zwykły moduł bez
+dyrektywy, trzymający stałe i typy dla plików akcji obok. **19 modułów tak robi**, `where-used`
+po prostu tego pliku nie miało. Jedno źródło prawdy zachowane: i `limit ${WHERE_USED_LIMIT + 1}`
+w zapytaniu, i `rows.length > WHERE_USED_LIMIT` w logice obcięcia czytają ten sam symbol.
+
+Inwentaryzacja całego repozytorium: **397 modułów `'use server'`, to był jedyny przypadek.**
+Mina z 28 lipca (`export type { X }` bez `from`) — **0 trafień**, nie wróciła. Wróciła
+klasa siostrzana.
+
+`export type` **zostaje i jest legalny** — SWC wymazuje aliasy typów przed transformem akcji
+serwerowych. 222 pliki w repo tak robią; build przechodzi obok wszystkich i wywracał się
+dopiero na `export const`. Potwierdzone empirycznie, nie założone.
+
+<details><summary>Jak to wyglądało przed naprawą (zostawiam dla kontekstu)</summary>
+
+## 0-STARE. APLIKACJA SIĘ NIE BUDUJE. To wyprzedza wszystko inne. — UDOWODNIONE
 
 ```
 at (…/technical/where-used/_actions/list-where-used.ts:26:1)
@@ -47,6 +71,12 @@ zostanie naprawione.
 
 Kolejność jest więc taka: **najpierw ten build, potem fail-open migracji, potem webhooki.**
 Podłączanie webhooków wcześniej nie ma sensu — build i tak by padł.
+
+</details>
+
+**Ta klasa błędu nie jest niczym chroniona i wróci trzeci raz.** Dwa wystąpienia w osiem dni,
+oba wykryte dopiero przez wywrócony `pnpm build` — najdroższą możliwą bramkę. Zlecona reguła
+lintu wpięta w `pnpm lint` (repo ma już konwencję: `scripts/lint-no-hardcoded-strings.mjs`).
 
 ## 1. Push nie uruchamia wdrożenia. Nic nie trafia na produkcję. — UDOWODNIONE
 
@@ -188,6 +218,165 @@ Pełna lista: `TEZY-ZACHOWANIE-ILOSCI.md`. Werdykty: `WERDYKTY-ZACHOWANIE-ILOSCI
 dostępu do bazy. Pierwsza z nich (rejestracja 103 kg wyrobu przy zużyciu 100 kg) już przy
 pobieżnym czytaniu wygląda na **decyzję produktową**, nie błąd: testy jawnie asercjonują
 sukces z ostrzeżeniem, a próg blokujący `block_pct` jest konfiguracją.
+
+## 9. Poprawka strefy czasowej wdrożona w POŁOWIE miejsc — UDOWODNIONE
+
+Wzorzec `expiredBySiteDaySql()` (liczy dobę w strefie **zakładu**) trafił do dwóch miejsc:
+`lp-safety-guard.ts:46` i `scanner/movement.ts:747`. **Ścieżka wysyłkowa nadal liczy gołe
+`current_date`** w czterech:
+
+```
+shipping/_actions/pick-actions.ts:68     and lp.expiry_date < current_date
+shipping/_actions/ship-actions.ts:463    or (lp.expiry_date is not null and lp.expiry_date < current_date)
+lib/shipping/pack-lp-into-box.ts:174     jw.
+shipping/_actions/so-actions.ts:1398     and (lp.expiry_date is null or lp.expiry_date >= current_date)
+```
+
+Zmierzone na żywo w trakcie przebiegu przeglądarkowego:
+```
+wczoraj(zakład)= 2026-08-05   dziś(zakład)= 2026-08-06   ·   session current_date= 2026-08-05
+```
+
+Sesja bazy w `Europe/London`, zakład w `Europe/Warsaw`. Paleta przeterminowana według doby
+zakładu **przechodzi bramkę wysyłkową**, choć bramka produkcyjna i skanera ją zatrzymują.
+**Aplikacja ma dziś dwie różne granice doby.**
+
+Waga: **POWAŻNY** — bramka bezpieczeństwa żywności. Wysłanie przeterminowanego towaru
+do klienta jest zdarzeniem regulacyjnym.
+
+To wzorzec, który znamy z kampanii: *naprawa pokrywa jeden przypadek i zamraża sąsiednie.*
+
+## 10. Persona z ZEREM uprawnień czyta kartotekę produktową — UDOWODNIONE
+
+| trasa | co widzi użytkownik bez żadnych uprawnień |
+|---|---|
+| `/en/technical/items` | **cała kartoteka indeksów — 42 pozycje** (12 surowców, 23 składniki, 2 wyroby) |
+| `/en/settings/schema` | 18 definicji kolumn schematu organizacji |
+| `/en/settings/sites` | 2 zakłady |
+| `/en/planning/transfer-orders` | rejestr zleceń przesunięcia |
+
+Dowód — ten sam ekran, trzy persony obok siebie:
+```
+no_module_access      → "Items … All 42 / Raw 12 / Ingredients 23 / FG 2"
+single_site_operator  → identycznie (42)
+harness (admin)       → identycznie (42) + przycisk "+ New item"
+```
+
+Przyczyna (`settings/schema/page.tsx:150-166`): zapytanie o uprawnienia **nie bramkuje
+odczytu** — jego jedynym skutkiem jest podmiana etykiety roli na „Admin" albo „Operator".
+Wiersze są pobierane bezwarunkowo.
+
+**Zapisy są bronione poprawnie** — Create TO i Run MRP odrzucone, z kontrolą przeciwną
+na adminie (admin tworzy, persona bez uprawnień dostaje odmowę i baza się nie zmienia).
+
+Waga: **POWAŻNY** — to nie zapis, ale operator linii bez żadnych uprawnień czyta całą
+kartotekę produktową i konfigurację organizacji.
+
+**Teza o rozjeździe uprawnień — OBALONA.** Wszystkie **127** egzekwowanych uprawnień ma
+przydzielenie w bazie. Enum `ALL_PERMISSIONS` jest **martwym katalogiem**, nie źródłem prawdy:
+`has-permission.ts` porównuje surowe łańcuchy w SQL. Rozjazd to dług dokumentacyjny.
+
+## 11. ⚠️ „Admin może" NIGDY nie dowodzi, że uprawnienie działa — UDOWODNIONE
+
+```
+apps/web/lib/auth/has-permission.ts:29-30
+  r.code = any('{owner,admin,org_admin}')
+```
+
+Rola o kodzie `admin` przechodzi **każdą** bramkę niezależnie od `role_permissions`.
+
+**Skutek metodyczny: każdy test uprawnień pisany na personie admina mierzy zero.** Zielony
+wynik „admin może" jest zgodny zarówno ze światem, w którym uprawnienie jest poprawnie
+zasiane, jak i z tym, w którym nie ma go wcale. To unieważnia część dotychczasowych „zieleni"
+w tym repozytorium.
+
+## 12. Job E2E w CI wykonuje 0 testów z 381 i melduje sukces — UDOWODNIONE
+
+```
+$ cd apps/web && pnpm exec playwright test 'e2e/**/*.spec.ts' --list
+Total: 11 tests in 1 file
+$ cd apps/web && pnpm exec playwright test 'e2e/**/*.spec.ts'
+11 skipped
+```
+
+Trzy niezależne defekty nakładają się:
+1. **`e2e/**/*.spec.ts` w bashu bez `globstar`** (domyślnie wyłączony na runnerach GitHuba)
+   rozwija się do `e2e/*/*.spec.ts` = **wyłącznie 11 plików** z `e2e/settings/`.
+   Sprawdzone: `set -- e2e/**/*.spec.ts; echo $#` → `11`.
+2. `apps/web` **nie ma pliku konfiguracyjnego Playwrighta** — root `playwright.config.ts`
+   nie jest ładowany.
+3. Serwer CI stoi na porcie **3000**, a domyślny `baseURL` konfiguracji to **3100**.
+
+**To jest czwarte wystąpienie „zieleni przez pominięcie" i najgroźniejsze,
+bo dotyczy całej suity end-to-end.**
+
+## 13. Suita UI — 3583 testy — nie wykonuje się nigdy — UDOWODNIONE
+
+Skrypt `web:test` = `vitest run … && vitest run --config vitest.ui.config.ts`.
+Suita node jest czerwona (97), więc **operator `&&` powoduje, że wszystkie 3583 testy UI
+nie startują**. Tak samo w CI.
+
+Uruchomiona osobno daje **3546 zielonych / 37 czerwonych**.
+
+## 14. 39 plików melduje „pominięte", a NAPRAWDĘ PADA w `beforeAll` — UDOWODNIONE
+
+vitest raportuje awarię hooka jako `skipped`, nie `failed`. To dlatego przeżył błąd krytyczny
+w module wysyłek. Realne przyczyny (dryf schematu, dotknąłby też świeżej bazy CI):
+
+`users.name NOT NULL` · `users.role_id NOT NULL` · brak ograniczenia pasującego do `ON CONFLICT`
+(9 plików) · `work_orders.created_by_user` nie istnieje · `warehouses.warehouse_type NOT NULL` ·
+`wo_outputs.transaction_id NOT NULL` · `npd_projects.name NOT NULL` · `operator does not exist: text = uuid`
+
+W tym `generate-bol-ship-race.pg.test.ts` — **4 „pominięte", naprawdę: `null value in column
+"warehouse_type"`**. To ten sam plik, o którym pisaliśmy 30 lipca.
+
+## 15. Izolacja organizacji DZIAŁA — ale nie chroni jej ani jeden działający test
+
+To najważniejszy wynik pozytywny nocy. Ponieważ **14 testów izolacji nie uruchamia się**
+(patrz niżej), pomiar wykonano bezpośrednio na schemacie docelowym (migracja 564),
+w transakcji z wycofaniem:
+
+```
+app_user: rolsuper=f, rolbypassrls=f
+tabele public z kolumną org_id : 279
+  RLS włączony                 : 279  (100 %)
+  RLS wyłączony                :   0
+```
+
+Żywa próba wycieku (141 wierszy `sites` z ~30 organizacji), `app_user` z kontekstem org A:
+
+| tabela | wierszy ogółem | widoczne dla org A | **wycieki** |
+|---|---|---|---|
+| sites | 141 | 3 | **0** |
+| locations | 133 | 1 | **0** |
+| roles | 3289 | 26 | **0** |
+| unit_of_measure | 1215 | 9 | **0** |
+
+Pięć prób obejścia, wszystkie odparte: `INSERT` z cudzym `org_id` → odmowa polityki ·
+**`INSERT` do własnej organizacji → UDANY** (kontrola przeciwna, dowód nie-pustości asercji) ·
+podmiana GUC-a na org B → widoczność bez zmian · sfałszowany token sesji → `28000` ·
+brak kontekstu → 0 wierszy (fail-closed).
+
+**Werdykt: nie znaleziono wycieku między organizacjami.**
+
+Ale: **14 testów, które miały to udowadniać, nie uruchamia się od dawna.** Suita za flagą
+`RLS_LIVE_TESTS` jest martwa **strukturalnie** — `new Function('specifier','return import(specifier)')`
+nie działa pod module runnerem vitesta, więc padłaby **nawet w CI z Dockerem**.
+
+Dwie flagi postawy (nie wyciek, ale warto): 3 tabele z `org_id` mają RLS **bez FORCE**
+(właściciel omija RLS, a aplikacja ma pulę ownera); 11 tabel org-scoped nadal daje roli
+`authenticated` pełne CRUD — regres wobec intencji migracji 051.
+
+## 16. Realne defekty wyłuskane z czerwonych testów — DO WERYFIKACJI BEHAWIORALNEJ
+
+| test | co mówi | ocena |
+|---|---|---|
+| `multi-write-transaction-contract` | **6 akcji z wieloma zapisami bez granicy transakcji**: `convertPlannedToWo` (5 zapisów), `splitLp`/`mergeLps` (7), `destroyLp` (3), `createStockMove` (2), `upsertReorderThreshold` (2) | **defekt** — ryzyko częściowego utrwalenia na paletach i MRP |
+| `enforced-permissions` | 5 uprawnień egzekwowanych serwerowo **poza listą kontrolną** | **defekt** — dryf strażnika RBAC |
+| `wave8-shipping-integrity` (7) | `cancelShipment … expected {ok:false,error:'not_found'}`; konwersja opakowań zwraca `undefined` | **defekt — P0 wysyłek z 30.07 NADAL NIE DZIAŁA** |
+| `mwo-loto-signing` (4) | podwójny podpis LOTO nie tworzy parowanych wpisów; **sekwencja exploitu przechodzi** | **defekt bezpieczeństwa** |
+| `production-site-visibility` | operator jednego zakładu widzi wiersz `wo_outputs` z zakładu B | **defekt** |
+| `site-day` + `lp-expiry-site-day` (3) | granica doby wg strefy sesji | **defekt** — spójne z poz. 9 |
 
 ---
 
