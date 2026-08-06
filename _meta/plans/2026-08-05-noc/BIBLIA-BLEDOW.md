@@ -113,7 +113,7 @@ potwierdzono dodatkowo **w przeglądarce**, a nie tylko testem.
 | księga: cofnięcie konsumpcji miało **odwrócony znak** | `58900b69` | ✅ |
 | **błąd tysiąckrotny** w koszcie receptury | `2dcd9a73` | ✅ |
 | pracownik usunięty z katalogu firmowego działał dalej | `0d6eac85` | — |
-| trzy bramki jakościowe połykały awarię | `bf7f0579` | ⚠️ częściowo |
+| trzy bramki jakościowe połykały awarię | `bf7f0579` | ✅ |
 | wyciek odczytu kartoteki (42 pozycje bez uprawnień) | `5f286e3a` | ✅ |
 | świadectwo alergenowe mówiło „passed" przy `FAIL` | `11095c7c` | ✅ |
 | prefiks GS1 i powody zwrotu — martwe ścieżki | `9ad47fbf` | ⚠️ jedna nie działała |
