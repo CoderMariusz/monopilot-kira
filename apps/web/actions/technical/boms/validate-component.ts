@@ -19,10 +19,10 @@
  */
 
 import { withOrgContext } from '../../../lib/auth/with-org-context';
+import { resolveQcRelease } from '../../../lib/technical/qc-release-policy';
 import {
   validateRmUsability,
   type RmAllergenInput,
-  type RmQcReleaseInput,
   type RmSupplierSpecInput,
   type RmUsabilityVerdict,
 } from '../../../lib/technical/rm-usability';
@@ -45,8 +45,6 @@ export interface ValidateBomComponentInput {
   supplierCode?: string;
   /** Allergen codes the target FG forbids (free-from claims etc.). */
   targetFgForbiddenAllergens?: string[];
-  /** Whether org policy requires a QC release for this RM in this context. */
-  requireQcRelease?: boolean;
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -62,7 +60,6 @@ export async function validateBomComponent(raw: ValidateBomComponentInput): Prom
     return { ok: false, error: 'invalid_input', message: 'itemId must be a uuid' };
   }
   const targetForbidden = Array.isArray(raw.targetFgForbiddenAllergens) ? raw.targetFgForbiddenAllergens : [];
-  const requireQc = raw.requireQcRelease === true;
 
   try {
     return await withOrgContext(async ({ client }): Promise<ValidateComponentResult> => {
@@ -124,26 +121,10 @@ export async function validateBomComponent(raw: ValidateBomComponentInput): Prom
         intensity: r.intensity,
       }));
 
-      // QC release read model (Quality-owned, read-only). We read the latest
-      // lab_results row for the item; 'released' is represented by a 'pass'
-      // result_status here (the Quality read model is the source of truth).
-      let qcRelease: RmQcReleaseInput = { required: requireQc };
-      if (requireQc) {
-        const qcRes = await c.query<{ result_status: string; tested_at: string | Date | null; created_at: string | Date }>(
-          `select result_status, tested_at, created_at
-             from public.lab_results
-            where item_id = $1::uuid
-            order by coalesce(tested_at, created_at) desc
-            limit 1`,
-          [raw.itemId],
-        );
-        const qcRow = qcRes.rows[0];
-        qcRelease = {
-          required: true,
-          status: qcRow?.result_status === 'pass' ? 'released' : (qcRow?.result_status ?? null),
-          evidenceAt: qcRow ? toIso(qcRow.tested_at ?? qcRow.created_at) : null,
-        };
-      }
+      // WHETHER a QC release is required is ORG POLICY, resolved server-side —
+      // it used to come from `raw.requireQcRelease`, i.e. from the client, so a
+      // caller could switch the food-safety check off by posting `false`.
+      const qcRelease = await resolveQcRelease(c, raw.itemId);
 
       const verdict = validateRmUsability({
         context: 'bom_edit',

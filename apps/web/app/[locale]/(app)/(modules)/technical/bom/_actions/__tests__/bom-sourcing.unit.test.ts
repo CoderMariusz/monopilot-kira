@@ -38,6 +38,12 @@ function makeClient(handlers: {
       if (n.includes('from public.nutrition_allergens')) {
         return { rows: [] as T[] };
       }
+      // Org QC-release policy (lib/technical/qc-release-policy.ts). This suite is
+      // about SUPPLIER sourcing, so the policy stays off and lab_results is never
+      // reached — but the org must still be asked, so the query is handled here.
+      if (n.includes('from public.tenant_variations')) {
+        return { rows: [{ require_qc: false }] as T[] };
+      }
       if (n.startsWith('select id, item_type, status, updated_at from public.items')) {
         const id = String(params?.[0] ?? '');
         const itemType = id === WIP_ITEM_ID ? 'intermediate' : 'rm';

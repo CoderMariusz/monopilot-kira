@@ -6,9 +6,10 @@
  *    consumption when the LP's batch_number matches — the query must include
  *    the batch CTE expansion and lower/trim normalisation.
  * 2. A direct LP hold (reference_type='lp', reference_id=lpId) still blocks.
- * 3. When no hold matches, null is returned (fail-open per seam contract).
- * 4. 42P01 (undefined_table) is swallowed (fail-open) but other errors are
- *    rethrown (42703 contract-drift guard).
+ * 3. When no hold matches, null is returned — an EMPTY RESULT SET is the
+ *    expected "no hold" answer.
+ * 4. Every query FAILURE (42P01 relation-missing, 42703 column drift, …) is a
+ *    refusal, never "no hold" (contract changed 2026-08-06; see holds-guard.ts).
  */
 
 import { randomUUID } from 'node:crypto';
@@ -17,7 +18,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { getAppConnection, getOwnerConnection } from '../../../../../packages/db/src/clients.js';
 
-import { holdsGuard } from '../holds-guard.js';
+import { assertWoNotOnHold, holdsGuard, QualityHoldCheckFailedError } from '../holds-guard.js';
 
 const LP_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const LOT_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -89,31 +90,47 @@ describe('production holdsGuard — batch expansion (post-mig-412)', () => {
     expect(result).toEqual({ holdId: HOLD_ID, lpId: null, lotId: LOT_ID });
   });
 
-  it('fails open (returns null) on 42P01 undefined_table', async () => {
-    const ctx = {
+  // CONTRACT CHANGED 2026-08-06 (was: "fails open (returns null) on 42P01").
+  // v_active_holds shipped in migration 197, so 42P01 can no longer mean
+  // "09-quality isn't built yet" — it means the hold read model is gone, and
+  // answering "no hold" feeds held material into production.
+  function throwingCtx(code: string, message: string) {
+    return {
       client: {
         query: async () => {
-          const err = new Error('relation does not exist') as Error & { code: string };
-          err.code = '42P01';
-          throw err;
+          throw Object.assign(new Error(message), { code });
         },
       },
     };
-    const result = await holdsGuard(ctx, { lpId: LP_ID });
-    expect(result).toBeNull();
+  }
+
+  it.each([
+    ['42P01', 'relation "v_active_holds" does not exist'],
+    ['42703', 'column does not exist'],
+    ['42501', 'permission denied for view v_active_holds'],
+    ['08006', 'connection terminated unexpectedly'],
+  ])('REFUSES (never "no hold") when the read fails with %s', async (code, message) => {
+    await expect(holdsGuard(throwingCtx(code, message), { lpId: LP_ID })).rejects.toMatchObject({
+      code: 'quality_hold_check_failed',
+      status: 503,
+    });
   });
 
-  it('rethrows non-42P01 errors (42703 column drift must surface)', async () => {
-    const ctx = {
-      client: {
-        query: async () => {
-          const err = new Error('column does not exist') as Error & { code: string };
-          err.code = '42703';
-          throw err;
-        },
-      },
-    };
-    await expect(holdsGuard(ctx, { lpId: LP_ID })).rejects.toMatchObject({ code: '42703' });
+  it('the refusal names the cause and does not leak raw SQLSTATE text', async () => {
+    const err = await holdsGuard(throwingCtx('42P01', 'relation "v_active_holds" does not exist'), {
+      lpId: LP_ID,
+    }).catch((e: unknown) => e as Error);
+    expect(err).toBeInstanceOf(QualityHoldCheckFailedError);
+    expect(err.message).toMatch(/verify quality holds/i);
+    expect(err.message).not.toMatch(/does not exist/i);
+    // The original error stays attached for the logs.
+    expect((err as { cause?: { code?: string } }).cause?.code).toBe('42P01');
+  });
+
+  it('assertWoNotOnHold REFUSES rather than reporting ok when the read fails', async () => {
+    await expect(assertWoNotOnHold(LP_ID, throwingCtx('42P01', 'nope'))).rejects.toBeInstanceOf(
+      QualityHoldCheckFailedError,
+    );
   });
 });
 
@@ -146,9 +163,12 @@ runIntegrationSuite('production holdsGuard real Postgres behavior', () => {
        on conflict (id) do nothing`,
       [orgId, tenantId, `holds-guard-${orgId.slice(0, 8)}`],
     );
+    // users.role_id is NOT NULL — omitting it made this whole beforeAll throw,
+    // which vitest reports as SKIPPED tests, so the real-Postgres half of this
+    // file had never executed once (fixed 2026-08-06).
     await ownerPool.query(
-      `insert into public.users (id, org_id, email, name)
-       values ($1, $2, $3, 'Production Holds Guard PG User')
+      `insert into public.users (id, org_id, email, name, role_id)
+       values ($1, $2, $3, 'Production Holds Guard PG User', (select id from public.roles limit 1))
        on conflict (id) do nothing`,
       [userId, orgId, `holds-guard-${userId}@example.test`],
     );
@@ -276,5 +296,49 @@ runIntegrationSuite('production holdsGuard real Postgres behavior', () => {
         lotId: null,
       });
     });
+  });
+
+  // ── Both directions of the fail-closed fix, against the real view ──────────
+  // The two tests above are direction 3 (a REAL hold blocks). These are
+  // direction 2 (healthy DB, no hold → passes) and direction 1 (the view cannot
+  // be read → refuses). Without direction 2 a guard that simply always refused
+  // would look "fixed" while stopping the plant.
+
+  it('PASSES a clean LP through when the view is healthy and no hold matches', async () => {
+    const lpId = await insertLp('Clean-Batch-001');
+
+    await runUnderOrg(async (client) => {
+      await expect(holdsGuard({ client }, { lpId })).resolves.toBeNull();
+    });
+  });
+
+  it('REFUSES (does not answer "no hold") when v_active_holds cannot be read', async () => {
+    const lpId = await insertLp('Broken-View-001');
+
+    // Break exactly what the guard reads, inside a transaction that is rolled
+    // back, so the damage never outlives this test. The rename needs owner
+    // rights, so the guard runs on the owner client here; `app.current_org_id()`
+    // is irrelevant because the statement fails to parse before any filtering.
+    const client = await ownerPool.connect();
+    try {
+      await client.query('begin');
+      await client.query('alter view public.v_active_holds rename to v_active_holds__fail_closed_probe');
+
+      const error = await holdsGuard({ client }, { lpId }).catch((err: unknown) => err);
+
+      expect(error).toBeInstanceOf(QualityHoldCheckFailedError);
+      expect((error as Error).message).toMatch(/verify quality holds/i);
+      expect((error as { status?: number }).status).toBe(503);
+      expect((error as { cause?: { code?: string } }).cause?.code).toBe('42P01');
+    } finally {
+      await client.query('rollback').catch(() => undefined);
+      client.release();
+    }
+
+    // …and the view is still there afterwards.
+    const { rows } = await ownerPool.query<{ ok: boolean }>(
+      `select to_regclass('public.v_active_holds') is not null as ok`,
+    );
+    expect(rows[0]?.ok).toBe(true);
   });
 });

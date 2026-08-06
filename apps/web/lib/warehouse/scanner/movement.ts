@@ -774,9 +774,10 @@ function assertLpMovable(lp: MovableLpRow): void {
 // G-WH-01 active-hold gate (T-064). Reads the canonical SECURITY INVOKER,
 // org-scoped public.v_active_holds view — NEVER quality_holds directly — keyed
 // on the polymorphic (reference_type='lp', reference_id) model (migration 197).
-// Fail-OPEN only when the view is genuinely ABSENT (42P01 undefined_table:
-// 09-quality not shipped) so a not-yet-built dependency cannot wedge picking;
-// 42703 (column drift) deliberately surfaces. Mirrors holds-guard.ts.
+// FAIL-CLOSED (2026-08-06): "this pallet is clean" is an EMPTY result set, so an
+// exception here never means "no hold" — it means the gate cannot answer, and a
+// pick that stages material for consumption must then refuse. The old branch
+// swallowed 42P01 and picked held stock onto the line. Mirrors holds-guard.ts.
 async function assertLpNotOnActiveHold(client: QueryClient, lpId: string): Promise<void> {
   try {
     const { rows } = await client.query<{ hold_id: string }>(
@@ -793,10 +794,11 @@ async function assertLpNotOnActiveHold(client: QueryClient, lpId: string): Promi
     }
   } catch (err) {
     if (err instanceof WarehouseScannerError) throw err;
-    if (typeof err === 'object' && err !== null && (err as { code?: string }).code === '42P01') {
-      return;
-    }
-    throw err;
+    throw new WarehouseScannerError(
+      'hold_check_failed',
+      503,
+      'Quality holds could not be checked, so this pallet was not picked. Try again, or call Quality.',
+    );
   }
 }
 

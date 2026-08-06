@@ -18,13 +18,39 @@
  *   - lotId → reference_type = 'batch'   (a lot/batch reference)
  * and reconstructs which physical identifier the matched hold covers.
  *
- * FAIL-OPEN only while the view is genuinely ABSENT (09-quality not yet shipped):
- *   detected via `42P01` (undefined_table). `42703` (undefined_column) is NOT
- *   swallowed — a column mismatch is a real contract drift that must surface,
- *   never be silently treated as "no hold".
+ * FAIL-CLOSED (2026-08-06). This seam used to swallow `42P01` (undefined_table)
+ * and answer "no hold" — a fail-open written when 09-quality had not shipped
+ * `v_active_holds` yet. The view HAS shipped (migration 197 + 412), so the only
+ * way that branch can fire today is a genuine failure: the view dropped/renamed,
+ * a permission revoke, a broken connection. Answering "no hold" there routes
+ * material under an ACTIVE quality hold straight into production, and (because
+ * the swallowed error already aborted the transaction) the operator sees a
+ * *different*, unrelated error from the next statement.
+ *
+ * A safety gate that cannot establish state must REFUSE. Zero rows still means
+ * "no hold" — that is the expected no-data answer and is NOT an error. Every
+ * exception is an inability to answer and surfaces as
+ * `QualityHoldCheckFailedError`.
  */
 
 import type { ProductionContext, QueryClient } from './holds-guard-types';
+
+/**
+ * The active-hold read model could not be interrogated, so no consume / output /
+ * completion decision can be made. Callers must refuse the operation; the
+ * message is the one the operator should see (never the raw SQLSTATE text).
+ */
+export class QualityHoldCheckFailedError extends Error {
+  readonly code = 'quality_hold_check_failed' as const;
+  readonly status = 503 as const;
+
+  constructor(cause: unknown) {
+    super('Cannot verify quality holds right now, so this operation was refused. Retry, or contact Quality.');
+    this.name = 'QualityHoldCheckFailedError';
+    this.cause = cause;
+    Object.setPrototypeOf(this, QualityHoldCheckFailedError.prototype);
+  }
+}
 
 /** An active quality hold blocking a consume/output/completion path. */
 export type ActiveHold = { holdId: string; lpId: string | null; lotId: string | null };
@@ -109,13 +135,11 @@ export async function holdsGuard(
       lotId: row.reference_type === 'batch' ? (row.reference_id ?? null) : null,
     };
   } catch (err) {
-    // 42P01 = undefined_table: 09-quality has not shipped v_active_holds yet.
-    // Fail OPEN so a not-yet-built dependency cannot wedge production runtime.
-    // (42703 / undefined_column is deliberately NOT caught — see header.)
-    if (typeof err === 'object' && err !== null && (err as { code?: string }).code === '42P01') {
-      return null;
-    }
-    throw err;
+    // No row = no hold; that answer arrives as an empty result set, never as an
+    // exception. So every exception here — 42P01 (relation missing), 42703
+    // (column drift), 42501 (revoked), a dead connection — means the gate could
+    // not establish state, and a safety gate that cannot establish state refuses.
+    throw new QualityHoldCheckFailedError(err);
   }
 }
 
@@ -166,9 +190,8 @@ export async function assertWoNotOnHold(
       hold: { holdId: String(row.hold_id), lpId: null, lotId: null },
     };
   } catch (err) {
-    if (typeof err === 'object' && err !== null && (err as { code?: string }).code === '42P01') {
-      return { ok: true };
-    }
-    throw err;
+    // Same rule as holdsGuard: "the WO is clean" is an empty result set, never
+    // an exception. An unanswerable gate refuses instead of reporting `ok`.
+    throw new QualityHoldCheckFailedError(err);
   }
 }

@@ -299,6 +299,7 @@ export function buildLpDetailLabels(locale: string): LpDetailLabels {
           woNotOpen: t('detail.actions.reserveModal.errors.woNotOpen'),
           qtyExceedsAvailable: t('detail.actions.reserveModal.errors.qtyExceedsAvailable'),
           productNotInWoBom: t('detail.actions.reserveModal.errors.productNotInWoBom'),
+          holdCheckFailed: t('detail.actions.reserveModal.errors.holdCheckFailed'),
           generic: t('detail.actions.reserveModal.errors.generic'),
         },
       },

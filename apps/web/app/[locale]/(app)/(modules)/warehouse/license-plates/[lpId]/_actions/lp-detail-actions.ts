@@ -490,16 +490,16 @@ export async function reserveLp(lpIdInput: string, woIdInput: string, qtyInput: 
       // qa_status. Reads the canonical SECURITY INVOKER, org-scoped
       // public.v_active_holds view (T-064, migration 197) — NEVER quality_holds
       // directly — keyed on the polymorphic (reference_type='lp', reference_id)
-      // model. Fail-OPEN only when the view is genuinely ABSENT (42P01
-      // undefined_table: 09-quality not shipped) so a not-yet-built dependency
-      // cannot wedge reservation; any other error surfaces. Expiry and hold both
-      // map to the existing `invalid_state` label ("…cannot be reserved in its
-      // current state."), so no new i18n key is required.
+      // model. FAIL-CLOSED (2026-08-06): "no hold" is an EMPTY result set, so an
+      // exception is never an answer — it means the gate could not establish
+      // state, and the reservation is refused with `hold_check_failed` (its own
+      // label, because "cannot be reserved in its current state" would lie about
+      // the cause). Expiry keeps the existing `invalid_state` label.
       if (lp.expiry_date && lp.expiry_date < new Date().toISOString().slice(0, 10)) {
         return { ok: false, reason: 'error', message: 'invalid_state' };
       }
-      try {
-        const hold = await ctx.client.query<{ hold_id: string }>(
+      const hold = await ctx.client
+        .query<{ hold_id: string }>(
           `select hold_id::text
              from public.v_active_holds
             where org_id = app.current_org_id()
@@ -507,13 +507,15 @@ export async function reserveLp(lpIdInput: string, woIdInput: string, qtyInput: 
               and reference_id = $1::uuid
             limit 1`,
           [lpId],
-        );
-        if (hold.rows[0]) return { ok: false, reason: 'error', message: 'invalid_state' };
-      } catch (holdErr) {
-        if (typeof holdErr !== 'object' || holdErr === null || (holdErr as { code?: string }).code !== '42P01') {
-          throw holdErr;
-        }
-      }
+        )
+        .catch((holdErr: unknown) => {
+          // The operator gets a truthful label; the real SQLSTATE goes to the log,
+          // otherwise nobody can find out WHY holds stopped being checkable.
+          console.error('[warehouse] reserveLp active-hold check failed', holdErr);
+          return null;
+        });
+      if (hold === null) return { ok: false, reason: 'error', message: 'hold_check_failed' };
+      if (hold.rows[0]) return { ok: false, reason: 'error', message: 'invalid_state' };
 
       if (lp.reserved_for_wo_id && lp.reserved_for_wo_id !== woId) {
         return { ok: false, reason: 'error', message: 'reserved_for_other_wo' };

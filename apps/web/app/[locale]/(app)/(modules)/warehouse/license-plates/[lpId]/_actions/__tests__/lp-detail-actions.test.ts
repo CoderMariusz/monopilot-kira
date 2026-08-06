@@ -1,4 +1,12 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { randomUUID } from 'node:crypto';
+import type pgTypes from 'pg';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { getOwnerConnection } from '../../../../../../../../../../../packages/db/src/clients.js';
+import {
+  createPgTestFixture,
+  type PgTestFixture,
+} from '../../../../../../../../../tests/helpers/owner-org-context.js';
 
 // P0-B3: unblockLp delegates the QA-hold release (now e-sign gated) to
 // releaseHoldFromWarehouseLpUnblock. Mock that owned action so we can assert the
@@ -34,9 +42,15 @@ let bomCompatible: boolean;
 let activeHold: boolean;
 let activeHoldsViewMissing: boolean;
 
+// Mutable so the real-database suite at the bottom of this file can point the
+// same seam at a live pg connection + its fixture org/user.
+const PG_SESSION = randomUUID();
+let ctxOrgId = ORG_ID;
+let ctxUserId = USER_ID;
+
 vi.mock('../../../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
-    action({ userId: USER_ID, orgId: ORG_ID, client }),
+    action({ userId: ctxUserId, orgId: ctxOrgId, client }),
   ),
 }));
 
@@ -445,14 +459,150 @@ describe('LP detail reserve/block server actions', () => {
     expect(incompatible.data).toEqual([]);
   });
 
-  it('reserveLp FAILS-OPEN when v_active_holds is absent (42P01: 09-quality not shipped)', async () => {
+  // CONTRACT CHANGED 2026-08-06 (was: "reserveLp FAILS-OPEN when v_active_holds
+  // is absent"). v_active_holds shipped in migration 197, so a 42P01 here is no
+  // longer "09-quality isn't built yet" — it is the hold read model being gone,
+  // and reserving material whose hold status is unknown routes held stock to a
+  // work order. A gate that cannot establish state refuses.
+  it('reserveLp REFUSES when the v_active_holds read fails (42P01) — and says why', async () => {
     activeHoldsViewMissing = true;
 
     const result = await reserveLp(LP_ID, WO_ID, '5');
 
-    // A missing dependency view must not wedge reservation — the LP reserves.
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('expected refusal');
+    // Not `invalid_state`: the LP's state is fine, the CHECK is what failed.
+    expect(result.message).toBe('hold_check_failed');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// reserveLp quality-hold gate against a REAL database.
+//
+// The fake client above can only prove what it is told to throw. These three
+// drive the actual SQL: a real hold blocks, a clean LP reserves, and a
+// v_active_holds that cannot be read REFUSES instead of answering "no hold".
+// The `withOrgContext` mock at the top of this file hands out the module-level
+// `client`, so pointing that at a real pg connection is all it takes.
+// ─────────────────────────────────────────────────────────────────────────────
+const runPg = process.env.DATABASE_URL ? describe : describe.skip;
+
+runPg('reserveLp active-hold gate — real database', () => {
+  let ownerPool: pgTypes.Pool;
+  let pgClient: pgTypes.PoolClient;
+  let fixture: PgTestFixture;
+  const seeded = {
+    product: randomUUID(),
+    wo: randomUUID(),
+    lpClean: randomUUID(),
+    lpHeld: randomUUID(),
+    hold: randomUUID(),
+  };
+
+  beforeAll(async () => {
+    ownerPool = getOwnerConnection();
+    fixture = await createPgTestFixture(ownerPool, { permissions: ['warehouse.lp.reserve'] });
+    pgClient = await ownerPool.connect();
+    await pgClient.query('begin');
+    await pgClient.query(
+      `insert into app.session_org_contexts (session_token, org_id, user_id) values ($1::uuid, $2::uuid, $3::uuid)`,
+      [PG_SESSION, fixture.orgId, fixture.userId],
+    );
+    await pgClient.query(`select app.set_org_context($1::uuid, $2::uuid)`, [PG_SESSION, fixture.orgId]);
+    await pgClient.query(
+      `insert into public.items (id, org_id, item_code, item_type, name, uom_base)
+       values ($1::uuid, $2::uuid, $3, 'rm', 'Reserve Gate RM', 'kg')`,
+      [seeded.product, fixture.orgId, `RSV-${seeded.product.slice(0, 8)}`],
+    );
+    await pgClient.query(
+      `insert into public.work_orders
+         (id, org_id, site_id, wo_number, product_id, planned_quantity, uom, status, item_type_at_creation)
+       values ($1::uuid, $2::uuid, $3::uuid, $4, $5::uuid, 10, 'kg', 'RELEASED', 'rm')`,
+      [seeded.wo, fixture.orgId, fixture.siteId, `WO-RSV-${seeded.wo.slice(0, 6)}`, seeded.product],
+    );
+    await pgClient.query(
+      `insert into public.license_plates
+         (id, org_id, site_id, warehouse_id, location_id, lp_number, product_id, quantity, reserved_qty, uom, status, qa_status, created_by, updated_by)
+       values ($1::uuid, $3::uuid, $4::uuid, $5::uuid, $6::uuid, $7, $8::uuid, 10, 0, 'kg', 'available', 'released', $9::uuid, $9::uuid),
+              ($2::uuid, $3::uuid, $4::uuid, $5::uuid, $6::uuid, $10, $8::uuid, 10, 0, 'kg', 'available', 'released', $9::uuid, $9::uuid)`,
+      [
+        seeded.lpClean,
+        seeded.lpHeld,
+        fixture.orgId,
+        fixture.siteId,
+        fixture.warehouseId,
+        fixture.locationId,
+        `LP-RSV-CLEAN-${seeded.lpClean.slice(0, 6)}`,
+        seeded.product,
+        fixture.userId,
+        `LP-RSV-HELD-${seeded.lpHeld.slice(0, 6)}`,
+      ],
+    );
+    // qa_status deliberately stays 'released' — an LP whose hold also flipped
+    // qa_status would be stopped by the earlier gate and prove nothing here.
+    await pgClient.query(
+      `insert into public.quality_holds (id, org_id, reference_type, reference_id, priority, hold_status, created_by)
+       values ($1::uuid, $2::uuid, 'lp', $3::uuid, 'critical', 'open', $4::uuid)`,
+      [seeded.hold, fixture.orgId, seeded.lpHeld, fixture.userId],
+    );
+    // Point the mocked withOrgContext at the real connection.
+    client = pgClient as unknown as QueryClient;
+    ctxOrgId = fixture.orgId;
+    ctxUserId = fixture.userId;
+  });
+
+  afterAll(async () => {
+    await pgClient?.query('rollback').catch(() => undefined);
+    await ownerPool
+      ?.query(`delete from app.session_org_contexts where session_token = $1::uuid`, [PG_SESSION])
+      .catch(() => undefined);
+    pgClient?.release();
+    await fixture?.cleanup().catch(() => undefined);
+    await ownerPool?.end();
+  });
+
+  async function reservedQty(lpId: string): Promise<string> {
+    const { rows } = await pgClient.query<{ reserved_qty: string }>(
+      `select reserved_qty::text from public.license_plates where id = $1::uuid`,
+      [lpId],
+    );
+    return rows[0]!.reserved_qty;
+  }
+
+  it('BLOCKS a reservation on an LP under a real active quality hold', async () => {
+    const result = await reserveLp(seeded.lpHeld, seeded.wo, '5');
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('expected refusal');
+    expect(result.message).toBe('invalid_state');
+    expect(Number(await reservedQty(seeded.lpHeld))).toBe(0);
+  });
+
+  it('ALLOWS a reservation on a clean LP when the view is healthy', async () => {
+    const result = await reserveLp(seeded.lpClean, seeded.wo, '5');
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(result.message ?? result.reason);
-    expect(result.data).toMatchObject({ lpId: LP_ID, status: 'reserved' });
+    expect(Number(await reservedQty(seeded.lpClean))).toBe(5);
+  });
+
+  it('REFUSES with hold_check_failed when v_active_holds cannot be read', async () => {
+    await pgClient.query('savepoint before_break');
+    await pgClient.query('alter view public.v_active_holds rename to v_active_holds__reserve_probe');
+    try {
+      const before = await reservedQty(seeded.lpClean);
+      const result = await reserveLp(seeded.lpClean, seeded.wo, '1');
+
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error('expected refusal');
+      // Truthful cause: the CHECK failed, not "this pallet cannot be reserved".
+      expect(result.message).toBe('hold_check_failed');
+      await pgClient.query('rollback to savepoint before_break');
+      expect(await reservedQty(seeded.lpClean)).toBe(before);
+    } finally {
+      await pgClient.query('rollback to savepoint before_break').catch(() => undefined);
+    }
+    const { rows } = await pgClient.query<{ ok: boolean }>(
+      `select to_regclass('public.v_active_holds') is not null as ok`,
+    );
+    expect(rows[0]?.ok).toBe(true);
   });
 });

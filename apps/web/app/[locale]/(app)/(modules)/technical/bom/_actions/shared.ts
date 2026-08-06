@@ -37,6 +37,7 @@ import {
   type RmUsabilityContext,
   type RmUsabilityReasonCode,
 } from '../../../../../../../lib/technical/rm-usability';
+import { resolveQcRelease } from '../../../../../../../lib/technical/qc-release-policy';
 import { isScrapPrecisionValid } from '../_lib/scrap-precision';
 import { buildGraph, detectCycle } from './cycle-detection';
 
@@ -400,7 +401,10 @@ export async function validateBomLineRmUsability(
       supplier,
       rmAllergens,
       targetFgForbiddenAllergens,
-      qcRelease: { required: false },
+      // Was hardcoded `{ required: false }`, which made QC_RELEASE_MISSING
+      // unreachable on every BOM path regardless of org policy. Resolved
+      // server-side now (lib/technical/qc-release-policy.ts).
+      qcRelease: await resolveQcRelease(c, itemRow?.id ?? null),
       supplierSourcingRequired: await resolveSupplierSourcingRequired(c, itemRow),
     });
 

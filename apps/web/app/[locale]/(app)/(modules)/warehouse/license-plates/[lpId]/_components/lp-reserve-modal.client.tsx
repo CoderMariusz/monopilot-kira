@@ -45,6 +45,8 @@ export type LpReserveModalLabels = {
     woNotOpen: string;
     qtyExceedsAvailable: string;
     productNotInWoBom: string;
+    /** The v_active_holds read failed — the gate refused instead of guessing "no hold". */
+    holdCheckFailed: string;
     generic: string;
   };
 };
@@ -74,6 +76,8 @@ function reserveError(result: Extract<WarehouseResult<ReserveLpResult>, { ok: fa
       return labels.errors.qtyExceedsAvailable;
     case 'product_not_in_wo_bom':
       return labels.errors.productNotInWoBom;
+    case 'hold_check_failed':
+      return labels.errors.holdCheckFailed;
     default:
       return labels.errors.generic;
   }

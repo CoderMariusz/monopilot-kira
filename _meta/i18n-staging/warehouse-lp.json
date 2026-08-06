@@ -200,6 +200,7 @@
             "otherWo": "This license plate is already reserved for another work order.",
             "woNotOpen": "That work order is not open.",
             "qtyExceedsAvailable": "The quantity exceeds the LP available quantity.",
+            "holdCheckFailed": "The quality-hold check could not be completed, so this license plate was not reserved. Try again, or contact Quality.",
             "generic": "We could not reserve this license plate. Try again.",
             "productNotInWoBom": "This license plate product is not on the work order BOM (or its output)."
           }
@@ -683,6 +684,7 @@
             "otherWo": "Ten LP jest już zarezerwowany dla innego zlecenia.",
             "woNotOpen": "To zlecenie nie jest otwarte.",
             "qtyExceedsAvailable": "Ilość przekracza dostępną ilość LP.",
+            "holdCheckFailed": "Nie udało się sprawdzić blokad jakościowych, więc LP nie zostało zarezerwowane. Spróbuj ponownie lub skontaktuj się z jakością.",
             "generic": "Nie udało się zarezerwować tego LP. Spróbuj ponownie.",
             "productNotInWoBom": "Produkt tego LP nie należy do BOM zlecenia (ani do jego wyrobu gotowego)."
           }
@@ -1166,6 +1168,7 @@
             "otherWo": "This license plate is already reserved for another work order.",
             "woNotOpen": "That work order is not open.",
             "qtyExceedsAvailable": "The quantity exceeds the LP available quantity.",
+            "holdCheckFailed": "The quality-hold check could not be completed, so this license plate was not reserved. Try again, or contact Quality.",
             "generic": "We could not reserve this license plate. Try again.",
             "productNotInWoBom": "This license plate product is not on the work order BOM (or its output)."
           }
@@ -1649,6 +1652,7 @@
             "otherWo": "This license plate is already reserved for another work order.",
             "woNotOpen": "That work order is not open.",
             "qtyExceedsAvailable": "The quantity exceeds the LP available quantity.",
+            "holdCheckFailed": "The quality-hold check could not be completed, so this license plate was not reserved. Try again, or contact Quality.",
             "generic": "We could not reserve this license plate. Try again.",
             "productNotInWoBom": "This license plate product is not on the work order BOM (or its output)."
           }

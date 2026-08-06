@@ -103,6 +103,9 @@ function createClient(bomStatus: string, receipts: ReceiptRow[] = []): QueryClie
       if (n.includes('from public.supplier_specs')) return { rows: [] };
       if (n.includes('from public.item_allergen_profiles')) return { rows: [] };
       if (n.includes('from public.wip_definitions')) return { rows: [] };
+      // Org QC-release policy (lib/technical/qc-release-policy.ts) — off here, so
+      // the preflight verdicts under test are unchanged, but the org IS asked.
+      if (n.includes('from public.tenant_variations')) return { rows: [{ require_qc: false }] };
       if (n.includes('from public.feature_flags_core')) return { rows: [{ is_enabled: false }] };
       if (n.includes('from public.audit_log')) return { rows: [] };
       if (n.includes('from public.audit_events')) return { rows: [] };
