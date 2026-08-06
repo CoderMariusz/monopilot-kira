@@ -188,6 +188,11 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): ShipmentPa
       already_packed: t('pack.errors.already_packed'),
       invalid_box: t('pack.errors.invalid_box'),
       not_found: t('pack.errors.not_found'),
+      // packLpIntoBoxCore has returned these two since mig 459, but nothing mapped
+      // them, so a missing org setting read as "Something went wrong saving. Please
+      // retry." — a retry can never fix it. Name the setting and where to set it.
+      missing_gs1_prefix: t('pack.errors.missing_gs1_prefix'),
+      invalid_gs1_prefix: t('pack.errors.invalid_gs1_prefix'),
       persistence_failed: t('errors.persistence_failed'),
     },
     ship: {
