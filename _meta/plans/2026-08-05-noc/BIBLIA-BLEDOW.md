@@ -86,7 +86,7 @@ potwierdzono dodatkowo **w przeglądarce**, a nie tylko testem.
 | pracownik usunięty z katalogu firmowego działał dalej | `0d6eac85` | — |
 | trzy bramki jakościowe połykały awarię | `bf7f0579` | ⚠️ częściowo |
 | wyciek odczytu kartoteki (42 pozycje bez uprawnień) | `5f286e3a` | ✅ |
-| świadectwo alergenowe mówiło „passed" przy `FAIL` | `11095c7c` | — |
+| świadectwo alergenowe mówiło „passed" przy `FAIL` | `11095c7c` | ✅ |
 | prefiks GS1 i powody zwrotu — martwe ścieżki | `9ad47fbf` | ⚠️ jedna nie działała |
 | **ścisła walidacja odrzucała własną organizację** (5 miejsc) | `0f9f4c08` | ✅ |
 | CI: `lint-workflows` nigdy nie działał, bramki nie chodziły | `48f1918f` | — |
