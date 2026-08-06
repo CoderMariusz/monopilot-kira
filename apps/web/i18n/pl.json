@@ -556,6 +556,7 @@
       "field_logo": "Logo",
       "field_vat": "VAT / NIP",
       "field_regon": "REGON",
+      "field_gs1_prefix": "Prefiks firmy GS1",
       "field_industry": "Branża",
       "field_street": "Ulica",
       "field_city_zip": "Miasto / kod pocztowy",
@@ -574,6 +575,7 @@
       "hint_legal_name": "Pełna nazwa rejestrowa do dokumentów.",
       "hint_logo": "Pojawia się na etykietach, fakturach i stronie logowania.",
       "hint_vat": "Numer identyfikacji podatkowej.",
+      "hint_gs1_prefix": "7 cyfr, nadawane przez GS1. Wymagane do generowania kodów SSCC przy pakowaniu wysyłek.",
       "hint_default_currency": "Używana do kosztorysowania i raportów.",
       "region_tooltip": "Zmiana regionu wymaga zgłoszenia do wsparcia",
       "action_upload_new": "Prześlij nowe",
@@ -1410,7 +1412,11 @@
       "codes_count_suffix": "kodów",
       "empty_override_types": "Nie skonfigurowano jeszcze żadnych typów nadpisań.",
       "empty_reason_codes": "Brak kodów powodów dla tego typu nadpisania.",
-      "empty_rma_codes": "Nie skonfigurowano jeszcze żadnych kodów powodów RMA."
+      "empty_rma_codes": "Nie skonfigurowano jeszcze żadnych kodów powodów RMA.",
+      "add_rma_reason": "+ Dodaj powód RMA",
+      "form_save": "Zapisz",
+      "form_cancel": "Anuluj",
+      "form_error": "Powód nie został zapisany. Sprawdź, czy kod jest unikalny w tej organizacji, i spróbuj ponownie."
     },
     "customerPrices": {
       "eyebrow": "Ceny",
@@ -11989,7 +11995,9 @@
           "lp_not_allocated": "Ten nośnik nie jest zaalokowany do tego zamówienia sprzedaży.",
           "already_packed": "Ten nośnik jest już spakowany.",
           "invalid_box": "Ten karton już nie istnieje.",
-          "not_found": "Ta wysyłka już nie istnieje."
+          "not_found": "Ta wysyłka już nie istnieje.",
+          "missing_gs1_prefix": "Prefiks firmy GS1 nie jest ustawiony dla tej organizacji. Ustaw go w Ustawienia → Profil firmy (7 cyfr) i spakuj ponownie.",
+          "invalid_gs1_prefix": "Prefiks firmy GS1 jest nieprawidłowy — musi mieć dokładnie 7 cyfr. Popraw go w Ustawienia → Profil firmy i spakuj ponownie."
         }
       },
       "deliveryNotePrint": {

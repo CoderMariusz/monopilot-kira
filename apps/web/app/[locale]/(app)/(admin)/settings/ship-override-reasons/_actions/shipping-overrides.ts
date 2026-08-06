@@ -53,6 +53,10 @@ export type ReasonCodeMutationResult =
   | { ok: true; deleted: true; id: string }
   | { ok: false; error: 'invalid_input' | 'forbidden' | 'not_found' | 'persistence_failed' };
 
+export type RmaReasonCodeMutationResult =
+  | { ok: true; data: RmaReasonCodeRow }
+  | { ok: false; error: 'invalid_input' | 'forbidden' | 'duplicate_code' | 'persistence_failed' };
+
 export type ShippingOverridesSettingsData = {
   org_id: string;
   override_types: OverrideTypeRow[];
@@ -118,6 +122,18 @@ const DeleteReasonCodeInput = z
   .object({
     orgId: UuidInput,
     id: UuidInput,
+  })
+  .strict();
+
+// Mirrors the rma_reason_codes CHECK constraints (mig 240): non-blank code + label_en.
+const CreateRmaReasonCodeInput = z
+  .object({
+    orgId: UuidInput,
+    code: z.string().trim().min(1).max(64),
+    label_en: z.string().trim().min(1).max(200),
+    label_pl: z.string().trim().max(200).optional(),
+    display_order: z.number().int().min(0).max(100000).optional().default(0),
+    is_active: z.boolean().optional().default(true),
   })
   .strict();
 
@@ -342,6 +358,53 @@ export async function createReasonCode(rawInput: unknown): Promise<ReasonCodeMut
     });
   } catch (error) {
     console.error('[settings/shipping-overrides] create_failed', error instanceof Error ? { message: error.message } : { message: String(error) });
+    return { ok: false, error: 'persistence_failed' };
+  }
+}
+
+/**
+ * The write half of the RMA reason-code table. Without it the settings screen could
+ * only ever DISPLAY rma_reason_codes, so a fresh org had an empty list and the RMA
+ * create form (which validates against this table) could not be submitted at all.
+ * Same org check + same settings.org.update gate as createReasonCode above.
+ */
+export async function createRmaReasonCode(rawInput: unknown): Promise<RmaReasonCodeMutationResult> {
+  const parsed = CreateRmaReasonCodeInput.safeParse(rawInput);
+  if (!parsed.success) return { ok: false, error: 'invalid_input' };
+
+  try {
+    return await withOrgContext<RmaReasonCodeMutationResult>(async (ctx): Promise<RmaReasonCodeMutationResult> => {
+      const context = ctx as OrgContextLike;
+      if (context.orgId !== parsed.data.orgId) return { ok: false, error: 'forbidden' };
+      if (!(await hasSettingsUpdatePermission(context))) return { ok: false, error: 'forbidden' };
+
+      const { rows } = await context.client.query<RmaReasonCodeDbRow>(
+        `insert into public.rma_reason_codes
+           (org_id, code, label_en, label_pl, display_order, is_active, created_by, updated_by)
+         values ($1::uuid, $2, $3, nullif($4, ''), $5::int, $6::boolean, $7::uuid, $7::uuid)
+         returning id::text, org_id::text, code, label_en, label_pl, display_order, is_active`,
+        [
+          parsed.data.orgId,
+          parsed.data.code,
+          parsed.data.label_en,
+          parsed.data.label_pl ?? '',
+          parsed.data.display_order,
+          parsed.data.is_active,
+          context.userId,
+        ],
+      );
+      const row = rows[0];
+      if (!row) return { ok: false, error: 'persistence_failed' };
+      revalidateShippingOverrideRoutes();
+      return { ok: true, data: toRmaReasonCodeRow(row) };
+    });
+  } catch (error) {
+    // rma_reason_codes_org_code_uq — a re-used code is a user mistake, not a server fault.
+    if ((error as { code?: string } | null)?.code === '23505') return { ok: false, error: 'duplicate_code' };
+    console.error(
+      '[settings/shipping-overrides] create_rma_reason_failed',
+      error instanceof Error ? { message: error.message } : { message: String(error) },
+    );
     return { ok: false, error: 'persistence_failed' };
   }
 }

@@ -575,6 +575,7 @@
       "field_logo": "Logo",
       "field_vat": "VAT / NIP",
       "field_regon": "REGON",
+      "field_gs1_prefix": "GS1 company prefix",
       "field_industry": "Industry",
       "field_street": "Street",
       "field_city_zip": "City / ZIP",
@@ -593,6 +594,7 @@
       "hint_legal_name": "Full registered name for documents.",
       "hint_logo": "Appears on labels, invoices, and the login page.",
       "hint_vat": "Tax identification number.",
+      "hint_gs1_prefix": "7 digits, assigned by GS1. Required to generate SSCC codes when packing shipments.",
       "hint_default_currency": "Used for costing and reports.",
       "region_tooltip": "Region change requires support ticket",
       "action_upload_new": "Upload new",
@@ -1429,7 +1431,11 @@
       "codes_count_suffix": "codes",
       "empty_override_types": "No override types are configured yet.",
       "empty_reason_codes": "No reason codes for this override type yet.",
-      "empty_rma_codes": "No RMA reason codes are configured yet."
+      "empty_rma_codes": "No RMA reason codes are configured yet.",
+      "add_rma_reason": "+ Add RMA reason",
+      "form_save": "Save",
+      "form_cancel": "Cancel",
+      "form_error": "Reason code was not saved. Check the code is unique for this organization, then retry."
     },
     "customerPrices": {
       "eyebrow": "Pricing",
@@ -11989,7 +11995,9 @@
           "lp_not_allocated": "That license plate is not allocated to this sales order.",
           "already_packed": "That license plate is already packed.",
           "invalid_box": "That box no longer exists.",
-          "not_found": "That shipment no longer exists."
+          "not_found": "That shipment no longer exists.",
+          "missing_gs1_prefix": "GS1 company prefix is not set for this organization. Set it in Settings → Company profile (7 digits), then pack again.",
+          "invalid_gs1_prefix": "GS1 company prefix is invalid — it must be exactly 7 digits. Fix it in Settings → Company profile, then pack again."
         }
       },
       "deliveryNotePrint": {

@@ -26,6 +26,7 @@ import {
   ensureAppUser,
   makeAppUserConnectionString,
   withActionActor,
+  withAppOrg,
 } from '../../../../../../(npd)/brief/actions/__tests__/brief-integration-helpers';
 import type { SaveCompanyProfileInput } from '../company-profile-screen.client';
 import { saveCompanyProfile } from '../_actions/company-profile';
@@ -44,6 +45,7 @@ const seed = {
 };
 
 let owner: pg.Pool;
+let app: pg.Pool;
 
 const fullInput: SaveCompanyProfileInput = {
   tradingName: 'Apex Foods Sp. z o.o.',
@@ -61,6 +63,7 @@ const fullInput: SaveCompanyProfileInput = {
   currency: 'PLN',
   timezone: 'Europe/Berlin',
   dateFormat: 'DD/MM/YYYY',
+  gs1Prefix: '5901234',
 };
 
 async function seedFixtures(): Promise<void> {
@@ -116,6 +119,7 @@ async function seedFixtures(): Promise<void> {
 }
 
 async function cleanup(): Promise<void> {
+  await owner.query(`delete from public.sscc_counters where org_id = $1`, [seed.orgId]);
   await owner.query(`delete from public.outbox_events where org_id = $1`, [seed.orgId]);
   await owner.query(`delete from public.user_roles where org_id = $1`, [seed.orgId]);
   await owner.query(
@@ -138,14 +142,25 @@ run('SET-010 saveCompanyProfile round-trip (real DB)', () => {
     process.env.APP_USER_PASSWORD = appUserPassword;
     // sanity: confirm the app_user connection string is constructible
     expect(makeAppUserConnectionString()).toContain('app_user');
+    // eslint-disable-next-line no-restricted-syntax -- app_user pool: proves generate_sscc() accepts the saved prefix
+    app = new pg.Pool({ connectionString: makeAppUserConnectionString() });
     await seedFixtures();
   });
 
   afterAll(async () => {
+    if (app) await app.end();
     if (owner) {
       await cleanup();
       await owner.end();
     }
+  });
+
+  it('leaves Pack blocked while the prefix is unset (the state this screen could not fix)', async () => {
+    await expect(
+      withAppOrg(owner, app, seed.orgId, (client) =>
+        client.query(`select public.generate_sscc($1::uuid, 0)::text as sscc`, [seed.orgId]),
+      ),
+    ).rejects.toThrow(/V-SHIP-PACK-03 missing GS1 company prefix/);
   });
 
   it('persists ALL editable fields and reads them back', async () => {
@@ -175,10 +190,15 @@ run('SET-010 saveCompanyProfile round-trip (real DB)', () => {
     // write actually hit Postgres — this is what was broken before.
     const { rows } = await owner.query(
       `select name, legal_name, vat, regon, industry, street, city, zip, country,
-              email, phone, website, currency, timezone
+              email, phone, website, currency, timezone, gs1_prefix
          from public.organizations where id = $1`,
       [seed.orgId],
     );
+    // D1: gs1_prefix is what generate_sscc() reads; without it Pack dies with
+    // "V-SHIP-PACK-03 missing GS1 company prefix" and the whole shipping flow stops.
+    // It used to be settable ONLY through the onboarding wizard.
+    expect(rows[0].gs1_prefix).toBe(fullInput.gs1Prefix);
+    delete rows[0].gs1_prefix;
     expect(rows[0]).toEqual({
       name: fullInput.tradingName,
       legal_name: fullInput.legalName,
@@ -195,6 +215,14 @@ run('SET-010 saveCompanyProfile round-trip (real DB)', () => {
       currency: fullInput.currency,
       timezone: fullInput.timezone,
     });
+
+    // ...and the saved prefix is actually USABLE: generate_sscc() (what Pack calls,
+    // mig 459) now mints an SSCC instead of raising V-SHIP-PACK-03. A written column
+    // would not prove that — a wrongly-shaped value still blocks packing.
+    const { rows: sscc } = await withAppOrg(owner, app, seed.orgId, (client) =>
+      client.query<{ sscc: string }>(`select public.generate_sscc($1::uuid, 0)::text as sscc`, [seed.orgId]),
+    );
+    expect(sscc[0].sscc).toMatch(/^05901234\d{9}\d$/);
 
     // Outbox event was emitted for the change.
     const { rows: events } = await owner.query(
@@ -215,13 +243,30 @@ run('SET-010 saveCompanyProfile round-trip (real DB)', () => {
     expect(rows[0].name).toBe(fullInput.tradingName);
   });
 
+  it('rejects a GS1 prefix that is not exactly 7 digits, without writing', async () => {
+    // Same shape generate_sscc() enforces (`^[0-9]{7}$`, migration 459) — reject at
+    // the action so the operator learns now, not at Pack time.
+    for (const bad of ['123', '12345678', '59012AB', ' 5901234x']) {
+      const result = await withActionActor(seed.adminUserId, seed.orgId, () =>
+        saveCompanyProfile({ ...fullInput, gs1Prefix: bad }),
+      );
+      expect(result).toEqual({ ok: false, error: 'invalid' });
+    }
+
+    const { rows } = await owner.query(`select gs1_prefix from public.organizations where id = $1`, [seed.orgId]);
+    expect(rows[0].gs1_prefix).toBe(fullInput.gs1Prefix);
+  });
+
   it('forbids a user without settings.org.update', async () => {
     const result = await withActionActor(seed.viewerUserId, seed.orgId, () =>
-      saveCompanyProfile({ ...fullInput, tradingName: 'Viewer Should Not Persist' }),
+      saveCompanyProfile({ ...fullInput, tradingName: 'Viewer Should Not Persist', gs1Prefix: '9999999' }),
     );
     expect(result).toEqual({ ok: false, error: 'forbidden' });
 
-    const { rows } = await owner.query(`select name from public.organizations where id = $1`, [seed.orgId]);
+    const { rows } = await owner.query(`select name, gs1_prefix from public.organizations where id = $1`, [
+      seed.orgId,
+    ]);
     expect(rows[0].name).toBe(fullInput.tradingName);
+    expect(rows[0].gs1_prefix).toBe(fullInput.gs1Prefix);
   });
 });

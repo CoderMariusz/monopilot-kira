@@ -1,8 +1,15 @@
 import { getTranslations } from 'next-intl/server';
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
-import { readShippingOverridesSettingsData } from './_actions/shipping-overrides';
+import {
+  createReasonCode,
+  createRmaReasonCode,
+  readShippingOverridesSettingsData,
+  type ReasonCodeRow,
+  type RmaReasonCodeRow,
+} from './_actions/shipping-overrides';
 import ShipOverrideReasonsScreen, {
+  type AddReasonResult,
   type ShipOverrideReasonsScreenLabels,
 } from './ship-override-reasons-screen.client';
 
@@ -45,7 +52,48 @@ async function buildLabels(locale: string): Promise<ShipOverrideReasonsScreenLab
     emptyOverrideTypes: t('empty_override_types'),
     emptyReasonCodes: t('empty_reason_codes'),
     emptyRmaCodes: t('empty_rma_codes'),
+    addRmaReason: t('add_rma_reason'),
+    formSave: t('form_save'),
+    formCancel: t('form_cancel'),
+    formError: t('form_error'),
   };
+}
+
+/**
+ * D2 — the wire that was missing. The screen had no writer at all, so "Add reason"
+ * was inert. orgId is resolved server-side (never client-supplied) and both writers
+ * re-check settings.org.update inside withOrgContext.
+ */
+async function addReasonAction(input: {
+  overrideTypeId: string;
+  code: string;
+  label: string;
+}): Promise<AddReasonResult<ReasonCodeRow>> {
+  'use server';
+  const orgId = await resolveOrgId();
+  if (!orgId) return { ok: false, error: 'forbidden' };
+  const result = await createReasonCode({ orgId, ...input });
+  if (result.ok && 'data' in result) return { ok: true, data: result.data };
+  return { ok: false, error: result.ok ? 'persistence_failed' : result.error };
+}
+
+async function addRmaReasonAction(input: {
+  code: string;
+  label_en: string;
+}): Promise<AddReasonResult<RmaReasonCodeRow>> {
+  'use server';
+  const orgId = await resolveOrgId();
+  if (!orgId) return { ok: false, error: 'forbidden' };
+  const result = await createRmaReasonCode({ orgId, ...input });
+  return result.ok ? { ok: true, data: result.data } : { ok: false, error: result.error };
+}
+
+async function resolveOrgId(): Promise<string | null> {
+  try {
+    return await withOrgContext(async ({ orgId }) => orgId);
+  } catch {
+    return null;
+  }
 }
 
 async function resolveCanEdit(): Promise<boolean> {
@@ -90,6 +138,8 @@ export default async function ShipOverrideReasonsSettingsPage({ params }: PagePr
       rmaReasonCodes={data.rma_reason_codes}
       canEdit={canEdit}
       labels={labels}
+      onAddReason={addReasonAction}
+      onAddRmaReason={addRmaReasonAction}
     />
   );
 }

@@ -21,9 +21,14 @@ import type { OverrideTypeRow, ReasonCodeRow, RmaReasonCodeRow } from './_action
  * `rma_reason_codes`); no mocks.
  *
  * Selecting an override-type card is a client-only highlight: the initial
- * reason-code list is the server-loaded set for the first override type. The
- * card-driven refetch / add-reason mutation flow is intentionally out of scope
- * for this read-only parity pass (the loaders + mutations exist in `_actions`).
+ * reason-code list is the server-loaded set for the first override type.
+ *
+ * D2: "Add reason" used to be decorative — page.tsx never handed the screen a
+ * writer, so the button produced 0 DOM changes, 0 requests, 0 rows. Both tables
+ * now have an inline add form bound to the `_actions` writers. The RMA one is
+ * the one that matters operationally: the RMA create form validates the chosen
+ * reason against `rma_reason_codes`, so an empty table meant no return could be
+ * filed at all and there was nowhere in the product to fix that.
  */
 
 const PROTOTYPE_SOURCE = 'prototypes/design/Monopilot Design System/settings/admin-screens.jsx:720-799';
@@ -57,7 +62,14 @@ export type ShipOverrideReasonsScreenLabels = {
   emptyOverrideTypes: string;
   emptyReasonCodes: string;
   emptyRmaCodes: string;
+  addRmaReason: string;
+  formSave: string;
+  formCancel: string;
+  formError: string;
 };
+
+/** What the writers resolve to; `data` is the persisted row, so the table can show it at once. */
+export type AddReasonResult<T> = { ok: true; data: T } | { ok: false; error: string };
 
 export type ShipOverrideReasonsScreenProps = {
   overrideTypes: OverrideTypeRow[];
@@ -66,9 +78,19 @@ export type ShipOverrideReasonsScreenProps = {
   rmaReasonCodes: RmaReasonCodeRow[];
   canEdit?: boolean;
   labels: ShipOverrideReasonsScreenLabels;
-  onAddReason?: () => void;
+  onAddReason?: (input: {
+    overrideTypeId: string;
+    code: string;
+    label: string;
+  }) => Promise<AddReasonResult<ReasonCodeRow>>;
+  onAddRmaReason?: (input: { code: string; label_en: string }) => Promise<AddReasonResult<RmaReasonCodeRow>>;
   onSelectOverrideType?: (overrideTypeId: string) => void;
 };
+
+function mergeRows<T extends { id: string }>(serverRows: T[], addedRows: T[]): T[] {
+  const seen = new Set(serverRows.map((row) => row.id));
+  return [...serverRows, ...addedRows.filter((row) => !seen.has(row.id))];
+}
 
 function StatusBadge({ active, activeLabel, inactiveLabel }: { active: boolean; activeLabel: string; inactiveLabel: string }) {
   return active ? (
@@ -82,6 +104,93 @@ function StatusBadge({ active, activeLabel, inactiveLabel }: { active: boolean; 
   );
 }
 
+/**
+ * Inline "code + label" add row, used by both tables. Everything else the two
+ * tables carry (requires_note, label_pl, display_order) has a server-side default,
+ * so two text inputs are all it takes to unblock the flows that need a row to exist.
+ */
+function AddReasonForm({
+  codeLabel,
+  valueLabel,
+  saveLabel,
+  cancelLabel,
+  errorLabel,
+  testId,
+  onSubmit,
+  onCancel,
+}: {
+  codeLabel: string;
+  valueLabel: string;
+  saveLabel: string;
+  cancelLabel: string;
+  errorLabel: string;
+  testId: string;
+  onSubmit: (code: string, value: string) => Promise<{ ok: boolean }>;
+  onCancel: () => void;
+}) {
+  const [code, setCode] = React.useState('');
+  const [value, setValue] = React.useState('');
+  const [busy, setBusy] = React.useState(false);
+  const [failed, setFailed] = React.useState(false);
+
+  const canSubmit = code.trim().length > 0 && value.trim().length > 0 && !busy;
+
+  return (
+    <form
+      data-testid={testId}
+      className="flex flex-wrap items-end gap-2"
+      style={{ marginBottom: 12 }}
+      onSubmit={async (event) => {
+        event.preventDefault();
+        if (!canSubmit) return;
+        setBusy(true);
+        setFailed(false);
+        try {
+          const result = await onSubmit(code.trim(), value.trim());
+          if (result.ok) {
+            setCode('');
+            setValue('');
+            onCancel();
+          } else {
+            setFailed(true);
+          }
+        } catch {
+          setFailed(true);
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      <input
+        aria-label={codeLabel}
+        className="mono"
+        disabled={busy}
+        placeholder={codeLabel}
+        value={code}
+        onChange={(event) => setCode(event.currentTarget.value)}
+      />
+      <input
+        aria-label={valueLabel}
+        disabled={busy}
+        placeholder={valueLabel}
+        value={value}
+        onChange={(event) => setValue(event.currentTarget.value)}
+      />
+      <button className="btn btn-primary" disabled={!canSubmit} type="submit">
+        {saveLabel}
+      </button>
+      <button className="btn btn-ghost" disabled={busy} type="button" onClick={onCancel}>
+        {cancelLabel}
+      </button>
+      {failed ? (
+        <span className="text-sm text-red-600" role="alert">
+          {errorLabel}
+        </span>
+      ) : null}
+    </form>
+  );
+}
+
 export default function ShipOverrideReasonsScreen({
   overrideTypes,
   selectedOverrideTypeId,
@@ -90,17 +199,30 @@ export default function ShipOverrideReasonsScreen({
   canEdit = false,
   labels,
   onAddReason,
+  onAddRmaReason,
   onSelectOverrideType,
 }: ShipOverrideReasonsScreenProps) {
   const [activeTypeId, setActiveTypeId] = React.useState<string | null>(
     selectedOverrideTypeId ?? overrideTypes[0]?.id ?? null,
   );
+  const [showReasonForm, setShowReasonForm] = React.useState(false);
+  const [showRmaForm, setShowRmaForm] = React.useState(false);
+  // Rows this session just persisted. revalidateLocalized() invalidates the route
+  // cache, but nothing re-renders the server component until the operator navigates,
+  // so without this the row they just created looks like it vanished.
+  // ponytail: deduped by id, so a later server render replaces rather than doubles.
+  const [addedReasonCodes, setAddedReasonCodes] = React.useState<ReasonCodeRow[]>([]);
+  const [addedRmaCodes, setAddedRmaCodes] = React.useState<RmaReasonCodeRow[]>([]);
 
   const activeType = overrideTypes.find((type) => type.id === activeTypeId) ?? null;
   // The server-loaded reason codes correspond to `selectedOverrideTypeId`; show
   // them only while that type stays selected (no client refetch in this pass).
   const showServerReasonCodes = activeTypeId === selectedOverrideTypeId;
-  const visibleReasonCodes = showServerReasonCodes ? reasonCodes : [];
+  const visibleReasonCodes = mergeRows(
+    showServerReasonCodes ? reasonCodes : [],
+    addedReasonCodes.filter((row) => row.override_type_id === activeTypeId),
+  );
+  const visibleRmaCodes = mergeRows(rmaReasonCodes, addedRmaCodes);
 
   const reasonSectionTitle = activeType
     ? `${activeType.label}${labels.reasonCodesSuffix}`
@@ -128,8 +250,8 @@ export default function ShipOverrideReasonsScreen({
             <button
               className="btn btn-primary"
               type="button"
-              disabled={!canEdit}
-              onClick={() => onAddReason?.()}
+              disabled={!canEdit || !onAddReason || !activeTypeId}
+              onClick={() => setShowReasonForm((open) => !open)}
             >
               {labels.addReason}
             </button>
@@ -170,6 +292,22 @@ export default function ShipOverrideReasonsScreen({
       )}
 
       <Section title={reasonSectionTitle} sub={labels.reasonCodesSubtitle}>
+        {showReasonForm && canEdit && onAddReason && activeTypeId ? (
+          <AddReasonForm
+            testId="ship-reason-code-add-form"
+            codeLabel={labels.reasonColumns.code}
+            valueLabel={labels.reasonColumns.label}
+            saveLabel={labels.formSave}
+            cancelLabel={labels.formCancel}
+            errorLabel={labels.formError}
+            onCancel={() => setShowReasonForm(false)}
+            onSubmit={async (code, label) => {
+              const result = await onAddReason({ overrideTypeId: activeTypeId, code, label });
+              if (result.ok) setAddedReasonCodes((rows) => [...rows, result.data]);
+              return result;
+            }}
+          />
+        ) : null}
         {visibleReasonCodes.length === 0 ? (
           <div className="muted" data-testid="ship-reason-codes-empty" role="status">
             {labels.emptyReasonCodes}
@@ -206,8 +344,37 @@ export default function ShipOverrideReasonsScreen({
         )}
       </Section>
 
-      <Section title={labels.rmaTitle} sub={labels.rmaSubtitle}>
-        {rmaReasonCodes.length === 0 ? (
+      <Section
+        title={labels.rmaTitle}
+        sub={labels.rmaSubtitle}
+        action={
+          <button
+            className="btn btn-primary"
+            type="button"
+            disabled={!canEdit || !onAddRmaReason}
+            onClick={() => setShowRmaForm((open) => !open)}
+          >
+            {labels.addRmaReason}
+          </button>
+        }
+      >
+        {showRmaForm && canEdit && onAddRmaReason ? (
+          <AddReasonForm
+            testId="ship-rma-code-add-form"
+            codeLabel={labels.rmaColumns.code}
+            valueLabel={labels.rmaColumns.labelEn}
+            saveLabel={labels.formSave}
+            cancelLabel={labels.formCancel}
+            errorLabel={labels.formError}
+            onCancel={() => setShowRmaForm(false)}
+            onSubmit={async (code, labelEn) => {
+              const result = await onAddRmaReason({ code, label_en: labelEn });
+              if (result.ok) setAddedRmaCodes((rows) => [...rows, result.data]);
+              return result;
+            }}
+          />
+        ) : null}
+        {visibleRmaCodes.length === 0 ? (
           <div className="muted" data-testid="ship-rma-codes-empty" role="status">
             {labels.emptyRmaCodes}
           </div>
@@ -222,7 +389,7 @@ export default function ShipOverrideReasonsScreen({
               </tr>
             </thead>
             <tbody>
-              {rmaReasonCodes.map((rma) => (
+              {visibleRmaCodes.map((rma) => (
                 <tr key={rma.id}>
                   <td className="mono" style={{ fontWeight: 600 }}>
                     {rma.code}

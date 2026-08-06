@@ -32,6 +32,8 @@ export type CompanyProfile = {
   currency: string;
   timezone: string;
   dateFormat: string;
+  /** GS1 company prefix (7 digits) — required by generate_sscc() before a shipment can be packed. */
+  gs1Prefix: string;
   region: string;
 };
 
@@ -66,6 +68,7 @@ export type CompanyProfileScreenLabels = {
     logo: string;
     vat: string;
     regon: string;
+    gs1Prefix: string;
     industry: string;
     street: string;
     cityZip: string;
@@ -85,6 +88,7 @@ export type CompanyProfileScreenLabels = {
     legalName: string;
     logo: string;
     vat: string;
+    gs1Prefix: string;
     defaultCurrency: string;
     upload: string;
     region: string;
@@ -123,6 +127,7 @@ export const fallbackOrganization: CompanyProfile = {
   currency: 'EUR',
   timezone: 'Europe/Warsaw',
   dateFormat: 'YYYY-MM-DD',
+  gs1Prefix: '',
   region: 'eu-central',
 };
 
@@ -196,6 +201,7 @@ function labelsFromTranslations(t: ReturnType<typeof useTranslations>): CompanyP
       logo: t('field_logo'),
       vat: t('field_vat'),
       regon: t('field_regon'),
+      gs1Prefix: t('field_gs1_prefix'),
       industry: t('field_industry'),
       street: t('field_street'),
       cityZip: t('field_city_zip'),
@@ -215,6 +221,7 @@ function labelsFromTranslations(t: ReturnType<typeof useTranslations>): CompanyP
       legalName: t('hint_legal_name'),
       logo: t('hint_logo'),
       vat: t('hint_vat'),
+      gs1Prefix: t('hint_gs1_prefix'),
       defaultCurrency: t('hint_default_currency'),
       upload: t('hint_upload'),
       region: t('region_tooltip'),
@@ -233,6 +240,7 @@ function pickEditableFields(profile: CompanyProfile): SaveCompanyProfileInput {
     legalName: profile.legalName,
     vat: profile.vat,
     regon: profile.regon,
+    gs1Prefix: profile.gs1Prefix,
     industry: profile.industry,
     street: profile.street,
     city: profile.city,
@@ -453,6 +461,15 @@ export default function CompanyProfileScreen(rawProps: CompanyProfileScreenProps
           value={draft.regon}
           disabled={controlsDisabled}
           onChange={(value) => updateField('regon', value)}
+        />
+        <SettingField
+          id="company-gs1-prefix"
+          label={labels.fields.gs1Prefix}
+          hint={labels.hints.gs1Prefix}
+          placeholder="5901234"
+          value={draft.gs1Prefix}
+          disabled={controlsDisabled}
+          onChange={(value) => updateField('gs1Prefix', value)}
         />
         <SelectField
           id="company-industry"

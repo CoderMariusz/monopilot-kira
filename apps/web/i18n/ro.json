@@ -556,6 +556,7 @@
       "field_logo": "Logo",
       "field_vat": "TVA / NIP",
       "field_regon": "REGON",
+      "field_gs1_prefix": "Prefix companie GS1",
       "field_industry": "Industrie",
       "field_street": "Stradă",
       "field_city_zip": "Oraș / Cod poștal",
@@ -574,6 +575,7 @@
       "hint_legal_name": "Denumirea înregistrată completă pentru documente.",
       "hint_logo": "Apare pe etichete, facturi și pagina de autentificare.",
       "hint_vat": "Numărul de identificare fiscală.",
+      "hint_gs1_prefix": "7 cifre, alocate de GS1. Necesar pentru generarea codurilor SSCC la ambalarea expedierilor.",
       "hint_default_currency": "Folosită pentru calcularea costurilor și rapoarte.",
       "region_tooltip": "Schimbarea regiunii necesită tichet de suport",
       "action_upload_new": "Încarcă nou",
@@ -1313,7 +1315,11 @@
       "codes_count_suffix": "coduri",
       "empty_override_types": "Niciun tip de suprascriere nu este configurat încă.",
       "empty_reason_codes": "Niciun cod de motiv pentru acest tip de suprascriere.",
-      "empty_rma_codes": "Niciun cod de motiv RMA nu este configurat încă."
+      "empty_rma_codes": "Niciun cod de motiv RMA nu este configurat încă.",
+      "add_rma_reason": "+ Adaugă motiv RMA",
+      "form_save": "Salvează",
+      "form_cancel": "Anulează",
+      "form_error": "Codul de motiv nu a fost salvat. Verificați dacă este unic pentru această organizație și reîncercați."
     },
     "laborRates": {
       "eyebrow": "Labor",
@@ -11989,7 +11995,9 @@
           "lp_not_allocated": "That license plate is not allocated to this sales order.",
           "already_packed": "That license plate is already packed.",
           "invalid_box": "That box no longer exists.",
-          "not_found": "That shipment no longer exists."
+          "not_found": "That shipment no longer exists.",
+          "missing_gs1_prefix": "GS1 company prefix is not set for this organization. Set it in Settings → Company profile (7 digits), then pack again.",
+          "invalid_gs1_prefix": "GS1 company prefix is invalid — it must be exactly 7 digits. Fix it in Settings → Company profile, then pack again."
         }
       },
       "deliveryNotePrint": {

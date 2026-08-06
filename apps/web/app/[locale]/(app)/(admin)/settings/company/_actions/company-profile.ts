@@ -61,6 +61,15 @@ const saveCompanyProfileSchema = z
     currency: z.string().trim().min(1).max(3),
     timezone: z.string().trim().min(1).max(64),
     dateFormat: z.string().trim().min(1).max(32),
+    // GS1 company prefix — the value public.generate_sscc() reads to mint an SSCC
+    // (migration 459). Same shape the DB enforces, `^[0-9]{7}$`, so a bad prefix is
+    // refused here instead of at Pack time; '' means "not configured" (stored NULL).
+    gs1Prefix: z
+      .string()
+      .trim()
+      .regex(/^(\d{7})?$/)
+      .optional()
+      .default(''),
   })
   .strict();
 
@@ -128,6 +137,7 @@ const serverFallbackOrganization: CompanyProfile = {
   currency: 'EUR',
   timezone: 'Europe/Warsaw',
   dateFormat: 'YYYY-MM-DD',
+  gs1Prefix: '',
   region: 'eu-central',
 };
 
@@ -165,6 +175,7 @@ function toCompanyProfile(row: OrganizationRow): CompanyProfile {
     currency: text(row.currency, serverFallbackOrganization.currency),
     timezone: text(row.timezone, serverFallbackOrganization.timezone),
     dateFormat: text(row.date_format, serverFallbackOrganization.dateFormat),
+    gs1Prefix: row.gs1_prefix ?? '',
     region: text(row.region, serverFallbackOrganization.region),
   };
 }
@@ -251,6 +262,7 @@ export async function saveCompanyProfile(rawInput: SaveCompanyProfileInput): Pro
                 email      = $14,
                 phone      = $15,
                 website    = $16,
+                gs1_prefix = nullif($17, ''),
                 updated_at = now()
           where id = $1::uuid
           returning ${ORGANIZATION_COLUMNS}`,
@@ -271,6 +283,7 @@ export async function saveCompanyProfile(rawInput: SaveCompanyProfileInput): Pro
           input.email,
           input.phone,
           input.website,
+          input.gs1Prefix,
         ],
       );
       const row = rows[0];
@@ -302,6 +315,7 @@ export async function saveCompanyProfile(rawInput: SaveCompanyProfileInput): Pro
               email: input.email,
               phone: input.phone,
               website: input.website,
+              gs1_prefix: input.gs1Prefix,
             },
           }),
         ],
