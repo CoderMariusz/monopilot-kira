@@ -10,7 +10,7 @@ Przebieg godzina po godzinie jest w `DZIENNIK-NOCY.md`.
 ## Jednym akapitem
 
 Aplikacja **buduje się i przechodzi typecheck** — po raz pierwszy od co najmniej tygodnia.
-Łańcuch migracji **dochodzi do 564**. **43 commity** napraw, każda zweryfikowana moim własnym
+Łańcuch migracji **dochodzi do 564**. **49 commitów** pracy, każda zweryfikowana moim własnym
 przebiegiem, a **dziewięć z nich dodatkowo przeklikanych w przeglądarce** (siedem potwierdzonych,
 jedna okazała się niedziałająca i została domknięta, jedna częściowo).
 
@@ -22,7 +22,7 @@ Twojej decyzji produktowej albo migracji danych na żywej bazie. Też są niżej
 
 ## Pierwsze trzydzieści minut — gotowe komendy
 
-**46 commitów czeka lokalnie.** Nie wypchnąłem ich, bo o to nie prosiłeś.
+**49 commitów czeka lokalnie.** Nie wypchnąłem ich, bo o to nie prosiłeś.
 **Push jest bezpieczny**: integracja z GitHubem jest rozłączona (zero webhooków), więc
 **nic się samo nie zbuduje ani nie wdroży**.
 
@@ -97,7 +97,7 @@ Bez nich reszta pracy nie dojedzie na produkcję.
 | bramki lintu z korzenia | **nigdy nie chodziły w CI** | wpięte |
 | `lint-workflows` | **nigdy nie przelintował ani jednego pliku** | działa |
 
-## Co zostało naprawione — 43 commity
+## Co zostało naprawione — najważniejsze z 49 commitów
 
 Każda pozycja ma dowód uruchomieniowy. Kolumna „kliknięte" mówi, czy naprawę
 potwierdzono dodatkowo **w przeglądarce**, a nie tylko testem.
