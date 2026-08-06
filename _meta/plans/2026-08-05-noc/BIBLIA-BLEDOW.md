@@ -10,9 +10,13 @@ Przebieg godzina po godzinie jest w `DZIENNIK-NOCY.md`.
 ## Jednym akapitem
 
 Aplikacja **buduje się i przechodzi typecheck** — po raz pierwszy od co najmniej tygodnia.
-Łańcuch migracji **dochodzi do 564**. **49 commitów** pracy, każda zweryfikowana moim własnym
-przebiegiem, a **dziewięć z nich dodatkowo przeklikanych w przeglądarce** (siedem potwierdzonych,
-jedna okazała się niedziałająca i została domknięta, jedna częściowo).
+Łańcuch migracji **dochodzi do 564**. **50 commitów** pracy, każda naprawa zweryfikowana moim
+własnym przebiegiem, a **czternaście dodatkowo przeklikanych w przeglądarce**.
+
+Z tych czternastu: **trzynaście potwierdzonych, jedna okazała się niedziałająca** mimo zielonego
+testu — i została domknięta. Ta jedna jest ważniejsza od trzynastu pozostałych, bo pokazała,
+że **mój własny dowód potrafi być fałszywy**: test przechodził, bo sam generował sobie
+identyfikator, którego produkcyjna organizacja nie ma.
 
 **Aplikacja nie jest gotowa do wdrożenia** — nie z powodu kodu, tylko dlatego, że
 **cztery rzeczy może zrobić wyłącznie człowiek**, i zajmą Ci około dwudziestu minut. Są niżej.
