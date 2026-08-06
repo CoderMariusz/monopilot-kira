@@ -136,7 +136,7 @@ Przykład dowodu (persona bez uprawnień na `/en/settings/users`):
 | Trasa | wierszy | włączone przyciski |
 |---|---|---|
 | `/en/settings/schema` | 18 | **New schema column** → wchodzi na `/settings/schema/new`, „Save as Draft" aktywny |
-| `/en/settings/units` | 11 | **+ Add custom conversion** |
+| `/en/settings/units` | 11 (cały katalog jednostek) | — *(„+ Add custom conversion" okazał się tekstem w stanie pustym, nie przyciskiem; kolumna Actions ma „—". Sprostowanie po weryfikacji.)* |
 | `/en/settings/sites` | 2 | — (dane widoczne) |
 | `/en/technical/items` | **42** (kartoteka indeksów) | ⊕Process additions |
 | `/en/planning/transfer-orders` | 1 | **+ Create TO** (okno otwiera się w całości, „Save & Plan" aktywny) |
@@ -144,7 +144,7 @@ Przykład dowodu (persona bez uprawnień na `/en/settings/users`):
 | `/en/settings/features` | 0 | Dry-run activation |
 | `/en/dashboard` | 0 | Create Shipment |
 
-**To jest na razie tylko widoczność, nie dowód zapisu.** Trwa faza dowodowa:
+**To była wtedy tylko widoczność, nie dowód zapisu.** Faza dowodowa zamknięta w §6:
 klikam każdą z tych akcji personą bez uprawnień i sprawdzam bazę.
 Wynik częściowy: kreator kolumny schematu (`/settings/schema/new`) to formularz wieloetapowy
 sterowany parametrami URL — nie doprowadziłem go do ostatniego kroku, `reference_schemas`
@@ -193,7 +193,7 @@ Waga: DROBNY (kosmetyka), ale występuje w miejscu, gdzie użytkownik oczekuje l
 
 ---
 
-## 5. W TOKU / NIE DOSZEDŁEM (stan na 02:20)
+## 5. W TOKU / NIE DOSZEDŁEM (migawka z 00:20 — **NIEAKTUALNA**, patrz §24 na końcu)
 
 - Dowód zapisu dla akcji dostępnych personie bez uprawnień (TO / MRP / units / schema) — **w toku**
 - Bramka blokad jakościowych, łańcuch zwolnienia QA, widoczność zakładu — **nie zacząłem**
@@ -402,8 +402,23 @@ Odtworzone kontrolą przeciwną w jednym przebiegu, świeży serwer, kolejność
 ```
 
 Ten sam adres `/en/settings/units` daje 200 przed i 500 po. Od tego momentu **każda**
-trasa zwraca 500 z tym samym komunikatem, aż do restartu serwera. W poprzednim przebiegu
+trasa zwraca 500 z tym samym komunikatem, aż do restartu serwera. W jednym z przebiegów
 padło w ten sposób 18 kolejnych tras (PO, TO, dostawcy, zlecenia, wszystkie ustawienia).
+
+**Powtórka minimalna na świeżym serwerze** (te same trzy adresy przed i po, jeden przebieg):
+
+```
+[ok ] 200 /en/dashboard                  :: Dashboard
+[ok ] 200 /en/settings/units             :: ORGANIZATION
+[ok ] 200 /en/planning/purchase-orders   :: Purchase orders
+[XX ] 500 /en/quality/holds/f2be2d05-…   ← wejście na zepsutą trasę
+[XX ] 500 /en/settings/units
+[XX ] 500 /en/dashboard
+[XX ] 500 /en/planning/purchase-orders
+```
+
+Pulpit, ustawienia i zamówienia zakupu — wszystko zwraca 500 z komunikatem o
+`hold-release-modal.client.tsx:37`, choć chwilę wcześniej działały.
 
 ### Dlaczego to jest BLOKER, a nie usterka deweloperska
 
@@ -900,3 +915,151 @@ Ten sam wzorzec powtórzony w kodzie aplikacji:
 `count-actions.ts:1017` → `const canSeeSite = siteRows[0]?.can_see ?? true;`
 (brak wiersza ⇒ „wolno"). Tam jest uśpiony, bo wyżej stoi `if (!session) throw`,
 ale to ta sama domyślna odpowiedź.
+
+---
+
+# 22. PRZEMIAŁ „czy formularz naprawdę zapisuje" — 5/5 ścieżek DZIAŁA
+
+Najgroźniejsza klasa z instrukcji to „formularz przyjmuje zapis i nic nie zapisuje".
+Przeszedłem pięć ścieżek tworzenia w moim obszarze, każdą z odczytem licznika wierszy
+w tabeli **przed i po**:
+
+| ekran | tabela | przed | po | wynik |
+|---|---|---|---|---|
+| Planowanie → Dostawcy → „+ New supplier" | `public.suppliers` | 3 | 4 | **ZAPISUJE** |
+| Planowanie → Przewoźnicy → „+ Add carrier" | `public.carriers` | 0 | 1 | **ZAPISUJE** |
+| Jakość → NCR → „+ Create NCR" | `public.ncr_reports` | 0 | 1 | **ZAPISUJE** |
+| Jakość → Specyfikacje → „+ Create specification" | `public.quality_specifications` | 0 | 1 | **ZAPISUJE** |
+| Ustawienia → Role → „+ Create role" | `public.roles` | 53 | 54 | **ZAPISUJE** |
+
+Do tego wcześniej: zlecenie przesunięcia (`transfer_orders`), zamówienie zakupu przez
+kreator importu i przez okno tworzenia, reklamacja (`complaints`), blokada jakościowa
+(`quality_holds`), projekt NPD (`npd_projects`), przyjęcie → nośnik → WAC.
+**Nie znalazłem ani jednego formularza, który przyjmuje zapis i nic nie zapisuje.**
+
+Walidacja też działa uczciwie: przy próbie utworzenia roli o kluczu `NOC-ROLE-0`
+ekran odmówił i wyjaśnił dlaczego —
+> „Use a lowercase slug: letters, digits and underscores (e.g. qa_reviewer)."
+
+— a baza została nietknięta (53 → 53). Po podaniu `noc_night_reviewer` rola powstała
+(53 → 54). To wzorcowa para: odmowa przy złym wejściu **i** przepuszczenie przy dobrym.
+
+## Zgodność liczb między ekranami — sprawdzona, ZGODNA
+
+| ekran | licznik na ekranie | baza |
+|---|---|---|
+| Jakość → NCR | „1 rows" | `ncr_reports` = 1 |
+| Jakość → Blokady | „Active 2 · Released 0 · All 2 · 2 rows" | `quality_holds` = 2 (obie `open`) |
+| Planowanie → Dostawcy | „ACTIVE SUPPLIERS 4 · All 4 · Active 4 · 4 rows" | `suppliers` = 4 |
+| NPD → Pipeline | „Active projects 1 · Pipeline · 1 · BRIEF 1" | `npd_projects` = 1 |
+| Finanse → Wycena | „110.000000 kg" | `item_wac_state.total_qty_kg` = 110.000 |
+
+Jedyna rozbieżność liczbowa, jaką znalazłem, to **wartość** w wycenie (§19), nie ilość.
+
+---
+
+# 23. DROBNE — zbiorczo
+
+## D-1. Surowe klucze i18n widoczne na ekranie (10 potwierdzonych miejsc)
+
+Mechanizm: `next-intl` rzuca `FORMATTING_ERROR: The intl string context variable "…"
+was not provided` i zamiast tekstu wypisuje klucz.
+
+| ekran | co widać zamiast tekstu |
+|---|---|
+| Planowanie → Zlecenia przesunięcia | `Planning.transferOrders.list.rowsCount`, `Planning.transferOrders.list.linesCount` |
+| Jakość → Reklamacje | `quality.complaints.list.rowsLabel` |
+| Ustawienia → Zakłady | `settings.sites.sites_title`, `settings.sites.site_meta` |
+| Ustawienia → Dzienniki audytu | `settings.audit_log_viewer.forbidden_message` |
+| Ustawienia → Import/Eksport | `settings.import_export.alerts.unsupported_import` |
+| Planowanie → Import masowy (krok walidacji) | `Planning.import.wizard.validate.counter` |
+| Ustawienia → Pola NPD | `settings.npdFields.assigned_fields_title`, `settings.npdFields.catalog_assignment_count` |
+
+Dodatkowo **na każdej stronie** ta sama awaria dotyczy dzwonka powiadomień:
+`{n} unread notifications`, `{n}m ago`, `{n}h ago`, `{n}d ago`. To nie jest brak
+tłumaczenia — klucz istnieje, tylko wywołanie nie podaje liczby.
+
+## D-2. Trasy zwracające 404 (linki poza nawigacją)
+
+`/en/products`, `/en/costing`, `/en/technical/costs` — 404. W nawigacji ich nie ma,
+więc to najpewniej martwe adresy w dokumentacji/zakładkach.
+
+## D-3. Nazwy kolumn bazy jako etykiety pól (ekran brief NPD)
+
+`product_code`, `product_name`, `number_of_cases`, `recipe_components`, `dev_code`,
+`price_brief`, `weekly_volume_packs`, `runs_per_week`, `comments`, `volume`, `weight`,
+`packs_per_case` — każde z osobnym przyciskiem „Save".
+
+## D-4. Kolumna `target_retail_price_eur` przechowuje kwoty w GBP
+
+Etykieta na ekranie („TARGET RETAIL PRICE (GBP)") jest **zgodna z walutą organizacji** —
+okno tworzenia PO też domyślnie ustawia GBP. Błędem jest **nazwa kolumny**:
+`npd_projects.target_retail_price_eur` = 19.90 dla kwoty w funtach. Mylące przy raportach
+i migracjach; nie zmienia zachowania aplikacji.
+
+## D-5. Licznik listy kontrolnej bramki NPD: „0 of 6", a widocznych pozycji 3
+
+Panel „G0 CHECKLIST — IDEA" pokazuje 3 pozycje „Required" (+1 „Optional"),
+a licznik mówi „0 of 6 required items complete". Brakujące trzy to pola rdzeniowe
+(Pack Size, Number Of Cases, Recipe Components) wymienione niżej na liście blokad.
+Poprawne, ale czyta się jak sprzeczność.
+
+## D-6. Pusty obowiązkowy wybór bez wyjaśnienia (Split nośnika)
+
+„Destination location *" ma zero pozycji, bo w bazie jest jedna lokalizacja i to
+w innym magazynie. Ekran nie mówi ani słowa — przycisk zostaje trwale wyszarzony. §17
+
+## D-7. „Recent jobs" na ekranie Import/Eksport nie pokazuje istniejącego zadania
+
+`import_export_jobs` ma wiersz `status=completed` (import PO z Planowania),
+a sekcja „Recent jobs" wyświetla same nagłówki kolumn.
+
+## D-8. Ekran Ról: zdublowane przyciski zakładek
+
+„System Roles" i „Custom Roles" pojawiają się po dwa razy w drzewie
+(„Custom Roles" oba razy wyłączone).
+
+---
+
+# 24. CZEGO NIE SPRAWDZIŁEM I DLACZEGO
+
+1. **Zwolnienia blokady jakościowej** (podpis elektroniczny, drugi podpisujący,
+   dyspozycje) — **fizycznie niemożliwe**: jedyne wejście to szczegóły blokady, a te
+   zwracają 500 (BLOKER B-1). To jest największa dziura w moim pokryciu i znika
+   natychmiast po naprawie jednego importu.
+2. **Czy odszczepiony nośnik dziedziczy blokadę** — najgroźniejsze obejście bramki
+   żywnościowej. Zablokował mnie pusty wybór lokalizacji (§17). Do zrobienia po
+   dodaniu lokalizacji w `WH-DEMO-01`.
+3. **Serwerowa bramka rezerwacji zablokowanego nośnika** (`lp-detail-actions.ts:475-490`)
+   — nie ma do niej włączonego wejścia w interfejsie („Reserve" wyłączony także
+   na nośniku bez blokady), więc nie mogłem jej wywołać z przeglądarki.
+4. **Czy `next build` przewraca się na brakującym imporcie z B-1** — nie uruchamiałem
+   builda, żeby nie deptać katalogu `.next` używanego przez harness E2E. Zmierzone jest
+   500 w trybie deweloperskim i kaskada na wszystkie trasy.
+5. **Rejestr kontroli jakości (`quality_inspections`)** — formularz wymaga nośnika /
+   przyjęcia / wyjścia zlecenia; zbudowałem zapas dopiero pod koniec nocy i nie zdążyłem
+   wrócić do tej ścieżki.
+6. **Harmonogram, prognozy, MRP „Save this run"** — obejrzane, nie przeklikane do zapisu.
+7. **Podpisy elektroniczne w NPD (bramki G3/G4, drugi podpisujący)** — projekt utknął
+   na G0, bo bramka słusznie wymaga 6 pozycji listy kontrolnej, których nie uzupełniałem.
+8. **Wielozakładowość** — w organizacji Apex jest jeden zakład, więc widoczności
+   międzyzakładowej nie dało się sprawdzić z przeglądarki; sprawdziłem ją na poziomie
+   funkcji bazodanowej (§21).
+
+---
+
+# 25. CO ZOSTAWIŁEM W BAZIE `monopilot_t2` (dowody do obejrzenia rano)
+
+```
+complaints           CMP-00000001, CMP-00000002, CMP-00000002   ← duplikat numeru
+quality_holds        HLD-00001000 (batch), HLD-00001001 (LP, powoduje qa_status=on_hold)
+npd_projects         NPD-001 „RENAMED-NOC-A" (gate G0)
+transfer_orders      TO-NOC-CTRL2 (utworzone przez admina; TO-NOC-NOPERM celowo NIE powstało)
+purchase_orders      NOC-IMP-1 (import CSV), PO-NOC-KG-* i PO-NOC-G-* (received)
+license_plates       3 nośniki, w tym jeden 5000 g i jeden „on hold"
+item_wac_state       110 kg / 170.0000 / 1.545455
+suppliers/carriers/ncr_reports/quality_specifications/roles — po jednym rekordzie „NOC*"
+```
+
+Spece robocze: `apps/web/e2e/_noc/` (`crawl-B`, `probe-B`, `perm-sweep-B`, `act-B`,
+`quality-B`, `import-B`, `npd-B`, `grams-B`, `writes-B`). Materiał roboczy, nie do wdrożenia.
