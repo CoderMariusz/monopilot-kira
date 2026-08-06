@@ -51,6 +51,6 @@ export async function signIn(page: Page): Promise<void> {
  */
 export function parseQty(text: string | null | undefined): number {
   if (!text) return Number.NaN;
-  const cleaned = text.replace(/[^0-9.\-]/g, '');
+  const cleaned = text.replace(/[^0-9.-]/g, '');
   return cleaned === '' ? Number.NaN : Number(cleaned);
 }

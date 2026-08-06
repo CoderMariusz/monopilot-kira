@@ -296,7 +296,6 @@ export function PipelineTabs({
     // before getPipelineAnalytics() resolves — so the .then early-returns and the panel
     // hangs on "Loading…" forever (caught live; vitest's mock resolves too eagerly to see it).
     // The `analytics.status !== 'idle'` guard above still prevents a re-fetch.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeView]);
 
   const handleExportCsv = React.useCallback(() => {

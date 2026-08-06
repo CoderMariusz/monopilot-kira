@@ -132,7 +132,9 @@ export function LpMetadataEditModal({
     setReasonCode('');
     setNote('');
     setError(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Deps are deliberately [open, lp.id]: this effect RESETS the form, so depending on
+    // initialExpiry/initialBatch would discard the operator's edits mid-entry.
+    // Do NOT widen.
   }, [open, lp.id]);
 
   const expiryChanged = expiry !== initialExpiry;

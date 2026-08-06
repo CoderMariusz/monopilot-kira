@@ -188,7 +188,7 @@ export async function getProject(input: { projectId: string }): Promise<GetProje
               ) as closure(dept, closed_value)
               where pfa.org_id = app.current_org_id()
                 and pfa.product_code = p.product_code
-                and gci.item_text like ('Done\\_' || closure.dept || ':%') escape $$\$$
+                and gci.item_text like ('Done\\_' || closure.dept || ':%') escape $$$$
               limit 1
            ) done on true
           where p.org_id = app.current_org_id()
@@ -247,7 +247,7 @@ export async function getProject(input: { projectId: string }): Promise<GetProje
                 ) as closure(dept, closed_value)
                 where pfa.org_id = app.current_org_id()
                   and pfa.product_code = p.product_code
-                  and gci.item_text like ('Done\\_' || closure.dept || ':%') escape $$\$$
+                  and gci.item_text like ('Done\\_' || closure.dept || ':%') escape $$$$
                 limit 1
              ) done on true
             where gci.org_id = app.current_org_id()

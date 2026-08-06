@@ -580,23 +580,18 @@ export async function approveReleaseBundle(
       };
     }
 
-    let signatureId: string;
-    try {
-      const receipt = await signEvent(
-        {
-          signerUserId: ctx.userId,
-          pin: input.pin,
-          intent: BUNDLE_APPROVE_INTENT,
-          subject: approvalSubject,
-          nonce: approvalNonce,
-          reason: input.reason,
-        },
-        { client: ctx.client as never },
-      );
-      signatureId = receipt.signatureId;
-    } catch (err) {
-      throw err;
-    }
+    const receipt = await signEvent(
+      {
+        signerUserId: ctx.userId,
+        pin: input.pin,
+        intent: BUNDLE_APPROVE_INTENT,
+        subject: approvalSubject,
+        nonce: approvalNonce,
+        reason: input.reason,
+      },
+      { client: ctx.client as never },
+    );
+    const signatureId = receipt.signatureId;
 
     const approvalsCollected = await countDistinctBundleApprovals(ctx.client, subjectHash, approvalNonce);
     if (approvalsCollected < approvalsRequired) {

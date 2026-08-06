@@ -139,7 +139,9 @@ export function EditSupplierModal({ open, onOpenChange, supplier, labels, update
     setNotes(supplier.notes ?? '');
     setPending(false);
     setFieldError(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Deps are deliberately [open, supplier.id]: this effect RESETS the form, so
+    // depending on `supplier` (new object identity on every parent render) would wipe
+    // the user's in-progress edits. Do NOT widen.
   }, [open, supplier.id]);
 
   // Currency may be a code outside the four common options (free-form text column);

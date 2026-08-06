@@ -300,7 +300,9 @@ export function CreateSoModal({
       customerId,
       lines.filter((line) => line.item),
     );
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- price refresh is keyed to customer + item picks
+    // Deps are deliberately [customerId, open]: the price refresh is keyed to the
+    // customer + item picks. Adding `lines` would refire pricing on every keystroke.
+    // Do NOT widen.
   }, [customerId, open]);
   function addLine() {
     setLines((prev) => [...prev, makeLine()]);

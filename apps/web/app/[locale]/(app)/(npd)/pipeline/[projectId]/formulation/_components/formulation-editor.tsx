@@ -965,7 +965,7 @@ export function FormulationEditor({
       cancelled = true;
     };
     // rows intentionally omitted — wipLines are captured when signature/nonce changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- liveWipCostSignature encodes WIP rows
+    // `rows` is deliberately NOT a dep -- liveWipCostSignature already encodes it.
   }, [versionId, liveWipCostSignature, liveWipCostNonce, resolveLiveWipCostsAction]);
 
   const [saveStatus, setSaveStatus] = React.useState<SaveStatus>('idle');

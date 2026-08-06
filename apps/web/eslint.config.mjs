@@ -258,6 +258,41 @@ export default [
     },
   },
 
+  // T-058 exception — integration tests may construct their own pg.Pool.
+  //
+  // T-058 forbids `new pg.Pool()` so that RUNTIME code cannot pick its own database
+  // role: getAppConnection() rewrites the connection user to `app_user` (RLS-bound,
+  // never BYPASSRLS) and guards that DATABASE_URL_APP is set in production. That is
+  // the whole point of the rule — role selection, not pool accounting
+  // (getAppConnection() itself returns a fresh Pool on every call).
+  //
+  // The .pg.test.ts suites cannot express what they need through it. Each one opens
+  // TWO pools with TWO different roles in the same file:
+  //   owner = new pg.Pool({ connectionString: databaseUrl })              // seeds tenant/org/role/user + grants
+  //   app   = new pg.Pool({ connectionString: makeAppUserConnectionString() })  // exercises the code under RLS
+  // The owner half writes identity rows that `app_user` is forbidden (by RLS) to
+  // write, and installs the org context the test then drives by hand
+  // (app.session_org_contexts + app.set_org_context). getAppConnection() can only
+  // ever produce the second pool, and getOwnerConnection() is itself fenced off to
+  // packages/db migrations by T-045 — so there is no managed-pool spelling of this.
+  //
+  // Scope is test files only; nothing here relaxes T-058 for shipped code. T-046
+  // (Reference.* literal drift) is re-declared verbatim so this exception drops the
+  // pg.Pool selector and NOTHING else.
+  {
+    files: ['**/*.test.ts', '**/*.test.tsx', '**/__tests__/**', 'tests/**', 'e2e/**'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "Literal[value=/^Reference\\.[A-Z][A-Za-z]+$/]",
+          message:
+            "Do not hardcode Reference.* table-name strings. Import RefTables from 'lib/reference' instead.",
+        },
+      ],
+    },
+  },
+
   // MonoPilot custom guards (per-rule severity via inline plugin).
   {
     files: ['**/*.{js,jsx,ts,tsx,mjs,mts}'],

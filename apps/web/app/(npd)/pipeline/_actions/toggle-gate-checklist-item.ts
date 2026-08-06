@@ -68,7 +68,7 @@ export async function toggleGateChecklistItem(rawInput: unknown): Promise<Toggle
               ) as closure(dept, closed_value)
               where pfa.org_id = app.current_org_id()
                 and pfa.product_code = p.product_code
-                and gci.item_text like ('Done\\_' || closure.dept || ':%') escape $$\$$
+                and gci.item_text like ('Done\\_' || closure.dept || ':%') escape $$$$
               limit 1
            ) done on true
           where gci.id = $2::uuid

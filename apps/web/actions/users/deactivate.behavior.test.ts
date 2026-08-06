@@ -136,11 +136,7 @@ beforeEach(() => {
   });
   currentClient = makeClient({ activeOwnerIds: new Set([TARGET_USER_ID, OTHER_OWNER_ID]) });
   _withOrgContextRunner.mockImplementation(async (action: (ctx: unknown) => Promise<unknown>) => {
-    try {
-      return await action({ userId: ACTOR_USER_ID, orgId: ORG_ID, client: currentClient });
-    } catch (error) {
-      throw error;
-    }
+    return await action({ userId: ACTOR_USER_ID, orgId: ORG_ID, client: currentClient });
   });
 });
 

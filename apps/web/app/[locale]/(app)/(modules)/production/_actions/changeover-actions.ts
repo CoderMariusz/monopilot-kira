@@ -19,6 +19,21 @@ const CHANGEOVER_SIGN_SECOND_PERMISSION = 'production.allergen_gate.sign_second'
 const SIGNOFF_TYPE = 'production.changeover.allergen';
 const ESIGN_INTENT = 'production.changeover.signoff';
 
+/**
+ * Supervisor deviation on the allergen certificate reuses the SECOND-signer grant.
+ * The permission enum (packages/rbac/src/permissions.enum.ts) is a FROZEN contract —
+ * no new string is minted here. sign_second is the module's own supervisor tier for
+ * this exact gate (migration 356 seeds it to the `approver` persona, not to
+ * operators), so "may countersign the allergen gate" == "may accept a deviation on
+ * it". A dedicated production.allergen_gate.override would be cleaner; that is an
+ * owner + enum-snapshot decision, not a decision this action may take.
+ */
+const CHANGEOVER_OVERRIDE_PERMISSION = CHANGEOVER_SIGN_SECOND_PERMISSION;
+const ESIGN_RETEST_INTENT = 'production.changeover.atp_retest';
+const ESIGN_OVERRIDE_INTENT = 'production.changeover.override';
+/** "nie puste, nie domyślne" — blocks "ok" / "." / a stray keystroke. */
+const MIN_OVERRIDE_REASON_CHARS = 10;
+
 type QueryClient = ProductionContext['client'];
 type SignOffStatus = 'pending' | 'first_signed' | 'complete';
 
@@ -389,6 +404,33 @@ function atpVerdict(atp: unknown, thresholdRlu: number): AtpVerdict {
   return 'unknown';
 }
 
+/**
+ * The single place that turns changeover state into an
+ * allergen_changeover_validations.validation_result. Both the first sign-off and a
+ * later re-swab certificate go through here — a second inline copy of this rule is
+ * exactly how the "certificate says passed over a failed swab" defect got in.
+ *
+ * 'none' (no swab evidence at all) passes ONLY while atp_required is false: no swab
+ * was demanded, so there is nothing to fail. Anything that is not a readable pass —
+ * including an unreadable value — records 'failed' rather than claiming a verdict
+ * nobody can read.
+ */
+function certifyVerdict(state: {
+  cleaningCompleted: boolean;
+  atpRequired: boolean;
+  atpResult: unknown;
+  /** pg returns numeric as a string; null (mock/legacy client) must NOT become 0. */
+  thresholdRlu: string | number | null;
+}): 'passed' | 'failed' {
+  const threshold = state.thresholdRlu == null ? Number.NaN : Number(state.thresholdRlu);
+  const verdict = atpVerdict(
+    state.atpResult,
+    Number.isFinite(threshold) ? threshold : ATP_FALLBACK_THRESHOLD_RLU,
+  );
+  const atpOk = verdict === 'pass' || (verdict === 'none' && !state.atpRequired);
+  return state.cleaningCompleted && atpOk ? 'passed' : 'failed';
+}
+
 async function productAllergens(client: QueryClient, productId: string | null | undefined): Promise<string[]> {
   if (!productId) return [];
   const result = await client.query<{ allergens: string[] | null }>(
@@ -735,26 +777,13 @@ export async function signChangeover(input: { changeoverId: string; signature: {
           slot: firstSlot ? 'first' : 'second',
         },
       ];
-      // C4/F3b — validation_result derives from actual state, never a literal:
-      // cleaning_completed && a readable ATP pass → 'passed'.
-      //
-      // 'none' (no swab evidence at all) passes ONLY while atp_required is false,
-      // which is the column default and what createChangeoverEvent writes when no
-      // result was entered: no swab was demanded, so there is nothing to fail. A
-      // row that DOES demand a swab and carries no evidence is a missing proof of
-      // cleanliness → 'failed'. Anything else that is not a readable pass —
-      // including an unreadable value — records 'failed' rather than claiming a
-      // verdict nobody can read.
-      // pg returns numeric as a string; null (mock/legacy client) must NOT become
-      // Number(null) === 0, which would fail every reading.
-      const threshold =
-        current.atp_threshold_rlu == null ? Number.NaN : Number(current.atp_threshold_rlu);
-      const verdict = atpVerdict(
-        current.atp_result,
-        Number.isFinite(threshold) ? threshold : ATP_FALLBACK_THRESHOLD_RLU,
-      );
-      const atpOk = verdict === 'pass' || (verdict === 'none' && !current.atp_required);
-      const validationResult = current.cleaning_completed && atpOk ? 'passed' : 'failed';
+      // C4/F3b — validation_result derives from actual state, never a literal.
+      const validationResult = certifyVerdict({
+        cleaningCompleted: current.cleaning_completed,
+        atpRequired: current.atp_required === true,
+        atpResult: current.atp_result,
+        thresholdRlu: current.atp_threshold_rlu,
+      });
       await ctx.client.query(
         `insert into public.allergen_changeover_validations
            (org_id, site_id, changeover_event_id, validation_result, risk_level,
@@ -776,5 +805,336 @@ export async function signChangeover(input: { changeoverId: string; signature: {
 
     const row = await loadChangeoverRow(ctx.client, input.changeoverId);
     return { ok: true as const, row };
+  });
+}
+
+type LatestValidation = {
+  id: string;
+  validation_result: string;
+  risk_level: string;
+  site_id: string | null;
+  signatures: unknown;
+  override_by: string | null;
+  attempt_count: number;
+};
+
+/**
+ * The newest allergen certificate for a changeover, plus how many exist.
+ *
+ * allergen_changeover_validations has NO unique key on changeover_event_id (migration
+ * 184) — the schema always allowed a SERIES of certificates per changeover, and that
+ * series is where a re-swab lives. Nothing is ever updated in place, so the failed
+ * attempt stays readable for the full 7-year BRCGS retention.
+ *
+ * ponytail: ordering ties on validated_at (two certificates written inside ONE
+ * transaction share now()) fall back to id desc, which is arbitrary. Attempts are
+ * separate transactions by construction — recordChangeoverRetest locks the event row —
+ * so a tie cannot occur today. If certificates ever get batched, add an attempt_no column.
+ */
+async function loadLatestValidation(
+  client: QueryClient,
+  changeoverId: string,
+): Promise<LatestValidation | null> {
+  const result = await client.query<LatestValidation>(
+    `select v.id::text,
+            v.validation_result,
+            v.risk_level,
+            v.site_id::text,
+            v.signatures,
+            v.override_by::text,
+            (select count(*)::int
+               from public.allergen_changeover_validations v2
+              where v2.org_id = app.current_org_id()
+                and v2.changeover_event_id = $1::uuid) as attempt_count
+       from public.allergen_changeover_validations v
+      where v.org_id = app.current_org_id()
+        and v.changeover_event_id = $1::uuid
+      order by v.validated_at desc, v.id desc
+      limit 1`,
+    [changeoverId],
+  );
+  return result.rows[0] ?? null;
+}
+
+/** Locks the changeover row and reads the state both post-certificate paths need. */
+type LockedChangeover = {
+  id: string;
+  site_id: string | null;
+  line_id: string;
+  risk_level: string;
+  cleaning_completed: boolean;
+  atp_required: boolean | null;
+  atp_threshold_rlu: string | number | null;
+};
+
+async function lockChangeover(
+  client: QueryClient,
+  changeoverId: string,
+): Promise<LockedChangeover | null> {
+  const result = await client.query<LockedChangeover>(
+    `select id::text, site_id::text, line_id, risk_level, cleaning_completed, atp_required,
+            public.atp_swab_threshold_rlu(app.current_org_id(), null) as atp_threshold_rlu
+       from public.changeover_events
+      where org_id = app.current_org_id()
+        and id = $1::uuid
+      for update`,
+    [changeoverId],
+  );
+  return result.rows[0] ?? null;
+}
+
+function blank(value: string | null | undefined): boolean {
+  return typeof value !== 'string' || value.trim().length === 0;
+}
+
+/**
+ * RE-SWAB — the plant's natural recovery from a failed ATP result: re-clean, take a
+ * new swab, record the new reading. Before this, changeover_events.atp_result had
+ * exactly one writer (createChangeoverEvent INSERT) and no edit path at all, so a
+ * 'failed' certificate was a dead end.
+ *
+ * NOTHING IS OVERWRITTEN WITHOUT A TRACE. The previous reading is already frozen in
+ * the previous certificate's atp_evidence (append-only, 7y retention); the new reading
+ * gets its OWN certificate carrying supersedes = <previous certificate id>. The
+ * event's atp_result is refreshed so the list shows current truth, and its old value
+ * is recoverable from the certificate series. An auditor reading
+ * allergen_changeover_validations for one changeover sees: failed swab, then the
+ * re-swab that cleared it, in order.
+ *
+ * Signed: a re-swab is a food-safety claim, so it carries an e-signature receipt like
+ * every other changeover signature (e_sign_log + audit_events, same intent pattern).
+ * Permission: production.changeover.write — recording a swab is a changeover write.
+ */
+export async function recordChangeoverRetest(input: {
+  changeoverId: string;
+  atpResult: unknown;
+  signature: { password: string };
+}) {
+  return withOrgContext(async (ctx) => {
+    if (!(await hasPermission(ctx as ProductionContext, CHANGEOVER_WRITE_PERMISSION))) {
+      return { ok: false as const, error: 'forbidden' as const };
+    }
+    if (input.atpResult == null || (typeof input.atpResult === 'string' && input.atpResult.trim() === '')) {
+      return {
+        ok: false as const,
+        error: 'invalid_input' as const,
+        message: 'a re-swab must carry an ATP result',
+      };
+    }
+    if (blank(input.signature?.password)) {
+      return {
+        ok: false as const,
+        error: 'invalid_input' as const,
+        message: 'electronic signature required',
+      };
+    }
+
+    const current = await lockChangeover(ctx.client, input.changeoverId);
+    if (!current) return { ok: false as const, error: 'not_found' as const };
+
+    const previous = await loadLatestValidation(ctx.client, input.changeoverId);
+    if (!previous) {
+      // No certificate yet → the changeover is still open and the first sign-off
+      // will read atp_result as it stands. Nothing to re-swab against.
+      return {
+        ok: false as const,
+        error: 'invalid_state' as const,
+        message: 'no allergen certificate to re-swab against — complete the sign-off first',
+      };
+    }
+
+    const attempt = previous.attempt_count + 1;
+    let receipt;
+    try {
+      receipt = await signEvent(
+        {
+          signerUserId: ctx.userId,
+          pin: input.signature.password,
+          intent: ESIGN_RETEST_INTENT,
+          subject: {
+            changeoverId: input.changeoverId,
+            attempt,
+            lineId: current.line_id,
+            riskLevel: current.risk_level,
+          },
+          // Deterministic per attempt: a double-submitted re-swab hits the e_sign_log
+          // replay guard instead of writing a second certificate.
+          nonce: `${input.changeoverId}:retest:${attempt}`,
+          reason: 'ATP re-swab after re-cleaning',
+        },
+        { client: ctx.client as unknown as pg.PoolClient },
+      );
+    } catch (error) {
+      return {
+        ok: false as const,
+        error: 'esign_failed' as const,
+        message: error instanceof Error ? error.name : 'esign_failed',
+      };
+    }
+
+    const refreshed = await ctx.client.query<{ id: string }>(
+      `update public.changeover_events
+          set atp_result = $2::jsonb,
+              atp_required = true
+        where org_id = app.current_org_id()
+          and id = $1::uuid
+        returning id::text`,
+      [input.changeoverId, JSON.stringify(input.atpResult)],
+    );
+    if (!refreshed.rows[0]) return { ok: false as const, error: 'persistence_failed' as const };
+
+    const validationResult = certifyVerdict({
+      cleaningCompleted: current.cleaning_completed,
+      atpRequired: true,
+      atpResult: input.atpResult,
+      thresholdRlu: current.atp_threshold_rlu,
+    });
+
+    // The signers of record carry over from the certificate being superseded (they DID
+    // sign this changeover) plus whoever took the re-swab. Carrying them also keeps
+    // chk_allergen_signatures (>= 2 for medium/high/segregated) satisfied without
+    // inventing signatures.
+    const signatures = [
+      ...(Array.isArray(previous.signatures) ? previous.signatures : []),
+      { signerUserId: ctx.userId, signedAt: receipt.signedAt, slot: 'retest', attempt },
+    ];
+
+    const inserted = await ctx.client.query<{ id: string }>(
+      `insert into public.allergen_changeover_validations
+         (org_id, site_id, changeover_event_id, validation_result, risk_level,
+          cleaning_evidence, atp_evidence, signatures, retention_until)
+       values
+         (app.current_org_id(), $1::uuid, $2::uuid, $3, $4,
+          $5::jsonb, $6::jsonb, $7::jsonb, null)
+       returning id::text`,
+      [
+        current.site_id ?? previous.site_id,
+        input.changeoverId,
+        validationResult,
+        current.risk_level,
+        JSON.stringify({
+          cleaningCompleted: current.cleaning_completed,
+          recleaned: true,
+          attempt,
+          supersedes: previous.id,
+        }),
+        JSON.stringify(input.atpResult),
+        JSON.stringify(signatures),
+      ],
+    );
+    const validationId = inserted.rows[0]?.id;
+    if (!validationId) return { ok: false as const, error: 'persistence_failed' as const };
+
+    const row = await loadChangeoverRow(ctx.client, input.changeoverId);
+    return { ok: true as const, validationId, validationResult, attempt, row };
+  });
+}
+
+/**
+ * SUPERVISOR DEVIATION — annotates a failed allergen certificate with who accepted
+ * the deviation and why. override_by / override_reason have existed on
+ * allergen_changeover_validations since migration 184 and had no writer at all.
+ *
+ * The verdict is NOT rewritten. A certificate that says 'failed' keeps saying 'failed';
+ * the deviation is recorded ALONGSIDE it, which is the only version an auditor can use.
+ * A future release gate reads "verdict passed OR a deviation was accepted".
+ *
+ * Requires: production.allergen_gate.sign_second (supervisor tier for this gate),
+ * a non-blank reason of real substance, and an e-signature.
+ */
+export async function overrideChangeoverValidation(input: {
+  changeoverId: string;
+  reason: string;
+  signature: { password: string };
+}) {
+  return withOrgContext(async (ctx) => {
+    if (!(await hasPermission(ctx as ProductionContext, CHANGEOVER_OVERRIDE_PERMISSION))) {
+      return { ok: false as const, error: 'forbidden' as const };
+    }
+
+    const reason = typeof input.reason === 'string' ? input.reason.trim() : '';
+    if (reason.length < MIN_OVERRIDE_REASON_CHARS) {
+      return {
+        ok: false as const,
+        error: 'invalid_input' as const,
+        message: `override_reason must be at least ${MIN_OVERRIDE_REASON_CHARS} characters of real justification`,
+      };
+    }
+    if (blank(input.signature?.password)) {
+      return {
+        ok: false as const,
+        error: 'invalid_input' as const,
+        message: 'electronic signature required',
+      };
+    }
+
+    // Lock the event first so a concurrent re-swab cannot slip a newer certificate
+    // underneath the one being annotated.
+    const current = await lockChangeover(ctx.client, input.changeoverId);
+    if (!current) return { ok: false as const, error: 'not_found' as const };
+
+    const target = await loadLatestValidation(ctx.client, input.changeoverId);
+    if (!target) return { ok: false as const, error: 'not_found' as const };
+    if (target.validation_result === 'passed') {
+      return {
+        ok: false as const,
+        error: 'invalid_state' as const,
+        message: 'the current allergen certificate passes — there is no deviation to accept',
+      };
+    }
+    if (target.override_by) {
+      // Overwriting another supervisor's recorded reason would be the traceless
+      // edit this whole path exists to prevent.
+      return {
+        ok: false as const,
+        error: 'invalid_state' as const,
+        message: 'this certificate already carries an accepted deviation',
+      };
+    }
+
+    try {
+      await signEvent(
+        {
+          signerUserId: ctx.userId,
+          pin: input.signature.password,
+          intent: ESIGN_OVERRIDE_INTENT,
+          subject: {
+            changeoverId: input.changeoverId,
+            validationId: target.id,
+            validationResult: target.validation_result,
+            riskLevel: target.risk_level,
+          },
+          nonce: `${input.changeoverId}:override:${target.id}`,
+          reason,
+        },
+        { client: ctx.client as unknown as pg.PoolClient },
+      );
+    } catch (error) {
+      return {
+        ok: false as const,
+        error: 'esign_failed' as const,
+        message: error instanceof Error ? error.name : 'esign_failed',
+      };
+    }
+
+    const updated = await ctx.client.query<{ id: string }>(
+      `update public.allergen_changeover_validations
+          set override_by = $2::uuid,
+              override_reason = $3
+        where org_id = app.current_org_id()
+          and id = $1::uuid
+          and override_by is null
+        returning id::text`,
+      [target.id, ctx.userId, reason],
+    );
+    if (!updated.rows[0]) return { ok: false as const, error: 'persistence_failed' as const };
+
+    return {
+      ok: true as const,
+      validationId: target.id,
+      validationResult: target.validation_result,
+      overrideBy: ctx.userId,
+      overrideReason: reason,
+    };
   });
 }
