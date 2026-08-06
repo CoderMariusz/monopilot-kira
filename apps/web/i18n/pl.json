@@ -9568,6 +9568,7 @@
             "invalid_state": "Tego wyjścia nie można już anulować w bieżącym stanie.",
             "invalid_input": "Sprawdź pola i spróbuj ponownie.",
             "lp_not_voidable": "Nośnik tego wyjścia został już zwolniony lub przydzielony — nie można go już bezpośrednio anulować.",
+            "lp_not_restorable": "Paleta, na którą zapisano ten odpad, zmieniła stan (zużyta, wysłana lub zniszczona) — nie można już oddać na nią kilogramów. Zgłoś korektę stanu magazynowego.",
             "already_corrected": "Ten wpis został już anulowany.",
             "esign_failed": "Podpis elektroniczny nieudany — PIN lub hasło do konta nie zostało zaakceptowane. Sprawdź i spróbuj ponownie.",
             "persistence_failed": "Nie udało się anulować tego wpisu.",

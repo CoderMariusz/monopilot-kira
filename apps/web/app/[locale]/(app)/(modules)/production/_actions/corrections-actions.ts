@@ -36,6 +36,26 @@ const NO_LP_ID = '00000000-0000-0000-0000-000000000000';
 // though app code already excluded it from active-LP sets). Distinct from
 // 'consumed' so voided pallets never pollute consumption semantics.
 const VOIDED_LP_STATUS = 'destroyed';
+// One word for the whole waste-void event: stock_moves.reason_code AND
+// lp_state_history.reason_code, so the movements screen and the pallet history
+// say the same thing (the convention 'wo_cancelled' and 'consumption_reversed'
+// already follow). audit_events keeps its own 'production.waste.corrected' verb.
+const WASTE_VOID_REASON_CODE = 'waste_voided';
+// Which pallet states still accept the kilos back. Deliberately NARROW —
+// recordWaste can only leave a pallet in one of these two:
+//   'available'  — partial waste (it just decremented the quantity)
+//   'destroyed'  — the waste emptied it (record-waste.ts: quantity - qty <= 0)
+// Anything else (consumed into a WO, shipped, picked/allocated, blocked, split
+// or merged away) means the pallet moved on after the waste was booked, and
+// crediting kilos onto it would invent stock on a carrier that no longer holds
+// what the correction assumes. Those voids are REFUSED (lp_not_restorable) with
+// a message telling the operator to raise a stock adjustment instead — the
+// fail-closed half of the owner's decision, chosen over silently booking onto a
+// changed pallet. Residual risk, accepted and visible: a pallet destroyed by a
+// LATER unrelated action is also 'destroyed', so its void restores the kilos;
+// pallet and ledger still move together (no drift) and both the audit row and
+// lp_state_history record who did it.
+const WASTE_RESTORABLE_LP_STATUSES = new Set(['available', VOIDED_LP_STATUS]);
 
 export type VoidWasteEntryInput = {
   wasteId: string;
@@ -47,7 +67,16 @@ export type VoidWasteEntryResult =
   | { ok: true }
   | {
       ok: false;
-      error: 'forbidden' | 'not_found' | 'already_corrected' | 'invalid_input' | 'persistence_failed';
+      error:
+        | 'forbidden'
+        | 'not_found'
+        | 'already_corrected'
+        // The pallet the waste was booked against moved on (consumed, shipped,
+        // picked, split away) — the kilos can no longer be handed back to it.
+        // Same word as reverseConsumption on purpose: both mean "give it back".
+        | 'lp_not_restorable'
+        | 'invalid_input'
+        | 'persistence_failed';
       message?: string;
     };
 
@@ -105,6 +134,7 @@ type WasteRow = {
   site_id: string | null;
   wo_id: string;
   category_id: string;
+  lp_id: string | null;
   qty_kg: string;
   reason_code: string | null;
   reason_notes: string | null;
@@ -250,6 +280,7 @@ async function loadWasteForUpdate(ctx: ProductionContext, wasteId: string): Prom
             wl.site_id::text as site_id,
             wl.wo_id::text as wo_id,
             wl.category_id::text as category_id,
+            wl.lp_id::text as lp_id,
             wl.qty_kg::text as qty_kg,
             wl.reason_code,
             wl.reason_notes,
@@ -484,6 +515,7 @@ async function writeWasteVoidAudit(
   ctx: ProductionContext,
   params: {
     original: WasteRow;
+    lp: LicensePlateRow | null;
     correctionId: string;
     reasonCode: CorrectionReasonCode;
     note: string | null;
@@ -520,7 +552,10 @@ async function writeWasteVoidAudit(
       JSON.stringify({
         waste_id: params.original.id,
         wo_id: params.original.wo_id,
+        lp_id: params.original.lp_id,
         qty_kg: params.original.qty_kg,
+        lp_status: params.lp?.status ?? null,
+        lp_quantity: params.lp?.quantity ?? null,
         reason_code: params.original.reason_code,
       }),
       JSON.stringify({
@@ -528,8 +563,67 @@ async function writeWasteVoidAudit(
         correction_of_id: params.original.id,
         reason_code: params.reasonCode,
         note: params.note,
+        // Book-only void (no pallet) vs. one that handed kilos back — readable
+        // from audit_events alone, without joining stock_moves.
+        restored_qty: params.lp ? params.original.qty_kg : null,
       }),
       randomUUID(),
+    ],
+  );
+}
+
+async function writeWasteVoidStockMove(
+  ctx: ProductionContext,
+  params: { original: WasteRow; lp: LicensePlateRow; correctionId: string; reasonCode: CorrectionReasonCode; note: string | null },
+): Promise<void> {
+  const transactionId = correctionTransactionId({
+    orgId: ctx.orgId,
+    table: 'wo_waste_log',
+    originalId: params.original.id,
+    reasonCode: params.reasonCode,
+  });
+  await ctx.client.query(
+    `insert into public.stock_moves (
+       org_id, site_id, move_number, lp_id, move_type, from_location_id,
+       quantity, uom, reason_code, reason_text, transaction_id, wo_id,
+       status, ext_jsonb, created_by, updated_by
+     )
+     values (
+       app.current_org_id(), $1::uuid, $2, $3::uuid, 'adjustment', $4::uuid,
+       $5::numeric, 'kg', $6, $7,
+       $8::uuid, $9::uuid, 'completed', $10::jsonb, $11::uuid, $11::uuid
+     )
+     on conflict (org_id, transaction_id) do nothing`,
+    [
+      params.lp.site_id ?? params.original.site_id,
+      makeStockMoveNumber(transactionId),
+      params.lp.id,
+      // Same field the forward path stamps (record-waste.ts writes the -qty row
+      // with from_location_id = the pallet's location), so the two rows line up
+      // on the movements screen instead of straddling two columns.
+      params.lp.location_id,
+      // POSITIVE. restoreLicensePlate does `quantity = quantity + qty_kg`
+      // — the kilos go BACK on the pallet, so this is an INFLOW, exactly mirroring
+      // the NEGATIVE row record-waste.ts wrote when it took them off. 'adjustment'
+      // is the only move_type stock_moves_quantity_sign_check (mig-193) lets carry
+      // a sign, so the direction lives in this value alone.
+      //
+      // Same direction as writeConsumptionReverseStockMove (goods return),
+      // OPPOSITE to writeOutputVoidStockMove (which ZEROES its pallet). Flipping
+      // it would not merely fail to compensate — the ledger would travel the wrong
+      // way and the gap would come out at 2x the voided quantity.
+      params.original.qty_kg,
+      WASTE_VOID_REASON_CODE,
+      params.note,
+      transactionId,
+      params.original.wo_id,
+      JSON.stringify({
+        source: 'voidWasteEntry',
+        waste_id: params.original.id,
+        correction_id: params.correctionId,
+        correction_reason_code: params.reasonCode,
+      }),
+      ctx.userId,
     ],
   );
 }
@@ -904,22 +998,32 @@ async function hasOpenLpQualityHold(ctx: ProductionContext, lpId: string): Promi
   return rows[0]?.ok === true;
 }
 
+// Terminal states a correction may lift a pallet OUT of: 'consumed' (reversed
+// consumption) and 'destroyed' (a waste entry that emptied the pallet, now
+// voided). Anything else is a live state the correction must leave alone.
+const LP_RESTORABLE_TERMINAL_STATES = new Set(['consumed', VOIDED_LP_STATUS]);
+
 // F4 (R3 review) — QA-aware restore target. A consumed LP goes back to
 // 'available' (pickable) ONLY when its QA release still stands; QA holds restore
 // to 'blocked' only while an active LP hold still exists, and other
 // non-released statuses restore to 'received'. qa_status itself is preserved
 // as-is. Partially-consumed LPs keep their status.
 async function lpRestoreTargetState(ctx: ProductionContext, lp: LicensePlateRow): Promise<string> {
-  if (lp.status !== 'consumed') return lp.status;
+  if (!LP_RESTORABLE_TERMINAL_STATES.has(lp.status)) return lp.status;
   if (lp.qa_status === 'on_hold') return (await hasOpenLpQualityHold(ctx, lp.id)) ? 'blocked' : 'received';
   return lp.qa_status === 'released' ? 'available' : 'received';
 }
 
+// Shared by reverseConsumption (qty = qty_consumed) and voidWasteEntry
+// (qty = qty_kg): both hand a quantity BACK to a pallet and re-target its state.
+// Fail-closed: rowCount !== 1 throws so withOrgContext rolls the whole
+// correction back — a plain return would COMMIT a counter-entry whose kilos
+// never landed.
 async function restoreLicensePlate(
   ctx: ProductionContext,
-  params: { original: ConsumptionRow; lp: LicensePlateRow; toState: string },
+  params: { lp: LicensePlateRow; qty: string; toState: string },
 ): Promise<void> {
-  await ctx.client.query(
+  const { rowCount } = await ctx.client.query(
     `update public.license_plates
         set quantity = quantity + $2::numeric,
             status = $4,
@@ -928,7 +1032,48 @@ async function restoreLicensePlate(
             updated_at = now()
       where org_id = app.current_org_id()
         and id = $1::uuid`,
-    [params.lp.id, params.original.qty_consumed, ctx.userId, params.toState],
+    [params.lp.id, params.qty, ctx.userId, params.toState],
+  );
+  if (rowCount !== 1) {
+    throw new Error('restoreLicensePlate: license_plates update did not touch exactly one row');
+  }
+}
+
+async function writeLpWasteRestoredHistory(
+  ctx: ProductionContext,
+  params: {
+    original: WasteRow;
+    lp: LicensePlateRow;
+    toState: string;
+    reasonCode: CorrectionReasonCode;
+    note: string | null;
+  },
+): Promise<void> {
+  await ctx.client.query(
+    `insert into public.lp_state_history (
+       org_id, site_id, lp_id, from_state, to_state, reason_code, reason_text,
+       wo_id, transaction_id, ext_jsonb, created_by
+     )
+     values (
+       app.current_org_id(), $1::uuid, $2::uuid, $3, $4, $5, $6,
+       $7::uuid, $8::uuid, $9::jsonb, $10::uuid
+     )`,
+    [
+      params.lp.site_id ?? params.original.site_id,
+      params.lp.id,
+      params.lp.status,
+      params.toState,
+      WASTE_VOID_REASON_CODE,
+      params.note,
+      params.original.wo_id,
+      randomUUID(),
+      JSON.stringify({
+        waste_id: params.original.id,
+        correction_reason_code: params.reasonCode,
+        restored_qty: params.original.qty_kg,
+      }),
+      ctx.userId,
+    ],
   );
 }
 
@@ -1018,6 +1163,22 @@ export async function voidWasteEntry(input: VoidWasteEntryInput): Promise<VoidWa
         return { ok: false, error: 'already_corrected' };
       }
 
+      // Owner decision: voiding a waste entry HANDS THE KILOS BACK to the pallet
+      // they were taken off (record-waste.ts subtracts them and writes a negative
+      // 'adjustment'). Undo both or the pallet keeps a hole no record explains.
+      //
+      // Every ok:false gate fires BEFORE the first write — withOrgContext COMMITS
+      // on a plain return and rolls back only on a throw, so an error-return after
+      // a mutation would persist a half-applied void (the same F1 discipline
+      // reverseConsumption follows).
+      let lp: LicensePlateRow | null = null;
+      if (original.lp_id != null && original.lp_id !== NO_LP_ID) {
+        lp = await loadLicensePlateForUpdate(ctx, original.lp_id);
+        if (!lp || !WASTE_RESTORABLE_LP_STATUSES.has(lp.status)) {
+          return { ok: false, error: 'lp_not_restorable' };
+        }
+      }
+
       const correction = await insertCounterEntry<{ id: string }>(ctx, {
         table: 'wo_waste_log',
         originalId: original.id,
@@ -1027,6 +1188,9 @@ export async function voidWasteEntry(input: VoidWasteEntryInput): Promise<VoidWa
           site_id: original.site_id,
           wo_id: original.wo_id,
           category_id: original.category_id,
+          // The struck-out entry keeps the pallet it credits back. A NULL here
+          // left the correction untraceable to the stock it moved.
+          lp_id: original.lp_id,
           qty_kg: negateDecimalString(original.qty_kg),
           reason_code: reasonCode,
           reason_notes: note,
@@ -1037,8 +1201,16 @@ export async function voidWasteEntry(input: VoidWasteEntryInput): Promise<VoidWa
         },
       });
 
+      if (lp) {
+        const toState = await lpRestoreTargetState(ctx, lp);
+        await restoreLicensePlate(ctx, { lp, qty: original.qty_kg, toState });
+        await writeWasteVoidStockMove(ctx, { original, lp, correctionId: correction.id, reasonCode, note });
+        await writeLpWasteRestoredHistory(ctx, { original, lp, toState, reasonCode, note });
+      }
+
       await writeWasteVoidAudit(ctx, {
         original,
+        lp,
         correctionId: correction.id,
         reasonCode,
         note,
@@ -1378,7 +1550,7 @@ export async function reverseConsumption(input: ReverseConsumptionInput): Promis
 
       if (lp) {
         const toState = await lpRestoreTargetState(ctx, lp);
-        await restoreLicensePlate(ctx, { original, lp, toState });
+        await restoreLicensePlate(ctx, { lp, qty: original.qty_consumed, toState });
         await writeConsumptionReverseStockMove(ctx, { original, lp, correctionId: correction.id, reasonCode, note });
         await writeLpRestoredHistory(ctx, { original, lp, toState, reasonCode, note });
       }

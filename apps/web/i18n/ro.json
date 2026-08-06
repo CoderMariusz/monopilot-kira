@@ -9568,6 +9568,7 @@
             "invalid_state": "This output can no longer be voided in its current state.",
             "invalid_input": "Check the fields and try again.",
             "lp_not_voidable": "This output's pallet has already been released or allocated — it can no longer be voided directly.",
+            "lp_not_restorable": "The pallet this waste was booked against has moved on (consumed, shipped or destroyed) — the quantity can no longer be returned to it. Raise a stock adjustment instead.",
             "already_corrected": "This record has already been voided.",
             "esign_failed": "Electronic signature failed — your PIN or account password was not accepted. Check it and try again.",
             "persistence_failed": "Unable to void this record.",

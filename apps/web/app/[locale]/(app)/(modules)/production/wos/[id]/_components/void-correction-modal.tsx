@@ -45,6 +45,8 @@ export type VoidWasteEntryError =
   | 'forbidden'
   | 'not_found'
   | 'already_corrected'
+  // The pallet the waste came off has moved on, so the kilos cannot go back.
+  | 'lp_not_restorable'
   | 'invalid_input'
   | 'persistence_failed';
 export type VoidWasteEntryResult = { ok: true } | { ok: false; error: VoidWasteEntryError; message?: string };
@@ -93,6 +95,8 @@ export type VoidModalLabels = {
     invalid_state: string;
     invalid_input: string;
     lp_not_voidable: string;
+    /** Waste void only: the pallet moved on, so the kilos cannot be handed back. */
+    lp_not_restorable: string;
     already_corrected: string;
     esign_failed: string;
     persistence_failed: string;
@@ -158,6 +162,8 @@ export function VoidCorrectionModal({
         return labels.errors.invalid_input;
       case 'lp_not_voidable':
         return labels.errors.lp_not_voidable;
+      case 'lp_not_restorable':
+        return labels.errors.lp_not_restorable;
       case 'already_corrected':
         return labels.errors.already_corrected;
       case 'esign_failed':

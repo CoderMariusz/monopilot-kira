@@ -583,6 +583,10 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
           'voidCorrection.errors.lp_not_voidable',
           "This output's pallet has already been released or allocated — it can no longer be voided directly.",
         ),
+        lp_not_restorable: vc(
+          'voidCorrection.errors.lp_not_restorable',
+          'The pallet this waste was booked against has moved on (consumed, shipped or destroyed) — the quantity can no longer be returned to it. Raise a stock adjustment instead.',
+        ),
         already_corrected: vc(
           'voidCorrection.errors.already_corrected',
           'This record has already been voided.',

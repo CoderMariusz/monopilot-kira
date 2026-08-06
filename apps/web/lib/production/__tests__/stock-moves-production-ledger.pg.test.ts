@@ -8,6 +8,10 @@
  *   (d) reverse  → reverseConsumption → writeConsumptionReverseStockMove → stock_moves 'adjustment'
  *   (e) idempotent correction dedup → same single adjustment row
  *   (f) constraint-rejection: negative consume_to_wo → 23514
+ *   (i) waste void → voidWasteEntry → pallet + ledger both go back up
+ *   (j) waste void with NO pallet → still a pure book-only correction
+ *   (k) waste void when the pallet moved on → refused, nothing written
+ *   (l) waste void that emptied the pallet → lifted back out of 'destroyed'
  *
  * Skips cleanly when DATABASE_URL is absent; residue-free (random-UUID org, org-scoped cleanup).
  */
@@ -31,7 +35,8 @@ import {
 import { recordDesktopConsumption } from '../../../app/[locale]/(app)/(modules)/production/_actions/consume-material-actions.js';
 import { registerOutput } from '../output/register-output.js';
 import { cancelWo, completeWo } from '../complete-cancel-wo.js';
-import { reverseConsumption } from '../../../app/[locale]/(app)/(modules)/production/_actions/corrections-actions.js';
+import { reverseConsumption, voidWasteEntry } from '../../../app/[locale]/(app)/(modules)/production/_actions/corrections-actions.js';
+import { recordWaste } from '../waste/record-waste.js';
 import { correctionTransactionId } from '../../corrections/correct-ledger-entry.js';
 
 // ─── Skip guard ────────────────────────────────────────────────────────────────
@@ -48,6 +53,8 @@ let locationId: string;
 const lpId = randomUUID();
 const woId = randomUUID();
 const materialId = randomUUID();
+const wasteCategoryId = randomUUID();
+const WASTE_CATEGORY_CODE = 'SML-TRIM';
 
 // ─── Test PIN (short numeric, exercises the PIN path in signEvent) ─────────────
 const TEST_PIN = '1234';
@@ -96,6 +103,8 @@ runPg('production stock_moves ledger — behavioral (real Postgres)', () => {
         'production.corrections.closed_wo',
         'production.wo.complete',
         'production.wo.cancel',
+        'production.waste.write',
+        'production.waste.correct',
       ],
     });
     ({ orgId, userId, siteId, warehouseId, locationId } = fixture);
@@ -153,6 +162,14 @@ runPg('production stock_moves ledger — behavioral (real Postgres)', () => {
       [lpId, orgId, siteId, warehouseId, locationId, itemId, userId],
     );
 
+    // Waste taxonomy (recordWaste resolves category_code → waste_categories.id)
+    await ownerPool.query(
+      `insert into public.waste_categories (id, org_id, code, name)
+       values ($1, $2, $3, 'SM Ledger Trim Waste')
+       on conflict (org_id, code) do nothing`,
+      [wasteCategoryId, orgId, WASTE_CATEGORY_CODE],
+    );
+
     // Wire withOrgContext test-stub env vars so Server Actions bypass Supabase JWT
     process.env.NODE_ENV = 'test';
     process.env.VITEST = 'true';
@@ -173,6 +190,9 @@ runPg('production stock_moves ledger — behavioral (real Postgres)', () => {
     await ownerPool?.query('delete from public.audit_events where org_id = $1', [orgId]).catch(() => undefined);
     await ownerPool?.query('delete from public.e_sign_log where org_id = $1', [orgId]).catch(() => undefined);
     await ownerPool?.query('delete from public.wo_material_consumption where org_id = $1', [orgId]).catch(() => undefined);
+    // wo_waste_log before waste_categories — the category FK is ON DELETE RESTRICT.
+    await ownerPool?.query('delete from public.wo_waste_log where org_id = $1', [orgId]).catch(() => undefined);
+    await ownerPool?.query('delete from public.waste_categories where org_id = $1', [orgId]).catch(() => undefined);
     await ownerPool?.query('delete from public.wo_outputs where org_id = $1', [orgId]).catch(() => undefined);
     await ownerPool?.query('delete from public.wo_materials where org_id = $1', [orgId]).catch(() => undefined);
     await ownerPool?.query('delete from public.wo_executions where org_id = $1', [orgId]).catch(() => undefined);
@@ -789,5 +809,294 @@ runPg('production stock_moves ledger — behavioral (real Postgres)', () => {
       wo_id: reverseWoId,
     });
     expect(Number(compensating[0]!.quantity)).toBe(100);
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // (i) — voiding a waste entry that was booked AGAINST A PALLET.
+  //
+  // recordWaste (record-waste.ts:216-291) does two things for a waste with lp_id:
+  // it subtracts the kilos from license_plates.quantity AND writes a NEGATIVE
+  // 'adjustment'. Voiding must undo BOTH, so the compensating row is POSITIVE —
+  // the mirror image of the outflow the waste wrote, and the same direction as
+  // (h). Opposite to (g), where cancelWo EMPTIES the pallet.
+  //
+  // Before the fix the void wrote only the negative counter-row in wo_waste_log:
+  // the log netted to zero ("nothing was wasted") while the pallet kept the hole
+  // and the ledger kept the -400 adjustment pointing at a struck-out entry —
+  // 400 kg gone with nothing in the system explaining it.
+  //
+  // The assertion checks lpDelta/ledgerDelta, not just the reconciled total: a
+  // flipped sign and a missing compensation reconcile to the same "total" and
+  // only the deltas tell them apart.
+  // ─────────────────────────────────────────────────────────────────────────────
+  async function seedWasteWo(id: string, woNumber: string): Promise<void> {
+    await ownerPool.query(
+      `insert into public.work_orders (
+         id, org_id, site_id, wo_number, product_id, item_type_at_creation,
+         planned_quantity, uom, status, created_by, updated_by
+       )
+       values ($1, $2, $3, $4, $5, 'fg', 2000.000, 'kg', 'IN_PROGRESS', $6, $6)`,
+      [id, orgId, siteId, woNumber, itemId, userId],
+    );
+    await ownerPool.query(
+      `insert into public.wo_executions (id, org_id, wo_id, status, version, created_by, updated_by)
+       values ($1, $2, $3, 'in_progress', 1, $4, $4)`,
+      [randomUUID(), orgId, id, userId],
+    );
+  }
+
+  it('(i) voidWasteEntry hands the kilos BACK to the pallet and books the matching positive adjustment', async () => {
+    const wasteWoId = randomUUID();
+    const sourceLpId = randomUUID();
+    const controlLpIds = [randomUUID(), randomUUID(), randomUUID()];
+
+    await seedPalletWithReceipt(sourceLpId, 'SML-LP-WASTE-SRC', '2000.000');
+    for (const [index, controlLpId] of controlLpIds.entries()) {
+      await seedPalletWithReceipt(controlLpId, `SML-LP-WASTE-CTRL-${index}`, `${index + 3}.000`);
+    }
+    await seedWasteWo(wasteWoId, 'SML-WO-WASTE');
+
+    // ── REAL chain: book 400 kg of waste against the pallet, then void it ───────
+    const waste = await runUnderOrg((client) =>
+      recordWaste({ userId, orgId, client } as unknown as Parameters<typeof recordWaste>[0], wasteWoId, {
+        transaction_id: randomUUID(),
+        category_code: WASTE_CATEGORY_CODE,
+        qty_kg: '400.000',
+        shift_id: 'A',
+        lp_id: sourceLpId,
+      }),
+    );
+    expect(waste).toMatchObject({ qty_kg: '400.000' });
+
+    const allLpIds = [sourceLpId, ...controlLpIds];
+    const before = await readLedger(allLpIds);
+    const sourceBefore = before.get(sourceLpId)!;
+
+    // The gap must be OPENED by the void — prove the pallet reconciles first
+    // (2000 kg receipt + the waste's own -400 adjustment = 1600, pallet 1600).
+    expect({ lp: Number(sourceBefore.lp_qty), ledger: Number(sourceBefore.ledger_sum) }).toEqual({
+      lp: 1600,
+      ledger: 1600,
+    });
+
+    const voided = await voidWasteEntry({
+      wasteId: waste.waste_id,
+      reasonCode: 'entry_error',
+      note: 'H7 ledger integrity waste void',
+    });
+    expect(voided).toEqual({ ok: true });
+
+    const after = await readLedger(allLpIds);
+    const sourceAfter = after.get(sourceLpId)!;
+
+    // Control rides INSIDE the same assertion (as in (h)): a separate expect()
+    // after a red main assert never runs, and "untouched pallets still reconcile"
+    // is what rules out a global drift.
+    const controlDrift = controlLpIds
+      .map((controlLpId) => after.get(controlLpId)!)
+      .filter((row) => Number(row.lp_qty) !== Number(row.ledger_sum))
+      .map((row) => ({ lp: row.lp_number, palletQty: Number(row.lp_qty), ledgerSum: Number(row.ledger_sum) }));
+
+    expect({
+      lp: Number(sourceAfter.lp_qty),
+      ledger: Number(sourceAfter.ledger_sum),
+      lpDelta: Number(sourceAfter.lp_qty) - Number(sourceBefore.lp_qty),
+      ledgerDelta: Number(sourceAfter.ledger_sum) - Number(sourceBefore.ledger_sum),
+      controlDrift,
+    }).toEqual({ lp: 2000, ledger: 2000, lpDelta: 400, ledgerDelta: 400, controlDrift: [] });
+
+    // Two adjustments on this pallet: the waste's own -400 and the void's +400.
+    const { rows: adjustments } = await ownerPool.query<{
+      quantity: string;
+      reason_code: string;
+      wo_id: string | null;
+      site_id: string | null;
+    }>(
+      `select quantity::text as quantity, reason_code, wo_id::text as wo_id, site_id::text as site_id
+         from public.stock_moves
+        where org_id = $1::uuid and lp_id = $2::uuid and move_type = 'adjustment'
+        order by quantity`,
+      [orgId, sourceLpId],
+    );
+    expect(adjustments.map((row) => ({ q: Number(row.quantity), reason: row.reason_code }))).toEqual([
+      { q: -400, reason: 'production_waste' },
+      { q: 400, reason: 'waste_voided' },
+    ]);
+    expect(adjustments[1]).toMatchObject({ wo_id: wasteWoId, site_id: siteId });
+
+    // The struck-out entry must stay attached to the pallet it credited back —
+    // a lp_id:NULL counter-row is a correction nobody can trace to stock.
+    const { rows: counterRows } = await ownerPool.query<{ qty_kg: string; lp_id: string | null }>(
+      `select qty_kg::text as qty_kg, lp_id::text as lp_id
+         from public.wo_waste_log
+        where org_id = $1::uuid and correction_of_id = $2::uuid`,
+      [orgId, waste.waste_id],
+    );
+    expect(counterRows).toHaveLength(1);
+    expect(counterRows[0]).toMatchObject({ lp_id: sourceLpId });
+    expect(Number(counterRows[0]!.qty_kg)).toBe(-400);
+
+    // The pallet's own history carries the same single word as the ledger row.
+    const { rows: history } = await ownerPool.query<{ reason_code: string; from_state: string; to_state: string }>(
+      `select reason_code, from_state, to_state
+         from public.lp_state_history
+        where org_id = $1::uuid and lp_id = $2::uuid`,
+      [orgId, sourceLpId],
+    );
+    expect(history).toEqual([
+      // Partial waste never moved the pallet off 'available', so the restore
+      // leaves the state where it was and only records WHY the kilos came back.
+      { reason_code: 'waste_voided', from_state: 'available', to_state: 'available' },
+    ]);
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // (l) — the OTHER pallet state a waste can leave behind: wasting the whole
+  // pallet empties it and flips it to 'destroyed' (record-waste.ts). Voiding that
+  // must lift it back out of the terminal state, not just add kilos to a corpse.
+  // This is the branch lpRestoreTargetState resolves (QA-aware: 'released' → back
+  // to pickable 'available'), and the one my restorable-status rule deliberately
+  // admits — full-pallet waste is a normal shift operation, not an edge case.
+  // ─────────────────────────────────────────────────────────────────────────────
+  it('(l) voiding a waste that emptied the pallet lifts it back out of destroyed', async () => {
+    const fullWoId = randomUUID();
+    const fullLpId = randomUUID();
+
+    await seedPalletWithReceipt(fullLpId, 'SML-LP-WASTE-FULL', '100.000');
+    await seedWasteWo(fullWoId, 'SML-WO-WASTE-FULL');
+
+    const waste = await runUnderOrg((client) =>
+      recordWaste({ userId, orgId, client } as unknown as Parameters<typeof recordWaste>[0], fullWoId, {
+        transaction_id: randomUUID(),
+        category_code: WASTE_CATEGORY_CODE,
+        qty_kg: '100.000',
+        shift_id: 'A',
+        lp_id: fullLpId,
+      }),
+    );
+
+    const { rows: emptied } = await ownerPool.query<{ status: string; quantity: string }>(
+      `select status, quantity::text as quantity from public.license_plates where id = $1::uuid`,
+      [fullLpId],
+    );
+    expect({ status: emptied[0]!.status, qty: Number(emptied[0]!.quantity) }).toEqual({
+      status: 'destroyed',
+      qty: 0,
+    });
+
+    expect(await voidWasteEntry({ wasteId: waste.waste_id, reasonCode: 'entry_error' })).toEqual({ ok: true });
+
+    const after = await readLedger([fullLpId]);
+    const { rows: restored } = await ownerPool.query<{ status: string; qa_status: string }>(
+      `select status, qa_status from public.license_plates where id = $1::uuid`,
+      [fullLpId],
+    );
+    expect({
+      status: restored[0]!.status,
+      lp: Number(after.get(fullLpId)!.lp_qty),
+      ledger: Number(after.get(fullLpId)!.ledger_sum),
+    }).toEqual({ status: 'available', lp: 100, ledger: 100 });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // (k) — the pallet moved on after the waste was booked (here: consumed into a
+  // WO). RULE CHOSEN: refuse the void rather than credit kilos onto a carrier
+  // that no longer holds what the correction assumes. Fail-closed, and the
+  // refusal must be TOTAL — withOrgContext COMMITS on a plain `return`, so a gate
+  // that fires after the counter-row insert would leave a half-applied void
+  // behind. Hence the assertion is not just the error code but "nothing written".
+  // ─────────────────────────────────────────────────────────────────────────────
+  it('(k) voidWasteEntry refuses a pallet that moved on, and writes nothing at all', async () => {
+    const movedWoId = randomUUID();
+    const movedLpId = randomUUID();
+
+    await seedPalletWithReceipt(movedLpId, 'SML-LP-WASTE-MOVED', '500.000');
+    await seedWasteWo(movedWoId, 'SML-WO-WASTE-MOVED');
+
+    const waste = await runUnderOrg((client) =>
+      recordWaste({ userId, orgId, client } as unknown as Parameters<typeof recordWaste>[0], movedWoId, {
+        transaction_id: randomUUID(),
+        category_code: WASTE_CATEGORY_CODE,
+        qty_kg: '50.000',
+        shift_id: 'A',
+        lp_id: movedLpId,
+      }),
+    );
+
+    // The pallet gets consumed after the waste. Set directly: the gate reads
+    // license_plates.status, so this drives the real branch.
+    await ownerPool.query(
+      `update public.license_plates set status = 'consumed' where org_id = $1::uuid and id = $2::uuid`,
+      [orgId, movedLpId],
+    );
+
+    const voided = await voidWasteEntry({
+      wasteId: waste.waste_id,
+      reasonCode: 'entry_error',
+      note: 'H7 waste void on a pallet that moved on',
+    });
+    expect(voided).toEqual({ ok: false, error: 'lp_not_restorable' });
+
+    const { rows } = await ownerPool.query<{
+      lp_qty: string;
+      counter_rows: string;
+      adjustments: string;
+      history_rows: string;
+    }>(
+      `select (select quantity::text from public.license_plates where id = $2::uuid) as lp_qty,
+              (select count(*)::text from public.wo_waste_log
+                where org_id = $1::uuid and correction_of_id = $3::uuid) as counter_rows,
+              (select count(*)::text from public.stock_moves
+                where org_id = $1::uuid and lp_id = $2::uuid and move_type = 'adjustment') as adjustments,
+              (select count(*)::text from public.lp_state_history
+                where org_id = $1::uuid and lp_id = $2::uuid) as history_rows`,
+      [orgId, movedLpId, waste.waste_id],
+    );
+    // 1 adjustment = the waste's own decrement, untouched. Pallet still at 450.
+    // lp_qty goes through Number(): NUMERIC(15,6) comes back as '450.000000'.
+    expect({ ...rows[0]!, lp_qty: Number(rows[0]!.lp_qty) }).toEqual({
+      lp_qty: 450,
+      counter_rows: '0',
+      adjustments: '1',
+      history_rows: '0',
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // (j) — a waste entry booked with NO pallet is a book-only figure: it never
+  // touched license_plates and never wrote a stock_move, so voiding it must stay
+  // book-only too. This path was already correct before (i)'s fix; it is pinned
+  // here so the pallet restore cannot leak into it.
+  // ─────────────────────────────────────────────────────────────────────────────
+  it('(j) voidWasteEntry on a waste with no pallet stays book-only (no stock_moves)', async () => {
+    const noLpWoId = randomUUID();
+    await seedWasteWo(noLpWoId, 'SML-WO-WASTE-NOLP');
+
+    const waste = await runUnderOrg((client) =>
+      recordWaste({ userId, orgId, client } as unknown as Parameters<typeof recordWaste>[0], noLpWoId, {
+        transaction_id: randomUUID(),
+        category_code: WASTE_CATEGORY_CODE,
+        qty_kg: '12.500',
+        shift_id: 'A',
+      }),
+    );
+
+    const voided = await voidWasteEntry({
+      wasteId: waste.waste_id,
+      reasonCode: 'entry_error',
+      note: 'H7 book-only waste void',
+    });
+    expect(voided).toEqual({ ok: true });
+
+    const { rows } = await ownerPool.query<{ n: string; net: string | null }>(
+      `select (select count(*)::text
+                 from public.stock_moves
+                where org_id = $1::uuid and wo_id = $2::uuid) as n,
+              (select sum(qty_kg)::text
+                 from public.wo_waste_log
+                where org_id = $1::uuid and wo_id = $2::uuid) as net`,
+      [orgId, noLpWoId],
+    );
+    expect(rows[0]).toEqual({ n: '0', net: '0.000' });
   });
 });
