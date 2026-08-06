@@ -150,10 +150,13 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------------
--- Post-check. Two things: (a) no policy still carries the per-row call, and
+-- Post-check. Three things: (a) no policy still carries the per-row call;
 -- (b) the new predicate DECIDES THE SAME as app.user_can_see_site for every
--- (user, site) pair in this database plus the NULL site. Runs the functions for
--- real — PREPARE does not validate SQL function bodies in this repo.
+-- (user, site) pair in this database plus the NULL site; (c) the installed policy
+-- expression really hides an unassigned site and really shows an assigned one, on a
+-- restricted user CONSTRUCTED here for the purpose and rolled back afterwards.
+-- Runs the functions for real — PREPARE does not validate SQL function bodies in
+-- this repo.
 -- ---------------------------------------------------------------------------
 do $$
 declare
@@ -164,6 +167,15 @@ declare
   v_old    boolean;
   v_new    boolean;
   v_pairs  integer := 0;
+  -- Fixed ids for the constructed restricted case below. Constants, not looked up,
+  -- so the clean-up assertion after the block can name exactly what to look for.
+  v_probe_user    constant uuid := '00000563-0563-4563-8563-000000000001';
+  v_probe_visible constant uuid := '00000563-0563-4563-8563-000000000002';
+  v_probe_hidden  constant uuid := '00000563-0563-4563-8563-000000000003';
+  v_probe_org     uuid;
+  v_probe  record;
+  v_expr   text;
+  v_odd    integer;
 begin
   select pg_catalog.count(*) into v_left
     from pg_catalog.pg_policy pol
@@ -204,50 +216,147 @@ begin
 
     raise notice 'mig563: predicate equivalence verified on % (user, site) pairs', v_pairs;
 
+    -- ── the restricted branch: CONSTRUCT the divergence, never wait for one ──
     -- Every user in a fresh database is UNRESTRICTED (no user_sites rows), so the loop
-    -- above only ever exercises the `true` branch. Build the restricted case on purpose
-    -- and check the branch that actually hides rows — that is the one a bug would open.
-    select u.id as user_id, u.org_id into v_user
-      from public.users u
-     where exists (select 1 from public.sites s1 where s1.org_id = u.org_id)
-       and (select pg_catalog.count(distinct s2.id) from public.sites s2 where s2.org_id = u.org_id) >= 2
-     order by u.id limit 1;
-    if v_user is null then
-      raise notice 'mig563: no org with 2+ sites — skipped the restricted-branch probe';
-    else
-      delete from public.user_roles where user_id = v_user.user_id;  -- drop the admin bypass
-      insert into public.user_sites (org_id, user_id, site_id)
-      select v_user.org_id, v_user.user_id, s.id
-        from public.sites s where s.org_id = v_user.org_id order by s.id limit 1;
-
-      insert into app.session_org_contexts (session_token, org_id, user_id)
-      values (v_token, v_user.org_id, v_user.user_id)
-      on conflict (session_token) do update
-        set org_id = excluded.org_id, user_id = excluded.user_id;
-      perform app.set_org_context(v_token, v_user.org_id);
-
-      for v_site in
-        select s.id from public.sites s where s.org_id = v_user.org_id
-        union all select null::uuid
-      loop
-        v_old := app.user_can_see_site(v_site);
-        v_new := v_site is not null
-                 and (
-                   app.user_site_scope_unrestricted()
-                   or v_site = any (app.user_visible_sites())
-                 );
-        if v_old is distinct from coalesce(v_new, false) then
-          raise exception 'mig563: restricted-branch mismatch for site %: old=% new=%', v_site, v_old, v_new;
-        end if;
-      end loop;
-
-      -- and the branch is genuinely restrictive, i.e. the probe proved something
-      if app.user_can_see_site((select s.id from public.sites s
-                                 where s.org_id = v_user.org_id order by s.id desc limit 1)) then
-        raise exception 'mig563: restricted probe never produced a hidden site — assertion is vacuous';
-      end if;
-      raise notice 'mig563: restricted branch verified (visible sites = %)', app.user_visible_sites();
+    -- above only ever exercises the `true` branch. The branch that actually HIDES rows —
+    -- the one a bug would open — has to be built here.
+    --
+    -- The first version of this probe took whatever user the database happened to hold,
+    -- stripped its roles, gave it one site and then asserted that some OTHER site had gone
+    -- dark. On a database where that user already had the other sites assigned nothing
+    -- went dark and the migration aborted with "assertion is vacuous" — a false alarm
+    -- shaped like a gate, stopping a correct migration on correct data (measured on
+    -- production and on monopilot_ver). Nothing below reads what the database happens to
+    -- contain:
+    --   * a NEW user, so public.user_roles holds nothing for it → the admin branch cannot fire;
+    --   * exactly ONE user_sites row, written here → the zero-assignment branch cannot fire
+    --     and the visible set is known to be exactly {v_probe_visible};
+    --   * TWO new sites in that same org, one assigned and one not.
+    -- The org is an existing row: users.org_id and app.session_org_contexts.org_id are
+    -- FOREIGN KEYs. It contributes an identifier only — every clause of the predicate is
+    -- filtered by the probe user, who is new, so no ambient role or assignment reaches it.
+    select o.id into v_probe_org
+      from public.organizations o
+     where exists (select 1 from public.roles r where r.org_id = o.id)
+     order by o.id limit 1;
+    if v_probe_org is null then
+      raise exception 'mig563: no organization with a role to anchor the restricted-branch probe on';
     end if;
+
+    insert into public.sites (id, org_id, site_code, name) values
+      (v_probe_visible, v_probe_org, 'MIG563-PROBE-VISIBLE', 'mig563 probe — assigned site'),
+      (v_probe_hidden,  v_probe_org, 'MIG563-PROBE-HIDDEN',  'mig563 probe — unassigned site');
+    -- role_id is a NOT NULL FK on public.users; it is NOT what the predicate reads (that is
+    -- public.user_roles, which holds nothing for this user), so any role of the org will do.
+    insert into public.users (id, org_id, email, name, role_id)
+    values (v_probe_user, v_probe_org, 'mig563-probe@invalid.example', 'mig563 restricted probe',
+            (select r.id from public.roles r where r.org_id = v_probe_org order by r.id limit 1));
+    insert into public.user_sites (org_id, user_id, site_id)
+    values (v_probe_org, v_probe_user, v_probe_visible);
+
+    -- ── the identity, set EXPLICITLY, never inherited from the session ──
+    -- A migration always runs WITHOUT an application session: nothing has called
+    -- app.set_org_context, so app.current_user_id() is NULL, and NULL short-circuits the
+    -- predicate to "unrestricted" (mig 551 clause 1) — no site can ever be hidden. That is
+    -- the normal state of a migration, not an exception, so the probe establishes the
+    -- identity itself. app.current_user_id() (migs 002/382) reads exactly one thing: the
+    -- app.active_org_contexts row keyed by (backend_pid, transaction_id), joined back to
+    -- the trusted app.session_org_contexts row on (session_token, org_id). No GUC, no JWT
+    -- claim, no session variable feeds it — so both rows are written here, in that order.
+    insert into app.session_org_contexts (session_token, org_id, user_id)
+    values (v_token, v_probe_org, v_probe_user)
+    on conflict (session_token) do update
+      set org_id = excluded.org_id, user_id = excluded.user_id;
+
+    -- The application's own route first — REPORTED, not trusted. On a database where
+    -- app.set_org_context does not carry user_id across (mig 002's body, which mig 382
+    -- replaced precisely to add that carry) this notice is how you find out, and it means
+    -- app.current_user_id() is NULL for every application session too, which leaves all 13
+    -- restrictive site policies inert. The probe below does not depend on it either way.
+    perform app.set_org_context(v_token, v_probe_org);
+    raise notice 'mig563: app.set_org_context carried the probe user into the active context: %',
+      (app.current_user_id() is not distinct from v_probe_user);
+
+    -- ...then the row app.current_user_id() actually reads, written directly.
+    insert into app.active_org_contexts (backend_pid, transaction_id, session_token, org_id, user_id)
+    values (pg_catalog.pg_backend_pid(), pg_catalog.txid_current(), v_token, v_probe_org, v_probe_user)
+    on conflict (backend_pid) do update
+      set transaction_id = excluded.transaction_id,
+          session_token  = excluded.session_token,
+          org_id         = excluded.org_id,
+          user_id        = excluded.user_id;
+
+    if app.current_user_id() is distinct from v_probe_user then
+      raise exception 'mig563: cannot establish a probe identity — app.current_user_id() is % (backend_pid=%, txid=%, stored user_id=%, stored org_id=%). The READ path of app.current_user_id() is broken, so no site-visibility policy can restrict anything for anyone.',
+        app.current_user_id(), pg_catalog.pg_backend_pid(), pg_catalog.txid_current(),
+        (select a.user_id from app.active_org_contexts a where a.backend_pid = pg_catalog.pg_backend_pid()),
+        (select a.org_id  from app.active_org_contexts a where a.backend_pid = pg_catalog.pg_backend_pid());
+    end if;
+
+    -- The probe is only worth running if the user really came out RESTRICTED. This checks
+    -- the CONSTRUCTION, not the ambient data — it cannot turn a healthy database red.
+    if app.user_site_scope_unrestricted() then
+      raise exception 'mig563: probe user % is still unrestricted (roles=%, assignments=%) — construction failed',
+        app.current_user_id(),
+        (select pg_catalog.count(*) from public.user_roles ur where ur.user_id = v_probe_user),
+        (select pg_catalog.count(*) from public.user_sites us where us.user_id = v_probe_user);
+    end if;
+
+    -- Evaluate the predicate that was ACTUALLY INSTALLED, read back from the catalog,
+    -- rather than a hand-copy of it: a hand-copy stays green when the rewritten policy
+    -- breaks, which would make this whole block decorative.
+    -- The policies are found by IDENTITY (the RESTRICTIVE FOR ALL <table>_site_visibility
+    -- family migs 383/551 created) and never by a fragment of the predicate itself —
+    -- matching on the predicate means a broken predicate simply stops being found, and a
+    -- probe that cannot find its subject is not a probe.
+    select pg_catalog.pg_get_expr(pol.polqual, pol.polrelid)
+      into v_expr
+      from pg_catalog.pg_policy pol
+     where pol.polname like '%\_site\_visibility'
+       and pol.polpermissive = false
+       and pol.polcmd = '*'
+     order by pol.polname
+     limit 1;
+    if v_expr is null then
+      raise exception 'mig563: no <table>_site_visibility policy left to probe';
+    end if;
+    -- ...and one policy is only evidence for all of them if they are textually identical.
+    select pg_catalog.count(*) into v_odd
+      from pg_catalog.pg_policy pol
+     where pol.polname like '%\_site\_visibility'
+       and pol.polpermissive = false
+       and pol.polcmd = '*'
+       and (pg_catalog.pg_get_expr(pol.polqual, pol.polrelid) is distinct from v_expr
+            or pg_catalog.pg_get_expr(pol.polwithcheck, pol.polrelid) is distinct from v_expr);
+    if v_odd > 0 then
+      raise exception 'mig563: % site-visibility policies carry a USING/WITH CHECK that differs from the probed predicate', v_odd;
+    end if;
+
+    -- BOTH directions. The assigned site MUST stay visible: a predicate that hides
+    -- everything also "hides the unassigned site", so the counter-control is half the
+    -- proof, not decoration.
+    for v_probe in
+      select * from (values (v_probe_visible, true,  'assigned'),
+                            (v_probe_hidden,  false, 'unassigned'),
+                            (null::uuid,      false, 'NULL')) as t(site, expected, label)
+    loop
+      v_old := app.user_can_see_site(v_probe.site);
+      execute pg_catalog.format('select %s from (select $1::uuid as site_id) probe', v_expr)
+        into v_new using v_probe.site;
+      if v_old is distinct from coalesce(v_new, false) then
+        raise exception 'mig563: restricted-branch mismatch on the % site %: old=% new=%',
+          v_probe.label, v_probe.site, v_old, v_new;
+      end if;
+      if coalesce(v_new, false) <> v_probe.expected then
+        raise exception 'mig563: the % site % is %, expected % (visible set = %)',
+          v_probe.label, v_probe.site,
+          case when coalesce(v_new, false) then 'VISIBLE' else 'HIDDEN' end,
+          case when v_probe.expected then 'VISIBLE' else 'HIDDEN' end,
+          app.user_visible_sites();
+      end if;
+    end loop;
+    raise notice 'mig563: restricted branch verified — assigned site visible, unassigned site hidden, NULL hidden (visible set = %)',
+      app.user_visible_sites();
 
     raise exception using errcode = 'P0001', message = 'mig563:probe-ok';
   exception when sqlstate 'P0001' then
@@ -255,5 +364,19 @@ begin
       raise;
     end if;
   end;
+
+  -- The block above is an implicit SAVEPOINT (that is what PL/pgSQL BEGIN…EXCEPTION is),
+  -- and catching 'mig563:probe-ok' rolls it back. That it DID roll back is asserted with a
+  -- query — "the transaction will undo it" is a declaration, this is the evidence.
+  select (select pg_catalog.count(*) from public.users u where u.id = v_probe_user)
+       + (select pg_catalog.count(*) from public.sites s where s.id in (v_probe_visible, v_probe_hidden))
+       + (select pg_catalog.count(*) from public.user_sites us where us.user_id = v_probe_user)
+       + (select pg_catalog.count(*) from app.session_org_contexts c where c.session_token = v_token)
+       + (select pg_catalog.count(*) from app.active_org_contexts a where a.session_token = v_token)
+    into v_left;
+  if v_left <> 0 then
+    raise exception 'mig563: post-check left % synthetic row(s) behind', v_left;
+  end if;
+  raise notice 'mig563: post-check material rolled back — 0 synthetic rows remain';
 end;
 $$;
