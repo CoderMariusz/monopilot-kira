@@ -20,6 +20,35 @@ jedna okazała się niedziałająca i została domknięta, jedna częściowo).
 Poza tym: **zostaje lista defektów, których świadomie nie naprawialiśmy w nocy** — bo wymagają
 Twojej decyzji produktowej albo migracji danych na żywej bazie. Też są niżej, z uzasadnieniem.
 
+## Pierwsze trzydzieści minut — gotowe komendy
+
+**46 commitów czeka lokalnie.** Nie wypchnąłem ich, bo o to nie prosiłeś.
+**Push jest bezpieczny**: integracja z GitHubem jest rozłączona (zero webhooków), więc
+**nic się samo nie zbuduje ani nie wdroży**.
+
+```bash
+cd ~/Projects/monopilot-kira
+
+# 1. zobacz, co powstało
+git log --oneline 80b2821a..HEAD
+
+# 2. sprawdź stan sam, nie wierz mi na słowo
+pnpm typecheck        # ma dać 0
+pnpm build            # ma dać 0, 66/66 stron
+
+# 3. wypchnij, jeśli się zgadza
+git push origin main
+```
+
+**Jedna zmiana została NIEZACOMMITOWANA celowo** — `production/changeover/_actions/changeover-data.ts`.
+Naprawia realny defekt (potwierdzony: dwie nierozróżnialne linie o tym samym kodzie, stopka
+tabeli pisze dosłownie „Showing 7 of 6"), ale robi to dopasowaniem po kodzie linii filtrowanym
+**tylko po organizacji**, podczas gdy unikalność kodu jest **per zakład**. To może zniekształcić
+dane. Obejrzyj `git diff` i zdecyduj sam.
+
+**Zanim cokolwiek wdrożysz** — dwa zapytania na produkcyjnej bazie, opisane w ramce niżej
+i w punkcie 4.
+
 ## Cztery rzeczy tylko dla Ciebie — razem ~20 minut
 
 
