@@ -53,6 +53,32 @@ dane. Obejrzyj `git diff` i zdecyduj sam.
 **Zanim cokolwiek wdrożysz** — dwa zapytania na produkcyjnej bazie, opisane w ramce niżej
 i w punkcie 4.
 
+
+> ## 🛑 SPROSTOWANIE — punkt 3 jest NIEAKTUALNY (2026-08-06, 08:00)
+>
+> Twierdziłem przez całą noc, że polecenie budujące na Vercelu **połyka błąd migracji**
+> (`|| echo "[WARN]"`) i że to najgroźniejsza rzecz w repozytorium. **To nieprawda.**
+>
+> `apps/web/vercel.json` zawiera wersję **fail-closed** i **nigdy nie zawierał połykacza**
+> (`git log -S` po całej historii — zero trafień). A `vercel.json` **nadpisuje** ustawienie
+> z panelu. Log realnego builda produkcyjnego z 30 lipca:
+>
+> ```
+> Running "cd ../.. && pnpm --filter @monopilot/db migrate && cd apps/web && pnpm build"
+> ```
+>
+> **Nieudana migracja ZATRZYMUJE deploy.** Wersja z połykaczem leży w panelu Vercela jako
+> martwa konfiguracja — nadpisana i nieużywana.
+>
+> **Podwójny błąd po mojej stronie:** 30 lipca stwierdziłem poprawnie, że odmowa migracji
+> zatrzyma deploy. Wczoraj „sprostowałem" to na podstawie samego `vercel project inspect`,
+> nie sprawdzając, co naprawdę się wykonuje — i zbudowałem na tym hierarchię priorytetów.
+> Sprostowałem prawdę i uwierzyłem we własne sprostowanie.
+>
+> **Skutek dla Ciebie: punkt 3 odpada.** Zostają trzy rzeczy, nie cztery.
+> Warto przy okazji **usunąć martwą wersję z panelu**, żeby nikt się na nią nie nabrał —
+> ale to porządki, nie bezpieczeństwo.
+
 ## Cztery rzeczy tylko dla Ciebie — razem ~20 minut
 
 
