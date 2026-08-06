@@ -414,3 +414,53 @@ i 4 kompletne mapowania komunikatów — to zawęża pole równie mocno.
 `41 RLU` → `failed` (ponad próg organizacji). 46 testów wykonanych.
 Tor odrzucił słowa „pozytywny"/„negatywny" jako **wieloznaczne** — w mikrobiologii
 *negative* znaczy czysto, po polsku potocznie źle.
+
+---
+
+## 04:10 → 05:05 — domknięcie i weryfikacja końcowa
+
+### Klasa ścisłej walidacji okazała się szersza niż dwa znane przypadki
+Znane były dwa. Znaleziono **pięć**:
+
+| co | skutek |
+|---|---|
+| powody zwrotu | nie zapisywały się w ogóle |
+| **kalendarz zmian** | **zwracał pusto dla każdego miesiąca** |
+| **ustawienia urządzeń** | lista pusta, a odczyt domyślnych **cicho zwracał zmyślone wartości** |
+| guard zapisu zakładów | utajony |
+| helper kontekstu ×8 | mechanizm niżej |
+
+**Mechanizm, który to ukrywał** (cytat z kodu): ekstraktory robią `if (orgId) return orgId;`,
+więc **odrzucenie jest nieodróżnialne od „nie znaleziono"** — kod spada do pętli po parametrach
+i **bierze pierwszy wyglądający na UUID, zwykle identyfikator użytkownika**.
+
+**38 plików świadomie nietkniętych** — każdy waliduje identyfikator **wiersza** (generowany v4),
+więc ścisły wzorzec jest tam poprawny. Cały interfejs skanera zostaje ścisły: to prawdziwa
+granica zaufania.
+
+Dowód, który przekonał mnie najbardziej: **kontrola przeciwna padła z `invalid_input` zamiast
+`forbidden`** — czyli bramka uprawnień **nigdy nie była osiągana**.
+
+### Trzy ostatnie naprawy potwierdzone w przeglądarce (tor E)
+- **świadectwo alergenowe**: `FAIL`→failed, `7 RLU`→**passed** (zakład nie stanął), `41 RLU`→failed.
+  Dowód przed/po **leży obok siebie w jednej tabeli** — wiersz zostawiony przez tor C ma
+  `atp_evidence="FAIL"` i `validation_result=passed`.
+- **bramka terminu na kompletacji i wysyłce**: odmowa w obu, `quantity_picked=0.000`,
+  `shipped_at=null` (transakcja wycofana), kontrole przeciwne przechodzą.
+- **wyciek odczytu**: persona bez uprawnień — 0 wierszy; rola z czterema grantami — **42/18/2/1**,
+  dokładnie liczby z opisu defektu. Wyklucza jednocześnie „odmawia wszystkim"
+  i „przechodzi tylko po kodzie roli admina".
+
+### Zdanie, które chcę zapamiętać z tej nocy
+Tor E, po trzech przebiegach Playwrighta zakończonych formalnym niepowodzeniem (limit czasu
+runnera **po** wypisaniu pomiarów):
+
+> **Każda liczba w raporcie ma pod sobą zapytanie SQL wykonane po przebiegu, nie kolor testu.**
+
+## Stan na 05:05
+- **47 commitów**, wszystkie lokalne — nie wypchnięte, bo owner o to nie prosił
+- `pnpm typecheck` → 0 · `pnpm build` → 66/66 stron · migracje → 564
+- odzyskane suity: **32 → 161** wykonywanych testów
+- **19 dokumentów** w katalogu nocy
+- jedna zmiana świadomie niezacommitowana: `changeover-data.ts` (naprawia realny defekt,
+  ale dopasowaniem, które może zniekształcić dane przy dwóch zakładach)
