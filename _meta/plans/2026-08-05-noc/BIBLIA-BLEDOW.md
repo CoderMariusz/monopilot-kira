@@ -15,13 +15,28 @@ to strata czasu, bo np. podłączenie webhooka przy padającym buildzie nic nie 
 | **1** | **Decyzja o `yard.manage` i `freight.manage`** — snapshot RBAC albo rename na trzy człony | 5 min | job **`lint`** → a przez to **`build` przestaje być pomijany** | **tylko Ty** — to zmiana zamrożonego kontraktu uprawnień |
 | **2** | **Migracja 051 ma tolerować brak ról Supabase** (`anon`, `authenticated`) | ~1 h | **`vitest` + `migration-check` + `playwright`** zaczynają cokolwiek mierzyć — pierwszy raz od 3 czerwca | agent |
 | **3** | **Usunąć `\|\| echo "[WARN]"`** z polecenia budującego na Vercelu | 1 min | nieudana migracja **zatrzyma deploy** zamiast go po cichu przepuścić | **tylko Ty** — ustawienie projektu |
-| **4** | **Sprawdzić stan migracji na produkcyjnej bazie** (zapytania niżej, poz. 4) | 10 min | wiadomo, czy deploy jest bezpieczny | **tylko Ty** — mnie blokuje klasyfikator |
+| **4** | **Sprawdzić stan migracji na produkcyjnej bazie** (zapytania niżej, poz. 4) **oraz zapytanie z ramki poniżej** | 10 min | wiadomo, czy deploy jest bezpieczny | **tylko Ty** — mnie blokuje klasyfikator |
 | **5** | **Podłączyć repozytorium w ustawieniach Vercel** | 5 min | push zaczyna wdrażać | **tylko Ty** |
 | **6** | Regeneracja `__expected__/schema.sql` | 15 min | bramka driftu przestaje być teatrem (stoi na migracji 281 z 564) | agent |
 | **7** | Defekty kodu wg wagi — sekcja „BŁĘDY W APLIKACJI" | dni | — | agenci |
 
 **Punkty 1, 3, 4 i 5 są tylko dla Ciebie** — to decyzje i ustawienia, nie kod. Razem ~20 minut.
 Bez nich reszta pracy nie dojedzie na produkcję.
+
+> ### ⚠️ JEDNO ZAPYTANIE, KTÓRE MUSISZ PUŚCIĆ NA PRODUKCJI ZANIM WDROŻYSZ
+>
+> Naprawa obejścia SCIM (commit `0d6eac85`) dokłada do głównej bramki autoryzacji warunek
+> `deleted_at is null`. Na kopii testowej liczba użytkowników w stanie sprzecznym wynosi **0**,
+> więc zmiana nikogo nie zablokuje. **Ale to była kopia, nie produkcja.**
+>
+> ```sql
+> select count(*) from public.users
+>  where deleted_at is not null and is_active = true;
+> ```
+>
+> **Jeśli wynik jest większy od zera — NIE WDRAŻAJ tej zmiany bez wcześniejszego uporządkowania
+> tych rekordów.** Zablokowałaby ich wszystkich naraz, a idzie to przez bramkę, przez którą
+> przechodzi **każda akcja w aplikacji**.
 
 ## Stan repozytorium po tej nocy
 
