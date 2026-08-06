@@ -193,6 +193,11 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): ShipmentPa
       // retry." — a retry can never fix it. Name the setting and where to set it.
       missing_gs1_prefix: t('pack.errors.missing_gs1_prefix'),
       invalid_gs1_prefix: t('pack.errors.invalid_gs1_prefix'),
+      // Same class: pack-lp-into-box.ts returns this when the LP is on a quality hold,
+      // not QA-released, or past its site-day expiry. Unmapped it read as "retry", which
+      // told the operator to keep hammering a food-safety block. Mirrors the sibling
+      // ship gate's lp_blocked_for_ship wording below.
+      lp_blocked_for_pack: t('pack.errors.lp_blocked_for_pack'),
       persistence_failed: t('errors.persistence_failed'),
     },
     ship: {

@@ -26,8 +26,13 @@ const ianaTimezone = z
   .string()
   .refine(isValidIanaTimezone, { message: 'invalid IANA timezone' });
 
+// Format-only. `z.string().uuid()` enforces the RFC-4122 version byte, which rejects the
+// canonical org 00000000-0000-0000-0000-000000000002 (migration 030, version=0, variant=0).
+// Org ids on this deployment are hand-seeded literals, not generated v4s. Cf. sites.ts.
+const orgUuid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+
 export const siteInsertSchema = z.object({
-  orgId: z.string().uuid(),
+  orgId: orgUuid,
   siteCode: z.string().min(1).max(64),
   name: z.string().min(1).max(256),
   isDefault: z.boolean().optional(),

@@ -98,7 +98,14 @@ type RmaReasonCodeDbRow = {
   is_active: boolean;
 };
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+// Format-only UUID check (8-4-4-4-12 hex). MUST NOT enforce the RFC-4122 version/variant
+// bytes ([1-5] / [89ab]): the org this app actually runs as is
+// 00000000-0000-0000-0000-000000000002 (migration 030, version=0, variant=0), so a strict
+// regex made EVERY write on this screen fail at `orgId` before reaching the database —
+// "Add reason" wrote nothing and the screen blamed a duplicate code. Same fix and same
+// reasoning as settings/sites/_actions/sites.ts.
+// The real org security guard is `context.orgId !== parsed.data.orgId`, not this format check.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const UuidInput = z.string().trim().regex(UUID_RE);
 
 const CreateReasonCodeInput = z

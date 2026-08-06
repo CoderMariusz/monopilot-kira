@@ -11997,7 +11997,8 @@
           "invalid_box": "That box no longer exists.",
           "not_found": "That shipment no longer exists.",
           "missing_gs1_prefix": "GS1 company prefix is not set for this organization. Set it in Settings → Company profile (7 digits), then pack again.",
-          "invalid_gs1_prefix": "GS1 company prefix is invalid — it must be exactly 7 digits. Fix it in Settings → Company profile, then pack again."
+          "invalid_gs1_prefix": "GS1 company prefix is invalid — it must be exactly 7 digits. Fix it in Settings → Company profile, then pack again.",
+          "lp_blocked_for_pack": "Cannot pack — this license plate is on a quality hold, not QA-released, or expired. Release or replace it; retrying will not help."
         }
       },
       "deliveryNotePrint": {

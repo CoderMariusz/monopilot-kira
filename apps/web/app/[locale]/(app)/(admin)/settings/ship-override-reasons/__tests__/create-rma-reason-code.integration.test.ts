@@ -32,9 +32,19 @@ const run = databaseUrl ? describe : describe.skip;
 
 const UPDATE_PERMISSION = 'settings.org.update';
 
+/**
+ * The Apex org bootstrapped by migration 030 — the org every local env and the pilot
+ * actually run as. Its version nibble is 0 and its variant nibble is 0, so it is NOT a
+ * valid RFC-4122 v1–v5 UUID: a strict `[1-5]`/`[89ab]` regex rejects it before the query
+ * ever runs. Seeding this test with `randomUUID()` (always a v4) made it pass against a
+ * createRmaReasonCode that could not save a single row on any real environment.
+ * Keep this literal — a generated UUID proves nothing about this class of bug.
+ */
+const CANONICAL_ORG_ID = '00000000-0000-0000-0000-000000000002';
+const TEST_CODES = ['DAMAGED', 'VIEWER_SHOULD_NOT_PERSIST'];
+
 const seed = {
-  tenantId: randomUUID(),
-  orgId: randomUUID(),
+  orgId: CANONICAL_ORG_ID,
   adminUserId: randomUUID(),
   viewerUserId: randomUUID(),
   adminRoleId: randomUUID(),
@@ -45,18 +55,10 @@ let owner: pg.Pool;
 
 async function seedFixtures(): Promise<void> {
   await ensureAppUser(owner);
-  await owner.query(
-    `insert into public.tenants (id, name, region_cluster, data_plane_url)
-     values ($1, 'RMA Reason IT Tenant', 'eu', 'https://rma-reason-it.example.test')
-     on conflict (id) do nothing`,
-    [seed.tenantId],
-  );
-  await owner.query(
-    `insert into public.organizations (id, tenant_id, slug, name, industry_code, currency, timezone)
-     values ($1, $2, $3, 'RMA Reason IT Org', 'fmcg', 'EUR', 'Europe/Warsaw')
-     on conflict (id) do nothing`,
-    [seed.orgId, seed.tenantId, `rma-reason-it-${seed.orgId.slice(0, 8)}`],
-  );
+  // No tenant/org insert: the Apex org is a migration-030 fixture that must survive this
+  // test. Only the roles/users below are ours to create — and to delete.
+  const { rows } = await owner.query(`select 1 from public.organizations where id = $1`, [seed.orgId]);
+  if (rows.length === 0) throw new Error(`canonical org ${seed.orgId} missing — run pnpm db:migrate`);
   // Role CODES are deliberately not 'admin'/'owner'/'org_admin': has-permission.ts lets
   // those through by code alone, so an "admin" proof would say nothing about the gate.
   await owner.query(
@@ -97,17 +99,21 @@ async function seedFixtures(): Promise<void> {
   );
 }
 
+// Scoped to the ids/codes this test created. A `where org_id = $1` sweep would now wipe
+// the shared Apex org's real users, roles and reason codes.
 async function cleanup(): Promise<void> {
-  await owner.query(`delete from public.rma_reason_codes where org_id = $1`, [seed.orgId]);
-  await owner.query(`delete from public.user_roles where org_id = $1`, [seed.orgId]);
-  await owner.query(
-    `delete from public.role_permissions where role_id in (select id from public.roles where org_id = $1)`,
-    [seed.orgId],
-  );
-  await owner.query(`delete from public.users where org_id = $1`, [seed.orgId]);
-  await owner.query(`delete from public.roles where org_id = $1`, [seed.orgId]);
-  await owner.query(`delete from public.organizations where id = $1`, [seed.orgId]);
-  await owner.query(`delete from public.tenants where id = $1`, [seed.tenantId]);
+  await owner.query(`delete from public.rma_reason_codes where org_id = $1 and code = any($2::text[])`, [
+    seed.orgId,
+    TEST_CODES,
+  ]);
+  await owner.query(`delete from public.user_roles where user_id = any($1::uuid[])`, [
+    [seed.adminUserId, seed.viewerUserId],
+  ]);
+  await owner.query(`delete from public.role_permissions where role_id = any($1::uuid[])`, [
+    [seed.adminRoleId, seed.viewerRoleId],
+  ]);
+  await owner.query(`delete from public.users where id = any($1::uuid[])`, [[seed.adminUserId, seed.viewerUserId]]);
+  await owner.query(`delete from public.roles where id = any($1::uuid[])`, [[seed.adminRoleId, seed.viewerRoleId]]);
 }
 
 run('D2 createRmaReasonCode round-trip (real DB)', () => {
@@ -116,6 +122,7 @@ run('D2 createRmaReasonCode round-trip (real DB)', () => {
     owner = new pg.Pool({ connectionString: databaseUrl });
     process.env.APP_USER_PASSWORD = appUserPassword;
     expect(makeAppUserConnectionString()).toContain('app_user');
+    await cleanup(); // drop leftovers from an aborted earlier run
     await seedFixtures();
   });
 
@@ -128,7 +135,7 @@ run('D2 createRmaReasonCode round-trip (real DB)', () => {
 
   it('starts with an empty reason list — the state that blocks the RMA form', async () => {
     const rows = await withActionActor(seed.adminUserId, seed.orgId, () => getRmaReasonCodes(seed.orgId));
-    expect(rows).toEqual([]);
+    expect(rows.filter((row) => TEST_CODES.includes(row.code))).toEqual([]);
   });
 
   it('persists an RMA reason code the RMA create form can then offer', async () => {
@@ -144,8 +151,9 @@ run('D2 createRmaReasonCode round-trip (real DB)', () => {
     expect(result).toMatchObject({ ok: true, data: { org_id: seed.orgId, code: 'DAMAGED', is_active: true } });
 
     const { rows } = await owner.query(
-      `select code, label_en, label_pl, is_active from public.rma_reason_codes where org_id = $1`,
-      [seed.orgId],
+      `select code, label_en, label_pl, is_active from public.rma_reason_codes
+        where org_id = $1 and code = any($2::text[])`,
+      [seed.orgId, TEST_CODES],
     );
     expect(rows).toEqual([
       { code: 'DAMAGED', label_en: 'Damaged in transit', label_pl: 'Uszkodzone w transporcie', is_active: true },
@@ -153,7 +161,7 @@ run('D2 createRmaReasonCode round-trip (real DB)', () => {
 
     // The RMA create form's own query (rma-actions.listRmaReasonCodes) now has an option.
     const visible = await withActionActor(seed.adminUserId, seed.orgId, () => getRmaReasonCodes(seed.orgId));
-    expect(visible.map((row) => row.code)).toEqual(['DAMAGED']);
+    expect(visible.filter((row) => TEST_CODES.includes(row.code)).map((row) => row.code)).toEqual(['DAMAGED']);
   });
 
   it('rejects a blank code/label without writing', async () => {
@@ -162,9 +170,10 @@ run('D2 createRmaReasonCode round-trip (real DB)', () => {
     );
     expect(result).toEqual({ ok: false, error: 'invalid_input' });
 
-    const { rows } = await owner.query(`select count(*)::int as n from public.rma_reason_codes where org_id = $1`, [
-      seed.orgId,
-    ]);
+    const { rows } = await owner.query(
+      `select count(*)::int as n from public.rma_reason_codes where org_id = $1 and code = any($2::text[])`,
+      [seed.orgId, TEST_CODES],
+    );
     expect(rows[0].n).toBe(1);
   });
 
@@ -174,7 +183,10 @@ run('D2 createRmaReasonCode round-trip (real DB)', () => {
     );
     expect(result).toEqual({ ok: false, error: 'forbidden' });
 
-    const { rows } = await owner.query(`select code from public.rma_reason_codes where org_id = $1`, [seed.orgId]);
+    const { rows } = await owner.query(
+      `select code from public.rma_reason_codes where org_id = $1 and code = any($2::text[])`,
+      [seed.orgId, TEST_CODES],
+    );
     expect(rows.map((row) => row.code)).toEqual(['DAMAGED']);
   });
 });

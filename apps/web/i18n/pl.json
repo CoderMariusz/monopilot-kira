@@ -11997,7 +11997,8 @@
           "invalid_box": "Ten karton już nie istnieje.",
           "not_found": "Ta wysyłka już nie istnieje.",
           "missing_gs1_prefix": "Prefiks firmy GS1 nie jest ustawiony dla tej organizacji. Ustaw go w Ustawienia → Profil firmy (7 cyfr) i spakuj ponownie.",
-          "invalid_gs1_prefix": "Prefiks firmy GS1 jest nieprawidłowy — musi mieć dokładnie 7 cyfr. Popraw go w Ustawienia → Profil firmy i spakuj ponownie."
+          "invalid_gs1_prefix": "Prefiks firmy GS1 jest nieprawidłowy — musi mieć dokładnie 7 cyfr. Popraw go w Ustawienia → Profil firmy i spakuj ponownie.",
+          "lp_blocked_for_pack": "Nie można spakować — ten nośnik (LP) jest na wstrzymaniu jakości, niezwolniony przez QA lub przeterminowany. Zwolnij go lub użyj innego; ponawianie nic nie da."
         }
       },
       "deliveryNotePrint": {

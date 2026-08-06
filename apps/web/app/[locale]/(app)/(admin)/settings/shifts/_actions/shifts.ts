@@ -89,7 +89,12 @@ export type ShiftsSettingsData = {
   can_edit: boolean;
 };
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+// Format-only (8-4-4-4-12 hex). MUST NOT enforce the RFC-4122 version/variant bytes
+// ([1-5] / [89ab]): `queryCalendarData` runs this over `orgId` too, and the org this app
+// runs as is 00000000-0000-0000-0000-000000000002 (migration 030, version=0, variant=0) —
+// a strict regex made the shift calendar return [] for every month on every real env.
+// Org security is `app.current_org_id()` in the SQL, not this format check. Cf. sites.ts.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const UuidInput = z.string().trim().regex(UUID_RE);
 const OptionalUuidInput = z.preprocess((value) => (value === '' ? null : value), UuidInput.nullish());
 // ponytail: line identifier accepts a legacy code OR a uuid; production_line_id is resolved

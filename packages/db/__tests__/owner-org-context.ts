@@ -29,9 +29,17 @@ export type PgTestFixture = {
   cleanup: () => Promise<void>;
 };
 
+// Format-only (8-4-4-4-12 hex). MUST NOT enforce the RFC-4122 version/variant bytes
+// ([1-5] / [89ab]). inferOrgContext below uses this to pick the org id out of the query
+// params; the canonical org 00000000-0000-0000-0000-000000000002 (migration 030) has
+// version=0 and variant=0, so a strict regex rejected it — and because every extractor
+// treats "rejected" as "not found", inferOrgContext fell through to the scan-all-params
+// loop and adopted the FIRST v4-looking param (typically a user_id or row id) as the org
+// context. That surfaced as `session_org_contexts_org_id_fkey`, which names neither the
+// real cause nor the real org.
 function asUuid(value: unknown): string | undefined {
   return typeof value === 'string' &&
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
     ? value
     : undefined;
 }

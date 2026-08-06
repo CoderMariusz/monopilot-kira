@@ -89,7 +89,12 @@ export type DevicesSettingsData = {
   lines: DeviceLineOption[];
 };
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+// Format-only (8-4-4-4-12 hex). MUST NOT enforce the RFC-4122 version/variant bytes
+// ([1-5] / [89ab]): this guards `orgId` on the device list and on the device-defaults read,
+// and the org this app runs as is 00000000-0000-0000-0000-000000000002 (migration 030,
+// version=0, variant=0). Strict, the list came back empty AND the defaults read silently
+// returned fabricated hardcoded values instead of the org's saved row. Cf. sites.ts.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const UuidInput = z.string().trim().regex(UUID_RE);
 const OptionalUuidInput = z.preprocess((value) => (value === '' ? null : value), UuidInput.nullish());
 const OptionalLineIdInput = z.preprocess(
