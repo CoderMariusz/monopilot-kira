@@ -19,6 +19,7 @@ import {
 import { releaseShipmentLiveAllocationsInContext, voidShipmentBoxesInContext } from './so-shipment-release';
 import { readLockedSalesOrderStatus, writeSalesOrderStatusInContext, writeShipmentStatusInContext } from './so-status-write';
 import { applyShipmentWacCancelCredits } from '../../../../../../lib/finance/upsert-wac';
+import { makeStockMoveNumber } from '../../../../../../lib/warehouse/lp-create';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -397,6 +398,61 @@ async function emitOutboxEvent(
   if (rowCount == null) throw new ActionError('persistence_failed');
 }
 
+/**
+ * Compensating ledger row for the 'issue' that shipShipment wrote on dispatch.
+ * Without it the stock ledger permanently disagrees with the pallet: the goods
+ * are back on the LP but /warehouse/movements still shows only the issue.
+ *
+ * move_type 'adjustment' + positive quantity, because stock_moves_quantity_sign_check
+ * (mig-193) lets ONLY 'adjustment' carry a sign, so it is the one type whose
+ * direction lives in the value — same convention as reverse-receive.ts,
+ * reverse-consume and direct-adjust-actions.ts (increase => +). 'return' is not
+ * usable here: receipt-corrections-actions.ts writes it with a positive quantity
+ * for an OUTflow, so it would read as stock leaving again.
+ *
+ * Runs on ctx.client, i.e. inside the same withOrgContext transaction as the
+ * quantity restore — a throw rolls back both together.
+ */
+async function writeStockReturnMove(
+  ctx: ShippingContext,
+  shipment: ShipmentRow,
+  lp: ShipmentLpRow,
+  restored: { site_id: string | null; location_id: string | null; uom: string | null },
+  note: string | null,
+): Promise<void> {
+  const transactionId = randomUUID();
+  const { rowCount } = await ctx.client.query(
+    `insert into public.stock_moves (
+       org_id, site_id, move_number, lp_id, move_type, to_location_id,
+       quantity, uom, reason_code, reason_text, transaction_id,
+       status, ext_jsonb, created_by, updated_by
+     )
+     values (
+       app.current_org_id(), $1::uuid, $2, $3::uuid, 'adjustment', $4::uuid,
+       $5::numeric, $6, 'shipment_cancelled', 'Shipment cancellation return',
+       $7::uuid, 'completed', $8::jsonb, $9::uuid, $9::uuid
+     )`,
+    [
+      restored.site_id,
+      makeStockMoveNumber(transactionId),
+      lp.lp_id,
+      restored.location_id,
+      lp.shipped_qty,
+      restored.uom,
+      transactionId,
+      JSON.stringify({
+        source: 'shipping',
+        shipment_id: shipment.id,
+        shipment_number: shipment.shipment_number,
+        so_id: shipment.sales_order_id,
+        cancellation_note: note,
+      }),
+      ctx.userId,
+    ],
+  );
+  if (rowCount !== 1) throw new ActionError('persistence_failed');
+}
+
 async function writeLpTransition(
   ctx: ShippingContext,
   shipment: ShipmentRow,
@@ -646,7 +702,11 @@ export async function cancelShipment(input: ShippingReversalInput): Promise<Ship
 
       if (isShippedCancel) {
         for (const lp of lps) {
-          const { rowCount } = await ctx.client.query(
+          const { rows: restored } = await ctx.client.query<{
+            site_id: string | null;
+            location_id: string | null;
+            uom: string | null;
+          }>(
             `update public.license_plates
                 set quantity = quantity + $2::numeric,
                     status = $3,
@@ -659,10 +719,13 @@ export async function cancelShipment(input: ShippingReversalInput): Promise<Ship
                 and (
                   status = 'shipped'
                   or status = $3::text
-                )`,
+                )
+            returning site_id::text, location_id::text, uom`,
             [lp.lp_id, lp.shipped_qty, lp.from_status, userId],
           );
-          if (rowCount !== 1) throw new ActionError('persistence_failed');
+          const [restoredLp] = restored;
+          if (restored.length !== 1 || !restoredLp) throw new ActionError('persistence_failed');
+          await writeStockReturnMove(ctx, shipment, lp, restoredLp, parsed.note ?? null);
           await writeLpTransition(
             ctx,
             shipment,

@@ -18,6 +18,7 @@ const SHIPMENT_ID = '44444444-4444-4444-8444-444444444444';
 const LP_ID = '55555555-5555-4555-8555-555555555555';
 const ALLOCATION_ID = '66666666-6666-4666-8666-666666666666';
 const SITE_ID = '77777777-7777-4777-8777-777777777777';
+const LOCATION_ID = '88888888-8888-4888-8888-888888888888';
 const SIGNATURE_ID = 'sig-123';
 
 type ShipmentState = {
@@ -48,6 +49,14 @@ let releasedAllocations: string[] = [];
 let reservedQtyUpdates: Array<{ lpId: unknown; qty: unknown }> = [];
 let lpRestoreUpdates: Array<{ lpId: unknown; shippedQty: unknown; reservedQty: unknown; toStatus: unknown }> = [];
 let lpTransitions: Array<{ fromStatus: unknown; toStatus: unknown }> = [];
+let stockMoveInserts: Array<{
+  moveType: string;
+  siteId: unknown;
+  lpId: unknown;
+  locationId: unknown;
+  quantity: unknown;
+  uom: unknown;
+}> = [];
 let shipmentStatusUpdates: string[] = [];
 let salesOrderStatusUpdates: string[] = [];
 let boxesVoided = 0;
@@ -259,7 +268,21 @@ function makeClient(): QueryClient {
         lpRestoreUpdates.push({ lpId: params[0], shippedQty: params[1], reservedQty: lpReservedQty, toStatus: params[2] });
         lpQuantity = '10.000';
         lpStatus = String(params[2]);
-        return { rows: [], rowCount: 1 };
+        return { rows: [{ site_id: SITE_ID, location_id: LOCATION_ID, uom: 'kg' }], rowCount: 1 };
+      }
+
+      // shipShipment reads back `returning id::text`, so the row must come back —
+      // an empty result made it fall through to persistence_failed.
+      if (q.startsWith('insert into public.stock_moves')) {
+        stockMoveInserts.push({
+          moveType: q.includes("'adjustment'") ? 'adjustment' : 'other',
+          siteId: params[0],
+          lpId: params[2],
+          locationId: params[3],
+          quantity: params[4],
+          uom: params[5],
+        });
+        return { rows: [{ id: `sm-${stockMoveInserts.length}` }], rowCount: 1 };
       }
 
       if (q.startsWith('update public.sales_order_lines') && q.includes('set quantity_allocated = 0')) {
@@ -433,6 +456,7 @@ beforeEach(() => {
   reservedQtyUpdates = [];
   lpRestoreUpdates = [];
   lpTransitions = [];
+  stockMoveInserts = [];
   shipmentStatusUpdates = [];
   salesOrderStatusUpdates = [];
   boxesVoided = 0;
@@ -451,6 +475,10 @@ describe('cancelShipment', () => {
     expect(reservedQtyUpdates).toEqual([]);
     expect(lpRestoreUpdates).toEqual([{ lpId: LP_ID, shippedQty: '6.000', reservedQty: '0.000', toStatus: 'available' }]);
     expect(lpTransitions).toEqual([{ fromStatus: 'shipped', toStatus: 'available' }]);
+    // The restore must leave a compensating ledger row, or stock and ledger diverge silently.
+    expect(stockMoveInserts).toEqual([
+      { moveType: 'adjustment', siteId: SITE_ID, lpId: LP_ID, locationId: LOCATION_ID, quantity: '6.000', uom: 'kg' },
+    ]);
     expect(boxContentsVoided).toBe(1);
     expect(boxesVoided).toBe(1);
     expect(shipmentStatusUpdates).toContain('cancelled');

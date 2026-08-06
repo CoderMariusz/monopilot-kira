@@ -10,6 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { getAppConnection, getOwnerConnection } from '../../../../../../../../../packages/db/src/clients.js';
 import { setPin } from '../../../../../../../../../packages/auth/src/verify-pin.js';
 import { cancelShipment } from '../cancelShipment';
+import { generateBol, shipShipment } from '../ship-actions';
 import { LIVE_ALLOCATION_SQL, SHIP_CLOSED_ALLOCATION_REASON } from '../so-transitions';
 import { ORDER_QTY_TO_INVENTORY_SQL, resolveOrderQtyToInventoryQty } from '../../../../../../../lib/shipping/order-line-uom';
 
@@ -602,6 +603,172 @@ runPg('wave-8 shipping stock integrity (real Postgres)', () => {
           where id = any($1::uuid[])`,
         [[allocAId, allocBId]],
       );
+    }
+  });
+
+  // Signed stock ledger. Only the move types that CHANGE quantity count; putaway /
+  // transfer / quarantine / split / merge relocate stock without creating or
+  // destroying it. 'return' is an OUTflow in this repo (receipt-corrections-actions
+  // writes it with a positive qty while zeroing the LP). 'adjustment' is the only
+  // type the stock_moves_quantity_sign_check CHECK lets go negative, so it is the
+  // only type whose direction lives in the value itself.
+  const LEDGER_RECONCILIATION_SQL = `
+    select lp.lp_number,
+           lp.quantity::text as lp_qty,
+           coalesce((
+             select sum(case
+                          when sm.move_type = 'receipt' then sm.quantity
+                          when sm.move_type in ('issue', 'consume_to_wo', 'return') then -sm.quantity
+                          when sm.move_type = 'adjustment' then sm.quantity
+                          else 0
+                        end)
+               from public.stock_moves sm
+              where sm.org_id = lp.org_id
+                and sm.lp_id = lp.id
+           ), 0)::text as ledger_sum
+      from public.license_plates lp
+     where lp.org_id = $1::uuid
+       and lp.id = any($2::uuid[])
+     order by lp.lp_number`;
+
+  it('cancelShipment keeps the stock ledger equal to the pallet quantity (ship → cancel)', async () => {
+    const shipmentId = randomUUID();
+    const soId = randomUUID();
+    const lineId = randomUUID();
+    const boxId = randomUUID();
+    const contentId = randomUUID();
+    const shippedLpId = randomUUID();
+    const controlLpAId = randomUUID();
+    const controlLpBId = randomUUID();
+    const auditLpIds = [shippedLpId, controlLpAId, controlLpBId];
+
+    // Three pallets of 10, each arrived through a 'receipt' ledger move — the
+    // shipped one plus two untouched controls that must stay reconciled.
+    for (const [id, lpNumber] of [
+      [shippedLpId, 'LP-W8-LEDGER'],
+      [controlLpAId, 'LP-W8-CTRL-A'],
+      [controlLpBId, 'LP-W8-CTRL-B'],
+    ] as const) {
+      await ownerPool.query(
+        `insert into public.license_plates
+           (id, org_id, warehouse_id, lp_number, product_id, quantity, reserved_qty, uom, status, qa_status)
+         values ($1, $2, $3, $4, $5, 10, 0, 'pcs', 'available', 'released')`,
+        [id, orgId, warehouseId, lpNumber, itemId],
+      );
+      const receiptTxId = randomUUID();
+      await ownerPool.query(
+        `insert into public.stock_moves
+           (org_id, move_number, lp_id, move_type, quantity, uom, reason_code, reason_text,
+            transaction_id, status, created_by, updated_by)
+         values ($1, $2, $3, 'receipt', 10, 'pcs', 'production_output', 'WO output receipt',
+                 $4::uuid, 'completed', $5, $5)`,
+        [orgId, `SM-${receiptTxId.replaceAll('-', '').slice(0, 20).toUpperCase()}`, id, receiptTxId, userId],
+      );
+    }
+
+    // 'packed' is the only seed status from which shipShipment may legally flip
+    // the SO to 'shipped' (SO_LEGAL_TRANSITIONS).
+    await ownerPool.query(
+      `insert into public.sales_orders (id, org_id, customer_id, order_date, status)
+       values ($1, $2, $3, current_date, 'packed')`,
+      [soId, orgId, customerId],
+    );
+    await ownerPool.query(
+      `insert into public.sales_order_lines
+         (id, org_id, sales_order_id, line_number, product_id, quantity_ordered, quantity_allocated, unit_price_gbp, line_total_gbp)
+       values ($1, $2, $3, 1, $4, 6, 6, 1, 6)`,
+      [lineId, orgId, soId, itemId],
+    );
+    await ownerPool.query(
+      `insert into public.shipments (id, org_id, sales_order_id, status, ext_data)
+       values ($1, $2, $3, 'packed', '{}'::jsonb)`,
+      [shipmentId, orgId, soId],
+    );
+    await ownerPool.query(
+      `insert into public.shipment_boxes (id, org_id, shipment_id, box_number)
+       values ($1, $2, $3, 1)`,
+      [boxId, orgId, shipmentId],
+    );
+    await ownerPool.query(
+      `insert into public.shipment_box_contents
+         (id, org_id, shipment_box_id, sales_order_line_id, license_plate_id, quantity)
+       values ($1, $2, $3, $4, $5, 6)`,
+      [contentId, orgId, boxId, lineId, shippedLpId],
+    );
+    await ownerPool.query(
+      `insert into public.role_permissions (role_id, permission)
+       values ($1, 'ship.bol.sign') on conflict do nothing`,
+      [roleId],
+    );
+
+    try {
+      const bol = await generateBol({
+        shipmentId,
+        carrier: 'Wave8 Ledger Carrier',
+        trackingNumber: 'W8-LEDGER-1',
+        reason: 'BOL attestation for ledger test',
+        signature: { password: TEST_PIN },
+      });
+      expect(bol.ok).toBe(true);
+      await expect(shipShipment(shipmentId)).resolves.toEqual({ ok: true });
+
+      const { rows: afterShip } = await ownerPool.query<{ lp_number: string; lp_qty: string; ledger_sum: string }>(
+        LEDGER_RECONCILIATION_SQL,
+        [orgId, auditLpIds],
+      );
+      // Dispatch itself is consistent: 10 on the pallet minus a 6-unit 'issue'.
+      expect(afterShip.map((row) => [row.lp_number, row.lp_qty, row.ledger_sum])).toEqual([
+        ['LP-W8-CTRL-A', '10.000000', '10.000000'],
+        ['LP-W8-CTRL-B', '10.000000', '10.000000'],
+        ['LP-W8-LEDGER', '4.000000', '4.000000'],
+      ]);
+
+      await expect(cancelShipment(cancelInput(shipmentId))).resolves.toEqual({ ok: true });
+
+      const { rows: afterCancel } = await ownerPool.query<{ lp_number: string; lp_qty: string; ledger_sum: string }>(
+        LEDGER_RECONCILIATION_SQL,
+        [orgId, auditLpIds],
+      );
+      // The invariant: every pallet's quantity is still explained by its ledger,
+      // and the cancelled one moved by exactly +6 on BOTH sides (not +12, not -6).
+      expect(afterCancel.map((row) => [row.lp_number, row.lp_qty, row.ledger_sum])).toEqual([
+        ['LP-W8-CTRL-A', '10.000000', '10.000000'],
+        ['LP-W8-CTRL-B', '10.000000', '10.000000'],
+        ['LP-W8-LEDGER', '10.000000', '10.000000'],
+      ]);
+
+      // The compensating row is readable on /warehouse/movements as a return, not
+      // as an anonymous correction.
+      const { rows: compensating } = await ownerPool.query<{
+        move_type: string;
+        quantity: string;
+        reason_code: string | null;
+        reason_text: string | null;
+      }>(
+        `select move_type, quantity::text, reason_code, reason_text
+           from public.stock_moves
+          where org_id = $1::uuid
+            and lp_id = $2::uuid
+            and reason_code = 'shipment_cancelled'`,
+        [orgId, shippedLpId],
+      );
+      expect(compensating).toEqual([
+        {
+          move_type: 'adjustment',
+          quantity: '6.000000',
+          reason_code: 'shipment_cancelled',
+          reason_text: 'Shipment cancellation return',
+        },
+      ]);
+    } finally {
+      await ownerPool.query('delete from public.stock_moves where lp_id = any($1::uuid[])', [auditLpIds]);
+      await ownerPool.query('delete from public.lp_state_history where lp_id = any($1::uuid[])', [auditLpIds]);
+      await ownerPool.query('delete from public.shipment_box_contents where id = $1::uuid', [contentId]);
+      await ownerPool.query('delete from public.shipment_boxes where id = $1::uuid', [boxId]);
+      await ownerPool.query('delete from public.shipments where id = $1::uuid', [shipmentId]);
+      await ownerPool.query('delete from public.sales_order_lines where id = $1::uuid', [lineId]);
+      await ownerPool.query('delete from public.sales_orders where id = $1::uuid', [soId]);
+      await ownerPool.query('delete from public.license_plates where id = any($1::uuid[])', [auditLpIds]);
     }
   });
 });
