@@ -13,9 +13,28 @@
  * production and the scanner refused was still pickable, packable and
  * shippable. All six sites now share this ONE boundary.
  *
- * The 00:00-02:00 window is reproduced deterministically here: the site row is
- * repointed (inside the transaction) at a timezone whose LOCAL time right now is
- * between 00:00 and 02:00, so "01:30 site-local" holds whenever this test runs.
+ * The 00:00-02:00 window is CONSTRUCTED here, not waited for. Two knobs, both
+ * derived from the same `now()` the guards read, so they hold at any wall-clock
+ * hour:
+ *
+ *  1. the site row is repointed (inside the transaction) at a timezone whose
+ *     LOCAL time right now is between 00:00 and 02:00 — "01:30 site-local" is
+ *     true whenever this test runs;
+ *  2. the OLD guard's `current_date` is replaced by `serverDate` — the calendar
+ *     date a server sitting TWO HOURS WEST of the plant shows at this same
+ *     instant. Because the plant is less than two hours past midnight, that date
+ *     is `siteDate - 1` by construction (asserted below), which is exactly what
+ *     `current_date` returned on the UTC production server while the Warsaw
+ *     plants had already rolled over.
+ *
+ * Only the second half of `current_date` is supplied; the session-zone `::date`
+ * cast on the stored timestamptz — the other half of the defect — is still
+ * evaluated live, in five real session zones. Waiting for the real clock to
+ * enter the window instead — how this file was first written — is not merely
+ * flaky, it is impossible to satisfy: with the expiry stored at UTC midnight no
+ * session zone can be behind the plant's day between 00:00 and 09:59 UTC, so the
+ * old-guard assertions were red for ten hours out of every twenty-four
+ * (swept: 20 of 48 half-hour slots).
  */
 import { readFileSync } from 'node:fs';
 
@@ -31,8 +50,13 @@ const DEMO_SITE = '359242c6-7dfe-40e7-a486-42d8e2966126';
 const ORG_TOKEN = '11111111-2222-4333-8444-555555555577';
 const SITE_TOKEN = '11111111-2222-4333-8444-666666666677';
 
-/** The expression both guards carried before this fix. */
-const OLD_EXPIRED_SQL = `(probe.exp is not null and probe.exp::date < current_date)`;
+/**
+ * The expression both guards carried before this fix. `current_date` is bound to
+ * `$2` — the date the server clock reads inside the window (see the file header)
+ * — instead of being read from whatever hour the suite happens to run at. The
+ * `::date` cast is untouched and still resolves in the live session TimeZone.
+ */
+const OLD_EXPIRED_SQL = `(probe.exp is not null and probe.exp::date < $2::date)`;
 const NEW_EXPIRED_SQL = expiredBySiteDaySql('probe.exp', 'probe.site');
 
 /** Session zones a real deployment can present. None may change the verdict. */
@@ -76,6 +100,9 @@ run('LP expiry boundary is the SITE day, not the session day (real Postgres)', (
   let owner: pg.Pool;
   let client: pg.PoolClient;
   let nightZone: string;
+  /** Today at the plant, and today on a server two hours west of it. */
+  let siteDate: string;
+  let serverDate: string;
 
   /**
    * Probes are UTC-midnight timestamps — the shape the writers store — for the
@@ -95,10 +122,10 @@ run('LP expiry boundary is the SITE day, not the session day (real Postgres)', (
       ) p
   ) probe`;
 
-  async function verdicts(expr: string): Promise<Verdict> {
+  async function verdicts(expr: string, extra: string[] = []): Promise<Verdict> {
     const { rows } = await client.query<{ label: string; expired: boolean }>(
       `select probe.label, (${expr}) as expired from ${probesCte}`,
-      [DEMO_SITE],
+      [DEMO_SITE, ...extra],
     );
     const byLabel = Object.fromEntries(rows.map((r) => [r.label, r.expired]));
     return { yesterday: byLabel.yesterday!, today: byLabel.today!, tomorrow: byLabel.tomorrow! };
@@ -120,6 +147,18 @@ run('LP expiry boundary is the SITE day, not the session day (real Postgres)', (
     );
     nightZone = rows[0]!.name;
     await client.query(`update public.sites set timezone = $2 where id = $1::uuid`, [DEMO_SITE, nightZone]);
+
+    // The two dates the defect straddles, both read off the SAME instant the
+    // guards read. `- interval '2 hours'` is the server sitting west of the
+    // plant; since plant-local is 00:xx or 01:xx that lands on 22:xx / 23:xx of
+    // the previous day, so serverDate = siteDate - 1 at every wall-clock hour.
+    const { rows: days } = await client.query<{ site_date: string; server_date: string }>(
+      `select to_char(date(pg_catalog.now() at time zone $1), 'YYYY-MM-DD') as site_date,
+              to_char(date((pg_catalog.now() at time zone $1) - interval '2 hours'), 'YYYY-MM-DD') as server_date`,
+      [nightZone],
+    );
+    siteDate = days[0]!.site_date;
+    serverDate = days[0]!.server_date;
 
     await client.query(
       `insert into app.session_org_contexts (session_token, user_id, org_id) values ($1::uuid, $2::uuid, $3::uuid)`,
@@ -156,12 +195,17 @@ run('LP expiry boundary is the SITE day, not the session day (real Postgres)', (
     client.release();
   });
 
-  it('the site really is inside the 00:00-02:00 window the finding names', async () => {
+  it('the site really is inside the 00:00-02:00 window, and the server day really lags it', async () => {
     const { rows } = await client.query<{ local_hour: number }>(
       `select extract(hour from (pg_catalog.now() at time zone $1))::int as local_hour`,
       [nightZone],
     );
     expect(rows[0]!.local_hour).toBeLessThan(2);
+
+    // The divergence the whole file rests on: the plant has rolled over, the
+    // server has not. Checked, not assumed — if this ever stopped holding the
+    // two proofs below would be measuring nothing.
+    expect(Date.parse(`${siteDate}T00:00:00Z`) - Date.parse(`${serverDate}T00:00:00Z`)).toBe(86_400_000);
   });
 
   it('BLOCKS an LP that expired yesterday, PASSES tomorrow, PASSES today', async () => {
@@ -180,7 +224,7 @@ run('LP expiry boundary is the SITE day, not the session day (real Postgres)', (
     const fresh: Array<{ zone: string; now: Verdict; old: Verdict }> = [];
     for (const zone of SESSION_ZONES) {
       await client.query(`set local timezone = '${zone}'`);
-      fresh.push({ zone, now: await verdicts(NEW_EXPIRED_SQL), old: await verdicts(OLD_EXPIRED_SQL) });
+      fresh.push({ zone, now: await verdicts(NEW_EXPIRED_SQL), old: await verdicts(OLD_EXPIRED_SQL, [serverDate]) });
     }
     await client.query(`set local timezone = 'UTC'`);
 
@@ -192,14 +236,22 @@ run('LP expiry boundary is the SITE day, not the session day (real Postgres)', (
     // test fails loudly if anyone reintroduces `::date < current_date`.
     const distinctOld = new Set(fresh.map((f) => JSON.stringify(f.old)));
     expect(distinctOld.size).toBeGreaterThan(1);
-    // At least one session zone let an ALREADY-EXPIRED pallet through.
-    expect(fresh.some((f) => f.old.yesterday === false)).toBe(true);
+    // Not "at least one zone somewhere" — the PRODUCTION pairing is named: a UTC
+    // server, the plant already on the next day, and the old guard calling an
+    // already-expired pallet good. This is the finding, reproduced.
+    expect(fresh.find((f) => f.zone === 'UTC')!.old).toEqual({ yesterday: false, today: false, tomorrow: false });
+    // Pacific/Niue (UTC-11) is the other side: there the same expression is
+    // over-strict instead, which is why `distinctOld` above has two entries.
+    expect(fresh.find((f) => f.zone === 'Pacific/Niue')!.old.yesterday).toBe(true);
   });
 
   // BOTH directions on REAL license_plates rows. A guard that rejects
   // everything also "lets no expired pallet through", so the valid rows are
   // half of the proof, not decoration.
   it('egress BLOCKS the expired pallet and still PASSES the valid ones (real rows)', async () => {
+    // The production server zone, stated here rather than inherited from
+    // whichever test ran last.
+    await client.query(`set local timezone = 'UTC'`);
     const { rows } = await client.query<{
       lp_number: string;
       egress_blocks: boolean;
@@ -209,11 +261,12 @@ run('LP expiry boundary is the SITE day, not the session day (real Postgres)', (
       `select lp.lp_number,
               ${expiredBySiteDaySql('lp.expiry_date', 'lp.site_id')}     as egress_blocks,
               not ${expiredBySiteDaySql('lp.expiry_date', 'lp.site_id')} as so_allocatable,
-              (lp.expiry_date is not null and lp.expiry_date < current_date) as old_guard_blocks
+              (lp.expiry_date is not null and lp.expiry_date < $1::date) as old_guard_blocks
          from public.license_plates lp
         where lp.org_id = app.current_org_id()
           and lp.lp_number like 'SITE-DAY-PROOF-%'
         order by lp.lp_number`,
+      [serverDate],
     );
     // eslint-disable-next-line no-console -- this table IS the evidence
     console.log('[site-day egress proof]', JSON.stringify(rows));
