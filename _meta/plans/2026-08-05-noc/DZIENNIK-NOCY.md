@@ -363,3 +363,54 @@ Tej nocy doszły dwa nowe:
 - przydzieliłem jedną bazę dwóm torom naraz
 - filtry ścieżek vitest muszą być względne wobec `apps/web`; z korzenia dostaje się
   „No test files found" i kod 1, co wygląda jak awaria testów
+
+---
+
+## 03:25 → 04:10 — weryfikacja mojej własnej pracy
+
+### Ktoś wreszcie kliknął to, co naprawiliśmy
+
+Wszystkie dzisiejsze naprawy miały dowody jednostkowe albo SQL-owe. **Prawie żadna nie była
+kliknięta.** Tor D przeszedł dziewięć z nich w przeglądarce, na aktualnym `main`, z bazą
+domigrowaną do 564.
+
+**Siedem potwierdzonych. Jedna nie działa. Jedna częściowo.**
+
+Najmocniejszy dowód: tor przestawił strefę sesji bazy na `America/New_York`, żeby doba sesji
+i doba zakładu się rozjechały, zmierzył **obie reguły na tej samej palecie**
+(`stara_reguła=f, nowa_reguła=t`), a potem kliknął — paleta odrzucona, ważna przeszła.
+Strefę przywrócił.
+
+### Naprawa, która nie działa — i to jest mój błąd metodyczny
+
+Powody zwrotu nie zapisują się. Walidacja używa **ścisłego RFC-4122**, a `withOrgContext`
+oddaje `00000000-0000-0000-0000-000000000002` — identyfikator, który **nie ma cyfry wersji
+ani wariantu**. Walidacja nie dochodzi nawet do bazy, a ekran wskazuje **złą przyczynę**.
+
+**Test tej funkcji przechodził, bo używał wygenerowanego UUID v4.** Zweryfikowałem ten commit
+uruchomieniem, dostałem zieleń — przy zepsutej funkcji. To dokładnie „zielony test obok
+defektu", tym razem po mojej stronie.
+
+**Ten sam korzeń niezależnie znalazł tor odzyskujący suity**: helper `asUuid()` odrzuca tę samą
+organizację, przez co `inferOrgContext` cicho bierze `user_id` jako kontekst organizacji.
+Dwa tory, dwie metody, jeden korzeń — zlecony osobny przemiot całej klasy.
+
+### Przemiot klas: sąsiedzi, których jeszcze nie tknięto
+- **Żywa wersja funkcji kosztowej w bazie** (migracja 501, zastępująca 491/492) ma **ten sam
+  błąd jednostek** co naprawiony rollup — i zasila widok, z którego on czyta. Tor **jawnie
+  sprawdził, że to nie jest martwy plik**, bo poprzedni na tym poległ.
+- **Karta oceny dostawcy** pokazuje „0 otwartych niezgodności" **zielonym tonem**, gdy tabela
+  jest nieosiągalna.
+- **Panel sensoryczny**: `policy_required` liczone **wyłącznie z tego, co przyśle klient** —
+  operator sam deklaruje, że polityka nie wymaga testu.
+- **Blokada pakowania** działa, ale melduje się jako „spróbuj ponownie".
+- `clearAllergenOverride` — **zero wywołań**: operator nie ma ścieżki usunięcia nieaktualnego
+  nadpisania alergenu.
+Sekcje „co jest czyste" wymieniły 6 poprawnych ścieżek księgowych, 3 działające bramki
+i 4 kompletne mapowania komunikatów — to zawęża pole równie mocno.
+
+### Świadectwo alergenowe naprawione (commit `11095c7c`)
+`FAIL` → `failed`, `PASS` → `passed`, **`7 RLU` → `passed`** (zakład nie stanął),
+`41 RLU` → `failed` (ponad próg organizacji). 46 testów wykonanych.
+Tor odrzucił słowa „pozytywny"/„negatywny" jako **wieloznaczne** — w mikrobiologii
+*negative* znaczy czysto, po polsku potocznie źle.
