@@ -7,6 +7,23 @@ Przebieg godzina po godzinie jest w `DZIENNIK-NOCY.md`.
 
 # ZACZNIJ TUTAJ — kolejność na rano
 
+## Jednym akapitem
+
+Aplikacja **buduje się i przechodzi typecheck** — po raz pierwszy od co najmniej tygodnia.
+Łańcuch migracji **dochodzi do 564**. **43 commity** napraw, każda zweryfikowana moim własnym
+przebiegiem, a **dziewięć z nich dodatkowo przeklikanych w przeglądarce** (siedem potwierdzonych,
+jedna okazała się niedziałająca i została domknięta, jedna częściowo).
+
+**Aplikacja nie jest gotowa do wdrożenia** — nie z powodu kodu, tylko dlatego, że
+**cztery rzeczy może zrobić wyłącznie człowiek**, i zajmą Ci około dwudziestu minut. Są niżej.
+
+Poza tym: **zostaje lista defektów, których świadomie nie naprawialiśmy w nocy** — bo wymagają
+Twojej decyzji produktowej albo migracji danych na żywej bazie. Też są niżej, z uzasadnieniem.
+
+## Cztery rzeczy tylko dla Ciebie — razem ~20 minut
+
+
+
 Kolejność nie jest dowolna: każdy krok odblokowuje następny. Robienie ich w innej kolejności
 to strata czasu, bo np. podłączenie webhooka przy padającym buildzie nic nie da.
 
@@ -45,11 +62,67 @@ Bez nich reszta pracy nie dojedzie na produkcję.
 | `pnpm build` | **pada** (`'use server'` eksportował stałą) | **kod 0**, 66/66 stron |
 | `pnpm typecheck` | **5 błędów** (`main` był rozcięty w pół) | **0** |
 | łańcuch migracji | **stawał na 563** (odwrócona bramka widoczności) | **dochodzi do 564** |
+| wykonywane testy w odzyskanych suitach | **32** | **161** |
+| testy cicho pomijane | 142 | **17** |
 | bramka terminu w wysyłkach | liczyła dobę w strefie sesji | liczy w **strefie zakładu** |
 | bramki lintu z korzenia | **nigdy nie chodziły w CI** | wpięte |
 | `lint-workflows` | **nigdy nie przelintował ani jednego pliku** | działa |
 
-**17 commitów.** Repozytorium jest po raz pierwszy od 30 lipca w stanie zdatnym do zbudowania.
+## Co zostało naprawione — 43 commity
+
+Każda pozycja ma dowód uruchomieniowy. Kolumna „kliknięte" mówi, czy naprawę
+potwierdzono dodatkowo **w przeglądarce**, a nie tylko testem.
+
+| naprawa | commit | kliknięte |
+|---|---|---|
+| bloker builda: `'use server'` eksportował stałą | `036bdbff` | — |
+| `main` rozcięty w pół — brakujący plik kładł **18 tras kaskadowo** | `6a4e3590` | ✅ (przez tor B) |
+| migracja 563 odwracała bramkę widoczności zakładów | `b81ad9de` | — |
+| bramka terminu w 4 ścieżkach wysyłkowych | `93730681` | ✅ |
+| księga: anulowanie wysyłki nie pisało ruchu zwrotnego | `b59a5285` | ✅ |
+| księga: anulowanie zlecenia — 100 kg znikało | `1308ce11` | ✅ |
+| księga: cofnięcie konsumpcji miało **odwrócony znak** | `58900b69` | ✅ |
+| **błąd tysiąckrotny** w koszcie receptury | `2dcd9a73` | ✅ |
+| pracownik usunięty z katalogu firmowego działał dalej | `0d6eac85` | — |
+| trzy bramki jakościowe połykały awarię | `bf7f0579` | ⚠️ częściowo |
+| wyciek odczytu kartoteki (42 pozycje bez uprawnień) | `5f286e3a` | ✅ |
+| świadectwo alergenowe mówiło „passed" przy `FAIL` | `11095c7c` | — |
+| prefiks GS1 i powody zwrotu — martwe ścieżki | `9ad47fbf` | ⚠️ jedna nie działała |
+| **ścisła walidacja odrzucała własną organizację** (5 miejsc) | `0f9f4c08` | ✅ |
+| CI: `lint-workflows` nigdy nie działał, bramki nie chodziły | `48f1918f` | — |
+| bramka lintu na `'use server'` (1,35 s zamiast builda) | `88672aca` | — |
+| **35 odzyskanych suit: 32 → 161 wykonywanych testów** | `6341c847` | — |
+| mój test był **niespełnialny przez 10 h na dobę** | `125016b2` | — |
+
+## Co zostaje — uszeregowane wg skutku, nie wg trudności
+
+### Wymaga TWOJEJ decyzji, nie kodu
+
+| # | rzecz | dlaczego to Ty |
+|---|---|---|
+| D1 | **Dane historyczne są błędne.** Trzy naprawy księgowe naprawiły **pisarza, nie księgę**. Każde cofnięcie konsumpcji wykonane do dziś ma na palecie rozjazd **podwójnej ilości**; każde anulowanie wysyłki i zlecenia — rozjazd równy ilości. | backfill to migracja danych na żywej bazie |
+| D2 | **Unieważnienie odpadu gubi towar bez śladu.** Paleta zostaje pomniejszona, rejestr wraca do zera, storno traci powiązanie z paletą. Żaden ekran nie wystawia pola „paleta" w formularzu odpadu — **obowiązują dwa sprzeczne modele naraz**. | trzeba wybrać model: czy unieważnienie oddaje kilogramy |
+| D3 | **Flaga QC zatrzyma zakład, jeśli ją włączysz.** Bramka działa poprawnie, ale `lab_results` jest w praktyce pusta (endpoint zapisu zwraca **501**). Włączenie zablokuje zatwierdzanie specyfikacji dla **każdego** surowca. | to poprawne zachowanie bramki, nie błąd |
+| D4 | **ATP = FAIL nie zatrzymuje linii.** Świadectwo mówi teraz prawdę, ale bramka na tym **zamurowałaby linię na zawsze** — pole nie ma ścieżki edycji. | brak wyjścia awaryjnego |
+| D5 | **Widoczność zakładów jest wyłączona z projektu.** Komentarz w kodzie: *„zero site assignments → unrestricted (opt-in; **every user today**)"*. | decyzja, czy i kiedy włączyć |
+
+### Defekty potwierdzone, nienaprawione — kolejność wdrożeniowa
+
+| # | rzecz | dowód |
+|---|---|---|
+| 1 | **Migracja 501 ma ten sam błąd jednostek** co naprawiony rollup — i to **żywa** wersja funkcji zasilającej widok kosztów | przemiot klas, sprawdzone że nie jest nadpisana |
+| 2 | **NPD zapisuje zatruty koszt** do `item_cost_history` i `items.cost_per_kg`; na produkcji mogą już siedzieć zawyżone wartości, a naprawiony rollup **przemnoży je poprawnie** | `compute.ts:899,925` |
+| 3 | **Inwentaryzacja nie działa w ogóle** — żaden kod nie przestawia sesji na status wymagany do zapisu | zmierzone: `counted_qty = null` |
+| 4 | **Zwroty meldują się jako przetworzone bez przyjęcia zapasu**; `shipping.rma.*` nie istnieje w wyliczeniu zdarzeń | dwa tory niezależnie |
+| 5 | **Karta oceny dostawcy: „0 otwartych niezgodności" zielonym tonem**, gdy tabela nieosiągalna | `freight-actions.ts:494` |
+| 6 | **Panel sensoryczny: operator sam deklaruje, że polityka nie wymaga testu** | `record-sensory-evaluation.ts:153` |
+| 7 | **Kody alergenów: błąd relacji → „nie filtruj, zachowaj wszystkie"**, dane zapisywane | `save-draft.ts:447` |
+| 8 | `inferOrgContext` **fail-open na losową organizację** (`select id from organizations limit 1`) | `inferOrgContextForQuery:382` |
+| 9 | **`advanceCohort` martwy od migracji 040** — odpytuje kolumnę, której nie ma | 16 testów meldowało „pominięte" |
+| 10 | **`clearAllergenOverride` — zero wywołań.** Operator nie ma ścieżki usunięcia nieaktualnego nadpisania alergenu | przemiot klas |
+| 11 | **33 czerwone testy** w odzyskanych suitach — każdy to defekt, który przez ten czas nie istniał dla nikogo | `6341c847` |
+| 12 | **`mwo-loto-signing` padnie na każdej poprawnie zaprowizjonowanej bazie** — przechodził tylko dlatego, że persony nie istniały | odzyskiwanie suit |
+| 13 | `scripts/rules-deploy.ts:66` — **nie da się wdrożyć reguł dla organizacji pilota** | mapa klasy UUID |
 
 ## Jak czytać status dowodu
 
