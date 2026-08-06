@@ -131,6 +131,7 @@ export async function reactivateUser(input: ReactivateUserInput): Promise<Reacti
           where id = $1::uuid
             and org_id = $2::uuid
             and is_active = false
+            and deleted_at is null
             and invite_token is null
             and invite_token_expires_at is null
         returning id`,

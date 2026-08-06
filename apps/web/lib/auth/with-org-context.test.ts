@@ -33,8 +33,8 @@ async function loadResolver() {
         async query(sql: string, params: readonly unknown[] = []) {
           calls.push({ sql, params });
           const text = normalize(sql);
-          if (text.startsWith('select org_id from public.users')) {
-            return { rows: [{ org_id: HOME_ORG_ID }], rowCount: 1 };
+          if (text.startsWith('select org_id') && text.includes('from public.users')) {
+            return { rows: [{ org_id: HOME_ORG_ID, is_active: true, deleted_at: null }], rowCount: 1 };
           }
           if (text.includes('from app.platform_admins')) {
             return { rows: adminBit ? [{ ok: true }] : [], rowCount: adminBit ? 1 : 0 };

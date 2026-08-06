@@ -17,6 +17,7 @@ export async function findUserByEmail(client: QueryClient, email: string): Promi
        from public.users
       where email = $1::citext
         and is_active = true
+        and deleted_at is null
       limit 1`,
     [email],
   );

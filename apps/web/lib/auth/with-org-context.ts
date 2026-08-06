@@ -240,8 +240,17 @@ export const resolveContextFromSupabase = cache(async function resolveContextFro
   // Resolve org_id from public.users (authoritative) — NOT from JWT claims,
   // which can drift after admin moves a user between orgs.
   const owner = getOwnerPool();
-  const res = await owner.query<{ org_id: string; is_active: boolean }>(
-    `select org_id, is_active from public.users where id = $1::uuid`,
+  // TWO columns encode "this account is off", and they are NOT interchangeable:
+  //   is_active=false  → disabled in-app, or invited-but-not-yet-accepted
+  //                      (actions/users/deactivate.ts, invite.ts). Still a
+  //                      member of the directory, still listed over SCIM.
+  //   deleted_at set   → removed from the IdP/HR directory (SCIM PATCH
+  //                      active=false, SCIM DELETE). A tombstone.
+  // Invariant: deleted ⇒ cannot act, but NOT-active ⇏ deleted. So this gate has
+  // to test BOTH — checking only is_active let a SCIM-offboarded employee keep
+  // acting on a live Supabase session until their JWT expired.
+  const res = await owner.query<{ org_id: string; is_active: boolean; deleted_at: Date | null }>(
+    `select org_id, is_active, deleted_at from public.users where id = $1::uuid`,
     [userId],
   );
   if (res.rowCount !== 1 || !res.rows[0]?.org_id) {
@@ -249,7 +258,7 @@ export const resolveContextFromSupabase = cache(async function resolveContextFro
       `withOrgContext: no public.users row resolves org_id for verified user ${userId}`,
     );
   }
-  if (res.rows[0].is_active === false) {
+  if (res.rows[0].is_active === false || res.rows[0].deleted_at !== null) {
     throw new Error(`withOrgContext: user ${userId} is deactivated`);
   }
 

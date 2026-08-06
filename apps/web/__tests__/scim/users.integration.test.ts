@@ -28,7 +28,7 @@
  *  - Live Postgres required (DATABASE_URL).  Tests skip cleanly in offline CI.
  */
 
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import * as argon2 from 'argon2';
 import { randomUUID } from 'node:crypto';
 
@@ -36,7 +36,8 @@ import { randomUUID } from 'node:crypto';
 // These import paths match the scope_files listed in T-013.json.
 // They are intentionally unresolvable in RED phase.
 import { POST as scimUsersPOST, GET as scimUsersGET } from '../../app/api/scim/v2/Users/route';
-import { PATCH as scimUserPATCH } from '../../app/api/scim/v2/Users/[id]/route';
+import { PATCH as scimUserPATCH, DELETE as scimUserDELETE } from '../../app/api/scim/v2/Users/[id]/route';
+import { findUserByEmail } from '../../lib/scanner/auth';
 
 const databaseUrl = process.env.DATABASE_URL;
 const runIfDb = databaseUrl ? it : it.skip;
@@ -573,4 +574,215 @@ describe('AC3: PATCH active=false → users.deleted_at set + user.deactivated_vi
       await ownerPool.query(`delete from public.users where id = $1`, [orgBUserId]);
     },
   );
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+describe('AC7 (security regression): SCIM deactivation actually REVOKES access', () => {
+  // The bug this pins down: SCIM active=false wrote ONLY `deleted_at`, while the
+  // two auth gates read ONLY `is_active`. An employee offboarded in the corporate
+  // directory kept a working session — withOrgContext handed them their org and
+  // ran the action, and the scanner still found them by e-mail.
+  //
+  // AC3 above only asserted "the column got set". That is precisely why the hole
+  // survived: a column assertion cannot see that nothing downstream reads it.
+  // These tests therefore perform a REAL authorized operation after deactivation.
+  //
+  // The mandatory counter-control (a normal, non-deleted user must STILL pass)
+  // is what makes the negative assertions mean anything — a gate that rejects
+  // everybody would satisfy the negatives alone.
+  //
+  // Own tenant/org on random UUIDs: the shared ORG_A fixture above collides with
+  // leftover rows in shared scratch databases (two orgs under one tenant makes
+  // verifyScimBearer's single-org resolution fail → every token-A call 401s).
+
+  const TENANT_C = randomUUID();
+  const ORG_C = randomUUID();
+  const SCIM_TOKEN_C = 'scim_c_' + randomUUID().replace(/-/g, '');
+
+  let offboardedId = '';
+  let offboardedEmail = '';
+  let controlId = '';
+  let controlEmail = '';
+
+  // Whoever the mocked Supabase session claims to be for the next gate call.
+  let actingUserId = '';
+  let gate: typeof import('../../lib/auth/with-org-context');
+
+  async function createScimUser(prefix: string): Promise<{ id: string; email: string }> {
+    const email = `${prefix}.${randomUUID()}@example.com`;
+    const res = await scimUsersPOST(
+      scimRequest({
+        url: 'https://web.test/scim/v2/Users',
+        method: 'POST',
+        token: SCIM_TOKEN_C,
+        body: {
+          schemas: ['urn:ietf:params:scim:schemas:core:2.0:User'],
+          userName: email,
+          externalId: `${prefix}-${randomUUID()}`,
+          active: true,
+        },
+      }),
+    );
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as { id: string };
+    return { id: body.id, email };
+  }
+
+  beforeAll(async () => {
+    if (!databaseUrl) return;
+
+    await ownerPool.query(
+      `insert into public.tenants (id, name, region_cluster, data_plane_url)
+       values ($1, 'AC7 Tenant C', 'eu', 'https://ac7-c.test.invalid')`,
+      [TENANT_C],
+    );
+    await ownerPool.query(
+      `insert into public.organizations (id, tenant_id, name, industry_code)
+       values ($1, $2, 'AC7 Org C', 'generic')`,
+      [ORG_C, TENANT_C],
+    );
+    // SCIM POST provisions at 'viewer' — the role must exist in this org.
+    await ownerPool.query(
+      `insert into public.roles (org_id, code, name, permissions)
+       values ($1, 'viewer', 'Viewer', '{}'::jsonb)
+       on conflict do nothing`,
+      [ORG_C],
+    );
+    await ownerPool.query(
+      `update public.tenant_idp_config
+          set scim_token_hash = $2, scim_token_last_four = $3
+        where tenant_id = $1`,
+      [TENANT_C, await argon2.hash(SCIM_TOKEN_C, ARGON2_OPTS), SCIM_TOKEN_C.slice(-4)],
+    );
+
+    // Two users through the real SCIM POST path; only one gets offboarded.
+    ({ id: offboardedId, email: offboardedEmail } = await createScimUser('ac7-offboarded'));
+    ({ id: controlId, email: controlEmail } = await createScimUser('ac7-control'));
+
+    // Load the REAL gate. Only the Next/React/Supabase edges are stubbed —
+    // `pg` is deliberately NOT mocked, so every query below hits real Postgres
+    // and the assertions describe real database behaviour.
+    vi.resetModules();
+    vi.doMock('react', () => ({ cache: (fn: unknown) => fn }));
+    vi.doMock('next/headers', () => ({
+      cookies: async () => ({ get: () => undefined }),
+    }));
+    vi.doMock('../../lib/auth/supabase-server', () => ({
+      getCachedUser: async () => ({ data: { user: { id: actingUserId } }, error: null }),
+    }));
+    gate = await import('../../lib/auth/with-org-context.js');
+
+    // Offboard via the real SCIM PATCH, exactly as a corporate directory would.
+    const patchRes = await scimUserPATCH(
+      new Request(`https://web.test/scim/v2/Users/${offboardedId}`, {
+        method: 'PATCH',
+        headers: {
+          authorization: `Bearer ${SCIM_TOKEN_C}`,
+          'content-type': 'application/scim+json',
+        },
+        body: JSON.stringify({
+          schemas: ['urn:ietf:params:scim:api:messages:2.0:PatchOp'],
+          Operations: [{ op: 'replace', path: 'active', value: false }],
+        }),
+      }),
+      { params: Promise.resolve({ id: offboardedId }) },
+    );
+    expect(patchRes.status).toBe(200);
+  });
+
+  afterAll(async () => {
+    if (!databaseUrl) return;
+    vi.doUnmock('react');
+    vi.doUnmock('next/headers');
+    vi.doUnmock('../../lib/auth/supabase-server');
+    await ownerPool.query(`delete from public.user_roles where org_id = $1`, [ORG_C]);
+    await ownerPool.query(`delete from public.users where org_id = $1`, [ORG_C]);
+    await ownerPool.query(`delete from public.roles where org_id = $1`, [ORG_C]);
+    await ownerPool.query(`delete from public.organizations where id = $1`, [ORG_C]);
+    await ownerPool.query(`delete from public.tenants where id = $1`, [TENANT_C]);
+  });
+
+  // A real org-scoped data-plane read inside the HOF every Server Action wraps.
+  async function runServerAction(asUserId: string): Promise<number> {
+    actingUserId = asUserId;
+    return gate.withOrgContext(async ({ orgId, client }) => {
+      const { rows } = await client.query<{ n: number }>(
+        `select count(*)::int as n from public.users where org_id = $1::uuid`,
+        [orgId],
+      );
+      return rows[0].n;
+    });
+  }
+
+  runIfDb('SCIM active=false sets deleted_at AND is_active=false (gates read is_active)', async () => {
+    const { rows } = await ownerPool.query<{ deleted_at: Date | null; is_active: boolean }>(
+      `select deleted_at, is_active from public.users where id = $1`,
+      [offboardedId],
+    );
+    expect(rows[0].deleted_at).not.toBeNull();
+    // Mutation: revert to `deleted_at = now()` alone → is_active stays true →
+    // fails here, and the offboarded user keeps burning an active seat.
+    expect(rows[0].is_active).toBe(false);
+  });
+
+  runIfDb('SERVER ACTION: an offboarded user is REJECTED by withOrgContext', async () => {
+    await expect(runServerAction(offboardedId)).rejects.toThrow(/deactivated/i);
+  });
+
+  runIfDb('SERVER ACTION CONTROL: a normal user still passes and gets their org', async () => {
+    // Without this, the test above would also pass if the gate rejected everyone.
+    await expect(runServerAction(controlId)).resolves.toBeGreaterThan(0);
+  });
+
+  runIfDb('SCANNER: an offboarded user is no longer findable by e-mail', async () => {
+    await expect(findUserByEmail(ownerPool, offboardedEmail)).resolves.toBeNull();
+  });
+
+  runIfDb('SCANNER CONTROL: a normal user is still findable by e-mail', async () => {
+    const found = await findUserByEmail(ownerPool, controlEmail);
+    expect(found?.id).toBe(controlId);
+    expect(found?.org_id).toBe(ORG_C);
+  });
+
+  runIfDb('SCIM DELETE tombstones the same way PATCH active=false does', async () => {
+    // Second, independent write path with the identical hole — DELETE also wrote
+    // deleted_at alone. Fixing only the PATCH the report named would have left it.
+    const { id, email } = await createScimUser('ac7-deleted');
+    const res = await scimUserDELETE(
+      new Request(`https://web.test/scim/v2/Users/${id}`, {
+        method: 'DELETE',
+        headers: { authorization: `Bearer ${SCIM_TOKEN_C}` },
+      }),
+      { params: Promise.resolve({ id }) },
+    );
+    expect(res.status).toBe(204);
+
+    const { rows } = await ownerPool.query<{ deleted_at: Date | null; is_active: boolean }>(
+      `select deleted_at, is_active from public.users where id = $1`,
+      [id],
+    );
+    expect(rows[0].deleted_at).not.toBeNull();
+    expect(rows[0].is_active).toBe(false);
+
+    await expect(findUserByEmail(ownerPool, email)).resolves.toBeNull();
+    await expect(runServerAction(id)).rejects.toThrow(/deactivated/i);
+  });
+
+  runIfDb('a tombstoned user cannot be revived by the in-app Reactivate button', async () => {
+    // Reverse-direction guard: is_active=false now has two causes. In-app
+    // reactivate must not clear one of them and leave a user who reports
+    // "active" in the UI but is still refused by every gate on deleted_at.
+    const { rowCount } = await ownerPool.query(
+      `update public.users
+          set is_active = true
+        where id = $1::uuid and org_id = $2::uuid
+          and is_active = false
+          and deleted_at is null
+          and invite_token is null
+          and invite_token_expires_at is null
+        returning id`,
+      [offboardedId, ORG_C],
+    );
+    expect(rowCount).toBe(0);
+  });
 });

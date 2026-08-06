@@ -1,7 +1,8 @@
 /**
  * T-013 — SCIM 2.0 /Users/{id}
  *   GET    → single user (RLS-scoped)
- *   PATCH  → JSON-Patch ops; replace active=false → soft-delete (deleted_at = now())
+ *   PATCH  → JSON-Patch ops; replace active=false → soft-delete
+ *            (deleted_at = now() AND is_active = false — both, see below)
  *   DELETE → soft-delete (HTTP 204)
  *
  * Cross-tenant guard: the UPDATE / SELECT runs under app_user with set_org_context
@@ -181,7 +182,17 @@ export async function PATCH(request: Request, route: RouteCtx): Promise<Response
       );
     }
     if (assignments.active !== undefined) {
-      setClauses.push(assignments.active ? 'deleted_at = null' : 'deleted_at = now()');
+      // Keep is_active in lockstep: it is what withOrgContext / the scanner and
+      // ~40 other readers (seat counts, Settings→Users) actually test. Writing
+      // only deleted_at left an offboarded user counting as an active seat and
+      // rendering as "Active" in the admin UI.
+      // Re-activating must NOT flip a pending invitee to active — they carry
+      // is_active=false + invite_token until they accept.
+      setClauses.push(
+        assignments.active
+          ? 'deleted_at = null, is_active = case when invite_token is null then true else is_active end'
+          : 'deleted_at = now(), is_active = false',
+      );
     }
 
     if (setClauses.length > 0) {
@@ -248,7 +259,8 @@ export async function DELETE(request: Request, route: RouteCtx): Promise<Respons
   const updated = await withScimOrgContext(ctx, async (client) => {
     const { rowCount } = await client.query(
       `update public.users
-          set deleted_at = now()
+          set deleted_at = now(),
+              is_active = false
         where id = $1
           and deleted_at is null`,
       [id],
