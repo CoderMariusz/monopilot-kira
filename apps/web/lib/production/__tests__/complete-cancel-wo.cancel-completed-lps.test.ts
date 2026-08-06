@@ -24,6 +24,7 @@ const TX_ID = '44444444-4444-4444-8444-444444444444';
 const LP_ID = '55555555-5555-4555-8555-555555555555';
 const SITE_ID = '66666666-6666-4666-8666-666666666666';
 const PRODUCT_ID = '77777777-7777-4777-8777-777777777777';
+const LOCATION_ID = '99999999-9999-4999-8999-999999999999';
 
 type QueryCall = { sql: string; params: readonly unknown[] };
 
@@ -77,6 +78,9 @@ function makeClient(): QueryClient {
                 lp_id: LP_ID,
                 site_id: SITE_ID,
                 status: lpStatus,
+                lp_quantity: '10.000',
+                location_id: LOCATION_ID,
+                lp_uom: 'kg',
                 product_id: PRODUCT_ID,
                 qty_kg: '10.000',
                 fallback_wac_value: '120.0000',
@@ -91,6 +95,12 @@ function makeClient(): QueryClient {
       }
 
       if (normalized.startsWith('insert into public.lp_state_history')) {
+        return { rows: [] as T[], rowCount: 1 };
+      }
+
+      // Compensating ledger row for the receipt register-output wrote. rowCount 1
+      // matters: cancelWo is fail-closed on it so the destroy rolls back with it.
+      if (normalized.startsWith('insert into public.stock_moves')) {
         return { rows: [] as T[], rowCount: 1 };
       }
 
@@ -168,6 +178,26 @@ describe('cancelWo completed-output LP handling', () => {
       }),
       USER_ID,
     ]);
+
+    // Zeroing the plate without this row leaves the ledger permanently claiming
+    // stock that no longer exists. NEGATIVE quantity — the plate is emptied here,
+    // the opposite direction to the shipment-cancel counter-entry — and
+    // 'adjustment', the only move_type stock_moves_quantity_sign_check lets carry
+    // a sign. 'return' would be wrong: this repo writes it positive for an OUTflow.
+    const ledger = queries.find((query) => normalize(query.sql).startsWith('insert into public.stock_moves'));
+    expect(ledger).toBeDefined();
+    expect(normalize(ledger!.sql)).toContain("'adjustment'");
+    expect(normalize(ledger!.sql)).toContain("'wo_cancelled'");
+    expect(ledger!.params.slice(0, 6)).toEqual([
+      SITE_ID,
+      expect.any(String),
+      LP_ID,
+      LOCATION_ID,
+      '-10.000',
+      'kg',
+    ]);
+    expect(ledger!.params[7]).toBe(WO_ID);
+    expect(ledger!.params[9]).toBe(USER_ID);
 
     const lpUpdate = queries.find((query) => normalize(query.sql).startsWith('update public.license_plates'));
     expect(lpUpdate).toBeDefined();

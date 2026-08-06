@@ -30,6 +30,7 @@ import {
 
 import { recordDesktopConsumption } from '../../../app/[locale]/(app)/(modules)/production/_actions/consume-material-actions.js';
 import { registerOutput } from '../output/register-output.js';
+import { cancelWo, completeWo } from '../complete-cancel-wo.js';
 import { reverseConsumption } from '../../../app/[locale]/(app)/(modules)/production/_actions/corrections-actions.js';
 import { correctionTransactionId } from '../../corrections/correct-ledger-entry.js';
 
@@ -93,6 +94,8 @@ runPg('production stock_moves ledger — behavioral (real Postgres)', () => {
         'production.consumption.correct',
         'production.output.write',
         'production.corrections.closed_wo',
+        'production.wo.complete',
+        'production.wo.cancel',
       ],
     });
     ({ orgId, userId, siteId, warehouseId, locationId } = fixture);
@@ -451,5 +454,209 @@ runPg('production stock_moves ledger — behavioral (real Postgres)', () => {
         [orgId, siteId, 'SM-BLOCKED-CONSUME', lpId, locationId, randomUUID(), woId, materialId, userId],
       ),
     ).rejects.toMatchObject({ code: '23514', constraint: 'stock_moves_quantity_sign_check' });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // (g) — cancelWo on a COMPLETED work order zeroes the output LP and flips it to
+  // 'destroyed'. The 'receipt' registerOutput wrote stays in the ledger forever,
+  // so without a compensating counter-entry the ledger permanently over-states
+  // stock by the whole output quantity — goods vanish with no recorded loss.
+  //
+  // Signed ledger below counts only the move types that CREATE or DESTROY
+  // quantity; putaway/transfer/quarantine/split/merge merely relocate stock.
+  // 'return' is an OUTflow in this repo (receipt-corrections-actions writes it
+  // with a POSITIVE quantity while zeroing the LP). 'adjustment' is the only type
+  // stock_moves_quantity_sign_check lets go negative, so it is the one type whose
+  // direction lives in the value itself.
+  // ─────────────────────────────────────────────────────────────────────────────
+  const LEDGER_RECONCILIATION_SQL = `
+    select lp.id::text as lp_id,
+           lp.lp_number,
+           lp.quantity::text as lp_qty,
+           coalesce((
+             select sum(case
+                          when sm.move_type = 'receipt' then sm.quantity
+                          when sm.move_type in ('issue', 'consume_to_wo', 'return') then -sm.quantity
+                          when sm.move_type = 'adjustment' then sm.quantity
+                          else 0
+                        end)
+               from public.stock_moves sm
+              where sm.org_id = lp.org_id
+                and sm.lp_id = lp.id
+           ), 0)::text as ledger_sum
+      from public.license_plates lp
+     where lp.org_id = $1::uuid
+       and lp.id = any($2::uuid[])
+     order by lp.lp_number`;
+
+  it('(g) cancelWo on a completed WO keeps the stock ledger equal to the destroyed output pallet', async () => {
+    const cancelWoId = randomUUID();
+    const cancelMaterialId = randomUUID();
+    const sourceLpId = randomUUID();
+    const controlLpId = randomUUID();
+
+    // NUMERIC columns come back from the driver as STRINGS (no setTypeParser here),
+    // so every comparison goes through Number() — never a raw === on the text.
+    type LedgerRow = { lp_id: string; lp_number: string; lp_qty: string; ledger_sum: string };
+    async function readLedger(lpIds: string[]): Promise<Map<string, LedgerRow>> {
+      const { rows } = await ownerPool.query<LedgerRow>(LEDGER_RECONCILIATION_SQL, [orgId, lpIds]);
+      return new Map(rows.map((row) => [row.lp_id, row]));
+    }
+
+    // Source pallet 100 kg + an untouched control pallet, each arrived through an
+    // explicit 'receipt' so their own ledgers start reconciled.
+    for (const [id, lpNumber, qty] of [
+      [sourceLpId, 'SML-LP-CANCEL-SRC', '100.000'],
+      [controlLpId, 'SML-LP-CANCEL-CTRL', '7.000'],
+    ] as const) {
+      await ownerPool.query(
+        `insert into public.license_plates (
+           id, org_id, site_id, warehouse_id, location_id, lp_number,
+           product_id, quantity, reserved_qty, uom, status, qa_status, created_by, updated_by
+         )
+         values ($1, $2, $3, $4, $5, $6, $7, $8::numeric, 0.000, 'kg',
+                 'available', 'released', $9, $9)`,
+        [id, orgId, siteId, warehouseId, locationId, lpNumber, itemId, qty, userId],
+      );
+      const receiptTxId = randomUUID();
+      await ownerPool.query(
+        `insert into public.stock_moves (
+           org_id, site_id, move_number, lp_id, move_type, to_location_id,
+           quantity, uom, reason_code, transaction_id, status, created_by, updated_by
+         )
+         values ($1, $2, $3, $4, 'receipt', $5, $6::numeric, 'kg',
+                 'production_output', $7::uuid, 'completed', $8, $8)`,
+        [
+          orgId,
+          siteId,
+          `SM-${receiptTxId.replaceAll('-', '').slice(0, 20).toUpperCase()}`,
+          id,
+          locationId,
+          qty,
+          receiptTxId,
+          userId,
+        ],
+      );
+    }
+
+    await ownerPool.query(
+      `insert into public.work_orders (
+         id, org_id, site_id, wo_number, product_id, item_type_at_creation,
+         planned_quantity, uom, status, created_by, updated_by
+       )
+       values ($1, $2, $3, 'SML-WO-CANCEL', $4, 'fg', 100.000, 'kg', 'IN_PROGRESS', $5, $5)`,
+      [cancelWoId, orgId, siteId, itemId, userId],
+    );
+    await ownerPool.query(
+      `insert into public.wo_executions (id, org_id, wo_id, status, version, created_by, updated_by)
+       values ($1, $2, $3, 'in_progress', 1, $4, $4)`,
+      [randomUUID(), orgId, cancelWoId, userId],
+    );
+    await ownerPool.query(
+      `insert into public.wo_materials (
+         id, org_id, site_id, wo_id, product_id, material_name, required_qty, consumed_qty, uom
+       )
+       values ($1, $2, $3, $4, $5, 'SM Cancel Material', 100.000, 0.000, 'kg')`,
+      [cancelMaterialId, orgId, siteId, cancelWoId, itemId],
+    );
+
+    const makeCtx = (client: pg.PoolClient) =>
+      ({ userId, orgId, siteId, client }) as unknown as Parameters<typeof cancelWo>[0];
+
+    // ── REAL chain: consume 100 → register 100 kg output → complete → cancel ────
+    const consumed = await recordDesktopConsumption({
+      woId: cancelWoId,
+      materialId: cancelMaterialId,
+      qty: '100.000',
+      lpId: sourceLpId,
+      clientOpId: randomUUID(),
+    });
+    expect(consumed).toMatchObject({ ok: true });
+
+    await runUnderOrg((client) =>
+      registerOutput(makeCtx(client) as unknown as Parameters<typeof registerOutput>[0], cancelWoId, {
+        transaction_id: randomUUID(),
+        output_type: 'primary',
+        product_id: itemId,
+        qty_kg: '100.000',
+        uom: 'kg',
+      }),
+    );
+
+    const { rows: outputRows } = await ownerPool.query<{ lp_id: string | null }>(
+      `select lp_id::text as lp_id
+         from public.wo_outputs
+        where org_id = $1::uuid and wo_id = $2::uuid and correction_of_id is null`,
+      [orgId, cancelWoId],
+    );
+    const outputLpId = outputRows[0]?.lp_id;
+    expect(outputLpId).toBeTruthy();
+
+    const completed = await runUnderOrg((client) =>
+      completeWo(makeCtx(client), { woId: cancelWoId, transactionId: randomUUID() }),
+    );
+    expect(completed).toMatchObject({ ok: true });
+
+    const allLpIds = [outputLpId!, sourceLpId, controlLpId];
+    const before = await readLedger(allLpIds);
+    const outputBefore = before.get(outputLpId!)!;
+
+    const cancelled = await runUnderOrg((client) =>
+      cancelWo(makeCtx(client), {
+        woId: cancelWoId,
+        transactionId: randomUUID(),
+        reasonCode: 'quality_reject',
+        notes: 'H7 ledger integrity cancel',
+      }),
+    );
+    expect(cancelled).toMatchObject({ ok: true });
+
+    const after = await readLedger(allLpIds);
+    const outputAfter = after.get(outputLpId!)!;
+
+    // The touched pallet must reconcile with its ledger (lp === ledger === 0), AND
+    // the two must have MOVED by the same amount with the same sign. Asserted as one
+    // object so a failure prints the whole picture: a flipped sign, a doubled
+    // compensation and a missing compensation are three different numbers here, and
+    // the reconciled-total check alone cannot tell the first two apart.
+    expect({
+      lp: Number(outputAfter.lp_qty),
+      ledger: Number(outputAfter.ledger_sum),
+      lpDelta: Number(outputAfter.lp_qty) - Number(outputBefore.lp_qty),
+      ledgerDelta: Number(outputAfter.ledger_sum) - Number(outputBefore.ledger_sum),
+    }).toEqual({ lp: 0, ledger: 0, lpDelta: -100, ledgerDelta: -100 });
+
+    // Counter-check: pallets unrelated to the cancel are still reconciled.
+    for (const untouchedLpId of [sourceLpId, controlLpId]) {
+      const row = after.get(untouchedLpId)!;
+      expect({ lp: row.lp_number, ledger: Number(row.ledger_sum) }).toEqual({
+        lp: row.lp_number,
+        ledger: Number(row.lp_qty),
+      });
+    }
+
+    // The compensating row is an 'adjustment' — the only move_type the schema
+    // lets carry a sign (stock_moves_quantity_sign_check, mig-193).
+    const { rows: compensating } = await ownerPool.query<{
+      move_type: string;
+      quantity: string;
+      reason_code: string;
+      site_id: string | null;
+      wo_id: string | null;
+    }>(
+      `select move_type, quantity::text as quantity, reason_code,
+              site_id::text as site_id, wo_id::text as wo_id
+         from public.stock_moves
+        where org_id = $1::uuid and lp_id = $2::uuid and move_type = 'adjustment'`,
+      [orgId, outputLpId],
+    );
+    expect(compensating).toHaveLength(1);
+    expect(compensating[0]).toMatchObject({
+      move_type: 'adjustment',
+      reason_code: 'wo_cancelled',
+      site_id: siteId,
+      wo_id: cancelWoId,
+    });
+    expect(Number(compensating[0]!.quantity)).toBe(-100);
   });
 });

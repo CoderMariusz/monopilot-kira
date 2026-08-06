@@ -25,6 +25,7 @@ import type pg from 'pg';
 import { signEvent } from '@monopilot/e-sign';
 
 import { applyOutputWacReversal } from '../finance/upsert-wac';
+import { makeStockMoveNumber } from '../warehouse/lp-create';
 import { hasLpConsumptionOrChildren } from './lp-downstream-guard';
 import { assertWoNotOnHold, holdsGuard } from './holds-guard';
 import { recordWoCompletionSnapshot } from './oee-snapshot-producer';
@@ -430,6 +431,9 @@ type CancelAffectedOutputLp = {
   lp_id: string;
   site_id: string | null;
   status: string;
+  lp_quantity: string;
+  location_id: string | null;
+  lp_uom: string | null;
   product_id: string;
   qty_kg: string;
   fallback_wac_value: string;
@@ -493,6 +497,66 @@ async function loadCompletedCancelAffectedLpIds(
   return rows.map((row) => row.lp_id);
 }
 
+/**
+ * Compensating ledger row for the 'receipt' register-output wrote when the goods
+ * were declared. Cancelling a COMPLETED WO zeroes the output plate and flips it to
+ * 'destroyed'; without this row that receipt stands forever and /warehouse/movements
+ * keeps showing stock that no longer exists — in a meat plant that is a traceability
+ * defect, not a cosmetic one.
+ *
+ * NEGATIVE quantity: the direction here is the opposite of the shipment-cancel
+ * counter-entry (there the goods come BACK onto the plate). move_type 'adjustment'
+ * because stock_moves_quantity_sign_check (mig-193) lets ONLY 'adjustment' carry a
+ * sign, so it is the one type whose direction lives in the value — the same shape
+ * warehouse lp-destroy uses for the identical event (plate zeroed + destroyed).
+ * 'return' is unusable: this repo writes it with a POSITIVE quantity for an OUTflow
+ * (receipt-corrections-actions), so it would read as stock leaving a second time.
+ *
+ * site_id / location_id / uom come from the same locked license_plates row that the
+ * destroy UPDATE below rewrites, i.e. exactly the source the paired 'receipt' used —
+ * the movements screen filters on site_id, so a row without one would be invisible.
+ *
+ * Runs on ctx.client, inside the same withOrgContext transaction as the destroy, and
+ * fail-closed: withOrgContext commits on a plain return and only rolls back on a
+ * throw, so a missed insert has to throw or the plate is zeroed with no ledger row.
+ */
+async function writeOutputDestroyMove(
+  ctx: ProductionContext,
+  woId: string,
+  lpId: string,
+  lp: { site_id: string | null; quantity: string; location_id: string | null; uom: string | null },
+  reasonCode: string,
+): Promise<void> {
+  if (Number(lp.quantity) === 0) return;
+
+  const transactionId = randomUUID();
+  const { rowCount } = await ctx.client.query(
+    `insert into public.stock_moves (
+       org_id, site_id, move_number, lp_id, move_type, from_location_id,
+       quantity, uom, reason_code, reason_text, transaction_id, wo_id,
+       status, ext_jsonb, created_by, updated_by
+     )
+     values (
+       app.current_org_id(), $1::uuid, $2, $3::uuid, 'adjustment', $4::uuid,
+       $5::numeric, $6, 'wo_cancelled', 'Cancelled WO output plate destroyed',
+       $7::uuid, $8::uuid, 'completed', $9::jsonb, $10::uuid, $10::uuid
+     )`,
+    [
+      lp.site_id,
+      makeStockMoveNumber(transactionId),
+      lpId,
+      lp.location_id,
+      `-${lp.quantity}`,
+      lp.uom,
+      transactionId,
+      woId,
+      JSON.stringify({ source: 'production_wo_cancel', wo_id: woId, cancellation_reason_code: reasonCode }),
+      ctx.userId,
+    ],
+  );
+  if (rowCount !== 1) throw new Error(`cancelWo ledger write failed for output LP ${lpId}`);
+}
+
 export async function cancelWo(
   ctx: ProductionContext,
   input: CancelWoInput,
@@ -554,6 +618,9 @@ export async function cancelWo(
               lp.id::text as lp_id,
               lp.site_id::text as site_id,
               lp.status,
+              lp.quantity::text as lp_quantity,
+              lp.location_id::text as location_id,
+              lp.uom as lp_uom,
               o.product_id::text as product_id,
               o.qty_kg::text as qty_kg,
               (o.qty_kg * coalesce(i.cost_per_kg, 0))::text as fallback_wac_value,
@@ -579,9 +646,27 @@ export async function cancelWo(
       [input.woId],
     );
 
-    const affectedLpRows = new Map<string, { site_id: string | null; status: string }>();
+    const affectedLpRows = new Map<
+      string,
+      {
+        site_id: string | null;
+        status: string;
+        quantity: string;
+        location_id: string | null;
+        uom: string | null;
+      }
+    >();
     for (const output of affectedOutputLps.rows) {
-      affectedLpRows.set(output.lp_id, { site_id: output.site_id, status: output.status });
+      affectedLpRows.set(output.lp_id, {
+        site_id: output.site_id,
+        status: output.status,
+        // The whole plate is zeroed below, so the ledger owes the whole plate —
+        // not this output's qty_kg, which under-states a plate that was topped up
+        // by a second output or arrived with stock already on it.
+        quantity: output.lp_quantity,
+        location_id: output.location_id,
+        uom: output.lp_uom,
+      });
 
       if (await hasLpConsumptionOrChildren(ctx, output.lp_id)) {
         throw new Error(
@@ -643,6 +728,8 @@ export async function cancelWo(
           ctx.userId,
         ],
       );
+
+      await writeOutputDestroyMove(ctx, input.woId, lpId, lp, input.reasonCode);
     }
 
     voidedOutputLpIds.push(...affectedLpRows.keys());
