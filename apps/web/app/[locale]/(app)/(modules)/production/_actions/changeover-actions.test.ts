@@ -31,7 +31,10 @@ type ChangeoverState = {
   allergen_to: string[];
   risk_level: string;
   cleaning_completed: boolean;
+  atp_required: boolean;
   atp_result: unknown;
+  /** numeric comes back from pg as a string — the org ATP RLU threshold (mig 187). */
+  atp_threshold_rlu: string | null;
   dual_sign_off_status: string;
   first_signer: string | null;
   first_signer_name: string | null;
@@ -116,7 +119,9 @@ function row(overrides: Partial<ChangeoverState> = {}): ChangeoverState {
     allergen_to: ['milk', 'soy'],
     risk_level: 'medium',
     cleaning_completed: true,
+    atp_required: true,
     atp_result: { rlu: 4 },
+    atp_threshold_rlu: '10',
     dual_sign_off_status: 'pending',
     first_signer: null,
     first_signer_name: null,
@@ -187,6 +192,7 @@ function makeClient(): QueryClient {
           allergen_to: params[4] as string[],
           risk_level: String(params[5]),
           cleaning_completed: Boolean(params[6]),
+          atp_required: Boolean(params[7]),
           atp_result: params[8] ? JSON.parse(String(params[8])) : null,
         });
         changeovers = [created];
@@ -491,6 +497,46 @@ describe('changeover-actions', () => {
     // F3b: validation_result is DERIVED (cleaning true + ATP pass-ish → 'passed'), bound as $3.
     expect(validations[0]?.[2]).toBe('passed');
     expect(JSON.parse(String(validations[0]?.[6]))).toHaveLength(2);
+  });
+
+  // C4/F3b regression — the ATP field is FREE TEXT (i18n placeholder "np. 7 RLU")
+  // and the create modal sends a plain STRING. The old read inspected the value
+  // only when it was an OBJECT, so a literal "FAIL" certified as 'passed'.
+  // atp_required mirrors what createChangeoverEvent writes (atpResult != null).
+  it.each([
+    ['FAIL', 'FAIL', true, 'failed'],
+    ['fail', 'fail', true, 'failed'],
+    [' Failed ', ' Failed ', true, 'failed'],
+    ['NOK', 'NOK', true, 'failed'],
+    ['NIE', 'NIE', true, 'failed'],
+    ['PASS (counter-control)', 'PASS', true, 'passed'],
+    ['ok (counter-control)', 'ok', true, 'passed'],
+    ['zaliczone (counter-control)', 'zaliczone', true, 'passed'],
+    ['7 RLU under threshold (counter-control)', '7 RLU', true, 'passed'],
+    ['41 RLU over threshold', '41 RLU', true, 'failed'],
+    ['{rlu:4} object reading (counter-control)', { rlu: 4 }, true, 'passed'],
+    ['{result:"fail"} object verdict', { result: 'fail' }, true, 'failed'],
+    ['no swab demanded, no evidence', null, false, 'passed'],
+    ['swab demanded, no evidence', null, true, 'failed'],
+    ['blank evidence for a demanded swab', '   ', true, 'failed'],
+    ['unreadable free text', 'swab wg karty 12/B', true, 'failed'],
+  ])('signChangeover certifies %s as %s', async (_label, atpResult, atpRequired, expected) => {
+    changeovers = [
+      row({
+        dual_sign_off_status: 'first_signed',
+        first_signer: OTHER_USER_ID,
+        first_signed_at: '2026-06-11T10:01:00.000Z',
+        atp_required: atpRequired as boolean,
+        atp_result: atpResult,
+      }),
+    ];
+    const { signChangeover } = await import('./changeover-actions');
+    const result = await signChangeover({ changeoverId: CHANGEOVER_ID, signature: { password: '1234' } });
+    expect(result.ok).toBe(true);
+    expect(validations).toHaveLength(1);
+    expect(validations[0]?.[2]).toBe(expected);
+    // the operator's words are recorded verbatim whichever way the verdict goes
+    expect(validations[0]?.[5]).toBe(atpResult == null ? null : JSON.stringify(atpResult));
   });
 
   it('signChangeover rejects a replayed completion with invalid_state and NO duplicate validation row', async () => {

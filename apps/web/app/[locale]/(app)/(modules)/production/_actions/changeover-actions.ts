@@ -303,22 +303,90 @@ async function matrixRiskLevel(
   return best;
 }
 
+/** Hard fallback when the org threshold cannot be resolved — same 10 RLU the
+ *  atp_swab_threshold_rlu resolver falls back to (migrations 162 / 187). */
+const ATP_FALLBACK_THRESHOLD_RLU = 10;
+
+/** 'none' = no evidence at all; 'unknown' = evidence present but unreadable. */
+type AtpVerdict = 'pass' | 'fail' | 'none' | 'unknown';
+
 /**
- * C4/F3b — 'pass-ish' ATP read for the completion validation row: null means no
- * ATP test was required (passes); an object with an explicit fail marker
- * (result/status/outcome ~ 'fail*', pass:false, passed:false) fails; anything
- * else passes.
+ * Verdict words, matched on the NORMALISED text (see normalizeAtpText), EN + PL —
+ * the languages the operators actually type. FAIL is tested FIRST so a literal
+ * "PASS/FAIL" template resolves the safe way.
+ *
+ * Deliberately ABSENT: positive/negative (pozytywny/negatywny). In microbiology
+ * "negative" means clean and in everyday Polish it means bad — an ambiguous word
+ * must land in 'unknown', never in a guessed verdict. Same for locales we have no
+ * token list for (ro/uk): they fall through to 'unknown', which does not pass.
  */
-function atpPassish(atp: unknown): boolean {
-  if (atp == null) return true;
+const ATP_FAIL_WORDS = /\b(fail\w*|nok|not ok|nie|niezaliczon\w*)\b/;
+const ATP_PASS_WORDS = /\b(pass\w*|ok|okay|clean|tak|zaliczon\w*|czyst\w*)\b/;
+
+/** Lowercase, de-accent (zaliczone/czystosc), punctuation → spaces, so the word
+ *  regexes above can stay ASCII and \b keeps working. */
+function normalizeAtpText(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\u0142/gi, 'l') // NFD does not decompose the Polish l-stroke
+    .toLowerCase()
+    .replace(/[^a-z0-9.,]+/g, ' ')
+    .trim();
+}
+
+function rluVerdict(rlu: number, thresholdRlu: number): AtpVerdict {
+  if (!Number.isFinite(rlu)) return 'unknown';
+  // Strictly greater than the threshold fails — identical to the quality-owned
+  // lab_results ATP auto-fail trigger (migration 187, §10.6).
+  return rlu > thresholdRlu ? 'fail' : 'pass';
+}
+
+function classifyAtpText(value: string, thresholdRlu: number): AtpVerdict {
+  const text = normalizeAtpText(value);
+  if (text === '') return 'none';
+  if (ATP_FAIL_WORDS.test(text)) return 'fail';
+  if (ATP_PASS_WORDS.test(text)) return 'pass';
+  // A bare RLU reading — the shape the i18n placeholder asks for ("np. 7 RLU").
+  // Only an essentially-numeric string counts; free text with a stray digit in it
+  // stays 'unknown' rather than being read as a measurement.
+  const reading = text.match(/^(\d+(?:[.,]\d+)?)\s*(?:rlu)?$/);
+  if (reading) return rluVerdict(Number(reading[1].replace(',', '.')), thresholdRlu);
+  return 'unknown';
+}
+
+/**
+ * C4/F3b — ATP verdict for the completion validation row.
+ *
+ * The ATP input is FREE TEXT typed by the operator (i18n placeholder "np. 7 RLU")
+ * and the create modal sends it as a PLAIN STRING; API callers may send an object,
+ * a number or a boolean, and it is null when no swab was taken. The previous read
+ * inspected the value ONLY when it was an object, so a literal "FAIL" scored as a
+ * pass and the BRCGS certificate said 'passed' over a failed swab. Every shape is
+ * classified here now.
+ *
+ * 'unknown' (evidence present, unreadable) is NOT a pass: the certificate must
+ * never claim a verdict nobody can read. Nothing GATES on validation_result — the
+ * line is released by dual_sign_off_status — so the fail-safe direction records
+ * honestly without ever blocking a changeover.
+ */
+function atpVerdict(atp: unknown, thresholdRlu: number): AtpVerdict {
+  if (atp == null) return 'none';
+  if (typeof atp === 'boolean') return atp ? 'pass' : 'fail';
+  if (typeof atp === 'number') return rluVerdict(atp, thresholdRlu);
+  if (typeof atp === 'string') return classifyAtpText(atp, thresholdRlu);
   if (typeof atp === 'object') {
     const o = atp as Record<string, unknown>;
     const verdict = o.result ?? o.status ?? o.outcome;
-    if (typeof verdict === 'string') return !/fail/i.test(verdict);
-    if (typeof o.pass === 'boolean') return o.pass;
-    if (typeof o.passed === 'boolean') return o.passed;
+    if (typeof verdict === 'string') return classifyAtpText(verdict, thresholdRlu);
+    if (typeof verdict === 'boolean') return verdict ? 'pass' : 'fail';
+    if (typeof verdict === 'number') return rluVerdict(verdict, thresholdRlu);
+    if (typeof o.pass === 'boolean') return o.pass ? 'pass' : 'fail';
+    if (typeof o.passed === 'boolean') return o.passed ? 'pass' : 'fail';
+    if (typeof o.rlu === 'number') return rluVerdict(o.rlu, thresholdRlu);
+    if (typeof o.rlu === 'string') return classifyAtpText(o.rlu, thresholdRlu);
   }
-  return true;
+  return 'unknown';
 }
 
 async function productAllergens(client: QueryClient, productId: string | null | undefined): Promise<string[]> {
@@ -548,15 +616,23 @@ export async function signChangeover(input: { changeoverId: string; signature: {
       allergen_to: string[] | null;
       risk_level: string;
       cleaning_completed: boolean;
+      atp_required: boolean | null;
       atp_result: unknown;
+      atp_threshold_rlu: string | number | null;
       dual_sign_off_status: string;
       first_signer: string | null;
       first_signed_at: string | Date | null;
       second_signer: string | null;
       second_signed_at: string | Date | null;
     }>(
+      // atp_swab_threshold_rlu (migration 187) is the org's SINGLE ATP RLU rule —
+      // the same resolver quality's lab_results auto-fail trigger uses. Read in
+      // this select so a numeric swab reading is judged, never re-implemented
+      // here (F-D11 lesson: inline-duplicated gate predicates drift).
       `select id::text, site_id::text, line_id, wo_to_id::text, allergen_from, allergen_to, risk_level,
-              cleaning_completed, atp_result, dual_sign_off_status, first_signer::text,
+              cleaning_completed, atp_required, atp_result,
+              public.atp_swab_threshold_rlu(app.current_org_id(), null) as atp_threshold_rlu,
+              dual_sign_off_status, first_signer::text,
               first_signed_at, second_signer::text, second_signed_at
          from public.changeover_events
         where org_id = app.current_org_id()
@@ -660,12 +736,25 @@ export async function signChangeover(input: { changeoverId: string; signature: {
         },
       ];
       // C4/F3b — validation_result derives from actual state, never a literal:
-      // cleaning_completed && ATP pass-ish → 'passed'. With the F3a completion
-      // gate above, a 'failed' insert is unreachable today (cleaning is forced
-      // true and an explicit ATP fail would still record honestly) — the
-      // derivation stays explicit so the evidence row can never silently lie.
-      const validationResult =
-        current.cleaning_completed && atpPassish(current.atp_result) ? 'passed' : 'failed';
+      // cleaning_completed && a readable ATP pass → 'passed'.
+      //
+      // 'none' (no swab evidence at all) passes ONLY while atp_required is false,
+      // which is the column default and what createChangeoverEvent writes when no
+      // result was entered: no swab was demanded, so there is nothing to fail. A
+      // row that DOES demand a swab and carries no evidence is a missing proof of
+      // cleanliness → 'failed'. Anything else that is not a readable pass —
+      // including an unreadable value — records 'failed' rather than claiming a
+      // verdict nobody can read.
+      // pg returns numeric as a string; null (mock/legacy client) must NOT become
+      // Number(null) === 0, which would fail every reading.
+      const threshold =
+        current.atp_threshold_rlu == null ? Number.NaN : Number(current.atp_threshold_rlu);
+      const verdict = atpVerdict(
+        current.atp_result,
+        Number.isFinite(threshold) ? threshold : ATP_FALLBACK_THRESHOLD_RLU,
+      );
+      const atpOk = verdict === 'pass' || (verdict === 'none' && !current.atp_required);
+      const validationResult = current.cleaning_completed && atpOk ? 'passed' : 'failed';
       await ctx.client.query(
         `insert into public.allergen_changeover_validations
            (org_id, site_id, changeover_event_id, validation_result, risk_level,
