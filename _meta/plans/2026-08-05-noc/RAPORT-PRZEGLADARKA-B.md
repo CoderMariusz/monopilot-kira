@@ -3,6 +3,63 @@
 Checkout: `/Users/mariuszkrawczyk/Projects/_noc/B` @ `80b2821a` · Baza: `monopilot_t2` (migracja 562/564)
 Port harnessu: 3514 → aplikacja na 3814 · Persony 5/5 obecne.
 
+
+---
+
+## STRESZCZENIE — czytaj to najpierw
+
+**Bramka hydracji: PRZESZŁA.** React hydruje się, kliknięcie dociera do akcji serwerowej,
+wiersz ląduje w bazie. Wszystko poniżej stoi na sprawdzonym łańcuchu.
+
+### Do naprawy — kolejność wg groźby
+
+| # | Co | Waga | Gdzie |
+|---|---|---|---|
+| **B-1** | Brakujący plik `quality/_components/pending-quality-signoff` → **500 na szczegółach blokady jakościowej**, a po jednym wejściu **każda trasa w aplikacji zwraca 500**. Blokady jakościowej nie da się zdjąć. | **BLOKER** | sekcja „BLOKERY" |
+| **S-1** | `app.user_can_see_site()` **bez kontekstu użytkownika zwraca „wolno" dla dowolnego zakładu** — także cudzej organizacji i dla zmyślonego uuid. Z kontekstem działa poprawnie (kontrola przeciwna). | POWAŻNY | §21 |
+| **S-2** | Persona z **zerem uprawnień** czyta całą kartotekę indeksów (42 pozycje), definicje schematu (18) i listę zakładów — ścieżki odczytu nie mają bramki. | POWAŻNY | §6.3 |
+| **S-3** | Import w Ustawieniach: **„↑ Run import" włączony wbrew własnemu komunikatowi**, klik nic nie robi, bez śladu. Połowa komunikatu to surowy klucz i18n. | POWAŻNY | §9 |
+| **S-4** | Wycena zapasu pokazuje **170,0001** przy rejestrze WAC **170,0000** — ekran wylicza zamiast czytać. | POWAŻNY | §19 |
+| **S-5** | Niezgodność hydracji na szczegółach zamówienia zakupu (oś czasu audytu). Tylko ten ekran z pięciu sprawdzonych. | POWAŻNY | §20 |
+| **S-6** | NPD: awaria magazynu plików pokazana jako „brak załączników" (cicha awaria). | POWAŻNY | §13 N-3 |
+| — | Duplikat numeru reklamacji **odtworzony w przeglądarce** — ale to **skutek niezastosowanej migracji 564**, nie nowe znalezisko. | (wg polecenia) | §7 |
+
+### Co sprawdziłem i **działa** (równie ważne)
+
+- **Bramki uprawnień po stronie serwera trzymają.** Persona bez uprawnień wypełnia
+  cały formularz „Create TO" i dostaje „You don't have permission to do that.",
+  baza bez zmian; „Run MRP" → „You don't have permission to run MRP.". Kontrola
+  przeciwna: admin przechodzi obie ścieżki i zapisuje.
+- **Import w module Planowania działa end-to-end** (upload → walidacja → podgląd →
+  commit → zamówienie w bazie + wpis w `import_export_jobs`).
+- **Bramkowanie etapów NPD** odmawia i **wylicza dokładnie, co blokuje** (6 pozycji).
+- **Łańcuch zakup → przyjęcie → nośnik → WAC działa, także w gramach**
+  (5000 g → 5 kg, wartość 10,00; średni koszt 1,545455 po trzech przyjęciach).
+- **Rewalidacja NPD nie jest nieświeża** — zapis na briefie widać na liście od razu.
+
+### Cztery podejrzenia z 30 lipca — werdykty
+
+| Podejrzenie | Werdykt |
+|---|---|
+| Bramka blokad połyka „relacja nie istnieje" w 3 miejscach | **Trzy miejsca są**, ale na migracji 562 gałąź jest **nieosiągalna** (widok istnieje). Ryzyko utajone. §15 |
+| Rozjazd uprawnień → bramka cicho nigdy nie trafia | **OBALONE.** Wszystkie 127 egzekwowanych uprawnień ma przydzielenie w bazie; enum to martwy katalog, bramka porównuje łańcuchy w SQL. §2.2 |
+| Widoczność zakładu bez kontekstu = „wolno" | **POTWIERDZONE**, z kontrolą przeciwną. §21 |
+| Główny ekran importu nic nie importuje | **POTWIERDZONE dla Ustawień** (celowo, z komunikatem — ale z trzema wadami), **OBALONE dla Planowania**. §8, §9 |
+| `revalidatePath('/npd/...')` bezskuteczne w ~16 miejscach | **OBALONE** — w kodzie nie ma już ani jednego takiego celu, a zapis→lista jest świeży. §11 |
+| Dwie reklamacje o tym samym numerze | **ODTWORZONE**, ale to skutek braku migracji 564. §7 |
+| Łańcuch zwolnienia jakościowego potrójnie martwy | **NIE DOSZEDŁEM** (blokuje B-1). Jedno obalenie po drodze: `allergenGateRequired:false` nie ma ani jednego odbiorcy. §16 |
+
+### Dwie pułapki, na które sam się nabrałem — dla kolejnych torów
+
+1. **`window.confirm` w przejściach statusu PO.** Playwright domyślnie **odrzuca** natywne
+   okna, więc „Send" wyglądał na martwy przycisk (status zostawał `draft` nawet po 30 s
+   odpytywania bazy). Po `page.on('dialog', d => d.accept())` wszystko działa.
+   Bez tego zgłosiłbym fałszywy bloker.
+2. **`r.code = any('{owner,admin,org_admin}')` w `has-permission.ts:29-30`.** Rola `admin`
+   przechodzi każdą bramkę **niezależnie od `role_permissions`** — więc „admin może"
+   nie dowodzi, że uprawnienie jest poprawnie zasiane. Kontrolę przeciwną trzeba robić
+   personą z konkretnym uprawnieniem.
+
 ---
 
 ## 1. BRAMKA HYDRACJI — **PRZESZŁA**
@@ -566,3 +623,280 @@ listę bez śladu w interfejsie. Ta sama klasa co podejrzenie o połykanie „re
 
 `⚑ Watch` jest `disabled` z podpowiedzią „Watching projects is not available yet."
 Tak powinien wyglądać niedokończony ekran — inaczej niż import w Ustawieniach (sekcja 9).
+
+---
+
+# OBSZAR: JAKOŚĆ — blokady i łańcuch zwolnienia
+
+## 14. Blokada jakościowa działa przy zakładaniu, ale nie da się jej zdjąć
+
+Utworzone dwie blokady przez interfejs (persona admin):
+
+```
+HLD-00001000 | batch | BATCH-NOC-HOLD-1                  | open | high
+HLD-00001001 | lp    | LP-1785973288957-8GC8 / ING-SUGAR | open | high
+```
+
+Blokada na nośniku **przestawia stan nośnika**: `license_plates.qa_status: pending → on_hold`,
+a ekran nośnika pokazuje znacznik **„On hold"**.
+
+**Efekt blokady na ekranie nośnika (porównanie nośnik zablokowany vs. wolny — kontrola przeciwna):**
+
+| przycisk | LP zablokowany (HLD-00001001) | LP wolny (LP-…-V89L) |
+|---|---|---|
+| Merge | **WYŁĄCZONY** | włączony |
+| Change QA status | **WYŁĄCZONY** | włączony |
+| Reserve | wyłączony | **też wyłączony** |
+| Split / Move / Block / Destroy | włączone | włączone |
+
+Czyli: blokada realnie odbiera „Merge" i „Change QA status". **Ale** „Reserve" jest wyłączony
+**również na nośniku bez blokady** — więc wyłączony „Reserve" na zablokowanym nośniku
+**niczego nie dowodzi**. Serwerowej bramki rezerwacji (`lp-detail-actions.ts:475-490`)
+nie udało mi się wywołać z przeglądarki, bo nie ma do niej włączonego wejścia.
+
+**Zdjęcie blokady jest niemożliwe** — patrz BLOKER B-1: lista blokad nie ma przycisku zwolnienia,
+a jedyne wejście (szczegóły blokady) zwraca 500.
+
+## 15. Bramka „relacja nie istnieje" (fail-open) — **znalazłem dokładnie trzy miejsca**, uśpione na tej bazie
+
+| plik | linia | zachowanie |
+|---|---|---|
+| `apps/web/lib/production/holds-guard.ts` | 115, 169 | na `42P01` → traktuje jak „brak blokady" |
+| `apps/web/lib/warehouse/scanner/movement.ts` | 796 | j.w. |
+| `apps/web/app/[locale]/(app)/(modules)/warehouse/license-plates/[lpId]/_actions/lp-detail-actions.ts` | 487 | j.w. |
+
+Zgadza się z podejrzeniem („trzy miejsca"). Każde z nich jest jawnie skomentowane jako
+świadome „fail-OPEN, gdy widok jest NIEOBECNY (09-quality jeszcze nie wdrożone)".
+
+**Na tej bazie (migracja 562) gałąź jest nieosiągalna**: widok istnieje i zwraca moją blokadę.
+
+```
+select count(*) from public.v_active_holds;   →  1
+```
+
+Czyli: **podejrzenie o „przepuszczanie surowca z aktywną blokadą" nie potwierdziło się
+w tej konfiguracji**. Ryzyko jest utajone: wystarczy jedna baza bez `v_active_holds`
+(migracja 197 niezastosowana), żeby wszystkie trzy bramki żywności zamilkły naraz.
+`42P01` łapie też przypadek „widok istnieje, ale nie w `search_path`".
+
+## 16. Łańcuch zwolnienia jakościowego — **NIE DOSZEDŁEM** (i jedno obalenie po drodze)
+
+Nie zdołałem wykazać ani obalić „potrójnej martwoty":
+
+- **Zwolnienia blokady nie da się uruchomić** — blokuje BLOKER B-1 (500 na szczegółach).
+- **Rejestr kontroli (`quality_inspections`) jest pusty, ale nie dlatego, że ekran jest martwy.**
+  `/en/quality/inspections` → `+ New inspection` otwiera poprawny formularz
+  („Open an inspection against a license plate, GRN receipt or work-order output"),
+  wymagający **wskazania nośnika / przyjęcia / wyjścia zlecenia**. Zanim zbudowałem zapas,
+  w bazie nie było ani jednego nośnika — więc pustka wynikała z braku danych, nie z błędu.
+  Po zbudowaniu zapasu nie zdążyłem powtórzyć tej ścieżki. **Uczciwy wynik: nie doszedłem.**
+
+**Obalenie**: jedyna flaga w tym obszarze zaszyta na `false`, jaką znalazłem, to
+`allergenGateRequired: false` w `apps/web/lib/production/start-wo.ts:326`. Sprawdziłem
+wszystkich jej odbiorców w repozytorium:
+
+```
+apps/web/lib/production/start-wo.ts:67    (deklaracja typu)
+apps/web/lib/production/start-wo.ts:326   (jedyne przypisanie)
+…/__tests__/scanner-production-routes.test.ts:1333   (test sprawdzający, że jest false)
+```
+
+**Nikt jej nie czyta.** To martwe pole w odpowiedzi akcji, nie wyłączona bramka.
+Nie znalazłem „drugiego konsumenta biorącego flagę z wejścia klienta".
+
+## 17. Split zablokowanego nośnika — **NIE DOSZEDŁEM** (ślepy zaułek w interfejsie)
+
+Chciałem sprawdzić najgroźniejszy obejściowy scenariusz: *czy odszczepiony nośnik potomny
+dziedziczy blokadę, czy wychodzi „czysty" i wraca do produkcji.*
+
+„Split" jest **włączony na zablokowanym nośniku** (stopka ekranu mówi wprost:
+„Split, Merge, and Destroy are live"). Okno się otwiera, ilość przyjmuje.
+Ale pole **„Destination location *"** jest wymagane, a jego lista ma **zero pozycji**:
+
+```
+[split] location options=0
+[split] submit="Split LP" disabled=true
+```
+
+Przyczyna w danych: w bazie jest **jedna** lokalizacja, `DEFAULT` w magazynie `MAIN`,
+a nośnik leży w `WH-DEMO-01`. Aplikacja nie mówi o tym ani słowa — pokazuje pusty wybór
+i trwale wyszarzony przycisk. **DROBNY** (pusty wymagany wybór bez wyjaśnienia),
+ale zablokował mi dowód w kwestii, która jest istotna dla bezpieczeństwa żywności.
+Do sprawdzenia następnym razem po dodaniu lokalizacji w `WH-DEMO-01`.
+
+---
+
+# OBSZAR: FINANSE / KOSZTY
+
+## 18. Łańcuch zakup → przyjęcie → nośnik → wycena — **DZIAŁA**, także przeliczenie gramów
+
+Przeszedłem pełną ścieżkę **sam, w przeglądarce**, dwa razy — raz w kg (kontrola przeciwna),
+raz w gramach:
+
+| krok | kg | g |
+|---|---|---|
+| utworzenie PO (ING-SUGAR, dostawca GBP) | ✓ | ✓ |
+| draft → **sent** (potwierdzone odpytywaniem bazy przez 30 s) | ✓ | ✓ |
+| sent → **confirmed** | ✓ | ✓ |
+| przyjęcie linii (`po-receive-submit`) | ✓ bez błędu | ✓ bez błędu |
+| status PO | `received` | `received` |
+
+Zaksięgowanie WAC dla linii **5000 g @ 0.002**:
+
+```
+grn_items.uom = g   ext_jsonb->>'wac_qty_kg' = 5   ext_jsonb->>'wac_value' = 10
+```
+
+5000 g → **5 kg** (nie 5000), wartość **10.00** (5000 × 0.002). Przeliczenie jest poprawne;
+nie ma błędu tysiąckrotnego ani „WAC na zerowej ilości".
+
+Rejestr WAC po trzech przyjęciach (100 kg @1.50 + 5 kg @2.00 + 5000 g @0.002):
+
+```
+item_wac_state: total_qty_kg=110.000  total_value=170.0000  avg_cost=1.545455
+```
+
+Arytmetyka się zgadza: (150 + 10 + 10) / 110 = 1,545454…
+
+### Sprostowanie do własnego wyniku pośredniego
+
+Gotowy spec `apps/web/e2e/purchase-to-grn-valuation-chain.spec.ts` **przewrócił się** na
+teście „T10 linia w gramach przelicza się na kilogramy" z komunikatem
+„przyjęcie odrzucone: Something went wrong receiving. Please retry.".
+**Nie potwierdziło się to w niezależnym odtworzeniu** (powyżej). Ten spec jest zależny
+od kolejności i od stanu zbudowanego przez wcześniejsze testy w tym samym przebiegu.
+**Nie zgłaszam gramów jako błędu aplikacji.**
+
+Osobno: przy pierwszych próbach transakcja „Send" nie zmieniała statusu i wyglądało to na
+martwy przycisk. To była **wina mojego testu** — `onTransition` używa natywnego
+`window.confirm`, który Playwright domyślnie odrzuca. Po `dialog → accept` przejścia
+działają bez zarzutu. Zapisuję to jako ostrzeżenie dla kolejnych torów.
+
+## 19. F-1. Wycena zapasu pokazuje inną kwotę niż rejestr WAC — POWAŻNY (liczby w finansach)
+
+`/en/finance/valuation`, persona admin:
+
+```
+1 valued item · Method: WAC
+GRAND TOTAL   170.0001   GBP
+ING-SUGAR  Sugar  110.000000  1.545455  170.0001  GBP
+```
+
+Rejestr w bazie:
+
+```
+item_wac_state: total_qty_kg=110.000  total_value=170.0000  avg_cost=1.545455
+round(total_qty_kg * avg_cost, 4) = 170.0001
+```
+
+Ekran **wylicza** wartość jako `ilość × średni koszt` zamiast **odczytać** przechowywaną
+`total_value`. Zaokrąglony średni koszt (6 miejsc) pomnożony przez ilość daje
+**170,0001** zamiast **170,0000**.
+
+Rozbieżność jest dziś groszowa, ale rośnie z ilością i z liczbą pozycji — a to jest raport
+wyceny zapasu, który ma się zgadzać z księgą. Istniejące testy łańcucha sprawdzają
+**ilość** na ekranie (T7) i uzgadniają **ilość** z nośnikami (T12); **wartości nikt nie uzgadnia**.
+
+## 20. F-2. Niezgodność hydracji na szczegółach zamówienia zakupu — POWAŻNY (ryzyko cichej utraty klikalności)
+
+Każde wejście na `/en/planning/purchase-orders/<id>` dla zamówienia z historią rzuca:
+
+```
+Hydration failed because the server rendered text didn't match the client.
+As a result this tree will be regenerated on the client.
+  … <PurchaseOrderDetailPage> → <DetailContent> → <PoDetailView> → <Card> → <CardContent>
+      → <ul aria-label="History"> → <TimelineRow row={{id:"audit_…"}}>
+          → <li data-testid="document-a…" data-source="audit_events">
+```
+
+Winowajcą jest **oś czasu zdarzeń audytowych** — klasyczny objaw formatowania daty
+w strefie/lokalizacji serwera innej niż klienta (React wprost wymienia tę przyczynę).
+
+Sprawdziłem kontrolnie cztery inne ekrany szczegółów — **żaden nie rzuca** tego błędu:
+dostawca, zlecenie przesunięcia, reklamacja, nośnik → `hydration-errors: 0`.
+Czyli to nie jest szum globalny, tylko konkretny komponent.
+
+Dlaczego POWAŻNY, a nie kosmetyczny: to dokładnie ta klasa awarii, przed którą ostrzega
+instrukcja nocy — po błędzie hydracji React **wyrzuca i odtwarza poddrzewo**, więc kliknięcie,
+które trafi w to okno, przepada bez śladu w konsoli i bez 4xx.
+
+---
+
+# 21. WIDOCZNOŚĆ ZAKŁADU BEZ KONTEKSTU UŻYTKOWNIKA — **PODEJRZENIE POTWIERDZONE**
+
+**Waga: POWAŻNY (bezpieczeństwo — izolacja zakładów i organizacji)**
+
+Funkcja `app.user_can_see_site(uuid)` — `SECURITY DEFINER`, używana przez polityki RLS
+widoczności zakładu (migracja 551 „per-user site visibility for production facts")
+oraz wprost w kodzie (`warehouse/counts/_actions/count-actions.ts:1009-1021`):
+
+```sql
+select p_site_id is not null
+  and (
+    app.current_user_id() is null            -- ⓵ BRAK KONTEKSTU ⇒ WOLNO
+    or exists (… role owner/admin/org_admin/org.access.admin/org.platform.admin …)
+    or not exists (select 1 from public.user_sites
+                    where user_id = app.current_user_id()
+                      and org_id = app.current_org_id())   -- ⓶ BRAK PRZYPISAŃ ⇒ WOLNO
+    or exists (… user_sites dla TEGO zakładu …)
+  )
+```
+
+## Dowód ⓵ — brak kontekstu użytkownika przepuszcza WSZYSTKO
+
+Zwykłe połączenie do bazy, bez ustawionego kontekstu:
+
+```
+current_user_id()                                   = NULL
+user_can_see_site(SITE-DEMO-01)                     = true
+user_can_see_site(SITE-01, ZAKŁAD INNEJ ORGANIZACJI)= true
+user_can_see_site(11111111-2222-3333-4444-5555…)    = true   ← uuid, którego nie ma w bazie
+user_can_see_site(NULL)                             = false  ← jedyne, co odrzuca
+```
+
+Bramka odrzuca wyłącznie `NULL`. Dla dowolnego innego identyfikatora — łącznie z zakładem
+**cudzej organizacji** i identyfikatorem zmyślonym — odpowiada „wolno".
+
+## Kontrola przeciwna — z prawdziwym kontekstem bramka DZIAŁA
+
+Zarejestrowałem kontekst dokładnie tak, jak robi to aplikacja
+(`app.session_org_contexts` → `app.set_org_context`), dla persony
+`single_site_operator` przypisanej do `SITE-DEMO-01`:
+
+```
+current_user_id() = 7f290000-0000-4000-8000-000000000004
+jego własny zakład SITE-DEMO-01           -> true
+zakład SITE-01 (inna organizacja)         -> false
+zmyślony uuid                             -> false
+```
+
+Bramka nie odrzuca wszystkiego — rozróżnia poprawnie. **Awaria dotyczy wyłącznie
+przypadku „brak kontekstu".** (Cały test w transakcji zakończonej `rollback`.)
+
+## Dowód ⓶ — użytkownik BEZ przypisanych zakładów widzi wszystkie
+
+Ta sama procedura dla persony `no_module_access` (zero uprawnień, **zero wierszy
+w `user_sites`**):
+
+```
+SITE-DEMO-01                              -> true
+SITE-01 (INNA ORGANIZACJA)                -> true
+zmyślony uuid                             -> true
+```
+
+Gałąź ⓶ (`not exists user_sites ⇒ wolno`) może być świadomą decyzją („nie skonfigurowano
+ograniczenia = widzi wszystko"), ale w praktyce znaczy, że **domyślnym stanem nowego
+użytkownika jest pełna widoczność międzyzakładowa**, a jedynym sposobem ograniczenia
+jest pamiętanie o dopisaniu wiersza w `user_sites`. W bazie taki wiersz ma dziś
+**jeden użytkownik na siedmiu**.
+
+Gałąź ⓵ nie jest do obronienia: jest to fail-open w funkcji `SECURITY DEFINER`,
+której zadaniem jest odgradzanie zakładów. Każda ścieżka wykonania, która nie ustawi
+kontekstu (zadanie cron, workflow, migracja, ręczne zapytanie serwisowe, świeże połączenie
+z puli przed `set_org_context`), dostaje pełny dostęp międzyzakładowy — i, jak pokazuje
+druga linia dowodu, **również międzyorganizacyjny na poziomie tej funkcji**.
+
+Ten sam wzorzec powtórzony w kodzie aplikacji:
+`count-actions.ts:1017` → `const canSeeSite = siteRows[0]?.can_see ?? true;`
+(brak wiersza ⇒ „wolno"). Tam jest uśpiony, bo wyżej stoi `if (!session) throw`,
+ale to ta sama domyślna odpowiedź.
