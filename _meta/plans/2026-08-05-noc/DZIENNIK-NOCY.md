@@ -318,3 +318,48 @@ Naprawiona bramka **działa poprawnie**. Ale włączenie flagi `require_grn_qc_i
 zablokuje zatwierdzanie specyfikacji dla **każdego** surowca, bo tabela `lab_results` jest
 w praktyce pusta — mostek zapisu z modułu jakości nie istnieje (`POST /api/technical/lab-results`
 zwraca **501**). **Włączenie tej flagi zatrzyma zakład i będzie to poprawne zachowanie bramki.**
+
+---
+
+## 01:55 → 03:25 — faza napraw, 14 commitów
+
+Wszystkie zweryfikowane moim własnym przebiegiem, nie meldunkiem tora.
+
+| commit | co | dowód |
+|---|---|---|
+| `0d6eac85` | pracownik usunięty z katalogu firmowego działał dalej | cofnięcie naprawy → `resolved "2"` = realny odczyt danych organizacji |
+| `bf7f0579` | trzy bramki jakościowe połykały awarię | dowód **trójstronny** ×4, awaria wywoływana przemianowaniem widoku |
+| `b59a5285` | anulowanie wysyłki nie pisało ruchu zwrotnego | 4 punkty, kierunek +6/+6 |
+| `1308ce11` | anulowanie zlecenia — 100 kg znikało bez śladu | znak wyprowadzony z **identycznego zdarzenia** w repo |
+| `58900b69` | cofnięcie konsumpcji — **odwrócony znak** | rozjazd 200 kg przy 100 kg = sygnatura znaku, nie braku wiersza |
+| `125016b2` | mój test był **niespełnialny przez 10 h na dobę** | przemiot 960 sprawdzeń |
+| `5f286e3a` | wyciek odczytu kartoteki (42 pozycje dla persony bez uprawnień) | 3 stany na **prawdziwych rolach**, nie na adminie |
+| `2dcd9a73` | **błąd tysiąckrotny** w koszcie receptury | 200 g @ 5/kg: 1000 → 1,00, dwie kontrole przeciwne |
+| `9ad47fbf` | prefiks GS1 i powody zwrotu — dwie martwe ścieżki | dowód ponad wymagany: SSCC faktycznie się bije |
+| `6341c847` | **35 odzyskanych suit: 32 → 161 wykonywanych testów** | +129 testów, 33 czerwone = 33 ukryte defekty |
+
+### Trzy rzeczy, które tory zrobiły lepiej, niż prosiłem
+
+1. **Adwersarz od liczb odrzucił własny dowód.** Testował 100 sztuk × cena katalogowa i uznał,
+   że to nie dowód, bo cena opakowania sprzedawanego na sztuki najpewniej **jest** ceną za sztukę.
+   Powtórzył na źródle jednoznacznie per-kilogram.
+2. **Tor od ustawień odmówił naprawienia litery zgłoszenia.** Podpięcie martwego guzika
+   naprawiłoby objaw i **zostawiło zwroty zablokowane**, bo formularz waliduje przeciw innej
+   tabeli, a writera dla niej **nie było w ogóle**.
+3. **Tor od kosztu odrzucił dwa gotowce** — jeden zostawiłby portfolio zepsute (async, zapytanie
+   na pozycję), drugi **zamroziłby wszystkie pozycje liczone na sztuki**. Złapała to **druga**
+   kontrola przeciwna, którą dołożył sam.
+
+### Wzorzec „zieleń przez pominięcie" — czwarte i piąte piętro
+Znaliśmy: test pomijany bez zmiennej, test padający w `beforeAll`, job CI wykonujący zero testów.
+Tej nocy doszły dwa nowe:
+- **wewnątrz jednego testu**: kontrola przeciwna jako osobny `expect()` po czerwonym głównym
+  **nigdy się nie wykonuje** — i faktycznie się nie wykonała
+- **przez brak danych**: `mwo-loto-signing` przechodził **wyłącznie dlatego, że kanoniczne persony
+  nie istniały**; na poprawnie zaprowizjonowanej bazie (czyli w CI) **padnie**
+
+### Moje błędy w tej fazie
+- backticki w komunikacie commita — **ten sam błąd**, który godzinę wcześniej zgłosiłem torowi
+- przydzieliłem jedną bazę dwóm torom naraz
+- filtry ścieżek vitest muszą być względne wobec `apps/web`; z korzenia dostaje się
+  „No test files found" i kod 1, co wygląda jak awaria testów
