@@ -641,3 +641,37 @@ wynik jest czerwony.
 ---
 
 *Dokument uzupełniany w trakcie nocy. Ostatnia aktualizacja: 02:30.*
+
+---
+
+# POMIAR KOŃCOWY — pełna suita na schemacie 564
+
+Uruchomiona szeregowo (`--no-file-parallelism`) na `monopilot_ver`, jedynej bazie
+z kompletnym schematem:
+
+```
+Test Files  68 failed | 594 passed | 1 skipped  (663)
+     Tests  156 failed | 4961 passed | 48 skipped  (5165)
+```
+
+## Jak to czytać — liczba czerwonych URÓSŁ I TO JEST DOBRA WIADOMOŚĆ
+
+Punkt odniesienia z audytu z początku nocy (na innej bazie i z równoległością, więc
+**to nie jest czyste porównanie A/B** — traktuj jako rząd wielkości):
+
+| | przed | po |
+|---|---|---|
+| testów ogółem | 5069 | **5165** |
+| przechodzi | 4794 | **4961** |
+| **cicho pomijanych** | **178** | **48** |
+| czerwonych | 97 | **156** |
+
+**Sto trzydzieści testów przestało się cicho pomijać.** Część z nich jest teraz czerwona —
+i o to chodziło. Czerwony test to informacja; pominięty to cisza udająca zgodę.
+
+Wzrost czerwonych z 97 do 156 **nie oznacza, że coś zepsuliśmy**. Oznacza, że defekty,
+które przez ten czas nie istniały dla nikogo, są wreszcie widoczne. Każdy z nich ma
+w `6341c847` opis przyczyny i ocenę, czy to defekt kodu, czy przestarzały test.
+
+**To jest jedyna liczba z tej nocy, którą warto śledzić dalej.** Nie „ile zielonych",
+tylko **„ile naprawdę się wykonuje"**.
