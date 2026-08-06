@@ -8,9 +8,12 @@
  *   1. listCostedProducts() — the FG/intermediate products that have a BOM
  *      header (DISTINCT product_id) so the page can offer a product picker.
  *   2. getRecipeCost(productCode) — for the latest non-archived BOM of the
- *      product, the material cost roll-up = Σ(line.quantity × component
- *      items.cost_per_kg), computed entirely in SQL NUMERIC space (no JS float),
- *      plus the per-line breakdown and the header yield_pct.
+ *      product, the material cost roll-up = Σ(line quantity REDUCED TO THE
+ *      COMPONENT'S BASE UoM × that component's effective cost per base unit),
+ *      computed entirely in SQL NUMERIC space (no JS float), plus the per-line
+ *      breakdown and the header yield_pct. A line whose UoM cannot be reduced
+ *      (10 pcs of a kg-priced casing with no unit mass) is left uncosted — see
+ *      BOM_LINE_BASE_QTY_SQL. It is never multiplied at a guessed factor of 1.
  *
  * Prototype parity:
  *   prototypes/design/Monopilot Design System/technical/other-screens.jsx:536-585
@@ -25,7 +28,12 @@
  */
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
-import { bomMaterialCurrencySql, bomMaterialTotalSql } from './recipe-cost-rollup-sql';
+import {
+  BOM_LINE_BASE_QTY_SQL,
+  BOM_LINE_UOM_JOIN,
+  bomMaterialCurrencySql,
+  bomMaterialTotalSql,
+} from './recipe-cost-rollup-sql';
 import type { QueryClient } from './shared';
 
 export type CostedProductOption = {
@@ -48,7 +56,7 @@ export type ListCostedProductsResult = {
   state: 'ready' | 'empty' | 'error';
 };
 
-/** One BOM line costed = quantity × component cost_per_kg (NUMERIC strings). */
+/** One BOM line costed = base-UoM quantity × component unit cost (NUMERIC strings). */
 export type RecipeCostLine = {
   componentCode: string;
   componentName: string | null;
@@ -180,7 +188,7 @@ export async function getRecipeCost(rawProductCode: unknown): Promise<GetRecipeC
       const qc = client as QueryClient;
 
       // The latest non-archived BOM header for this product, with the SQL-computed
-      // material roll-up. The Σ(quantity × cost_per_kg) is done in NUMERIC space.
+      // material roll-up. The Σ(base-UoM quantity × unit cost) is done in NUMERIC space.
       const headerResult = await qc.query<HeaderRow>(
         `select bh.id,
                 i.item_code as product_code,
@@ -232,7 +240,7 @@ export async function getRecipeCost(rawProductCode: unknown): Promise<GetRecipeC
                 bl.quantity::text as quantity,
                 bl.uom,
                 vec.amount::text as unit_cost,
-                (bl.quantity * vec.amount)::text as line_cost,
+                (${BOM_LINE_BASE_QTY_SQL} * vec.amount)::text as line_cost,
                 vec.currency as currency
            from public.bom_lines bl
            left join public.items ci
@@ -242,6 +250,7 @@ export async function getRecipeCost(rawProductCode: unknown): Promise<GetRecipeC
                    or (bl.item_id is null and ci.item_code = bl.component_code)
                  )
            left join public.v_item_effective_cost vec on vec.item_id = ci.id
+           ${BOM_LINE_UOM_JOIN}
           where bl.org_id = app.current_org_id()
             and bl.bom_header_id = $1::uuid
           order by bl.component_code asc`,
