@@ -276,3 +276,45 @@ przeglądarka A (magazyn→produkcja→skaner) · przeglądarka B (jakość→NP
 adwersarz 13 tez o ilości (10 prób napisanych) · reguła lintu na `'use server'` ·
 naprawa bramki terminu w 4 ścieżkach wysyłkowych · Codex: **czy znaleziska z 30.07
 zostały naprawione, czy tylko opisane**
+
+---
+
+## 00:20 → 01:55 — od zbierania do naprawiania
+
+Odzyskany czas poszedł na naprawy. Wszystkie zweryfikowane moim własnym przebiegiem, nie meldunkiem.
+
+| commit | co | dowód |
+|---|---|---|
+| `93730681` | bramka terminu w 4 ścieżkach wysyłkowych | odtworzenie stanu **sprzed** naprawy na tej samej palecie |
+| `48f1918f` | `lint-workflows` nigdy nie działał; bramki z korzenia nigdy nie chodziły w CI | `actionlint` na obu plikach = 0; zamiatarka GS1 po **196 608 punktach kodowych**, zero rozbieżności |
+| `0d6eac85` | pracownik usunięty z katalogu firmowego działał dalej | cofnięcie naprawy w kodzie → 3 czerwone, w tym `resolved "2"` = **realny odczyt danych organizacji** |
+| `bf7f0579` | trzy bramki blokad jakościowych połykały awarię | dowód **trójstronny**: awaria→odmowa, normalnie→przepuszcza, blokada→blokuje |
+
+### Dwa obalenia, które oszczędzają dzień pracy
+- **P0 anulowania wysyłki NIE ISTNIEJE** — pełny łańcuch w przeglądarce, towar wrócił
+  (250 → 300), ślad audytowy powstał. Poprawka `toAuditEventId` działa.
+- **Skaner NIE przenosi palet między zakładami.**
+- **Rozjazd uprawnień NIE zabija bramek** — wszystkie 127 egzekwowanych ma przydzielenie.
+
+### Ale przy okazji obalania wyszedł prawdziwy defekt
+`cancelShipment` przywraca ilość na palecie, ale **nie zapisuje kompensującego `stock_moves`**.
+Księga rozjeżdża się ze stanem o dokładnie tyle, ile wróciło. **Potwierdzone niezależnie przez
+dwa tory dwiema metodami** — przeglądarkowo i sondami. Naprawa zlecona.
+
+### Trzy błędy, które popełniłem i naprawiłem
+1. **Zmyślony czas** (opisane wyżej) — podałem ownerowi „godzina 6 z 7", gdy minęła jedna.
+2. **Backticki w komunikacie commita** — powłoka je zinterpretowała i commit padł.
+   Dokładnie ten sam błąd, który godzinę wcześniej zgłosiłem torowi (backticki w komentarzu SQL
+   zamykające template literal). Komunikaty pisze się przez heredoc.
+3. **Test zależny od zegara w moim własnym commicie** — `lp-expiry-site-day.pg.test.ts`
+   asercjonuje, że **stara** bramka się myli, a ona myli się tylko w oknie rozjazdu dat.
+   O 00:5x przechodził, o 01:19 padł. **W CI padałby losowo.** Naprawa zlecona z twardym
+   zakazem `skipIf`.
+4. **Kolizja baz, którą sam stworzyłem** — przydzieliłem `monopilot_t3` dwóm torom naraz.
+   Poprawione przekierowaniem jednego na `monopilot_qty`.
+
+### Decyzja dla ownera, która wyszła z naprawy bramek QC
+Naprawiona bramka **działa poprawnie**. Ale włączenie flagi `require_grn_qc_inspection`
+zablokuje zatwierdzanie specyfikacji dla **każdego** surowca, bo tabela `lab_results` jest
+w praktyce pusta — mostek zapisu z modułu jakości nie istnieje (`POST /api/technical/lab-results`
+zwraca **501**). **Włączenie tej flagi zatrzyma zakład i będzie to poprawne zachowanie bramki.**
