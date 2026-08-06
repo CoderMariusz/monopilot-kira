@@ -124,6 +124,12 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Install Postgres client
         run: sudo apt-get update && sudo apt-get install --yes postgresql-client
+      # The migration chain targets Supabase: it revokes from the anon/authenticated
+      # roles (051), writes to storage.buckets (279) and calls pgcrypto digest() (517).
+      # A bare postgres:16-alpine has none of those, so migrate died on 051 from 3 June
+      # onward. Local dev already bootstraps them via test-db.sh; CI never did.
+      - name: Apply Supabase shim
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 --file scripts/supabase-shim.sql
       - run: pnpm --filter @monopilot/db migrate
       - name: Verify app_user was provisioned
         run: psql "$DATABASE_URL" --command "select rolname from pg_roles where rolname = 'app_user'"
@@ -162,6 +168,9 @@ jobs:
       - name: Install Postgres client
         run: sudo apt-get update && sudo apt-get install --yes postgresql-client
       - run: pnpm install --frozen-lockfile
+      # See the vitest job: the chain assumes Supabase-provided roles/schemas.
+      - name: Apply Supabase shim
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 --file scripts/supabase-shim.sql
       - run: pnpm --filter @monopilot/db migrate
       - name: Verify app_user was provisioned
         run: psql "$DATABASE_URL" --command "select rolname from pg_roles where rolname = 'app_user'"
@@ -200,6 +209,11 @@ jobs:
           node-version: 20
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Install Postgres client
+        run: sudo apt-get update && sudo apt-get install --yes postgresql-client
+      # See the vitest job: the chain assumes Supabase-provided roles/schemas.
+      - name: Apply Supabase shim
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 --file scripts/supabase-shim.sql
       - run: pnpm --filter @monopilot/db migrate
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm --filter web build
