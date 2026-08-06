@@ -323,7 +323,7 @@ runPg('production stock_moves ledger — behavioral (real Postgres)', () => {
   // (d) + (e) — reverseConsumption: real call → one 'adjustment' negative row
   // with reason_code = 'consumption_reversed'; re-run → still one row (dedup).
   // ─────────────────────────────────────────────────────────────────────────────
-  it('(d) reverseConsumption writes exactly one adjustment stock_move with negative quantity and consumption_reversed reason_code', async () => {
+  it('(d) reverseConsumption writes exactly one adjustment stock_move with positive quantity and consumption_reversed reason_code', async () => {
     // Find the consumption row written by (a) to reverse it
     const { rows: consumptionRows } = await ownerPool.query<{ id: string; transaction_id: string }>(
       `select id::text as id, transaction_id::text as transaction_id
@@ -373,8 +373,14 @@ runPg('production stock_moves ledger — behavioral (real Postgres)', () => {
       move_type: 'adjustment',
       reason_code: 'consumption_reversed',
     });
-    // negative quantity (reversal counter-entry)
-    expect(parseFloat(rows[0]!.quantity)).toBeLessThan(0);
+    // REWRITTEN, not deleted: this case asserted `toBeLessThan(0)` and that is what
+    // pinned the defect in place — the writer negated the quantity while
+    // restoreLicensePlate handed the material BACK to the pallet, so the ledger
+    // travelled opposite to the stock. Case (h) below measures that directly
+    // (pallet +100 / ledger -100 = a 200 kg gap on a 100 kg reversal).
+    // The reversal is an INFLOW; a counter-entry compensates a move, it does not
+    // repeat its direction.
+    expect(parseFloat(rows[0]!.quantity)).toBeGreaterThan(0);
 
     // Verify deterministic transaction_id
     const expectedCorrectionTxnId = correctionTransactionId({
@@ -489,55 +495,55 @@ runPg('production stock_moves ledger — behavioral (real Postgres)', () => {
        and lp.id = any($2::uuid[])
      order by lp.lp_number`;
 
+  // NUMERIC columns come back from the driver as STRINGS (no setTypeParser here),
+  // so every comparison goes through Number() — never a raw === on the text.
+  type LedgerRow = { lp_id: string; lp_number: string; lp_qty: string; ledger_sum: string };
+  async function readLedger(lpIds: string[]): Promise<Map<string, LedgerRow>> {
+    const { rows } = await ownerPool.query<LedgerRow>(LEDGER_RECONCILIATION_SQL, [orgId, lpIds]);
+    return new Map(rows.map((row) => [row.lp_id, row]));
+  }
+
+  // A pallet that arrived through an explicit 'receipt', so its own ledger starts reconciled.
+  async function seedPalletWithReceipt(id: string, lpNumber: string, qty: string): Promise<void> {
+    await ownerPool.query(
+      `insert into public.license_plates (
+         id, org_id, site_id, warehouse_id, location_id, lp_number,
+         product_id, quantity, reserved_qty, uom, status, qa_status, created_by, updated_by
+       )
+       values ($1, $2, $3, $4, $5, $6, $7, $8::numeric, 0.000, 'kg',
+               'available', 'released', $9, $9)`,
+      [id, orgId, siteId, warehouseId, locationId, lpNumber, itemId, qty, userId],
+    );
+    const receiptTxId = randomUUID();
+    await ownerPool.query(
+      `insert into public.stock_moves (
+         org_id, site_id, move_number, lp_id, move_type, to_location_id,
+         quantity, uom, reason_code, transaction_id, status, created_by, updated_by
+       )
+       values ($1, $2, $3, $4, 'receipt', $5, $6::numeric, 'kg',
+               'production_output', $7::uuid, 'completed', $8, $8)`,
+      [
+        orgId,
+        siteId,
+        `SM-${receiptTxId.replaceAll('-', '').slice(0, 20).toUpperCase()}`,
+        id,
+        locationId,
+        qty,
+        receiptTxId,
+        userId,
+      ],
+    );
+  }
+
   it('(g) cancelWo on a completed WO keeps the stock ledger equal to the destroyed output pallet', async () => {
     const cancelWoId = randomUUID();
     const cancelMaterialId = randomUUID();
     const sourceLpId = randomUUID();
     const controlLpId = randomUUID();
 
-    // NUMERIC columns come back from the driver as STRINGS (no setTypeParser here),
-    // so every comparison goes through Number() — never a raw === on the text.
-    type LedgerRow = { lp_id: string; lp_number: string; lp_qty: string; ledger_sum: string };
-    async function readLedger(lpIds: string[]): Promise<Map<string, LedgerRow>> {
-      const { rows } = await ownerPool.query<LedgerRow>(LEDGER_RECONCILIATION_SQL, [orgId, lpIds]);
-      return new Map(rows.map((row) => [row.lp_id, row]));
-    }
-
-    // Source pallet 100 kg + an untouched control pallet, each arrived through an
-    // explicit 'receipt' so their own ledgers start reconciled.
-    for (const [id, lpNumber, qty] of [
-      [sourceLpId, 'SML-LP-CANCEL-SRC', '100.000'],
-      [controlLpId, 'SML-LP-CANCEL-CTRL', '7.000'],
-    ] as const) {
-      await ownerPool.query(
-        `insert into public.license_plates (
-           id, org_id, site_id, warehouse_id, location_id, lp_number,
-           product_id, quantity, reserved_qty, uom, status, qa_status, created_by, updated_by
-         )
-         values ($1, $2, $3, $4, $5, $6, $7, $8::numeric, 0.000, 'kg',
-                 'available', 'released', $9, $9)`,
-        [id, orgId, siteId, warehouseId, locationId, lpNumber, itemId, qty, userId],
-      );
-      const receiptTxId = randomUUID();
-      await ownerPool.query(
-        `insert into public.stock_moves (
-           org_id, site_id, move_number, lp_id, move_type, to_location_id,
-           quantity, uom, reason_code, transaction_id, status, created_by, updated_by
-         )
-         values ($1, $2, $3, $4, 'receipt', $5, $6::numeric, 'kg',
-                 'production_output', $7::uuid, 'completed', $8, $8)`,
-        [
-          orgId,
-          siteId,
-          `SM-${receiptTxId.replaceAll('-', '').slice(0, 20).toUpperCase()}`,
-          id,
-          locationId,
-          qty,
-          receiptTxId,
-          userId,
-        ],
-      );
-    }
+    // Source pallet 100 kg + an untouched control pallet.
+    await seedPalletWithReceipt(sourceLpId, 'SML-LP-CANCEL-SRC', '100.000');
+    await seedPalletWithReceipt(controlLpId, 'SML-LP-CANCEL-CTRL', '7.000');
 
     await ownerPool.query(
       `insert into public.work_orders (
@@ -658,5 +664,130 @@ runPg('production stock_moves ledger — behavioral (real Postgres)', () => {
       wo_id: cancelWoId,
     });
     expect(Number(compensating[0]!.quantity)).toBe(-100);
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // (h) — reverseConsumption hands the material BACK to the source pallet
+  // (restoreLicensePlate: quantity = quantity + qty_consumed), so the compensating
+  // 'adjustment' is an INFLOW and must be POSITIVE. Opposite direction to (g),
+  // where cancelWo EMPTIES the pallet — the sign is not a house style, it is the
+  // direction the pallet actually moved.
+  //
+  // A flipped sign here is worse than a missing row: the ledger travels the wrong
+  // way, so the pallet/ledger gap comes out at 2x the reversed quantity. That is
+  // exactly why the assertion below checks lpDelta/ledgerDelta and not only the
+  // reconciled total — a total alone cannot tell a flipped sign from a missing one.
+  // ─────────────────────────────────────────────────────────────────────────────
+  it('(h) reverseConsumption keeps the stock ledger equal to the restored source pallet', async () => {
+    const reverseWoId = randomUUID();
+    const reverseMaterialId = randomUUID();
+    const sourceLpId = randomUUID();
+    const controlLpIds = [randomUUID(), randomUUID(), randomUUID()];
+
+    await seedPalletWithReceipt(sourceLpId, 'SML-LP-REVERSE-SRC', '100.000');
+    for (const [index, controlLpId] of controlLpIds.entries()) {
+      await seedPalletWithReceipt(controlLpId, `SML-LP-REVERSE-CTRL-${index}`, `${index + 3}.000`);
+    }
+
+    await ownerPool.query(
+      `insert into public.work_orders (
+         id, org_id, site_id, wo_number, product_id, item_type_at_creation,
+         planned_quantity, uom, status, created_by, updated_by
+       )
+       values ($1, $2, $3, 'SML-WO-REVERSE', $4, 'fg', 100.000, 'kg', 'IN_PROGRESS', $5, $5)`,
+      [reverseWoId, orgId, siteId, itemId, userId],
+    );
+    await ownerPool.query(
+      `insert into public.wo_executions (id, org_id, wo_id, status, version, created_by, updated_by)
+       values ($1, $2, $3, 'in_progress', 1, $4, $4)`,
+      [randomUUID(), orgId, reverseWoId, userId],
+    );
+    await ownerPool.query(
+      `insert into public.wo_materials (
+         id, org_id, site_id, wo_id, product_id, material_name, required_qty, consumed_qty, uom
+       )
+       values ($1, $2, $3, $4, $5, 'SM Reverse Material', 100.000, 0.000, 'kg')`,
+      [reverseMaterialId, orgId, siteId, reverseWoId, itemId],
+    );
+
+    // ── REAL chain: consume the whole pallet, then reverse that consumption ─────
+    const consumed = await recordDesktopConsumption({
+      woId: reverseWoId,
+      materialId: reverseMaterialId,
+      qty: '100.000',
+      lpId: sourceLpId,
+      clientOpId: randomUUID(),
+    });
+    expect(consumed).toMatchObject({ ok: true });
+
+    const allLpIds = [sourceLpId, ...controlLpIds];
+    const before = await readLedger(allLpIds);
+    const sourceBefore = before.get(sourceLpId)!;
+
+    // The gap must be OPENED by the reversal — prove the pallet reconciles first.
+    expect({ lp: Number(sourceBefore.lp_qty), ledger: Number(sourceBefore.ledger_sum) }).toEqual({
+      lp: 0,
+      ledger: 0,
+    });
+
+    const { rows: consumptionRows } = await ownerPool.query<{ id: string }>(
+      `select id::text as id
+         from public.wo_material_consumption
+        where org_id = $1::uuid
+          and wo_id = $2::uuid
+          and correction_of_id is null
+          and qty_consumed > 0
+        limit 1`,
+      [orgId, reverseWoId],
+    );
+    const consumptionId = consumptionRows[0]?.id;
+    expect(consumptionId).toBeTruthy();
+
+    const reversed = await reverseConsumption({
+      consumptionId: consumptionId!,
+      reasonCode: 'entry_error',
+      note: 'H7 ledger integrity reversal',
+      signature: { password: TEST_PIN },
+    });
+    expect(reversed).toMatchObject({ ok: true });
+
+    const after = await readLedger(allLpIds);
+    const sourceAfter = after.get(sourceLpId)!;
+
+    // Counter-check rides INSIDE the same assertion on purpose: as a separate
+    // expect() after this one it would never run on a red main assert, and
+    // "untouched pallets still reconcile" is the control that rules out a global
+    // drift. Empty array = every control pallet still matches its own ledger.
+    const controlDrift = controlLpIds
+      .map((controlLpId) => after.get(controlLpId)!)
+      .filter((row) => Number(row.lp_qty) !== Number(row.ledger_sum))
+      .map((row) => ({ lp: row.lp_number, palletQty: Number(row.lp_qty), ledgerSum: Number(row.ledger_sum) }));
+
+    expect({
+      lp: Number(sourceAfter.lp_qty),
+      ledger: Number(sourceAfter.ledger_sum),
+      lpDelta: Number(sourceAfter.lp_qty) - Number(sourceBefore.lp_qty),
+      ledgerDelta: Number(sourceAfter.ledger_sum) - Number(sourceBefore.ledger_sum),
+      controlDrift,
+    }).toEqual({ lp: 100, ledger: 100, lpDelta: 100, ledgerDelta: 100, controlDrift: [] });
+
+    const { rows: compensating } = await ownerPool.query<{
+      move_type: string;
+      quantity: string;
+      reason_code: string;
+      wo_id: string | null;
+    }>(
+      `select move_type, quantity::text as quantity, reason_code, wo_id::text as wo_id
+         from public.stock_moves
+        where org_id = $1::uuid and lp_id = $2::uuid and move_type = 'adjustment'`,
+      [orgId, sourceLpId],
+    );
+    expect(compensating).toHaveLength(1);
+    expect(compensating[0]).toMatchObject({
+      move_type: 'adjustment',
+      reason_code: 'consumption_reversed',
+      wo_id: reverseWoId,
+    });
+    expect(Number(compensating[0]!.quantity)).toBe(100);
   });
 });

@@ -604,7 +604,17 @@ async function writeConsumptionReverseStockMove(
       makeStockMoveNumber(transactionId),
       params.lp.id,
       params.lp.location_id,
-      negateDecimalString(params.original.qty_consumed),
+      // POSITIVE. restoreLicensePlate above does `quantity = quantity + qty_consumed`
+      // — the material goes BACK on the pallet, so this compensating row is an
+      // INFLOW. 'adjustment' is the only move_type stock_moves_quantity_sign_check
+      // (mig-193) lets carry a sign, so the direction lives in this value alone and
+      // the ledger reader takes it at face value.
+      //
+      // Negating it did not merely fail to compensate the 'consume_to_wo' outflow,
+      // it moved the ledger the WRONG WAY: pallet +100 against ledger -100 is a
+      // 200 kg gap on a 100 kg reversal. Counterpart to writeOutputVoidStockMove
+      // above, which IS negative because voiding an output ZEROES its pallet.
+      params.original.qty_consumed,
       params.original.uom,
       params.note,
       transactionId,

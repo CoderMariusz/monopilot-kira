@@ -497,7 +497,13 @@ describe('reverseConsumption', () => {
     expect(stockMove).toBeDefined();
     expect(normalize(stockMove!.sql)).toContain("'adjustment'");
     expect(normalize(stockMove!.sql)).toContain("'consumption_reversed'");
-    expect(stockMove?.params).toEqual(expect.arrayContaining([LP_ID, '-4.250', 'kg', 'wrong LP', WO_ID, COMPONENT_ID]));
+    // POSITIVE, rewritten from '-4.250'. Note the contrast with the
+    // wo_material_consumption counter-entry above, which stays NEGATIVE: that table
+    // is summed as NET consumption, while stock_moves is summed as pallet stock and
+    // this row must move it the same way restoreLicensePlate just did (quantity +
+    // qty_consumed). The old negative expectation defended a ledger that travelled
+    // opposite to the stock — measured in stock-moves-production-ledger.pg.test.ts (h).
+    expect(stockMove?.params).toEqual(expect.arrayContaining([LP_ID, '4.250', 'kg', 'wrong LP', WO_ID, COMPONENT_ID]));
 
     const history = queries.find((q) => normalize(q.sql).startsWith('insert into public.lp_state_history'));
     expect(history).toBeDefined();
@@ -707,7 +713,9 @@ describe('reverseConsumption', () => {
     expect(materialUpdate?.params).toEqual([WO_ID, MATERIAL_A_ID, '2.000']);
 
     const stockMove = queries.find((q) => normalize(q.sql).startsWith('insert into public.stock_moves'));
-    expect(stockMove?.params).toEqual(expect.arrayContaining([LP_ID, '-2.000', 'kg', 'substitute correction', WO_ID, MATERIAL_A_ID]));
+    // POSITIVE, rewritten from '-2.000' — see the sign rationale on the sibling
+    // assertion above. The reversal puts the material back on the pallet.
+    expect(stockMove?.params).toEqual(expect.arrayContaining([LP_ID, '2.000', 'kg', 'substitute correction', WO_ID, MATERIAL_A_ID]));
     expect(state.materialRows).toEqual([
       { id: MATERIAL_A_ID, product_id: COMPONENT_ID, consumed_qty: '3' },
       { id: MATERIAL_B_ID, product_id: COMPONENT_ID, consumed_qty: '7.000' },

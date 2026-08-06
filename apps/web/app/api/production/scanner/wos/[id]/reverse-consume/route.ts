@@ -386,7 +386,11 @@ async function writeConsumptionReverseStockMove(
       makeStockMoveNumber(transactionId),
       params.lp.id,
       params.lp.location_id,
-      negateDecimalString(params.original.qty_consumed),
+      // POSITIVE — same reason as the desktop twin in corrections-actions.ts:
+      // restoreLicensePlate does `quantity = quantity + qty_consumed`, so this
+      // compensating 'adjustment' is an INFLOW. Negating it moved the ledger the
+      // WRONG WAY (pallet +100 vs ledger -100 = a 200 kg gap on a 100 kg reversal).
+      params.original.qty_consumed,
       params.original.uom,
       params.note,
       transactionId,

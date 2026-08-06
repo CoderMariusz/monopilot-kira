@@ -324,7 +324,11 @@ describe('scanner reverse-consume route', () => {
     const decrementCall = fakeClient.query.mock.calls.find((call) => String(call[0]).includes('update public.wo_materials'));
     expect(decrementCall?.[1]).toEqual([woId, materialLineAId, '2.000']);
     const stockMoveCall = fakeClient.query.mock.calls.find((call) => String(call[0]).includes('insert into public.stock_moves'));
-    expect(stockMoveCall?.[1]).toEqual(expect.arrayContaining([lpId, '-2.000', 'kg', 'scanner correction', woId, materialLineAId]));
+    // POSITIVE, rewritten from '-2.000': restoreLicensePlate hands the material back
+    // to the pallet, so the compensating 'adjustment' is an INFLOW. The old negative
+    // expectation pinned a defect where the ledger moved opposite to the stock —
+    // measured in stock-moves-production-ledger.pg.test.ts case (h).
+    expect(stockMoveCall?.[1]).toEqual(expect.arrayContaining([lpId, '2.000', 'kg', 'scanner correction', woId, materialLineAId]));
     expect(materialRows).toEqual([
       { id: materialLineAId, product_id: componentId, consumed_qty: '3.000' },
       { id: materialLineBId, product_id: componentId, consumed_qty: '7.000' },
