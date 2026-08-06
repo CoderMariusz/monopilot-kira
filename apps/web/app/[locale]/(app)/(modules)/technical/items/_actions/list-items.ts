@@ -18,8 +18,10 @@ import {
   toPaginatedResult,
   type PaginatedResult,
 } from '../../../../../../../lib/shared/pagination';
+import { hasAnyPermission } from '../../../../../../../lib/auth/has-permission';
 import {
   hasPermission,
+  ITEM_MASTER_READ_PERMISSIONS,
   ITEMS_CREATE_PERMISSION,
   ITEMS_DEACTIVATE_PERMISSION,
   ITEMS_EDIT_PERMISSION,
@@ -32,6 +34,28 @@ import {
 } from './shared';
 
 export type ListItemsState = 'ready' | 'empty' | 'error';
+
+/**
+ * READ gate for the item-master SCREENS. RLS scopes public.items to the org, not
+ * to the caller's permissions, so /technical/items and /technical/materials handed
+ * the whole catalogue to a member with zero grants. Callers render the
+ * permission-denied panel and skip listItems entirely when this is false.
+ *
+ * Deliberately separate from listItems: that function also backs the item chooser
+ * in BOM / TO / NPD modals, whose callers legitimately hold different permissions.
+ */
+export async function canReadItemMaster(): Promise<boolean> {
+  try {
+    return await withOrgContext(async ({ userId, orgId, client }) =>
+      hasAnyPermission({ userId, orgId, client: client as QueryClient }, [...ITEM_MASTER_READ_PERMISSIONS]),
+    );
+  } catch (error) {
+    console.error('[technical/items] canReadItemMaster failed', {
+      err: error instanceof Error ? error.message : String(error),
+    });
+    return false;
+  }
+}
 
 export type D365SyncFilter = 'synced' | 'drift' | 'unsynced';
 

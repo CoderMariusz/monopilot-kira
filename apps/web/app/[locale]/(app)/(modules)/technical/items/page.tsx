@@ -24,7 +24,7 @@ import { type SelectOption } from '@monopilot/ui/Select';
 
 import { listSuppliers } from '../../planning/suppliers/_actions/actions';
 import { listActiveProductCategories } from '../../../../../../actions/reference/product-categories/list';
-import { listItems } from './_actions/list-items';
+import { canReadItemMaster, listItems } from './_actions/list-items';
 import { ITEM_TYPES, type ItemType } from './_actions/shared';
 import type { DeactivateLabels } from './_components/deactivate-modal';
 import { buildTransitionLabels } from './_components/item-transition-labels';
@@ -88,6 +88,22 @@ export default async function TechnicalItemsPage({
   const search = sp?.q?.trim() ?? '';
   const status = sp?.status?.trim() ?? '';
   const d365 = sp?.d365?.trim() ?? '';
+
+  // READ gate. The header above has always ADVERTISED a permission-denied state,
+  // but the read path never checked anything — only the create/edit/deactivate
+  // affordances did, so a member with zero permissions got the full catalogue.
+  if (!(await canReadItemMaster())) {
+    const tDenied = await getTranslations('technical.items');
+    return (
+      <main data-screen="technical-items" className="flex w-full flex-col gap-4 px-6 py-6">
+        <div role="alert" data-testid="items-list-denied" data-state="permission-denied" className="alert alert-amber">
+          <div className="alert-title">{tDenied('list.title')}</div>
+          {tDenied('errors.forbidden')}
+        </div>
+      </main>
+    );
+  }
+
   const { items, canCreate, canEdit, canDeactivate, state, pagination, typeCounts } = await listItems({
     page: parsedPage,
     search: search || undefined,

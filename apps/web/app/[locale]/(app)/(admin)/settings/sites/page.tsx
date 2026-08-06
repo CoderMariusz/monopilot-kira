@@ -108,6 +108,19 @@ export default async function SitesSettingsPage({ params }: PageProps = {}) {
     readSitesSettingsData(),
   ]);
 
+  // READ gate (settings.org.read). Reuses the screen's existing forbidden copy —
+  // the modal error string was the only permission wording this route ever had.
+  if (!data.can_read) {
+    return (
+      <main data-screen="settings-sites" className="settings-page space-y-4">
+        <div role="alert" data-testid="sites-denied" data-state="permission-denied" className="alert alert-amber">
+          <div className="alert-title">{labels.title}</div>
+          {modalLabels.errorForbidden}
+        </div>
+      </main>
+    );
+  }
+
   async function loadLinesForSelectedSite(siteId: string): Promise<LineRow[]> {
     'use server';
     return getLinesForSite(data.org_id, siteId);

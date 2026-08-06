@@ -29,7 +29,14 @@ import { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import type { ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items-types';
-import { listOrgUnits, type OrgUnitOption, type QueryClient } from '../../_actions/procurement-shared';
+import {
+  hasPlanningReadPermission,
+  hasToManagePermission,
+  listOrgUnits,
+  type OrgActionContext,
+  type OrgUnitOption,
+  type QueryClient,
+} from '../../_actions/procurement-shared';
 
 export type WarehouseOption = {
   id: string;
@@ -37,9 +44,43 @@ export type WarehouseOption = {
   name: string;
 };
 
+/**
+ * These helpers are org-scoped by RLS but RLS does not look at permissions, so
+ * each one re-checks the same planning READ gate listTransferOrders uses. They
+ * already degrade to an empty result on failure, so a denial reuses that path
+ * instead of inventing a new error shape.
+ */
+async function canReadPlanning(ctx: { userId: string; orgId: string; client: unknown }): Promise<boolean> {
+  return hasPlanningReadPermission({
+    userId: ctx.userId,
+    orgId: ctx.orgId,
+    client: ctx.client as QueryClient,
+  } as OrgActionContext);
+}
+
+/**
+ * Affordance gate: the SAME permission createTransferOrderCore enforces
+ * (planning.to.manage). Without it the create modal opened for everyone and only
+ * rejected on submit, after the user had filled the whole form.
+ */
+export async function canManageTransferOrders(): Promise<boolean> {
+  try {
+    return await withOrgContext<boolean>(async (ctx) =>
+      hasToManagePermission({
+        userId: ctx.userId,
+        orgId: ctx.orgId,
+        client: ctx.client as unknown as QueryClient,
+      } as OrgActionContext),
+    );
+  } catch {
+    return false;
+  }
+}
+
 /** Load the org's warehouses for the From/To selects + list name lookups. */
 export async function listTransferWarehouses(): Promise<WarehouseOption[]> {
   return withOrgContext<WarehouseOption[]>(async (ctx) => {
+    if (!(await canReadPlanning(ctx))) return [];
     const client = ctx.client as unknown as QueryClient;
     const { rows } = await client.query<{ id: string; code: string; name: string }>(
       `select id, code, name
@@ -57,6 +98,7 @@ export async function listTransferWarehouses(): Promise<WarehouseOption[]> {
  */
 export async function listTransferOrderLineCounts(): Promise<Record<string, number>> {
   return withOrgContext<Record<string, number>>(async (ctx) => {
+    if (!(await canReadPlanning(ctx))) return {};
     const client = ctx.client as unknown as QueryClient;
     const { rows } = await client.query<{ to_id: string; n: string }>(
       `select to_id, count(*)::text as n
@@ -80,7 +122,7 @@ export async function listTransferOrderLineCounts(): Promise<Record<string, numb
 export async function listTransferUnits(): Promise<OrgUnitOption[]> {
   try {
     return await withOrgContext<OrgUnitOption[]>(async (ctx) =>
-      listOrgUnits(ctx.client as unknown as QueryClient),
+      (await canReadPlanning(ctx)) ? listOrgUnits(ctx.client as unknown as QueryClient) : [],
     );
   } catch {
     return [];
@@ -108,6 +150,7 @@ export async function searchTransferItems(input: SearchTransferItemsInput = {}):
   const like = term.length > 0 ? `%${term.replace(/[%_]/g, (m) => `\\${m}`)}%` : null;
 
   return withOrgContext<ItemPickerOption[]>(async (ctx) => {
+    if (!(await canReadPlanning(ctx))) return [];
     const client = ctx.client as unknown as QueryClient;
     const { rows } = await client.query<{
       id: string;

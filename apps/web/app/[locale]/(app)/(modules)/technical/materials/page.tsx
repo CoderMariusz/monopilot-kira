@@ -5,7 +5,7 @@
 import Link from 'next/link';
 import { getLocale, getTranslations } from 'next-intl/server';
 
-import { listItems } from '../items/_actions/list-items';
+import { canReadItemMaster, listItems } from '../items/_actions/list-items';
 import type { ItemType } from '../items/_actions/shared';
 import { MaterialsTableClient, type MaterialsTableLabels } from './_components/materials-table.client';
 
@@ -29,6 +29,21 @@ export default async function TechnicalMaterialsPage({
   const search = sp?.q?.trim() ?? '';
   const initialType = MATERIAL_TYPES.find((tab) => tab === sp?.type);
   const t = await getTranslations('technical.materials');
+
+  // Same item master, same read gate as /technical/items — this route renders the
+  // rm/ingredient/intermediate/packaging slice of public.items and had no gate either.
+  if (!(await canReadItemMaster())) {
+    const tItems = await getTranslations('technical.items');
+    return (
+      <main data-screen="technical-materials" className="flex w-full flex-col gap-4 px-6 py-6">
+        <div role="alert" data-testid="materials-list-denied" data-state="permission-denied" className="alert alert-amber">
+          <div className="alert-title">{t('title')}</div>
+          {tItems('errors.forbidden')}
+        </div>
+      </main>
+    );
+  }
+
   const { items, canCreate, state, pagination, typeCounts } = await listItems({
     itemTypes: MATERIAL_TYPES,
     page,

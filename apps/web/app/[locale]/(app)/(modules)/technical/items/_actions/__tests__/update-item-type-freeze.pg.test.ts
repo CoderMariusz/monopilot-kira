@@ -91,17 +91,22 @@ runPg('items item_type freeze trigger (real Postgres)', () => {
       [activeFgId, orgId, `ACT-${activeFgId.slice(0, 8)}`, draftReferencedId, `REF-${draftReferencedId.slice(0, 8)}`],
     );
     await ownerPool.query(
-      `insert into public.product (product_code, org_id, product_name, schema_version, created_by_user)
+      // mig 359 turned public.product into an INSTEAD OF view — ON CONFLICT only
+      // works against the base table, which is also what every FK points at.
+      `insert into public.product_legacy (product_code, org_id, product_name, schema_version, created_by_user)
        values ($1, $2, 'Active FG', 1, $3),
               ($4, $2, 'Referenced Draft FG', 1, $3)
        on conflict (org_id, product_code) do nothing`,
       [productCode, orgId, userId, draftReferencedProductCode],
     );
     await ownerPool.query(
+      // status 'active' requires approved_by + approved_at
+      // (bom_headers_approved_status_requires_approval_check).
       `insert into public.bom_headers
-         (id, org_id, product_id, item_id, origin_module, status, version, created_by_user)
-       values ($1, $2, $3, $4, 'technical', 'active', 1, $5),
-              ($6, $2, $7, $8, 'technical', 'draft', 1, $5)
+         (id, org_id, product_id, item_id, origin_module, status, version, created_by_user,
+          approved_by, approved_at)
+       values ($1, $2, $3, $4, 'technical', 'active', 1, $5, $5, now()),
+              ($6, $2, $7, $8, 'technical', 'draft', 1, $5, null, null)
        on conflict (id) do nothing`,
       [
         activeBomId,
@@ -189,7 +194,7 @@ runPg('items item_type freeze trigger (real Postgres)', () => {
       [raceItemId, orgId, raceProductCode],
     );
     await ownerPool.query(
-      `insert into public.product (product_code, org_id, product_name, schema_version, created_by_user)
+      `insert into public.product_legacy (product_code, org_id, product_name, schema_version, created_by_user)
        values ($1, $2, 'Race FG', 1, $3)
        on conflict (org_id, product_code) do nothing`,
       [raceProductCode, orgId, userId],

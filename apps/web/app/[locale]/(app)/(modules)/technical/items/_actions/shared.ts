@@ -32,6 +32,28 @@ export const ITEMS_CREATE_PERMISSION = 'technical.items.create';
 export const ITEMS_EDIT_PERMISSION = 'technical.items.edit';
 export const ITEMS_DEACTIVATE_PERMISSION = 'technical.items.deactivate';
 
+/**
+ * READ gate for the ITEM MASTER SCREENS (/technical/items, /technical/materials).
+ *
+ * There is no `technical.items.read` string — the Wave0 enum is locked and the
+ * catalogue never had one. `lib/navigation/module-registry.ts` already resolved
+ * this exact problem for the sidebar and picked `technical.sensory.read` as the
+ * technical module's read key ("No module-level technical read exists; this is
+ * the only technical.* read string"). We reuse that decision so the page enforces
+ * what the nav already advertises, and OR in the item-master write permissions so
+ * nobody who may EDIT the catalogue is locked out of READING it.
+ *
+ * NOT applied inside `listItems`: it is also the item chooser behind BOM / TO /
+ * NPD modals, and NPD roles (e.g. npd_manager) hold none of these strings —
+ * gating there would trade the read leak for an NPD outage.
+ */
+export const ITEM_MASTER_READ_PERMISSIONS = [
+  'technical.sensory.read',
+  ITEMS_CREATE_PERMISSION,
+  ITEMS_EDIT_PERMISSION,
+  ITEMS_DEACTIVATE_PERMISSION,
+] as const;
+
 export const APP_VERSION = 'technical-items-v1';
 
 // ── Enums (mirror items_*_check CHECK constraints in migration 153) ───────────

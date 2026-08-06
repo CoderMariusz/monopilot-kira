@@ -24,6 +24,7 @@ import {
   TransferOrderCreateInput,
   TransferOrderStatusSchema,
   dateSchema,
+  hasPlanningReadPermission,
   requireActionPermission,
   PLANNING_TO_MANAGE_PERMISSION,
   isPgError,
@@ -407,7 +408,15 @@ export async function listTransferOrders(params: unknown = {}): Promise<Transfer
   });
 
   try {
-    return await withOrgContext(async ({ client }): Promise<TransferOrderListResult> => {
+    return await withOrgContext(async ({ userId, orgId, client }): Promise<TransferOrderListResult> => {
+      // READ gate. RLS scopes rows to the ORG, not to the caller's permissions, so
+      // without this a member with zero permissions read the whole TO register.
+      // Same permission + same shape the sibling planning list actions already use
+      // (purchase-orders/_actions/actions.ts, suppliers/_actions/actions.ts →
+      // hasPlanningReadPermission = PLANNING_READ_PERMISSION = 'scheduler.run.read').
+      const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
+      if (!(await hasPlanningReadPermission(ctx))) return { ok: false, error: 'forbidden' };
+
       const listParams = [status?.success ? status.data : null, q, archived] as const;
       const countParams = [null, q, archived] as const;
 
@@ -469,8 +478,11 @@ export async function listTransferOrders(params: unknown = {}): Promise<Transfer
 
 export async function getTransferOrder(id: string): Promise<TransferOrderResult<TransferOrderDetail>> {
   try {
-    return await withOrgContext(async ({ client }): Promise<TransferOrderResult<TransferOrderDetail>> => {
+    return await withOrgContext(async ({ userId, orgId, client }): Promise<TransferOrderResult<TransferOrderDetail>> => {
       const c = client as QueryClient;
+      // Same read gate as listTransferOrders — otherwise the register is closed but
+      // any single TO stays readable to a zero-permission member who knows its id.
+      if (!(await hasPlanningReadPermission({ userId, orgId, client: c }))) return { ok: false, error: 'forbidden' };
       const { rows } = await c.query<TransferOrderRow>(
         `select id, to_number, from_warehouse_id, to_warehouse_id, status,
                 scheduled_date::text as scheduled_date, notes, created_at, updated_at

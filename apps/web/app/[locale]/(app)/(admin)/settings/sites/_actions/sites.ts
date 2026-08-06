@@ -3,10 +3,19 @@
 import { z } from 'zod';
 
 import { upsertLine } from '../../../../../../../actions/infra/line';
+import { hasPermission } from '../../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
 
 const SETTINGS_UPDATE_PERMISSION = 'settings.org.update';
+/**
+ * READ counterpart of SETTINGS_UPDATE_PERMISSION — the same org-settings family
+ * this screen already enforces on every write, and the settings module's read key
+ * in lib/navigation/module-registry.ts. The neighbouring settings/infra/{lines,
+ * warehouses} screens use the sibling settings.infra.read; both are held by the
+ * identical 14 non-admin roles, so this changes nothing operationally.
+ */
+const SETTINGS_READ_PERMISSION = 'settings.org.read';
 const SITES_ROUTE = '/settings/sites';
 
 type QueryResult<T> = { rows: T[]; rowCount?: number | null };
@@ -147,6 +156,13 @@ export type SitesSettingsData = {
    * caller's real DB permission rather than a hardcoded default.
    */
   can_edit: boolean;
+  /**
+   * Whether the caller may READ the site register at all. False → the page
+   * renders the permission-denied panel and `sites`/`lines` are empty. RLS scopes
+   * these tables to the org, never to the caller's permissions, so without this
+   * a member with zero grants listed every site and production line.
+   */
+  can_read: boolean;
 };
 
 export type LineFormSiteOption = { id: string; code: string; name: string; isDefault?: boolean };
@@ -509,30 +525,48 @@ async function queryLinesForSite(context: OrgContextLike, orgId: string, siteId:
   return rows.map(toLineRow);
 }
 
+// These three are `'use server'` exports, i.e. callable endpoints — the page even
+// hands getLinesForSite to the client as an inline action. Gating only the page
+// loader would have left the same rows reachable by calling them directly.
 export async function getSites(orgId: string): Promise<SiteRow[]> {
-  return withOrgContext<SiteRow[]>(async (ctx): Promise<SiteRow[]> => querySites(ctx as OrgContextLike, orgId));
+  return withOrgContext<SiteRow[]>(async (ctx): Promise<SiteRow[]> => {
+    const context = ctx as OrgContextLike;
+    if (!(await hasPermission(context, SETTINGS_READ_PERMISSION))) return [];
+    return querySites(context, orgId);
+  });
 }
 
 export async function getLinesForSite(orgId: string, siteId: string): Promise<LineRow[]> {
-  return withOrgContext<LineRow[]>(async (ctx): Promise<LineRow[]> => queryLinesForSite(ctx as OrgContextLike, orgId, siteId));
+  return withOrgContext<LineRow[]>(async (ctx): Promise<LineRow[]> => {
+    const context = ctx as OrgContextLike;
+    if (!(await hasPermission(context, SETTINGS_READ_PERMISSION))) return [];
+    return queryLinesForSite(context, orgId, siteId);
+  });
 }
 
 export async function readSitesSettingsData(): Promise<SitesSettingsData> {
   return withOrgContext<SitesSettingsData>(async (ctx): Promise<SitesSettingsData> => {
     const context = ctx as OrgContextLike;
-    const [sites, canEdit] = await Promise.all([
-      querySites(context, context.orgId),
+    const [canRead, canEdit] = await Promise.all([
+      hasPermission(context, SETTINGS_READ_PERMISSION),
       hasSettingsUpdatePermission(context),
     ]);
+    if (!canRead) {
+      return { org_id: context.orgId, sites: [], selected_site_id: null, lines: [], can_edit: false, can_read: false };
+    }
+    const sites = await querySites(context, context.orgId);
     const selectedSiteId = sites[0]?.id ?? null;
     const lines = selectedSiteId ? await queryLinesForSite(context, context.orgId, selectedSiteId) : [];
-    return { org_id: context.orgId, sites, selected_site_id: selectedSiteId, lines, can_edit: canEdit };
+    return { org_id: context.orgId, sites, selected_site_id: selectedSiteId, lines, can_edit: canEdit, can_read: true };
   });
 }
 
 export async function getLineFormOptions(): Promise<LineFormOptions> {
   return withOrgContext<LineFormOptions>(async (ctx): Promise<LineFormOptions> => {
     const context = ctx as OrgContextLike;
+    if (!(await hasPermission(context, SETTINGS_READ_PERMISSION))) {
+      return { sites: [], warehouses: [], locations: [] };
+    }
     const [sitesResult, warehousesResult, locationsResult] = await Promise.all([
       context.client.query<{ id: string; site_code: string; name: string; is_default: boolean }>(
         `select id::text, site_code, name, is_default

@@ -27,6 +27,7 @@ import { PageHeader } from '@monopilot/ui/PageHeader';
 
 import { listTransferOrders, createTransferOrder } from './_actions/actions';
 import {
+  canManageTransferOrders,
   listTransferWarehouses,
   listTransferOrderLineCounts,
   listTransferUnits,
@@ -227,7 +228,7 @@ async function ListContent({
   filters: ToListFilters;
 }) {
   const t = await getTranslations('Planning.transferOrders');
-  const [listResult, warehouses, lineCounts, orgUnits] = await Promise.all([
+  const [listResult, warehouses, lineCounts, orgUnits, canCreate] = await Promise.all([
     listTransferOrders({
       page,
       archived,
@@ -237,10 +238,25 @@ async function ListContent({
     listTransferWarehouses(),
     listTransferOrderLineCounts(),
     listTransferUnits(),
+    canManageTransferOrders(),
   ]);
   const uom = buildUomDropdown(orgUnits, uomFallbackLabels(locale));
 
   if (!listResult.ok) {
+    // 'forbidden' is its own state — the old code funnelled it into the generic
+    // error banner, but the read gate only landed in listTransferOrders now.
+    if (listResult.error === 'forbidden') {
+      return (
+        <div
+          role="alert"
+          data-testid="to-list-denied"
+          data-state="permission-denied"
+          className="rounded-xl border border-amber-200 bg-amber-50 px-6 py-4 text-sm text-amber-800"
+        >
+          {t('errors.forbidden')}
+        </div>
+      );
+    }
     return (
       <div role="alert" data-testid="to-list-error" className="rounded-xl border border-red-200 bg-red-50 px-6 py-4 text-sm text-red-700">
         {t('error')}
@@ -259,7 +275,8 @@ async function ListContent({
       warehouses={warehouses}
       archived={archived}
       archivedCount={listResult.archivedCount}
-      autoOpenCreate={autoOpenCreate}
+      canCreate={canCreate}
+      autoOpenCreate={autoOpenCreate && canCreate}
       labels={buildLabels(t, locale, uom)}
       searchTransferItemsAction={searchTransferItems}
       createTransferOrderAction={createTransferOrder}

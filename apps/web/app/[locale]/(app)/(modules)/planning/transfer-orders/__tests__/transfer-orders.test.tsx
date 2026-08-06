@@ -153,6 +153,14 @@ function renderList(props: Partial<React.ComponentProps<typeof ToListView>> = {}
       warehouses={warehouses}
       labels={listLabels}
       archivedCount={2}
+      /**
+       * planning.to.manage, resolved server-side. Defaulted TRUE here because most
+       * of this file exercises the create modal; the affordance gate itself is
+       * asserted in its own test below. The component defaults to FALSE — a user
+       * without the permission must not be handed a working create form only to be
+       * refused on submit.
+       */
+      canCreate
       searchTransferItemsAction={searchTransferItemsAction}
       createTransferOrderAction={createTransferOrderAction}
       {...props}
@@ -192,6 +200,17 @@ describe('ToListView — structure + filtering (parity: to-screens.jsx:8-96)', (
     expect(screen.getByTestId('to-link-to-1')).toHaveAttribute('href', '/en/planning/transfer-orders/to-1');
     expect(within(screen.getByTestId('to-row-to-1')).getByText('WH-A')).toBeInTheDocument();
     expect(within(screen.getByTestId('to-row-to-1')).getByText('WH-B')).toBeInTheDocument();
+  });
+
+  it('hides the create + bulk-import affordances without planning.to.manage', () => {
+    // Affordance leak: the modal used to open for everyone — all fields, warehouse
+    // pickers, an active "Save & Plan" — and the server refused only on submit,
+    // after the whole form had been filled in. The rows stay visible (the READ gate
+    // is a different permission); only the write affordances go.
+    renderList({ canCreate: false });
+    expect(screen.queryByTestId('to-list-create')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('to-list-bulk-import')).not.toBeInTheDocument();
+    expect(screen.getByTestId('to-row-to-1')).toBeInTheDocument();
   });
 
   it('navigates to the in_transit status tab via URL', () => {

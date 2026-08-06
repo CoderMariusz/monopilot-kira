@@ -1,5 +1,6 @@
 import { getTranslations } from 'next-intl/server';
 
+import { hasAnyPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import SchemaBrowserScreen, {
   type SchemaBrowserLabels,
@@ -24,7 +25,15 @@ type HarnessProps = PageProps & {
   onEditColumn?: (columnCode: string) => void;
 };
 type QueryClient = { query<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<{ rows: T[] }> };
-type SchemaReadResult = { columns: SchemaColumnRow[]; userRole: UserRole };
+type SchemaReadResult = { columns: SchemaColumnRow[]; userRole: UserRole; allowed: boolean };
+
+/**
+ * READ gate — identical to the sibling schema/diff/[id] route, which has always
+ * required these two strings before returning a single version row. This screen
+ * only ever ran the permission query to relabel the badge "Admin"/"Operator";
+ * the 18 column definitions came back unconditionally.
+ */
+const SCHEMA_READ_PERMISSIONS = ['settings.schema.read', 'settings.schema.admin'];
 type RoleRow = { is_admin: boolean };
 type SchemaDbRow = {
   column_code: string;
@@ -133,6 +142,9 @@ async function labels(locale: string): Promise<SchemaBrowserLabels> {
 async function readSchemaData(): Promise<SchemaReadResult> {
   return withOrgContext(async ({ userId, orgId, client }) => {
     const queryClient = client as QueryClient;
+    if (!(await hasAnyPermission({ userId, orgId, client: queryClient }, SCHEMA_READ_PERMISSIONS))) {
+      return { columns: [], userRole: 'Viewer' as UserRole, allowed: false };
+    }
     const [schemaResult, roleResult] = await Promise.all([
       queryClient.query<SchemaDbRow>(
         `select rs.column_code,
@@ -167,6 +179,7 @@ async function readSchemaData(): Promise<SchemaReadResult> {
     ]);
 
     return {
+      allowed: true,
       userRole: roleResult.rows[0]?.is_admin ? 'Admin' : 'Operator',
       columns: schemaResult.rows.map((row) => ({
         col: row.column_code,
@@ -196,6 +209,19 @@ export default async function SchemaBrowserPage(propsInput: unknown) {
   if (!resolvedColumns && resolvedState === 'ready') {
     try {
       const data = await readSchemaData();
+      if (!data.allowed) {
+        // Same 403 wording the sibling schema/diff route renders. SchemaState has
+        // no denied member and the client screen is shared with the parity
+        // harness, so the panel stays on the server boundary.
+        return (
+          <main data-screen="settings-schema" className="settings-page space-y-4">
+            <div role="alert" data-testid="schema-browser-denied" data-state="permission-denied" className="alert alert-amber">
+              <div className="alert-title">403 — Forbidden</div>
+              You do not have permission to view schema definitions.
+            </div>
+          </main>
+        );
+      }
       resolvedColumns = data.columns;
       resolvedUserRole = data.userRole;
       if (resolvedColumns.length === 0) resolvedState = 'empty';

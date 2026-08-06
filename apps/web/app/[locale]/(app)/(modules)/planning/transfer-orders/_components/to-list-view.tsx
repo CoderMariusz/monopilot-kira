@@ -125,6 +125,12 @@ export type ToListViewProps = {
   archived?: boolean;
   /** Count of archived TOs (from the active fetch's payload) for the chip. */
   archivedCount: number;
+  /**
+   * Server-resolved planning.to.manage — the same permission createTransferOrder
+   * enforces. False hides the create/import affordances instead of letting the
+   * user fill the whole modal and be refused on submit.
+   */
+  canCreate?: boolean;
   /** Open the create modal immediately on mount (?new=1 deep-link). */
   autoOpenCreate?: boolean;
   searchTransferItemsAction: (input: SearchTransferItemsInput) => Promise<ItemPickerOption[]>;
@@ -157,6 +163,7 @@ export function ToListView({
   labels,
   archived = false,
   archivedCount,
+  canCreate = false,
   autoOpenCreate = false,
   searchTransferItemsAction,
   createTransferOrderAction,
@@ -215,20 +222,22 @@ export function ToListView({
           onChange={(e) => setSearchDraft(e.target.value)}
           className="w-72"
         />
-        <div className="flex items-center gap-2">
-          {/* Bulk TO import (CSV) preview → confirm screen. */}
-          <Link
-            href={`${basePath}/import`}
-            prefetch={false}
-            data-testid="to-list-bulk-import"
-            className="btn btn--secondary"
-          >
-            {labels.bulkImportLabel}
-          </Link>
-          <Button type="button" className="btn--primary" data-testid="to-list-create" onClick={() => setCreateOpen(true)}>
-            + {labels.createTo}
-          </Button>
-        </div>
+        {canCreate ? (
+          <div className="flex items-center gap-2">
+            {/* Bulk TO import (CSV) preview → confirm screen. */}
+            <Link
+              href={`${basePath}/import`}
+              prefetch={false}
+              data-testid="to-list-bulk-import"
+              className="btn btn--secondary"
+            >
+              {labels.bulkImportLabel}
+            </Link>
+            <Button type="button" className="btn--primary" data-testid="to-list-create" onClick={() => setCreateOpen(true)}>
+              + {labels.createTo}
+            </Button>
+          </div>
+        ) : null}
       </div>
 
       {/* Status tabs + Archive tab.
