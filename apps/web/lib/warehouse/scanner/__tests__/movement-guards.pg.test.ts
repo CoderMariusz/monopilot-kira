@@ -51,9 +51,14 @@ runPg('scanner movement guards — real database', () => {
     lpFree: randomUUID(),
     lpReserved: randomUUID(),
     lpCross: randomUUID(),
+    lpHeld: randomUUID(),
+    lpClean: randomUUID(),
     wo: randomUUID(),
     materialFree: randomUUID(),
     materialReserved: randomUUID(),
+    materialHeld: randomUUID(),
+    materialClean: randomUUID(),
+    hold: randomUUID(),
   };
 
   /** `begin`/`commit`/`rollback` → savepoints, so the outer txn survives. */
@@ -113,8 +118,18 @@ runPg('scanner movement guards — real database', () => {
          (id, org_id, site_id, warehouse_id, location_id, lp_number, product_id, quantity, reserved_qty, uom, status, qa_status)
        values ($1,$2,$3,$4,$5,'LP-FREE',$6,10,0,'kg','available','released'),
               ($7,$2,$3,$4,$5,'LP-RESERVED',$6,10,10,'kg','allocated','released'),
-              ($8,$2,$3,$4,$5,'LP-CROSS',$6,10,0,'kg','available','released')`,
-      [ids.lpFree, orgId, ids.siteA, ids.whA, ids.locA1, ids.product, ids.lpReserved, ids.lpCross],
+              ($8,$2,$3,$4,$5,'LP-CROSS',$6,10,0,'kg','available','released'),
+              ($9,$2,$3,$4,$5,'LP-HELD',$6,10,0,'kg','available','released'),
+              ($10,$2,$3,$4,$5,'LP-CLEAN',$6,10,0,'kg','available','released')`,
+      [ids.lpFree, orgId, ids.siteA, ids.whA, ids.locA1, ids.product, ids.lpReserved, ids.lpCross, ids.lpHeld, ids.lpClean],
+    );
+    // B3 direction 3: a REAL active quality hold on LP-HELD. qa_status stays
+    // 'released' on purpose — a hold that also flipped qa_status would be caught
+    // by the earlier gate and would prove nothing about the hold gate.
+    await client.query(
+      `insert into public.quality_holds (id, org_id, reference_type, reference_id, priority, hold_status, created_by)
+       values ($1,$2,'lp',$3,'critical','open',$4)`,
+      [ids.hold, orgId, ids.lpHeld, userId],
     );
     await client.query(
       `insert into public.work_orders
@@ -124,8 +139,9 @@ runPg('scanner movement guards — real database', () => {
     );
     await client.query(
       `insert into public.wo_materials (id, org_id, wo_id, product_id, material_name, required_qty, uom)
-       values ($1,$2,$3,$4,'Raw 1',10,'kg'), ($5,$2,$3,$4,'Raw 1',10,'kg')`,
-      [ids.materialFree, orgId, ids.wo, ids.product, ids.materialReserved],
+       values ($1,$2,$3,$4,'Raw 1',10,'kg'), ($5,$2,$3,$4,'Raw 1',10,'kg'),
+              ($6,$2,$3,$4,'Raw 1',10,'kg'), ($7,$2,$3,$4,'Raw 1',10,'kg')`,
+      [ids.materialFree, orgId, ids.wo, ids.product, ids.materialReserved, ids.materialHeld, ids.materialClean],
     );
     const { rows } = await client.query<{ id: string }>(
       `insert into public.scanner_sessions (org_id, user_id, mode, session_token_hash, expires_at, site_id, line_id)
@@ -239,5 +255,68 @@ runPg('scanner movement guards — real database', () => {
     expect(Number(rows[0]!.quantity)).toBe(10);
     expect(rows[0]!.move_type).toBe('issue');
     expect(rows[0]!.to_location_id).toBe(ids.staging);
+  });
+
+  // ── B3: the quality-hold gate, all three directions ───────────────────────
+  // It used to swallow 42P01 from public.v_active_holds and answer "no hold",
+  // so a dropped/renamed view meant held meat walked onto the line. All three
+  // directions are asserted: a real hold blocks, a clean LP still picks, and an
+  // unreadable view REFUSES instead of guessing.
+
+  it('B3 — REFUSES to pick an LP under a real active quality hold', async () => {
+    const error = await pickScannerLp(shim, session, {
+      clientOpId: randomUUID(),
+      woId: ids.wo,
+      materialId: ids.materialHeld,
+      lpId: ids.lpHeld,
+    }).catch((err: unknown) => err);
+
+    expect(error).toBeInstanceOf(WarehouseScannerError);
+    expect((error as WarehouseScannerError).code).toBe('lp_on_hold');
+    const { rows } = await client.query(`select 1 from public.stock_moves where lp_id = $1::uuid`, [ids.lpHeld]);
+    expect(rows).toHaveLength(0);
+  });
+
+  it('B3 — REFUSES with hold_check_failed when v_active_holds cannot be read', async () => {
+    // Break precisely what the gate reads. The rename lives inside this file's
+    // outer transaction, which afterAll rolls back, so nothing survives.
+    await client.query('alter view public.v_active_holds rename to v_active_holds__fail_closed_probe');
+    try {
+      const error = await pickScannerLp(shim, session, {
+        clientOpId: randomUUID(),
+        woId: ids.wo,
+        materialId: ids.materialClean,
+        lpId: ids.lpClean,
+      }).catch((err: unknown) => err);
+
+      expect(error).toBeInstanceOf(WarehouseScannerError);
+      expect((error as WarehouseScannerError).code).toBe('hold_check_failed');
+      expect((error as WarehouseScannerError).status).toBe(503);
+      // Truthful cause, not "no hold" and not a raw SQLSTATE dump.
+      expect((error as WarehouseScannerError).message).toMatch(/quality holds could not be checked/i);
+
+      const { rows } = await client.query(`select 1 from public.stock_moves where lp_id = $1::uuid`, [ids.lpClean]);
+      expect(rows).toHaveLength(0);
+    } finally {
+      await client.query('alter view public.v_active_holds__fail_closed_probe rename to v_active_holds');
+    }
+  });
+
+  it('B3 — ALLOWS picking a clean LP once the view is readable again', async () => {
+    const result = await pickScannerLp(shim, session, {
+      clientOpId: randomUUID(),
+      woId: ids.wo,
+      materialId: ids.materialClean,
+      lpId: ids.lpClean,
+    });
+    expect(result.ok).toBe(true);
+
+    const { rows } = await client.query<{ quantity: string; move_type: string }>(
+      `select quantity::text, move_type from public.stock_moves where lp_id = $1::uuid`,
+      [ids.lpClean],
+    );
+    expect(rows).toHaveLength(1);
+    expect(Number(rows[0]!.quantity)).toBe(10);
+    expect(rows[0]!.move_type).toBe('issue');
   });
 });

@@ -138,8 +138,9 @@ async function seedGateFixtures(): Promise<void> {
     `insert into public.product
        (product_code, org_id, product_name, built, schema_version, created_by_user,
         allergens, may_contain, allergens_declaration_accepted)
-     values ($1, $2, 'Launch compliance product', false, 1, $3, '{}'::text[], '{}'::text[], true)
-     on conflict (org_id, product_code) do nothing`,
+     -- mig 359: public.product is an INSTEAD OF view — ON CONFLICT is rejected on it,
+     -- and the trigger already upserts, so the clause is redundant.
+     values ($1, $2, 'Launch compliance product', false, 1, $3, '{}'::text[], '{}'::text[], true)`,
     [launchProductCode, seed.orgAId, seed.userAId],
   );
   await owner.query(
@@ -463,7 +464,8 @@ run('T-058 + T-095 gate actions — REAL DB integration', () => {
           and resource_type = 'npd_project'
           and resource_id = $2
           and action = 'npd.stage.gate_overridden'
-        order by created_at desc
+        -- audit_log's timestamp column is occurred_at, not created_at
+        order by occurred_at desc
         limit 1`,
       [seed.orgAId, projectId],
     );

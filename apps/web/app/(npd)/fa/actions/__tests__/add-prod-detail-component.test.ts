@@ -137,7 +137,10 @@ async function cleanup(): Promise<void> {
   await ownerQueryWithOrgContext(owner, seed.orgAId, `delete from public.prod_detail where org_id = $1`, [seed.orgAId]);
   await ownerQueryWithOrgContext(owner, seed.orgBId, `delete from public.prod_detail where org_id = $1`, [seed.orgBId]);
   await owner.query(`delete from public.outbox_events where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
-  await owner.query(`delete from public.product where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
+  // public.product is an INSTEAD OF view; its DELETE trigger needs app.current_org_id(),
+  // so a single statement cannot span both orgs.
+  await ownerQueryWithOrgContext(owner, seed.orgAId, `delete from public.product where org_id = $1`, [seed.orgAId]);
+  await ownerQueryWithOrgContext(owner, seed.orgBId, `delete from public.product where org_id = $1`, [seed.orgBId]);
   await owner.query(`delete from public.items where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
   await owner.query(`delete from public.user_roles where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
   await owner.query(

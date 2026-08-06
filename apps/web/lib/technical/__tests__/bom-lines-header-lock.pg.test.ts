@@ -103,7 +103,9 @@ runPg('bom_lines header lock vs approval (real Postgres)', () => {
       [userId, orgId, `w17-bom-${userId}@example.test`],
     );
     await ownerPool.query(
-      `insert into public.product (product_code, org_id, product_name, schema_version, created_by_user)
+      // mig 359 turned public.product into an INSTEAD OF view — ON CONFLICT only
+      // works against the base table, which is also what every FK points at.
+      `insert into public.product_legacy (product_code, org_id, product_name, schema_version, created_by_user)
        values ($1, $2, 'Wave17 FG', 1, $3)
        on conflict (org_id, product_code) do nothing`,
       [productCode, orgId, userId],
@@ -116,9 +118,10 @@ runPg('bom_lines header lock vs approval (real Postgres)', () => {
       [activeRmId, orgId, `RM-ACT-${orgId.slice(0, 6)}`, inactiveRmId, `RM-INA-${orgId.slice(0, 6)}`],
     );
     await ownerPool.query(
+      // fa_code satisfies bom_headers_not_orphaned_check (item_id | npd_project_id | fa_code).
       `insert into public.bom_headers
-         (id, org_id, product_id, origin_module, status, version, created_by_user)
-       values ($1, $2, $3, 'technical', 'draft', 1, $4)
+         (id, org_id, product_id, fa_code, origin_module, status, version, created_by_user)
+       values ($1, $2, $3, $3, 'technical', 'draft', 1, $4)
        on conflict (id) do nothing`,
       [bomHeaderId, orgId, productCode, userId],
     );
@@ -169,10 +172,14 @@ runPg('bom_lines header lock vs approval (real Postgres)', () => {
         await barrier.wait('line-update-attempted');
 
         await client.query(
+          // bom_headers_approved_status_requires_approval_check: 'technical_approved'
+          // is only valid together with approved_by + approved_at.
           `update public.bom_headers
-              set status = 'technical_approved'
+              set status = 'technical_approved',
+                  approved_by = $2::uuid,
+                  approved_at = now()
             where id = $1::uuid`,
-          [bomHeaderId],
+          [bomHeaderId, userId],
         );
       });
     })();

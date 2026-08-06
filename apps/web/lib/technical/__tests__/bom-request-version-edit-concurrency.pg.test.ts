@@ -79,15 +79,20 @@ runPg('bom_request_version_edit concurrency (real Postgres)', () => {
       [userId, orgId, `w15-bom-${userId}@example.test`],
     );
     await ownerPool.query(
-      `insert into public.product (product_code, org_id, product_name, schema_version, created_by_user)
+      // mig 359 turned public.product into an INSTEAD OF view — ON CONFLICT only
+      // works against the base table, which is also what every FK points at.
+      `insert into public.product_legacy (product_code, org_id, product_name, schema_version, created_by_user)
        values ($1, $2, 'Wave15 FG', 1, $3)
        on conflict (org_id, product_code) do nothing`,
       [productCode, orgId, userId],
     );
     await ownerPool.query(
+      // fa_code satisfies bom_headers_not_orphaned_check; status 'active' additionally
+      // requires approved_by + approved_at (bom_headers_approved_status_requires_approval_check).
       `insert into public.bom_headers
-         (id, org_id, product_id, origin_module, status, version, created_by_user)
-       values ($1, $2, $3, 'technical', 'active', 1, $4)
+         (id, org_id, product_id, fa_code, origin_module, status, version, created_by_user,
+          approved_by, approved_at)
+       values ($1, $2, $3, $3, 'technical', 'active', 1, $4, $4, now())
        on conflict (id) do nothing`,
       [sourceBomId, orgId, productCode, userId],
     );

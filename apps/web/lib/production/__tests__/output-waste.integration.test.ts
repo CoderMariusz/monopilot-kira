@@ -264,6 +264,12 @@ async function seedAll(): Promise<void> {
      on conflict (id) do nothing`,
     [seed.wasteCategoryId, seed.orgId],
   );
+  // The warehouse below is site-scoped (warehouses_site_id_fkey) — seed the site first.
+  await owner.query(
+    `insert into public.sites (id, org_id, site_code, name, is_default, is_active, timezone)
+     values ($1, $2, $3, 'E3 Site', true, true, 'Europe/Warsaw') on conflict (id) do nothing`,
+    [seed.siteId, seed.orgId, `E3S-${seed.siteId.slice(0, 6)}`],
+  );
   // W9-K-II: org default warehouse + location for the output LP destination.
   await owner.query(
     `insert into public.warehouses (id, org_id, site_id, code, name, warehouse_type, is_default)

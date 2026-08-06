@@ -102,15 +102,18 @@ async function seed() {
   // row against app.current_org_id(), so a statement cannot span orgs.
   await ownerQueryWithInferredOrgContext(owner,
     `
+      -- mig 359: public.product is an INSTEAD OF view — ON CONFLICT is rejected on it,
+      -- and the trigger already upserts (items twin sync + fg_npd_ext ON CONFLICT DO UPDATE
+      -- + product_legacy anchor ON CONFLICT DO NOTHING), so the clause is redundant.
       insert into public.product (product_code, org_id, product_name, schema_version, created_by_user)
-      values ($1, $2, 'T-084 Product A', 1, $3) on conflict (org_id, product_code) do nothing
+      values ($1, $2, 'T-084 Product A', 1, $3)
     `,
     [productA, orgAId, userAId],
   );
   await ownerQueryWithInferredOrgContext(owner,
     `
       insert into public.product (product_code, org_id, product_name, schema_version, created_by_user)
-      values ($1, $2, 'T-084 Product B', 1, $3) on conflict (org_id, product_code) do nothing
+      values ($1, $2, 'T-084 Product B', 1, $3)
     `,
     [productB, orgBId, userBId],
   );
@@ -120,7 +123,14 @@ async function cleanup() {
   await owner.query(`delete from public.outbox_events where org_id in ($1::uuid, $2::uuid)`, [orgAId, orgBId]);
   await owner.query(`delete from public.audit_events where org_id in ($1::uuid, $2::uuid)`, [orgAId, orgBId]);
   await owner.query(`delete from public.compliance_docs where org_id in ($1::uuid, $2::uuid)`, [orgAId, orgBId]).catch(() => undefined);
-  await owner.query(`delete from public.product where org_id in ($1::uuid, $2::uuid)`, [orgAId, orgBId]).catch(() => undefined);
+  // public.product is an INSTEAD OF view whose DELETE trigger needs app.current_org_id();
+  // on this plain owner pool it always threw and the .catch() swallowed it, leaving the
+  // product_legacy anchor behind and blocking the users delete below.
+  await owner.query(`delete from public.product_legacy where org_id in ($1::uuid, $2::uuid)`, [orgAId, orgBId]).catch(() => undefined);
+  // mig 359: the product view materialises an items twin + fg_npd_ext row; both hold
+  // FKs on users, so they must go before the users delete below.
+  await owner.query(`delete from public.fg_npd_ext where org_id in ($1::uuid, $2::uuid)`, [orgAId, orgBId]).catch(() => undefined);
+  await owner.query(`delete from public.items where org_id in ($1::uuid, $2::uuid)`, [orgAId, orgBId]).catch(() => undefined);
   await owner.query(`delete from public.user_roles where org_id in ($1::uuid, $2::uuid)`, [orgAId, orgBId]);
   await owner.query(`delete from public.users where org_id in ($1::uuid, $2::uuid)`, [orgAId, orgBId]);
   await owner.query(`delete from public.role_permissions rp using public.roles r where rp.role_id = r.id and r.org_id in ($1::uuid, $2::uuid)`, [orgAId, orgBId]);

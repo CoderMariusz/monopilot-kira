@@ -40,8 +40,8 @@ async function loadSessionSurface() {
       Pool: class {
         async query(sql: string) {
           const text = sql.replace(/\s+/g, ' ').trim().toLowerCase();
-          if (text.startsWith('select org_id, is_active from public.users')) {
-            return { rows: [{ org_id: HOME_ORG_ID, is_active: true }], rowCount: 1 };
+          if (text.startsWith('select org_id') && text.includes('from public.users')) {
+            return { rows: [{ org_id: HOME_ORG_ID, is_active: true, deleted_at: null }], rowCount: 1 };
           }
           if (text.includes('from app.platform_admins')) {
             return { rows: [{ ok: true }], rowCount: 1 };

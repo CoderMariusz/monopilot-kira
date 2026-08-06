@@ -581,17 +581,26 @@ describe('AC3: enforce_for_non_admins blocks non-admin password sign-in with 403
       on conflict (id) do nothing
     `, [SAML_ORG_ID, SAML_TENANT_ID]);
 
-    // Seed admin user (no inline role column — users table uses user_roles join table)
+    // Seed admin user. users.name and users.role_id are both NOT NULL now; the
+    // role is the org's first system role (seed_system_roles_on_org_insert trigger).
     await ownerPool.query(`
-      insert into public.users (id, org_id, email)
-      values ($1, $2, $3)
+      insert into public.users (id, org_id, email, name, role_id)
+      select $1, $2, $3, 'T-012 SAML Admin', r.id
+        from public.roles r
+       where r.org_id = $2
+       order by r.slug
+       limit 1
       on conflict (id) do nothing
     `, [ADMIN_USER_ID, SAML_ORG_ID, ADMIN_USER_EMAIL]);
 
     // Seed non-admin user
     await ownerPool.query(`
-      insert into public.users (id, org_id, email)
-      values ($1, $2, $3)
+      insert into public.users (id, org_id, email, name, role_id)
+      select $1, $2, $3, 'T-012 SAML Non-Admin', r.id
+        from public.roles r
+       where r.org_id = $2
+       order by r.slug
+       limit 1
       on conflict (id) do nothing
     `, [NON_ADMIN_USER_ID, SAML_ORG_ID, NON_ADMIN_USER_EMAIL]);
 

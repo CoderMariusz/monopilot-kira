@@ -9,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { deleteProject } from '../delete-project';
 import { getAppConnection, getOwnerConnection } from '../../../../../../../packages/db/src/clients.js';
+import { ownerQueryWithOrgContext } from '../../../../../tests/helpers/owner-org-context.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) {
@@ -101,14 +102,35 @@ describe('deleteProject gate approval preservation (real Postgres)', () => {
        on conflict (role_id, permission) do nothing`,
       [roleId],
     );
+    // The two FG products must exist BEFORE npd_projects references them
+    // (npd_projects_product_code_fkey -> product_legacy). They go through the
+    // public.product view so the items twin the test updates below is created;
+    // the view's INSTEAD OF trigger needs app.current_org_id().
+    await ownerQueryWithOrgContext(
+      ownerPool,
+      orgId,
+      `insert into public.product
+         (org_id, product_code, product_name, created_by_user, app_version)
+       values ($1, $2, 'W17 linked draft FG', $3, 'w17-delete-test')`,
+      [orgId, linkedFgProductCode, userId],
+    );
+    await ownerQueryWithOrgContext(
+      ownerPool,
+      orgId,
+      `insert into public.product
+         (org_id, product_code, product_name, created_by_user, app_version)
+       values ($1, $2, 'W17 linked draft FG (WO guard)', $3, 'w17-delete-test')`,
+      [orgId, linkedFgWoProductCode, userId],
+    );
     await ownerPool.query(
+      // npd_projects.name and .type are NOT NULL — reuse the code as display name.
       `insert into public.npd_projects
-         (id, org_id, code, current_stage, current_gate, created_by_user, product_code)
+         (id, org_id, code, name, type, current_stage, current_gate, created_by_user, product_code)
        values
-         ($1, $2, $3, 'brief', 'G0', $4, null),
-         ($5, $2, $6, 'brief', 'G0', $4, null),
-         ($7, $2, $8, 'brief', 'G0', $4, $9),
-         ($10, $2, $11, 'brief', 'G0', $4, $12)
+         ($1, $2, $3, $3, 'npd', 'brief', 'G0', $4, null),
+         ($5, $2, $6, $6, 'npd', 'brief', 'G0', $4, null),
+         ($7, $2, $8, $8, 'npd', 'brief', 'G0', $4, $9),
+         ($10, $2, $11, $11, 'npd', 'brief', 'G0', $4, $12)
        on conflict (id) do nothing`,
       [
         projectId,
@@ -126,13 +148,6 @@ describe('deleteProject gate approval preservation (real Postgres)', () => {
       ],
     );
     await ownerPool.query(
-      `insert into public.product
-         (org_id, product_code, product_name, created_by_user, app_version)
-       values ($1, $2, 'W17 linked draft FG', $3, 'w17-delete-test')
-       on conflict do nothing`,
-      [orgId, linkedFgProductCode, userId],
-    );
-    await ownerPool.query(
       `update public.items
           set npd_project_id = $3::uuid,
               status = 'active'
@@ -140,13 +155,6 @@ describe('deleteProject gate approval preservation (real Postgres)', () => {
           and item_code = $2
           and item_type = 'fg'`,
       [orgId, linkedFgProductCode, linkedFgBlockedProjectId],
-    );
-    await ownerPool.query(
-      `insert into public.product
-         (org_id, product_code, product_name, created_by_user, app_version)
-       values ($1, $2, 'W17 linked draft FG (WO guard)', $3, 'w17-delete-test')
-       on conflict do nothing`,
-      [orgId, linkedFgWoProductCode, userId],
     );
     await ownerPool.query(
       `update public.items

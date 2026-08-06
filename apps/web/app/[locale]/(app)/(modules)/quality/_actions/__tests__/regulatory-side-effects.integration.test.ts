@@ -72,8 +72,14 @@ runIntegration('CCP auto-hold window — behavioral integration', () => {
       [siteId, orgId],
     );
     await ownerPool.query(
-      `insert into public.users (id, org_id, email, name)
-       values ($1, $2, $3, 'RegSideEffects User A')
+      // users.role_id is NOT NULL — borrow the org's first system role (seeded by
+      // the seed_system_roles_on_org_insert trigger).
+      `insert into public.users (id, org_id, email, name, role_id)
+       select $1, $2, $3, 'RegSideEffects User A', r.id
+         from public.roles r
+        where r.org_id = $2
+        order by r.slug
+        limit 1
        on conflict (id) do nothing`,
       [userId, orgId, `reg-se-a-${userId}@example.test`],
     );
@@ -387,8 +393,13 @@ runIntegration('Inspection side-effects — behavioral integration', () => {
       [orgId, tenantId, `reg-se-b-${orgId.slice(0, 8)}`],
     );
     await ownerPool.query(
-      `insert into public.users (id, org_id, email, name)
-       values ($1, $2, $3, 'RegSideEffects User B')
+      // users.role_id is NOT NULL — borrow the org's first system role.
+      `insert into public.users (id, org_id, email, name, role_id)
+       select $1, $2, $3, 'RegSideEffects User B', r.id
+         from public.roles r
+        where r.org_id = $2
+        order by r.slug
+        limit 1
        on conflict (id) do nothing`,
       [userId, orgId, `reg-se-b-${userId}@example.test`],
     );

@@ -70,9 +70,10 @@ describe('production dashboard WO list SQL (real Postgres)', () => {
       [woId, orgId, siteId, productId, bomHeaderId],
     );
     await ownerPool.query(
+      // wo_outputs.transaction_id (the registration idempotency key) is NOT NULL.
       `insert into public.wo_outputs
-         (org_id, site_id, wo_id, output_type, product_id, batch_number, qty_kg, uom)
-       values ($1, $2, $3, 'primary', $4, 'WO-FIX3-001-OUT-001', 0.960, 'kg')`,
+         (org_id, site_id, wo_id, transaction_id, output_type, product_id, batch_number, qty_kg, uom)
+       values ($1, $2, $3, gen_random_uuid(), 'primary', $4, 'WO-FIX3-001-OUT-001', 0.960, 'kg')`,
       [orgId, siteId, woId, productId],
     );
   });

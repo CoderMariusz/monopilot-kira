@@ -129,6 +129,9 @@ async function seedProducts(): Promise<void> {
   );
   // One wrapped statement per org: the org-context trigger validates each
   // row against app.current_org_id(), so a statement cannot span orgs.
+  // mig 359: public.product is an INSTEAD OF view — ON CONFLICT is rejected on it,
+  // and the trigger already upserts (items twin sync + fg_npd_ext ON CONFLICT DO UPDATE),
+  // so the clause is redundant.
   await ownerQueryWithInferredOrgContext(owner,
     `insert into public.product (
        product_code, product_name, org_id, launch_date, built, status_overall,
@@ -137,17 +140,7 @@ async function seedProducts(): Promise<void> {
      values
        ('T051-ACTIVE-MRP', 'MRP visible active', $1, current_date + 7, false, 'InProgress', false, true, null, 'A-1', $2),
        ('T051-DONE-MRP', 'MRP done active', $1, current_date + 30, false, 'Pending', true, false, 'BOX-1', null, $2),
-       ('T051-BUILT', 'Built should hide by default', $1, current_date + 2, true, 'InProgress', false, true, null, 'A-2', $2)
-     on conflict (org_id, product_code) do update
-       set product_name = excluded.product_name,
-           org_id = excluded.org_id,
-           launch_date = excluded.launch_date,
-           built = excluded.built,
-           status_overall = excluded.status_overall,
-           done_mrp = excluded.done_mrp,
-           done_commercial = excluded.done_commercial,
-           mrp_box = excluded.mrp_box,
-           article_number = excluded.article_number`,
+       ('T051-BUILT', 'Built should hide by default', $1, current_date + 2, true, 'InProgress', false, true, null, 'A-2', $2)`,
     [orgId, managerUserId],
   );
   await ownerQueryWithInferredOrgContext(owner,
@@ -156,17 +149,7 @@ async function seedProducts(): Promise<void> {
        done_mrp, done_commercial, mrp_box, article_number, created_by_user
      )
      values
-       ('T051-OTHER', 'Other org invisible', $1, current_date + 1, false, 'InProgress', false, true, null, 'B-1', $2)
-     on conflict (org_id, product_code) do update
-       set product_name = excluded.product_name,
-           org_id = excluded.org_id,
-           launch_date = excluded.launch_date,
-           built = excluded.built,
-           status_overall = excluded.status_overall,
-           done_mrp = excluded.done_mrp,
-           done_commercial = excluded.done_commercial,
-           mrp_box = excluded.mrp_box,
-           article_number = excluded.article_number`,
+       ('T051-OTHER', 'Other org invisible', $1, current_date + 1, false, 'InProgress', false, true, null, 'B-1', $2)`,
     [otherOrgId, otherUserId],
   );
   await seedNpdCatalogFromDeptColumns(orgId);

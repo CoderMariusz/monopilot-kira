@@ -640,7 +640,10 @@ describe('warehouse scanner routes', () => {
     );
   });
 
-  it('pick fails OPEN when v_active_holds is absent (42P01) — clean LP still picks', async () => {
+  // CONTRACT CHANGED 2026-08-06 (was: "pick fails OPEN … clean LP still picks").
+  // The LP is only "clean" if the hold view SAID so; a 42P01 means nobody said
+  // anything, and picking stages material for consumption. Refuse, don't guess.
+  it('pick REFUSES with 503 hold_check_failed when the v_active_holds read fails (42P01)', async () => {
     const { POST } = await import('../pick/route');
     mockMoveQueries({ isPick: true, holdsViewMissing: true });
 
@@ -654,10 +657,15 @@ describe('warehouse scanner routes', () => {
       }) as never,
     );
 
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toMatchObject({ ok: true, moveId: ids.move });
+    expect(response.status).toBe(503);
+    // The operator is told the CHECK failed, not that the pallet is fine.
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      error: 'hold_check_failed',
+      message: expect.stringMatching(/quality holds/i),
+    });
     expect(fakeClient.query.mock.calls.some((call) => String(call[0]).includes('insert into public.stock_moves'))).toBe(
-      true,
+      false,
     );
   });
 

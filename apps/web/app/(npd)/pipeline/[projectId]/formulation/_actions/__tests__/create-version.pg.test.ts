@@ -14,7 +14,10 @@ import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { getAppConnection, getOwnerConnection } from '../../../../../../../../../packages/db/src/clients.js';
-import { ensureAppUser as ensureAppUserWithAdvisoryLock } from '../../../../../../../../../tests/helpers/owner-org-context.js';
+import {
+  ensureAppUser as ensureAppUserWithAdvisoryLock,
+  ownerQueryWithOrgContext,
+} from '../../../../../../../../../tests/helpers/owner-org-context.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const run = databaseUrl ? describe : describe.skip;
@@ -86,10 +89,15 @@ run('createFormulationVersion — REAL Postgres value carry-over (N-17)', () => 
       [userId, roleId, orgId],
     );
 
-    await ownerPool.query(
+    // mig 359 turned public.product into an INSTEAD OF view: ON CONFLICT is rejected on
+    // it (the trigger already upserts) and the trigger needs app.current_org_id().
+    // The row must go through the view — update_fa_allergen_set reads items+fg_npd_ext,
+    // not the product_legacy anchor.
+    await ownerQueryWithOrgContext(
+      ownerPool,
+      orgId,
       `insert into public.product (product_code, org_id, product_name, schema_version, created_by_user)
-       values ($1, $2, 'N-17 Create Version Product', 1, $3)
-       on conflict (product_code) do nothing`,
+       values ($1, $2, 'N-17 Create Version Product', 1, $3)`,
       [productCode, orgId, userId],
     );
     await ownerPool.query(
@@ -122,13 +130,19 @@ run('createFormulationVersion — REAL Postgres value carry-over (N-17)', () => 
       [wipDefinitionId, orgId, primaryItemId, userId],
     );
 
-    await ownerPool.query(
+    // prod_detail fires the fa allergen auto-refresh trigger, which needs app.current_org_id().
+    await ownerQueryWithOrgContext(
+      ownerPool,
+      orgId,
       `insert into public.prod_detail (id, product_code, org_id, component_index, intermediate_code, item_id)
        values ($1, $2, $3, 1, 'INT-N17', $4)
        on conflict (id) do nothing`,
       [prodDetailId, productCode, orgId, primaryItemId],
     );
-    await ownerPool.query(
+    // npd_wip_processes also fires the fa allergen auto-refresh trigger.
+    await ownerQueryWithOrgContext(
+      ownerPool,
+      orgId,
       `insert into public.npd_wip_processes (id, org_id, prod_detail_id, process_name, display_order)
        values ($1, $2, $3, 'N-17 Mix', 1)
        on conflict (id) do nothing`,

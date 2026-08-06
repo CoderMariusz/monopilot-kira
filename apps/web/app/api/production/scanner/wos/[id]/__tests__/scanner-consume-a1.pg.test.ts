@@ -10,8 +10,8 @@ import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
-import { getAppConnection, getOwnerConnection } from '../../../../../../../../packages/db/src/clients.js';
-import type { ScannerSessionRow } from '../../../../../../../../lib/scanner/session';
+import { getAppConnection, getOwnerConnection } from '../../../../../../../../../packages/db/src/clients.js';
+import type { ScannerSessionRow } from '../../../../../../../lib/scanner/session';
 
 const databaseUrl = process.env.DATABASE_URL;
 const runPg = databaseUrl ? describe : describe.skip;
@@ -76,13 +76,6 @@ runPg('scanner consume route — reason-code fractional persistence (real Postgr
     };
 
     await ownerPool.query(
-      `insert into app.session_org_contexts (session_token, org_id, user_id)
-       values ($1::uuid, $2::uuid, $3::uuid)
-       on conflict (session_token) do update set org_id = excluded.org_id, user_id = excluded.user_id`,
-      [randomUUID(), orgId, userId],
-    );
-
-    await ownerPool.query(
       `insert into public.tenants (id, name, region_cluster, data_plane_url)
        values ($1, 'A1 Scanner Tenant', 'eu', 'https://a1-scanner.example.test')
        on conflict (id) do nothing`,
@@ -95,11 +88,13 @@ runPg('scanner consume route — reason-code fractional persistence (real Postgr
       [orgId, tenantId, `a1-scanner-${orgId.slice(0, 8)}`],
     );
     await ownerPool.query(
+      // 'admin' collides with the roles the seed_system_roles_on_org_insert trigger
+      // already created for this org (roles_org_id_slug_key) — use a per-run slug.
       `insert into public.roles (id, org_id, slug, code, name, permissions)
-       values ($1, $2, 'admin', 'admin', 'A1 Scanner Admin',
+       values ($1, $2, $3, $3, 'A1 Scanner Admin',
                '["production.consumption.write"]'::jsonb)
        on conflict (id) do nothing`,
-      [roleId, orgId],
+      [roleId, orgId, `a1-scanner-admin-${roleId.slice(0, 8)}`],
     );
     await ownerPool.query(
       `insert into public.users (id, org_id, email, name, role_id)
@@ -113,23 +108,34 @@ runPg('scanner consume route — reason-code fractional persistence (real Postgr
        on conflict do nothing`,
       [userId, roleId, orgId],
     );
+    // session_org_contexts is FK-constrained on org_id + user_id, so it can only be
+    // written after the org and the user exist (it used to run first).
     await ownerPool.query(
-      `insert into public.sites (id, org_id, code, name, timezone, created_by)
+      `insert into app.session_org_contexts (session_token, org_id, user_id)
+       values ($1::uuid, $2::uuid, $3::uuid)
+       on conflict (session_token) do update set org_id = excluded.org_id, user_id = excluded.user_id`,
+      [randomUUID(), orgId, userId],
+    );
+    await ownerPool.query(
+      // the column is site_code, not code
+      `insert into public.sites (id, org_id, site_code, name, timezone, created_by)
        values ($1, $2, 'A1S', 'A1 Scanner Site', 'UTC', $3)
        on conflict (id) do nothing`,
       [siteId, orgId, userId],
     );
     await ownerPool.query(
-      `insert into public.warehouses (id, org_id, site_id, code, name, created_by)
-       values ($1, $2, $3, 'A1S-WH', 'A1 Scanner Warehouse', $4)
+      // warehouses has no created_by column; warehouse_type is NOT NULL.
+      `insert into public.warehouses (id, org_id, site_id, code, name, warehouse_type)
+       values ($1, $2, $3, 'A1S-WH', 'A1 Scanner Warehouse', 'general')
        on conflict (id) do nothing`,
-      [warehouseId, orgId, siteId, userId],
+      [warehouseId, orgId, siteId],
     );
     await ownerPool.query(
-      `insert into public.locations (id, org_id, warehouse_id, code, name, level, created_by)
-       values ($1, $2, $3, 'A1S-LOC', 'A1 Scanner Location', 1, $4)
+      // locations has no created_by column; location_type and path are NOT NULL.
+      `insert into public.locations (id, org_id, warehouse_id, code, name, location_type, level, path)
+       values ($1, $2, $3, 'A1S-LOC', 'A1 Scanner Location', 'rack', 1, 'A1S.LOC')
        on conflict (id) do nothing`,
-      [locationId, orgId, warehouseId, userId],
+      [locationId, orgId, warehouseId],
     );
     await ownerPool.query(
       `insert into public.items (id, org_id, item_code, item_type, name, uom_base, created_by)
@@ -153,10 +159,11 @@ runPg('scanner consume route — reason-code fractional persistence (real Postgr
       [randomUUID(), orgId, woId, userId],
     );
     await ownerPool.query(
-      `insert into public.wo_materials (id, org_id, wo_id, product_id, material_name, required_qty, consumed_qty, uom, created_by)
-       values ($1, $2, $3, $4, 'A1 Scanner Material', 10.000, 0.000, 'kg', $5)
+      // wo_materials has no created_by column.
+      `insert into public.wo_materials (id, org_id, wo_id, product_id, material_name, required_qty, consumed_qty, uom)
+       values ($1, $2, $3, $4, 'A1 Scanner Material', 10.000, 0.000, 'kg')
        on conflict (id) do nothing`,
-      [materialId, orgId, woId, itemId, userId],
+      [materialId, orgId, woId, itemId],
     );
     await ownerPool.query(
       `insert into public.license_plates (

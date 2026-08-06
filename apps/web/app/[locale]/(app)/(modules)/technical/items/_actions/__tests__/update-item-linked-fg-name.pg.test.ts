@@ -13,6 +13,7 @@ import {
   seedIdentities,
   withActionActor,
 } from '../../../../../../../(npd)/brief/actions/__tests__/brief-integration-helpers';
+import { ownerQueryWithOrgContext } from '../../../../../../../../tests/helpers/owner-org-context.js';
 import { updateItem } from '../update-item';
 import { commitItemsImport } from '../../import/_actions/commit-import';
 
@@ -30,19 +31,23 @@ let owner: pg.Pool;
 let itemId: string;
 
 async function seedLinkedFg(): Promise<void> {
+  // The FG must exist BEFORE npd_projects references it
+  // (npd_projects_product_code_fkey -> product_legacy). mig 359 made public.product an
+  // INSTEAD OF view: no ON CONFLICT, and the trigger needs app.current_org_id().
+  await ownerQueryWithOrgContext(
+    owner,
+    seed.orgAId,
+    `insert into public.product
+       (org_id, product_code, product_name, created_by_user, app_version)
+     values ($1, $2, $3, $4, 'w2-r2g-test')`,
+    [seed.orgAId, productCode, canonicalName, seed.userAId],
+  );
   await owner.query(
     `insert into public.npd_projects
        (id, org_id, code, name, type, current_gate, current_stage, product_code, created_by_user)
      values ($1, $2, $3, $4, 'standard', 'G0', 'brief', $5, $6)
      on conflict (id) do nothing`,
     [projectId, seed.orgAId, 'NPD-C026-R2G', canonicalName, productCode, seed.userAId],
-  );
-  await owner.query(
-    `insert into public.product
-       (org_id, product_code, product_name, created_by_user, app_version)
-     values ($1, $2, $3, $4, 'w2-r2g-test')
-     on conflict do nothing`,
-    [seed.orgAId, productCode, canonicalName, seed.userAId],
   );
   const { rows } = await owner.query<{ id: string }>(
     `update public.items

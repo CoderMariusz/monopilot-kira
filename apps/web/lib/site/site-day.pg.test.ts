@@ -18,8 +18,13 @@ import { getOwnerConnection } from '../../../../packages/db/test-utils/test-pool
 
 const DEMO_ORG = '00000000-0000-0000-0000-000000000002';
 const DEMO_USER = '00000000-0000-0000-0000-000000000000';
-/** Demo plant — `sites.timezone = 'Europe/Warsaw'`, while the org row says 'UTC'. */
-const DEMO_SITE = '359242c6-7dfe-40e7-a486-42d8e2966126';
+/**
+ * Demo plant — `sites.timezone = 'Europe/Warsaw'`, while the org row says 'UTC'.
+ * Resolved by (org_id, site_code): mig 266 inserts the row WITHOUT an explicit id,
+ * so the uuid differs on every freshly migrated database — a hardcoded literal only
+ * matched the one database that happened to generate it.
+ */
+const DEMO_SITE_CODE = 'SITE-DEMO-01';
 const ORG_TOKEN = '11111111-2222-4333-8444-555555555555';
 const SITE_TOKEN = '11111111-2222-4333-8444-666666666666';
 /** Literal the code carried before this fix (production/_actions/dashboard-data.ts:194). */
@@ -39,6 +44,12 @@ run('site-local day boundary (real Postgres)', () => {
     await client.query('begin');
     // Session zone deliberately NOT UTC: it must not influence any boundary.
     await client.query(`set local timezone = 'Europe/London'`);
+    const { rows: siteRows } = await client.query<{ id: string }>(
+      `select id::text from public.sites where org_id = $1::uuid and site_code = $2`,
+      [DEMO_ORG, DEMO_SITE_CODE],
+    );
+    const demoSite = siteRows[0]?.id;
+    if (!demoSite) throw new Error(`demo site ${DEMO_SITE_CODE} missing for org ${DEMO_ORG} (mig 266)`);
     // Both trust rows must be written BEFORE dropping to app_user (revoked from it).
     await client.query(
       `insert into app.session_org_contexts (session_token, user_id, org_id)
@@ -48,11 +59,11 @@ run('site-local day boundary (real Postgres)', () => {
     await client.query(
       `insert into app.session_site_contexts (session_token, user_id, org_id, site_id)
        values ($1::uuid, $2::uuid, $3::uuid, $4::uuid)`,
-      [SITE_TOKEN, DEMO_USER, DEMO_ORG, DEMO_SITE],
+      [SITE_TOKEN, DEMO_USER, DEMO_ORG, demoSite],
     );
     await client.query(`set local role app_user`);
     await client.query(`select app.set_org_context($1::uuid, $2::uuid)`, [ORG_TOKEN, DEMO_ORG]);
-    await client.query(`select app.set_site_context($1::uuid, $2::uuid)`, [SITE_TOKEN, DEMO_SITE]);
+    await client.query(`select app.set_site_context($1::uuid, $2::uuid)`, [SITE_TOKEN, demoSite]);
   });
 
   afterAll(async () => {

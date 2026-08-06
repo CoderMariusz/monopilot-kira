@@ -22,7 +22,9 @@ const nonG4ProjectId = randomUUID();
 const activeBomHeaderId = randomUUID();
 const inactiveBomHeaderId = randomUUID();
 const factorySpecId = randomUUID();
-const fgItemId = randomUUID();
+// resolved from the items twin the public.product view creates (mig 359)
+let fgItemId = '';
+const secondSignerUserId = randomUUID();
 const productCode = `FG-T096-${randomUUID().slice(0, 8)}`;
 const nonG4ProductCode = `FG-T096-${randomUUID().slice(0, 8)}`;
 
@@ -105,11 +107,31 @@ async function seed(): Promise<void> {
         and id = $2`,
     [orgId, activeBomHeaderId, userId],
   );
+  // mig 359: the public.product insert above already materialised the items twin for
+  // productCode, so inserting another row with the same item_code hits
+  // items_org_item_code_unique. Reuse the twin instead.
+  const twin = await owner.query<{ id: string }>(
+    `update public.items
+        set item_type = 'fg', status = 'active', created_by = $3
+      where org_id = $1 and item_code = $2
+      returning id::text as id`,
+    [orgId, productCode, userId],
+  );
+  fgItemId = twin.rows[0]!.id;
+  // factory_specs_approved_esign_evidence: 'approved_for_factory' needs >= 2 distinct
+  // 'tech.fa.release' signatures over the canonical subject hash, one by approved_by.
   await owner.query(
-    `insert into public.items
-       (id, org_id, item_code, item_type, name, uom_base, status, created_by)
-     values ($1, $2, $3, 'fg', 'T-096 factory release item', 'kg', 'active', $4)`,
-    [fgItemId, orgId, productCode, userId],
+    `insert into public.users (id, org_id, email, name, role_id)
+     values ($1, $2, 't096-second-signer@example.test', 'T-096 Second Signer', $3)
+     on conflict (id) do nothing`,
+    [secondSignerUserId, orgId, roleId],
+  );
+  await owner.query(
+    `insert into public.e_sign_log (org_id, signer_user_id, intent, subject_hash, nonce, reason)
+     select $1, unnest(array[$2::uuid, $3::uuid]), 'tech.fa.release',
+            public.factory_spec_approval_subject_hash($4::uuid, $5::uuid, $6::uuid, 1),
+            $4::text || ':' || $5::text || ':approve', 'T-096 fixture approval'`,
+    [orgId, userId, secondSignerUserId, factorySpecId, activeBomHeaderId, fgItemId],
   );
   await owner.query(
     `insert into public.factory_specs
@@ -128,7 +150,11 @@ async function cleanup(): Promise<void> {
   await owner.query(`delete from public.bom_headers where org_id = $1`, [orgId]);
   await owner.query(`delete from public.npd_projects where org_id = $1`, [orgId]);
   await owner.query(`delete from public.items where org_id = $1`, [orgId]).catch(() => undefined);
-  await owner.query(`delete from public.product where org_id = $1`, [orgId]);
+  // public.product is an INSTEAD OF view whose DELETE trigger needs app.current_org_id();
+  // on this plain owner pool it always threw, leaving the product_legacy anchor behind
+  // and blocking the users delete below.
+  await owner.query(`delete from public.e_sign_log where org_id = $1`, [orgId]).catch(() => undefined);
+  await owner.query(`delete from public.product_legacy where org_id = $1`, [orgId]);
   await owner.query(`delete from public.user_roles where org_id = $1`, [orgId]).catch(() => undefined);
   await owner.query(`delete from public.role_permissions where role_id = $1`, [roleId]).catch(() => undefined);
   await owner.query(`delete from public.users where org_id = $1`, [orgId]);

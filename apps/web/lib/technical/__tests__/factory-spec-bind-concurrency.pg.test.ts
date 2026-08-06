@@ -21,6 +21,8 @@ const roleId = randomUUID();
 const siteId = randomUUID();
 const fgItemId = randomUUID();
 const specId = randomUUID();
+const bomHeaderId = randomUUID();
+const secondSignerUserId = randomUUID();
 const specCode = `W15-FS-${orgId.slice(0, 8)}`;
 const itemCode = `FG-${fgItemId.slice(0, 8)}`;
 
@@ -118,9 +120,11 @@ runPg('factory-spec recall vs WO bind lock (real Postgres)', () => {
     );
     await ownerPool.query(
       `insert into public.users (id, org_id, email, name, role_id)
-       values ($1, $2, $3, 'Wave15 Recall User', $4)
+       values ($1, $2, $3, 'Wave15 Recall User', $4),
+              ($5, $2, $6, 'Wave15 Second Signer', $4)
        on conflict (id) do nothing`,
-      [userId, orgId, `w15-recall-${userId}@example.test`, roleId],
+      [userId, orgId, `w15-recall-${userId}@example.test`, roleId,
+       secondSignerUserId, `w15-second-${secondSignerUserId}@example.test`],
     );
     await ownerPool.query(
       `insert into public.user_roles (user_id, role_id, org_id)
@@ -147,12 +151,30 @@ runPg('factory-spec recall vs WO bind lock (real Postgres)', () => {
        on conflict (id) do nothing`,
       [fgItemId, orgId, itemCode],
     );
+    // The spec must carry a bom binding: factory_specs_approved_esign_evidence rejects
+    // 'released_to_factory' without >= 2 distinct 'tech.fa.release' signatures over the
+    // canonical subject hash (one of them by approved_by), and the hash needs the bom.
+    await ownerPool.query(
+      `insert into public.bom_headers
+         (id, org_id, item_id, origin_module, status, version, created_by_user)
+       values ($1, $2, $3, 'technical', 'draft', 1, $4)
+       on conflict (id) do nothing`,
+      [bomHeaderId, orgId, fgItemId, userId],
+    );
+    await ownerPool.query(
+      `insert into public.e_sign_log (org_id, signer_user_id, intent, subject_hash, nonce, reason)
+       select $1, unnest(array[$2::uuid, $3::uuid]), 'tech.fa.release',
+              public.factory_spec_approval_subject_hash($4::uuid, $5::uuid, $6::uuid, 1),
+              $4::text || ':' || $5::text || ':approve', 'Wave15 fixture approval'`,
+      [orgId, userId, secondSignerUserId, specId, bomHeaderId, fgItemId],
+    );
     await ownerPool.query(
       `insert into public.factory_specs
-         (id, org_id, fg_item_id, spec_code, version, status, approved_by, approved_at, released_by, released_at)
-       values ($1, $2, $3, $4, 1, 'released_to_factory', $5, now(), $5, now())
+         (id, org_id, fg_item_id, spec_code, version, status, bom_header_id, bom_version,
+          approved_by, approved_at, released_by, released_at)
+       values ($1, $2, $3, $4, 1, 'released_to_factory', $6, 1, $5, now(), $5, now())
        on conflict (id) do nothing`,
-      [specId, orgId, fgItemId, specCode, userId],
+      [specId, orgId, fgItemId, specCode, userId, bomHeaderId],
     );
   });
 

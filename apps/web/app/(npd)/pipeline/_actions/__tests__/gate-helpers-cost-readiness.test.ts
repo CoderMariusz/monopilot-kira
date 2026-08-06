@@ -12,6 +12,7 @@ import {
   seedIdentities,
   withAppOrg,
 } from '../../../brief/actions/__tests__/brief-integration-helpers';
+import { ownerQueryWithOrgContext } from '../../../../../tests/helpers/owner-org-context.js';
 import { checkCostingNutritionReady } from '../_lib/gate-helpers';
 
 if (!databaseUrl) {
@@ -40,11 +41,14 @@ describe('checkCostingNutritionReady — locked recipe version parity (N-NPD-2)'
     app = new pg.Pool({ connectionString: makeAppUserConnectionString() });
     await seedIdentities(owner, seed);
 
-    await owner.query(
-      `insert into public.product (org_id, product_code, product_name, product_type)
-       values ($1::uuid, $2, 'N-NPD-2 readiness', 'fg')
-       on conflict (org_id, product_code) do nothing`,
-      [seed.orgAId, productCode],
+    // mig 359: public.product is an INSTEAD OF view — no product_type column, no
+    // ON CONFLICT, and the trigger needs app.current_org_id().
+    await ownerQueryWithOrgContext(
+      owner,
+      seed.orgAId,
+      `insert into public.product (org_id, product_code, product_name, created_by_user)
+       values ($1::uuid, $2, 'N-NPD-2 readiness', $3::uuid)`,
+      [seed.orgAId, productCode, seed.userAId],
     );
     await owner.query(
       `insert into public.npd_projects
@@ -101,11 +105,24 @@ describe('checkCostingNutritionReady — locked recipe version parity (N-NPD-2)'
     await owner.query(`delete from public.formulation_versions where formulation_id = $1::uuid`, [formulationId]);
     await owner.query(`delete from public.formulations where id = $1::uuid`, [formulationId]);
     await owner.query(`delete from public.npd_projects where id = $1::uuid`, [projectId]);
-    await owner.query(`delete from public.product where org_id = $1::uuid and product_code = $2`, [
+    // public.product is an INSTEAD OF view; its DELETE trigger needs app.current_org_id().
+    await ownerQueryWithOrgContext(
+      owner,
       seed.orgAId,
-      productCode,
-    ]);
-    await owner.query(`delete from public.organizations where id = $1::uuid`, [seed.orgAId]);
+      `delete from public.product where org_id = $1::uuid and product_code = $2`,
+      [seed.orgAId, productCode],
+    );
+    // seedIdentities creates BOTH orgs (A and B) plus their users/roles under one
+    // tenant; they all hold FKs, so they must go before the org/tenant deletes.
+    await owner.query(`delete from public.user_roles where org_id in ($1::uuid, $2::uuid)`, [seed.orgAId, seed.orgBId]);
+    await owner.query(
+      `delete from public.role_permissions rp using public.roles r
+        where rp.role_id = r.id and r.org_id in ($1::uuid, $2::uuid)`,
+      [seed.orgAId, seed.orgBId],
+    );
+    await owner.query(`delete from public.users where org_id in ($1::uuid, $2::uuid)`, [seed.orgAId, seed.orgBId]);
+    await owner.query(`delete from public.roles where org_id in ($1::uuid, $2::uuid)`, [seed.orgAId, seed.orgBId]);
+    await owner.query(`delete from public.organizations where id in ($1::uuid, $2::uuid)`, [seed.orgAId, seed.orgBId]);
     await owner.query(`delete from public.tenants where id = $1::uuid`, [seed.tenantId]);
     await app?.end();
     await owner?.end();

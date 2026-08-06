@@ -46,13 +46,20 @@ runPg('wo-chain-delete-guard multi-hop chain (real Postgres)', () => {
       [orgId, tenantId, `a1-chain-${orgId.slice(0, 8)}`],
     );
     await ownerPool.query(
-      `insert into public.users (id, org_id, email, name)
-       values ($1, $2, $3, 'A1 Chain User')
+      // users.role_id is NOT NULL — borrow the org's first system role (seeded by
+      // the seed_system_roles_on_org_insert trigger).
+      `insert into public.users (id, org_id, email, name, role_id)
+       select $1, $2, $3, 'A1 Chain User', r.id
+         from public.roles r
+        where r.org_id = $2
+        order by r.slug
+        limit 1
        on conflict (id) do nothing`,
       [userId, orgId, `a1-chain-${userId}@example.test`],
     );
     await ownerPool.query(
-      `insert into public.sites (id, org_id, code, name, timezone, created_by)
+      // the column is site_code, not code
+      `insert into public.sites (id, org_id, site_code, name, timezone, created_by)
        values ($1, $2, 'A1C', 'A1 Chain Site', 'UTC', $3)
        on conflict (id) do nothing`,
       [siteId, orgId, userId],

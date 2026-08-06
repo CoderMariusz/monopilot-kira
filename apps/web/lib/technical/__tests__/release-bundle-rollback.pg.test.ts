@@ -156,7 +156,9 @@ runPg('release bundle post-sign rollback (real Postgres)', () => {
        values
          ($1, 'technical_product_spec_approval', true, '{}'::text[],
           array['technical.product_spec.approve']::text[], array['quality_lead']::text[],
-          1, true, true, 'technical_product_spec_approval_gate_v1',
+          -- org_authorization_policies_dual_sign_min_approvers_check: dual sign-off
+          -- requires min_approvers >= 2. Each test overrides both fields anyway.
+          2, true, true, 'technical_product_spec_approval_gate_v1',
           jsonb_build_object('require_dual_sign_off', true), 1)
        on conflict on constraint org_authorization_policies_org_code_unique do nothing`,
       [orgId],

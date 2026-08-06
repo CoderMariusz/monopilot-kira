@@ -109,7 +109,10 @@ async function seed(): Promise<void> {
   // productA/productB live in different orgs.
   await ownerQueryWithOrgContext(owner, orgA, 'delete from public.fa_allergen_overrides where product_code = $1', [productA]);
   await ownerQueryWithOrgContext(owner, orgB, 'delete from public.fa_allergen_overrides where product_code = $1', [productB]);
-  await owner.query('delete from public.product where product_code in ($1, $2)', [productA, productB]);
+  // public.product is an INSTEAD OF view; its DELETE trigger needs app.current_org_id(),
+  // and the two products live in different orgs, so one statement cannot cover both.
+  await ownerQueryWithOrgContext(owner, orgA, 'delete from public.product where product_code = $1', [productA]);
+  await ownerQueryWithOrgContext(owner, orgB, 'delete from public.product where product_code = $1', [productB]);
   // One wrapped statement per org: the org-context trigger validates each
   // row against app.current_org_id(), so a statement cannot span orgs.
   await ownerQueryWithInferredOrgContext(owner,
@@ -134,7 +137,10 @@ async function cleanup(): Promise<void> {
   // productA/productB live in different orgs.
   await ownerQueryWithOrgContext(owner, orgA, 'delete from public.fa_allergen_overrides where product_code = $1', [productA]);
   await ownerQueryWithOrgContext(owner, orgB, 'delete from public.fa_allergen_overrides where product_code = $1', [productB]);
-  await owner.query('delete from public.product where product_code in ($1, $2)', [productA, productB]);
+  // public.product is an INSTEAD OF view; its DELETE trigger needs app.current_org_id(),
+  // and the two products live in different orgs, so one statement cannot cover both.
+  await ownerQueryWithOrgContext(owner, orgA, 'delete from public.product where product_code = $1', [productA]);
+  await ownerQueryWithOrgContext(owner, orgB, 'delete from public.product where product_code = $1', [productB]);
   await owner.query('delete from public.user_roles where user_id in ($1, $2)', [orgAUser, orgBUser]);
   await owner.query('delete from public.role_permissions where role_id in ($1, $2)', [orgARole, orgBRole]);
   await owner.query('delete from public.users where id in ($1, $2)', [orgAUser, orgBUser]);

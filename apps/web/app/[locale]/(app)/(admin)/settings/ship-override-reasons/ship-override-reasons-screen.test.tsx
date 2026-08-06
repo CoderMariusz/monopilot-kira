@@ -12,7 +12,8 @@
 import React from 'react';
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import userEvent from '@testing-library/user-event';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { OverrideTypeRow, ReasonCodeRow, RmaReasonCodeRow } from './_actions/shipping-overrides';
 import ShipOverrideReasonsScreen, {
@@ -52,6 +53,10 @@ const labels: ShipOverrideReasonsScreenLabels = {
   emptyOverrideTypes: 'No override types are configured yet.',
   emptyReasonCodes: 'No reason codes for this override type yet.',
   emptyRmaCodes: 'No RMA reason codes are configured yet.',
+  addRmaReason: '+ Add RMA reason',
+  formSave: 'Save',
+  formCancel: 'Cancel',
+  formError: 'Reason code was not saved. Check the code is unique for this organization, then retry.',
 };
 
 // Real loader-shaped rows (the shape getOverrideTypes / getReasonCodes /
@@ -255,12 +260,96 @@ describe('ShipOverrideReasonsScreen', () => {
   });
 
   it('disables CSV / add-reason actions unless the user can edit', () => {
-    renderScreen({ canEdit: false });
+    renderScreen({ canEdit: false, onAddReason: vi.fn(), onAddRmaReason: vi.fn() });
     expect(screen.getByRole('button', { name: 'Export CSV' })).toBeDisabled();
     expect(screen.getByRole('button', { name: '+ Add reason' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '+ Add RMA reason' })).toBeDisabled();
     cleanup();
-    renderScreen({ canEdit: true });
+    renderScreen({ canEdit: true, onAddReason: vi.fn(), onAddRmaReason: vi.fn() });
     expect(screen.getByRole('button', { name: 'Export CSV' })).toBeEnabled();
     expect(screen.getByRole('button', { name: '+ Add reason' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: '+ Add RMA reason' })).toBeEnabled();
+  });
+
+  // D2 — the add buttons used to be inert: page.tsx handed the screen no writer, so a
+  // click produced 0 DOM changes, 0 requests, 0 rows. These assert the opposite.
+  it('disables the add buttons when no writer is wired, instead of pretending', () => {
+    renderScreen({ canEdit: true });
+    expect(screen.getByRole('button', { name: '+ Add reason' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '+ Add RMA reason' })).toBeDisabled();
+  });
+
+  it('"Add RMA reason" submits to the writer and shows the persisted row', async () => {
+    const user = userEvent.setup();
+    const created: RmaReasonCodeRow = {
+      id: '11111111-1111-4111-8111-111111111111',
+      org_id: ORG_ID,
+      code: 'LATE_DELIVERY',
+      label_en: 'Late delivery',
+      label_pl: null,
+      display_order: 0,
+      is_active: true,
+    };
+    const onAddRmaReason = vi.fn().mockResolvedValue({ ok: true, data: created });
+    renderScreen({ canEdit: true, rmaReasonCodes: [], onAddRmaReason });
+
+    expect(screen.getByTestId('ship-rma-codes-empty')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '+ Add RMA reason' }));
+
+    const form = screen.getByTestId('ship-rma-code-add-form');
+    await user.type(within(form).getByLabelText('Code'), 'LATE_DELIVERY');
+    await user.type(within(form).getByLabelText('Label (EN)'), 'Late delivery');
+    await user.click(within(form).getByRole('button', { name: 'Save' }));
+
+    expect(onAddRmaReason).toHaveBeenCalledWith({ code: 'LATE_DELIVERY', label_en: 'Late delivery' });
+    const table = await screen.findByTestId('ship-rma-codes-table');
+    expect(within(table).getByText('LATE_DELIVERY')).toBeInTheDocument();
+    expect(screen.queryByTestId('ship-rma-codes-empty')).not.toBeInTheDocument();
+  });
+
+  it('"Add reason" submits the selected override type to the writer', async () => {
+    const user = userEvent.setup();
+    const created: ReasonCodeRow = {
+      id: '22222222-2222-4222-8222-222222222222',
+      org_id: ORG_ID,
+      override_type_id: TYPE_FEFO,
+      override_type_code: 'fefo_deviation',
+      code: 'QA_APPROVED',
+      label: 'QA approved',
+      requires_note: false,
+      display_order: 0,
+      is_active: true,
+    };
+    const onAddReason = vi.fn().mockResolvedValue({ ok: true, data: created });
+    renderScreen({ canEdit: true, reasonCodes: [], onAddReason });
+
+    await user.click(screen.getByRole('button', { name: '+ Add reason' }));
+    const form = screen.getByTestId('ship-reason-code-add-form');
+    await user.type(within(form).getByLabelText('Code'), 'QA_APPROVED');
+    await user.type(within(form).getByLabelText('Label'), 'QA approved');
+    await user.click(within(form).getByRole('button', { name: 'Save' }));
+
+    expect(onAddReason).toHaveBeenCalledWith({
+      overrideTypeId: TYPE_FEFO,
+      code: 'QA_APPROVED',
+      label: 'QA approved',
+    });
+    const table = await screen.findByTestId('ship-reason-codes-table');
+    expect(within(table).getByText('QA_APPROVED')).toBeInTheDocument();
+  });
+
+  it('surfaces a refused write instead of silently closing the form', async () => {
+    const user = userEvent.setup();
+    const onAddRmaReason = vi.fn().mockResolvedValue({ ok: false, error: 'forbidden' });
+    renderScreen({ canEdit: true, rmaReasonCodes: [], onAddRmaReason });
+
+    await user.click(screen.getByRole('button', { name: '+ Add RMA reason' }));
+    const form = screen.getByTestId('ship-rma-code-add-form');
+    await user.type(within(form).getByLabelText('Code'), 'NOPE');
+    await user.type(within(form).getByLabelText('Label (EN)'), 'Nope');
+    await user.click(within(form).getByRole('button', { name: 'Save' }));
+
+    expect(await within(form).findByRole('alert')).toHaveTextContent('Reason code was not saved.');
+    expect(screen.getByTestId('ship-rma-codes-empty')).toBeInTheDocument();
   });
 });

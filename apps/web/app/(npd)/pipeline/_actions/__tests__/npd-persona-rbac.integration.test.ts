@@ -7,7 +7,7 @@ import {
   databaseUrl,
   withActionActor,
 } from '../../../brief/actions/__tests__/brief-integration-helpers';
-import { ownerQueryWithInferredOrgContext } from '../../../../../tests/helpers/owner-org-context.js';
+import { ownerQueryWithOrgContext } from '../../../../../tests/helpers/owner-org-context.js';
 
 if (!databaseUrl) {
   throw new Error('npd-persona-rbac.integration.test.ts requires DATABASE_URL (no silent describe.skip)');
@@ -155,8 +155,13 @@ async function seedPersonaFixtures(): Promise<void> {
     [advanceProjectId],
   );
 
-  await ownerQueryWithInferredOrgContext(
+  // Explicit org, not inferred: inferOrgContext()'s asUuid() only accepts RFC-4122
+  // v1-v5 uuids, so the canonical persona org 00000000-...-0002 is skipped and the
+  // NEXT uuid parameter (a user id) is used as the org — FK error on
+  // app.session_org_contexts.
+  await ownerQueryWithOrgContext(
     owner,
+    orgId,
     `insert into public.product
        (product_code, org_id, product_name, built, schema_version, created_by_user)
      values
@@ -241,10 +246,13 @@ async function cleanup(): Promise<void> {
     orgId,
     [releaseProductCode, terminalProductCode],
   ]);
-  await owner.query(`delete from public.product where org_id = $1 and product_code = any($2::text[])`, [
+  // public.product is an INSTEAD OF view; its DELETE trigger needs app.current_org_id().
+  await ownerQueryWithOrgContext(
+    owner,
     orgId,
-    [productCode, releaseProductCode, terminalProductCode],
-  ]);
+    `delete from public.product where org_id = $1 and product_code = any($2::text[])`,
+    [orgId, [productCode, releaseProductCode, terminalProductCode]],
+  );
   await owner.query(`delete from public.user_roles where user_id = $1 and role_id = $2`, [
     allowedPersona.userId,
     allowRoleId,

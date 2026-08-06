@@ -69,7 +69,8 @@ runPg('WIP definition composition cycle concurrency (real Postgres)', () => {
        values
          ($1, $4, $5, 'intermediate', 'WIP A item', 'kg', 'active'),
          ($2, $4, $6, 'intermediate', 'WIP B item', 'kg', 'active'),
-         ($3, $4, $7, 'raw_material', 'Raw filler', 'kg', 'active')
+         -- items_item_type_check has no 'raw_material'; the raw-material code is 'rm'.
+         ($3, $4, $7, 'rm', 'Raw filler', 'kg', 'active')
        on conflict (id) do nothing`,
       [itemAId, itemBId, rawItemId, orgId, `WIP-A-${itemAId.slice(0, 6)}`, `WIP-B-${itemBId.slice(0, 6)}`, `RM-${rawItemId.slice(0, 6)}`],
     );

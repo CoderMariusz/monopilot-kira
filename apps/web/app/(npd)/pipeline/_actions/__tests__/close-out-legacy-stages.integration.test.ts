@@ -173,9 +173,16 @@ async function seedLaunchReadyProject(input: {
   );
   if (!input.omitPilot) {
     await owner.query(
-      `insert into public.work_orders (id, org_id, site_id, created_by_user, app_version)
-       values ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 't-100-it')`,
-      [pilotWoId, input.orgId, input.siteId, input.userId],
+      // the column is created_by (not created_by_user); work_orders has no app_version;
+      // wo_number / product_id / item_type_at_creation / planned_quantity / uom are NOT NULL.
+      `insert into public.work_orders
+         (id, org_id, site_id, created_by, wo_number, product_id, item_type_at_creation,
+          planned_quantity, uom)
+       values ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5,
+               (select i.id from public.items i
+                 where i.org_id = $2::uuid and i.item_code = $6 limit 1),
+               'fg', 1, 'kg')`,
+      [pilotWoId, input.orgId, input.siteId, input.userId, `WO-T100-${pilotWoId.slice(0, 8)}`, input.productCode],
     );
   }
   await owner.query(
@@ -207,6 +214,17 @@ async function seedLaunchReadyProject(input: {
     ],
   );
   const releaseEventId = event.rows[0]!.id;
+  // factory_release_status_spec_bom_guard resolves active_factory_spec_id -> factory_specs
+  // -> items; without the spec row the trigger raises factory_release_spec_bom_mismatch.
+  // Kept in 'draft' so the approval e-sign evidence trigger does not also apply.
+  await owner.query(
+    `insert into public.factory_specs (id, org_id, fg_item_id, spec_code, version, status, source, bom_header_id, bom_version, created_by)
+     select $1::uuid, $2::uuid, i.id, $3, 1, 'draft', 'technical', $4::uuid, 1, $5::uuid
+       from public.items i
+      where i.org_id = $2::uuid and i.item_code = $6
+      on conflict (id) do nothing`,
+    [input.factorySpecId, input.orgId, `FS-T100-${input.factorySpecId.slice(0, 8)}`, bomHeaderId, input.userId, input.productCode],
+  );
   await owner.query(
     `insert into public.factory_release_status
        (org_id, project_id, product_code, release_status, factory_available_at, factory_approved_by,

@@ -16,6 +16,7 @@ import {
   seedIdentities,
   withActionActor,
 } from '../../../brief/actions/__tests__/brief-integration-helpers';
+import { ownerQueryWithOrgContext } from '../../../../../tests/helpers/owner-org-context.js';
 
 if (!databaseUrl) {
   throw new Error('gate-approval-readiness.pg.test.ts requires DATABASE_URL (no silent describe.skip)');
@@ -104,21 +105,26 @@ describe('evaluateStageGate — required evidence blocks formal approval and una
       [seed.userAId, pinHash],
     );
 
-    await owner.query(
-      `insert into public.product (org_id, product_code, product_name, product_type)
+    // mig 359: public.product is an INSTEAD OF view — it has no product_type column
+    // (the trigger creates the items twin as item_type 'fg'), ON CONFLICT is rejected
+    // on it, and the trigger needs app.current_org_id().
+    await ownerQueryWithOrgContext(
+      owner,
+      seed.orgAId,
+      `insert into public.product (org_id, product_code, product_name, created_by_user)
        values
-         ($1, $2, 'PF-R04 G4 approval FG', 'fg'),
-         ($1, $3, 'PF-R04 advisory FG', 'fg')
-       on conflict (org_id, product_code) do nothing`,
-      [seed.orgAId, g4ProductCode, advisoryProductCode],
+         ($1, $2, 'PF-R04 G4 approval FG', $4),
+         ($1, $3, 'PF-R04 advisory FG', $4)`,
+      [seed.orgAId, g4ProductCode, advisoryProductCode, seed.userAId],
     );
 
     await owner.query(
       `insert into public.npd_projects
          (id, org_id, code, name, type, current_gate, current_stage, product_code, created_by_user)
        values
-         ($1, $2, $3, 'PF-R04 pilot project', 'standard', 'G3', 'pilot', $4),
-         ($5, $2, $6, 'PF-R04 packaging project', 'standard', 'G3', 'packaging', $4),
+         -- the first two rows have no linked FG; product_code must still be listed
+         ($1, $2, $3, 'PF-R04 pilot project', 'standard', 'G3', 'pilot', null, $4),
+         ($5, $2, $6, 'PF-R04 packaging project', 'standard', 'G3', 'packaging', null, $4),
          ($7, $2, $8, 'PF-R04 G4 approval project', 'standard', 'G4', 'approval', $9, $4),
          ($10, $2, $11, 'PF-R04 advisory override project', 'standard', 'G3', 'costing_nutrition', $12, $4)
        on conflict (id) do nothing`,
@@ -159,14 +165,18 @@ describe('evaluateStageGate — required evidence blocks formal approval and una
       [allProjectIds],
     );
     await owner.query(
-      `delete from public.audit_log where resource_id = any($1::uuid[])`,
+      // audit_log.resource_id is text, not uuid
+      `delete from public.audit_log where resource_id = any($1::text[])`,
       [allProjectIds],
     );
     await owner.query(
       `delete from public.npd_projects where id = any($1::uuid[])`,
       [allProjectIds],
     );
-    await owner.query(
+    // public.product is an INSTEAD OF view; its DELETE trigger needs app.current_org_id().
+    await ownerQueryWithOrgContext(
+      owner,
+      seed.orgAId,
       `delete from public.product
         where org_id = $1::uuid
           and product_code in ($2, $3)`,

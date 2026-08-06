@@ -125,16 +125,19 @@ async function seedFixtures(): Promise<void> {
     `insert into public.labor_rates (org_id, role_group, rate_per_hour, currency, effective_from)
      values
        ($1, 'operator', 25.0000, 'GBP', '2026-01-01'),
-       ($1, 'supervisor', 50.0000, 'GBP', '2026-01-01')
-     on conflict (org_id, role_group, effective_from)
-     do update set rate_per_hour = excluded.rate_per_hour, currency = excluded.currency`,
+       ($1, 'supervisor', 50.0000, 'GBP', '2026-01-01')`,
+    // labor_rates has NO unique constraint on (org_id, role_group, effective_from) —
+    // only a non-unique btree index — so ON CONFLICT was unusable. The org id is
+    // random per run, so a plain insert is what the upsert meant here.
     [seed.orgAId],
   );
 
   // Routing A (org A) with crew: 2 operators × 25/h + 1 supervisor × 50/h = 100/h.
+  // Seeded as 'draft' and activated only after the operations exist — routing_operations
+  // are immutable once the routing is approved/active (V-TEC-64 guard trigger).
   await owner.query(
     `insert into public.routings (id, org_id, item_id, version, status)
-     values ($1, $2, $3, 1, 'active')
+     values ($1, $2, $3, 1, 'draft')
      on conflict (id) do nothing`,
     [seed.routingAId, seed.orgAId, seed.itemAId],
   );
@@ -156,7 +159,7 @@ async function seedFixtures(): Promise<void> {
   // Legacy routing A (org A) keeps empty crew + cost_per_hour fallback behavior.
   await owner.query(
     `insert into public.routings (id, org_id, item_id, version, status)
-     values ($1, $2, $3, 2, 'active')
+     values ($1, $2, $3, 2, 'draft')
      on conflict (id) do nothing`,
     [seed.legacyRoutingAId, seed.orgAId, seed.itemAId],
   );
@@ -166,6 +169,13 @@ async function seedFixtures(): Promise<void> {
      values ($1, $2, 1, 'LEG', 'Legacy', $3, 30, 10.00, 60.0000, '[]'::jsonb)`,
     [seed.orgAId, seed.legacyRoutingAId, seed.lineAId],
   );
+
+  // Operations are in place — flip both org-A routings to the 'active' state the
+  // assertions expect.
+  await owner.query(`update public.routings set status = 'active' where id in ($1, $2)`, [
+    seed.routingAId,
+    seed.legacyRoutingAId,
+  ]);
 
   // Routing B (org B) — used by the cross-org RLS assertion.
   await owner.query(

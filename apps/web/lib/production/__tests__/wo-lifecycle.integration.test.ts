@@ -36,6 +36,7 @@ const tenantId = randomUUID();
 const orgId = randomUUID();
 const siteId = randomUUID();
 const userId = randomUUID();
+const secondSignerUserId = randomUUID();
 // let: the seed_system_roles_on_org_insert trigger (post-185) auto-creates the
 // org's 'admin'-slug role on org insert — baseSeed adopts that row's id instead
 // of colliding on roles_org_id_slug_key with a fresh uuid.
@@ -123,9 +124,14 @@ async function baseSeed(): Promise<void> {
     [userId, orgId, roleId, `e1-action+${userId.slice(0, 8)}@example.test`],
   );
   await owner.query(
+    `insert into public.users (id, org_id, email, name, role_id)
+     values ($1, $2, $4, 'E1 Second Signer', $3) on conflict (id) do nothing`,
+    [secondSignerUserId, orgId, roleId, `e1-second+${secondSignerUserId.slice(0, 8)}@example.test`],
+  );
+  await owner.query(
     `insert into public.user_roles (org_id, user_id, role_id)
-     values ($1, $2, $3) on conflict do nothing`,
-    [orgId, userId, roleId],
+     values ($1, $2, $3), ($1, $4, $3) on conflict do nothing`,
+    [orgId, userId, roleId, secondSignerUserId],
   );
   // BOM header + line so the T-025 snapshot service can freeze a recipe at start.
   // approved_by/approved_at: status 'active' now requires them
@@ -168,6 +174,16 @@ async function baseSeed(): Promise<void> {
      values ($1, $2, $3, 'fg', 'E1 Finished Good', 'kg', $4)
      on conflict (id) do nothing`,
     [fgItemId, orgId, `FG-E1-ITEM-${fgItemId.slice(0, 8)}`, userId],
+  );
+  // factory_specs_approved_esign_evidence: 'approved_for_factory' requires
+  // >= min_approvers (floor 2) distinct 'tech.fa.release' signatures over the
+  // canonical subject hash, one of them by approved_by.
+  await owner.query(
+    `insert into public.e_sign_log (org_id, signer_user_id, intent, subject_hash, nonce, reason)
+     select $1, unnest(array[$2::uuid, $3::uuid]), 'tech.fa.release',
+            public.factory_spec_approval_subject_hash($4::uuid, $5::uuid, $6::uuid, 1),
+            $4::text || ':' || $5::text || ':approve', 'E1 fixture approval'`,
+    [orgId, userId, secondSignerUserId, factorySpecId, bomHeaderId, fgItemId],
   );
   await owner.query(
     `insert into public.factory_specs

@@ -234,15 +234,17 @@ runPg('generateBol shipment lock race (real Postgres)', () => {
     await setPin(userId, TEST_PIN);
 
     await ownerPool.query(
-      `insert into public.warehouses (id, org_id, code, name)
-       values ($1, $2, 'WH-W17', 'Wave17 WH')
+      // warehouses.warehouse_type is NOT NULL (no default).
+      `insert into public.warehouses (id, org_id, code, name, warehouse_type)
+       values ($1, $2, 'WH-W17', 'Wave17 WH', 'general')
        on conflict (id) do nothing`,
       [warehouseId, orgId],
     );
     await ownerPool.query(
+      // items_output_uom_pack_factors_check: output_uom='each' requires net_qty_per_each.
       `insert into public.items
-         (id, org_id, item_code, item_type, name, uom_base, output_uom, each_per_box, status)
-       values ($1, $2, 'FG-W17-001', 'fg', 'Wave17 FG', 'pcs', 'each', 12, 'active')
+         (id, org_id, item_code, item_type, name, uom_base, output_uom, net_qty_per_each, each_per_box, status)
+       values ($1, $2, 'FG-W17-001', 'fg', 'Wave17 FG', 'pcs', 'each', 1, 12, 'active')
        on conflict (id) do nothing`,
       [itemId, orgId],
     );
@@ -279,8 +281,9 @@ runPg('generateBol shipment lock race (real Postgres)', () => {
       [shipmentId, orgId, soId],
     );
     await ownerPool.query(
-      `insert into public.shipment_boxes (id, org_id, shipment_id)
-       values ($1, $2, $3)
+      // shipment_boxes.box_number is NOT NULL (no default).
+      `insert into public.shipment_boxes (id, org_id, shipment_id, box_number)
+       values ($1, $2, $3, 1)
        on conflict (id) do nothing`,
       [boxId, orgId, shipmentId],
     );

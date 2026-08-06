@@ -12,7 +12,7 @@ import {
   seedIdentities,
   withActionActor,
 } from '../../../../../../(npd)/brief/actions/__tests__/brief-integration-helpers';
-import { createField, setFieldActive } from '../npd-field-config';
+import { createField, setFieldActive } from './npd-field-config';
 
 if (!databaseUrl) {
   throw new Error('npd-field-catalog-uniqueness.pg.test.ts requires DATABASE_URL (no silent describe.skip)');

@@ -46,7 +46,13 @@ import { getOwnerConnection } from '../../../../packages/db/test-utils/test-pool
 
 const DEMO_ORG = '00000000-0000-0000-0000-000000000002';
 const DEMO_USER = '00000000-0000-0000-0000-000000000000';
-const DEMO_SITE = '359242c6-7dfe-40e7-a486-42d8e2966126';
+/**
+ * Demo plant, resolved by (org_id, site_code) in beforeAll: mig 266 inserts the row
+ * WITHOUT an explicit id, so the uuid differs on every freshly migrated database — a
+ * hardcoded literal only matched the one database that happened to generate it.
+ */
+const DEMO_SITE_CODE = 'SITE-DEMO-01';
+let DEMO_SITE = '';
 const ORG_TOKEN = '11111111-2222-4333-8444-555555555577';
 const SITE_TOKEN = '11111111-2222-4333-8444-666666666677';
 
@@ -137,6 +143,13 @@ run('LP expiry boundary is the SITE day, not the session day (real Postgres)', (
     await client.query('begin');
     await client.query(`set local timezone = 'UTC'`);
 
+    const { rows: siteRows } = await client.query<{ id: string }>(
+      `select id::text from public.sites where org_id = $1::uuid and site_code = $2`,
+      [DEMO_ORG, DEMO_SITE_CODE],
+    );
+    DEMO_SITE = siteRows[0]?.id ?? '';
+    if (!DEMO_SITE) throw new Error(`demo site ${DEMO_SITE_CODE} missing for org ${DEMO_ORG} (mig 266)`);
+
     // A timezone that is RIGHT NOW inside the 00:00-02:00 window — the exact
     // slot the finding describes, made deterministic at any wall-clock time.
     const { rows } = await client.query<{ name: string }>(
@@ -168,6 +181,22 @@ run('LP expiry boundary is the SITE day, not the session day (real Postgres)', (
       `insert into app.session_site_contexts (session_token, user_id, org_id, site_id) values ($1::uuid, $2::uuid, $3::uuid, $4::uuid)`,
       [SITE_TOKEN, DEMO_USER, DEMO_ORG, DEMO_SITE],
     );
+    // The probe rows below need one item and one warehouse in the demo org; seed
+    // them (still inside the rolled-back transaction, still as owner) when the
+    // ambient reference data is absent, so the proof does not depend on it.
+    await client.query(
+      `insert into public.items (org_id, item_code, item_type, name, uom_base, status)
+       select $1::uuid, 'SITE-DAY-PROOF-ITEM', 'rm', 'Site day proof item', 'kg', 'active'
+        where not exists (select 1 from public.items where org_id = $1::uuid)`,
+      [DEMO_ORG],
+    );
+    await client.query(
+      `insert into public.warehouses (org_id, site_id, code, name, warehouse_type, is_default)
+       select $1::uuid, $2::uuid, 'SITE-DAY-PROOF-WH', 'Site day proof WH', 'general', false
+        where not exists (select 1 from public.warehouses where org_id = $1::uuid and site_id = $2::uuid)`,
+      [DEMO_ORG, DEMO_SITE],
+    );
+
     await client.query(`set local role app_user`);
     await client.query(`select app.set_org_context($1::uuid, $2::uuid)`, [ORG_TOKEN, DEMO_ORG]);
     await client.query(`select app.set_site_context($1::uuid, $2::uuid)`, [SITE_TOKEN, DEMO_SITE]);
@@ -178,7 +207,7 @@ run('LP expiry boundary is the SITE day, not the session day (real Postgres)', (
       `insert into public.license_plates
          (org_id, site_id, warehouse_id, product_id, lp_number, quantity, uom, status, qa_status, expiry_date)
        select $1::uuid, $2::uuid,
-              (select id from public.warehouses where org_id = $1::uuid order by id limit 1),
+              (select id from public.warehouses where org_id = $1::uuid and site_id = $2::uuid order by id limit 1),
               (select id from public.items where org_id = $1::uuid order by id limit 1),
               p.label, 10, 'kg', 'available', 'released',
               ((date(pg_catalog.now() at time zone (select timezone from public.sites where id = $2::uuid)) + p.offs)::timestamp
